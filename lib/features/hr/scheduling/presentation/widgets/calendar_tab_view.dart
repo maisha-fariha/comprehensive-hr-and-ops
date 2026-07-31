@@ -45,15 +45,15 @@ class CalendarTabView extends StatelessWidget {
               ),
               padding: EdgeInsets.fromLTRB(
                 horizontalPad,
-                ResponsiveHelper.getResponsiveHeight(context, 6),
+                ResponsiveHelper.getResponsiveHeight(context, 8),
                 horizontalPad,
-                ResponsiveHelper.getResponsiveHeight(context, 14),
+                ResponsiveHelper.getResponsiveHeight(context, 12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _MonthHeader(monthLabel: data.monthLabel),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                   _WeekStrip(days: data.days),
                 ],
               ),
@@ -100,11 +100,12 @@ class _MonthHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 36);
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 34);
 
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
+        Flexible(
           child: Text(
             monthLabel,
             maxLines: 1,
@@ -118,9 +119,14 @@ class _MonthHeader extends StatelessWidget {
             ),
           ),
         ),
-        _MonthNavButton(size: buttonSize, rotated: true),
-        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-        _MonthNavButton(size: buttonSize, rotated: false),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _MonthNavButton(size: buttonSize, rotated: true),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            _MonthNavButton(size: buttonSize, rotated: false),
+          ],
+        ),
       ],
     );
   }
@@ -142,15 +148,15 @@ class _MonthNavButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(
           ResponsiveHelper.getResponsiveRadius(context, 12),
         ),
-        border: Border.all(color: AppColors.cardBorder),
+        border: Border.all(color: AppColors.cardBorder, width: 1),
       ),
       alignment: Alignment.center,
       child: Transform.rotate(
         angle: rotated ? math.pi : 0,
         child: const AppSvgIcon(
           AppAssets.chevronRight,
-          size: 16,
-          color: AppColors.textSecondary,
+          size: 15,
+          color: AppColors.textHeading,
         ),
       ),
     );
@@ -187,11 +193,10 @@ class _DayCell extends StatelessWidget {
     final isSelected = day.isSelected;
     final isIndicator = day.hasShiftIndicator && !isSelected;
 
-    final dayLabelColor = isSelected
-        ? Colors.white
-        : isIndicator
-            ? AppColors.secondaryTeal
-            : AppColors.textFaint;
+    // Reference: day abbreviation stays gray for indicator days;
+    // only the date number turns teal.
+    final dayLabelColor =
+        isSelected ? Colors.white : AppColors.textFaint;
 
     final dayNumberColor = isSelected
         ? Colors.white
@@ -199,75 +204,71 @@ class _DayCell extends StatelessWidget {
             ? AppColors.secondaryTeal
             : AppColors.textHeading;
 
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: ResponsiveHelper.getResponsiveWidth(context, 2),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: ResponsiveHelper.getResponsivePadding(
-              context,
-              vertical: isSelected ? 12 : 10,
-              horizontal: 4,
+    final verticalPad = ResponsiveHelper.getResponsiveHeight(context, 10);
+    final horizontalPad = ResponsiveHelper.getResponsiveWidth(context, 8);
+    final indicatorSlot = ResponsiveHelper.getResponsiveSize(context, 5);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(
+            vertical: verticalPad,
+            horizontal: horizontalPad,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryNavy : Colors.transparent,
+            borderRadius: BorderRadius.circular(
+              ResponsiveHelper.getResponsiveRadius(context, 14),
             ),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.primaryNavy : Colors.transparent,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 18),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                day.dayLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w500,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: dayLabelColor,
+                  height: 1.1,
+                ),
               ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  day.dayLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: dayLabelColor,
-                    height: 1.1,
-                  ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+              Text(
+                day.dayNumber,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+                  color: dayNumberColor,
+                  height: 1,
                 ),
-                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-                Text(
-                  day.dayNumber,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-                    color: dayNumberColor,
-                    height: 1,
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+        SizedBox(
+          height: indicatorSlot,
+          width: indicatorSlot,
+          child: isIndicator
+              ? const DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryTeal,
+                    shape: BoxShape.circle,
                   ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-          SizedBox(
-            height: ResponsiveHelper.getResponsiveSize(context, 6),
-            child: isIndicator
-                ? Container(
-                    width: ResponsiveHelper.getResponsiveSize(context, 6),
-                    height: ResponsiveHelper.getResponsiveSize(context, 6),
-                    decoration: const BoxDecoration(
-                      color: AppColors.secondaryTeal,
-                      shape: BoxShape.circle,
-                    ),
-                  )
-                : null,
-          ),
-        ],
-      ),
+                )
+              : null,
+        ),
+      ],
     );
   }
 }
@@ -370,7 +371,7 @@ class _ShiftTimelineRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = _statusStyle(shift.status);
     final railWidth = ResponsiveHelper.getResponsiveWidth(context, 52);
-    final haloSize = ResponsiveHelper.getResponsiveSize(context, 26);
+    final haloSize = ResponsiveHelper.getResponsiveSize(context, 15);
     final dotSize = ResponsiveHelper.getResponsiveSize(context, 10);
     final markerTop = ResponsiveHelper.getResponsiveHeight(context, 38);
 
@@ -508,36 +509,25 @@ class _ShiftCard extends StatelessWidget {
 
   const _ShiftCard({required this.shift, required this.style});
 
-  static const _avatarPalettes = [
-    (Color(0xFFDBEAFE), Color(0xFF1D4ED8)), // blue
-    (Color(0xFFDCFCE7), Color(0xFF15803D)), // green
-    (Color(0xFFEDE9FE), Color(0xFF6D28D9)), // purple
-    (Color(0xFFCCFBF1), Color(0xFF0F766E)), // teal
-    (Color(0xFFFEF3C7), Color(0xFFB45309)), // amber
-  ];
-
   @override
   Widget build(BuildContext context) {
     final fill = (shift.filled / shift.total).clamp(0.0, 1.0);
-    final barHeight = ResponsiveHelper.getResponsiveHeight(context, 6);
+    final barHeight = ResponsiveHelper.getResponsiveHeight(context, 8);
 
     return Container(
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 16,
-        vertical: 16,
-      ),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 18),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
         borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 20),
+          ResponsiveHelper.getResponsiveRadius(context, 24),
         ),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
-            color: AppColors.shadowNavy.withValues(alpha: 0.03),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 2)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 8),
+            color: AppColors.shadowNavy.withValues(alpha: 0.05),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 4)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
           ),
         ],
       ),
@@ -546,6 +536,7 @@ class _ShiftCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Text(
@@ -555,8 +546,9 @@ class _ShiftCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
                     color: AppColors.textHeading,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ),
@@ -564,8 +556,8 @@ class _ShiftCard extends StatelessWidget {
               Container(
                 padding: ResponsiveHelper.getResponsivePadding(
                   context,
-                  horizontal: 10,
-                  vertical: 5,
+                  horizontal: 12,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
                   color: style.background,
@@ -576,7 +568,7 @@ class _ShiftCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
                     color: style.accent,
                     height: 1,
                   ),
@@ -592,35 +584,35 @@ class _ShiftCard extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w400,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
               color: AppColors.textMuted,
             ),
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
           ClipRRect(
-            borderRadius: BorderRadius.circular(
-              ResponsiveHelper.getResponsiveRadius(context, 4),
-            ),
+            borderRadius: BorderRadius.circular(999),
             child: SizedBox(
               height: barHeight,
               width: double.infinity,
               child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Container(color: const Color(0xFFEDF2F7)),
+                  const ColoredBox(color: Color(0xFFEDF2F7)),
                   FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
                     widthFactor: fill,
-                    child: Container(color: style.accent),
+                    child: ColoredBox(color: style.accent),
                   ),
                 ],
               ),
             ),
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
           Row(
             children: [
-              _AvatarStack(avatars: shift.avatars, palettes: _avatarPalettes),
+              _AvatarStack(avatars: shift.avatars),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              Expanded(
+              Flexible(
                 child: Text(
                   shift.namesSummary,
                   maxLines: 1,
@@ -628,16 +620,14 @@ class _ShiftCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textSecondary,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    color: AppColors.textMuted,
                   ),
                 ),
               ),
               if (shift.openPositionsLabel != null) ...[
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-                Flexible(
-                  child: _OpenPositionsBadge(label: shift.openPositionsLabel!),
-                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                _OpenPositionsBadge(label: shift.openPositionsLabel!),
               ],
             ],
           ),
@@ -649,14 +639,31 @@ class _ShiftCard extends StatelessWidget {
 
 class _AvatarStack extends StatelessWidget {
   final List<StaffAvatar> avatars;
-  final List<(Color, Color)> palettes;
 
-  const _AvatarStack({required this.avatars, required this.palettes});
+  const _AvatarStack({required this.avatars});
+
+  static const _fallbackPalettes = [
+    (Color(0xFFE6F0FF), Color(0xFF1E3A5F)),
+    (Color(0xFFE6F6EC), Color(0xFF15803D)),
+    (Color(0xFFF0E6FF), Color(0xFF6D28D9)),
+    (Color(0xFFE6F4F1), Color(0xFF0D9488)),
+    (Color(0xFFFEF3C7), Color(0xFFD97706)),
+  ];
+
+  static const _paletteByInitials = <String, (Color, Color)>{
+    'SJ': (Color(0xFFE6F0FF), Color(0xFF1E3A5F)),
+    'MT': (Color(0xFFE6F6EC), Color(0xFF15803D)),
+    'PK': (Color(0xFFF0E6FF), Color(0xFF6D28D9)),
+    'JL': (Color(0xFFE6F4F1), Color(0xFF0D9488)),
+    'NP': (Color(0xFFFEF3C7), Color(0xFFD97706)),
+    'TM': (Color(0xFFE0E7FF), Color(0xFF4338CA)),
+    'DS': (Color(0xFFFCE7F3), Color(0xFFBE185D)),
+  };
 
   @override
   Widget build(BuildContext context) {
-    final size = ResponsiveHelper.getResponsiveSize(context, 32);
-    final overlap = ResponsiveHelper.getResponsiveWidth(context, 10);
+    final size = ResponsiveHelper.getResponsiveSize(context, 30);
+    final overlap = ResponsiveHelper.getResponsiveWidth(context, 9);
     final totalWidth =
         size + (avatars.length > 1 ? (avatars.length - 1) * (size - overlap) : 0);
 
@@ -664,32 +671,55 @@ class _AvatarStack extends StatelessWidget {
       width: totalWidth,
       height: size,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           for (var i = 0; i < avatars.length; i++)
             Positioned(
               left: i * (size - overlap),
-              child: Container(
-                width: size,
-                height: size,
-                decoration: BoxDecoration(
-                  color: palettes[i % palettes.length].$1,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.surfaceWhite, width: 2),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  avatars[i].initials,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
-                    color: palettes[i % palettes.length].$2,
-                    height: 1,
-                  ),
-                ),
+              child: _AvatarBubble(
+                initials: avatars[i].initials,
+                size: size,
+                palette: _paletteByInitials[avatars[i].initials] ??
+                    _fallbackPalettes[i % _fallbackPalettes.length],
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _AvatarBubble extends StatelessWidget {
+  final String initials;
+  final double size;
+  final (Color, Color) palette;
+
+  const _AvatarBubble({
+    required this.initials,
+    required this.size,
+    required this.palette,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: palette.$1,
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.surfaceWhite, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w700,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
+          color: palette.$2,
+          height: 1,
+        ),
       ),
     );
   }
@@ -705,36 +735,32 @@ class _OpenPositionsBadge extends StatelessWidget {
     return Container(
       padding: ResponsiveHelper.getResponsivePadding(
         context,
-        horizontal: 8,
+        horizontal: 10,
         vertical: 6,
       ),
       decoration: BoxDecoration(
         color: AppColors.urgentBackground,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 999),
-        ),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const AppSvgIcon(
             AppAssets.alertTriangle,
-            size: 11,
+            size: 12,
             color: AppColors.urgentAmber,
           ),
           SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
-                color: AppColors.urgentAmber,
-                height: 1,
-              ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+              color: AppColors.urgentAmber,
+              height: 1,
             ),
           ),
         ],
