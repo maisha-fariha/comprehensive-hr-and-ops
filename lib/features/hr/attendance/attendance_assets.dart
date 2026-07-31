@@ -13,10 +13,14 @@ import '../../../core/constants/app_assets.dart';
 abstract final class AttendanceAssets {
   static const String onTime = AppAssets.checkCircle;
   static const String late = AppAssets.clock;
-  static const String missed = AppAssets.alertCircle;
+  static const String missed = AppAssets.circleError;
+  static const String missedToday = AppAssets.crossCircle;
   static const String onDuty = AppAssets.users;
   static const String critical = AppAssets.alertTriangle;
   static const String calendar = AppAssets.navCalendar;
+  static const String avgDelay = AppAssets.timer;
+  static const String approachingLimit = AppAssets.approaching;
+
 
   const AttendanceAssets._();
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
@@ -136,10 +137,9 @@ class RequestCard extends StatelessWidget {
                   ),
                   Padding(
                     padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 8),
-                    child: Icon(
-                      Icons.swap_horiz_rounded,
-                      size: ResponsiveHelper.getResponsiveSize(context, 18),
-                      color: AppColors.textFaint,
+                    child: SvgPicture.asset(
+                      'assets/icons/scheduling/swap.svg',
+                      width: ResponsiveHelper.getResponsiveSize(context, 18),
                     ),
                   ),
                   Expanded(
