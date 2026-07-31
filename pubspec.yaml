@@ -97,6 +97,16 @@ flutter:
     - assets/icons/medication/
     - assets/icons/tasks_compliance/
     - assets/icons/team_reports/
+    - assets/icons/staff_core/
+    - assets/icons/staff_daily_logs/
+    - assets/icons/staff_incidents/
+    - assets/icons/staff_medication/
+    - assets/icons/staff_tasks_messages/
+    - assets/icons/family_core/
+    - assets/icons/family_appointments/
+    - assets/icons/family_messages/
+    - assets/icons/family_visit_requests/
+    - assets/icons/family_more/
 
   # Outfit is the typeface used throughout the Figma design (SemiBold/Bold/Medium/Regular).
   # A single variable-weight font file is bundled so every FontWeight renders correctly.
