@@ -15,17 +15,14 @@ class HandoverEntryCard extends StatelessWidget {
   final HandoverEntry entry;
   final VoidCallback? onAcknowledge;
 
-  const HandoverEntryCard({
-    super.key,
-    required this.entry,
-    this.onAcknowledge,
-  });
+  const HandoverEntryCard({super.key, required this.entry, this.onAcknowledge});
 
   @override
   Widget build(BuildContext context) {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 16);
-    final accentColor =
-        entry.isUrgent ? AppColors.criticalRed : AppColors.secondaryTeal;
+    final accentColor = entry.isUrgent
+        ? AppColors.criticalRed
+        : AppColors.secondaryTeal;
     final accentWidth = ResponsiveHelper.getResponsiveWidth(context, 4);
 
     return Container(
@@ -49,7 +46,10 @@ class HandoverEntryCard extends StatelessWidget {
             Container(width: accentWidth, color: accentColor),
             Expanded(
               child: Padding(
-                padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  all: 14,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -57,13 +57,19 @@ class HandoverEntryCard extends StatelessWidget {
                     if (entry.fromStaffName != null &&
                         entry.toStaffName != null) ...[
                       SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 14),
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          14,
+                        ),
                       ),
                       _FromToRow(entry: entry),
                     ],
                     if (entry.notes.isNotEmpty) ...[
                       SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 14),
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          14,
+                        ),
                       ),
                       Text(
                         'IMPORTANT NOTES',
@@ -79,7 +85,10 @@ class HandoverEntryCard extends StatelessWidget {
                         ),
                       ),
                       SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 10),
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          10,
+                        ),
                       ),
                       for (var i = 0; i < entry.notes.length; i++) ...[
                         if (i != 0)
@@ -94,7 +103,10 @@ class HandoverEntryCard extends StatelessWidget {
                     ],
                     if (entry.acknowledgementCaption != null) ...[
                       SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 14),
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          14,
+                        ),
                       ),
                       _AcknowledgementRow(
                         caption: entry.acknowledgementCaption!,
@@ -271,7 +283,10 @@ class _FromToRow extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 6),
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 6,
+          ),
           child: Icon(
             Icons.arrow_forward_rounded,
             size: ResponsiveHelper.getResponsiveSize(context, 14),
@@ -315,7 +330,9 @@ class _PersonChip extends StatelessWidget {
           height: avatarSize,
           decoration: BoxDecoration(
             color: colorPair.background,
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(
+              ResponsiveHelper.getResponsiveRadius(context, 12),
+            ),
           ),
           alignment: Alignment.center,
           child: Text(
@@ -330,39 +347,31 @@ class _PersonChip extends StatelessWidget {
           ),
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
-        Expanded(
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: '$roleLabel ',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(
-                      context,
-                      11,
-                    ),
-                    color: AppColors.textMuted,
-                  ),
-                ),
-                TextSpan(
-                  text: name,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(
-                      context,
-                      12.5,
-                    ),
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ],
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$roleLabel ',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+                color: AppColors.textMuted,
+              ),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+            Text(
+              name,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(
+                  context,
+                  12.5,
+                ),
+                color: AppColors.textHeading,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -381,13 +390,13 @@ class _NoteRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (iconWidget, iconBg) = _iconFor(context, note.type);
-    final boxSize = ResponsiveHelper.getResponsiveSize(context, 28);
+    final boxSize = ResponsiveHelper.getResponsiveSize(context, 23);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: boxSize,
+          width: 22,
           height: boxSize,
           decoration: BoxDecoration(
             color: iconBg,
@@ -434,8 +443,8 @@ class _NoteRow extends StatelessWidget {
     switch (type) {
       case HandoverNoteType.medication:
         return (
-          AppSvgIcon(
-            AppAssets.pill,
+          const AppSvgIcon(
+            'assets/icons/daily_logs/daily_log_heart.svg',
             size: 14,
             color: AppColors.criticalRed,
           ),
@@ -452,8 +461,8 @@ class _NoteRow extends StatelessWidget {
         );
       case HandoverNoteType.task:
         return (
-          AppSvgIcon(
-            AppAssets.clipboardCheck,
+          const AppSvgIcon(
+            'assets/icons/daily_logs/daily_log_task.svg',
             size: 14,
             color: AppColors.infoBlue,
           ),
@@ -471,10 +480,7 @@ class _AcknowledgementRow extends StatelessWidget {
   final String caption;
   final VoidCallback? onAcknowledge;
 
-  const _AcknowledgementRow({
-    required this.caption,
-    this.onAcknowledge,
-  });
+  const _AcknowledgementRow({required this.caption, this.onAcknowledge});
 
   @override
   Widget build(BuildContext context) {
@@ -521,12 +527,14 @@ class _AcknowledgementRow extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.check_rounded,
-                  size: ResponsiveHelper.getResponsiveSize(context, 15),
+                const AppSvgIcon(
+                  AppAssets.checkCircle,
+                  size: 15,
                   color: Colors.white,
                 ),
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 5),
+                ),
                 Text(
                   'Acknowledge',
                   style: TextStyle(
