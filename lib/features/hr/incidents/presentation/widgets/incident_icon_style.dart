@@ -3,47 +3,47 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/incidents_enums.dart';
 
-/// Visual treatment (icon + color) for an incident card's leading avatar,
-/// shared by the Open/Under Review/Closed card widgets.
+/// Visual treatment (icon asset + color) for an incident card's leading
+/// avatar, shared by the Open/Under Review/Closed card widgets.
 ///
-/// Icon note: none of these glyphs (heart, bandage, house) exist yet as
-/// exported Figma SVGs in `assets/icons/*`, so this uses Material Icon
-/// placeholders as temporary stand-ins - flagged in the feature's final
-/// report. `home` is an exact visual match already; `heart` and `bandage`
-/// are close semantic/visual matches; `flame` is the least certain (the
-/// Figma "Fall — No Injury" glyph looks like a flame/teardrop outline, but
-/// its semantic meaning doesn't obviously fit a fall incident) and should
-/// be the first to be swapped for a real exported asset.
+/// Uses exported SVGs from `assets/icons/` when available; falls back to a
+/// Material icon only when no matching asset exists.
 class IncidentIconStyle {
-  final IconData icon;
+  final String? asset;
+  final IconData? materialIcon;
   final Color color;
   final Color background;
 
-  const IncidentIconStyle({required this.icon, required this.color, required this.background});
+  const IncidentIconStyle({
+    this.asset,
+    this.materialIcon,
+    required this.color,
+    required this.background,
+  }) : assert(asset != null || materialIcon != null);
 
   factory IncidentIconStyle.forKind(IncidentIconKind kind) {
     switch (kind) {
       case IncidentIconKind.heart:
         return const IncidentIconStyle(
-          icon: Icons.favorite_border_rounded,
+          asset: 'assets/icons/daily_logs/daily_log_heart.svg',
           color: AppColors.criticalRed,
           background: AppColors.criticalIconBackground,
         );
       case IncidentIconKind.bandage:
         return const IncidentIconStyle(
-          icon: Icons.healing_outlined,
+          asset: 'assets/icons/incidents/capsule.svg',
           color: AppColors.urgentAmber,
           background: AppColors.urgentIconBackground,
         );
       case IncidentIconKind.home:
         return const IncidentIconStyle(
-          icon: Icons.home_outlined,
+          asset: 'assets/icons/daily_logs/daily_log_home.svg',
           color: AppColors.textSecondary,
           background: AppColors.dividerLight,
         );
       case IncidentIconKind.flame:
         return const IncidentIconStyle(
-          icon: Icons.local_fire_department_outlined,
+          asset: 'assets/icons/incidents/fire_outlined.svg',
           color: AppColors.textSecondary,
           background: AppColors.dividerLight,
         );

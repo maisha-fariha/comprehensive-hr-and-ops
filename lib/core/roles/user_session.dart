@@ -4,14 +4,13 @@ import 'user_role.dart';
 
 /// Minimal, app-wide session holder for the signed-in user's active role.
 ///
-/// There is no authentication backend yet, so this currently seeds a single
-/// HR/Manager session. Once real authentication is wired up, replace
-/// [signIn]'s call site (see `main.dart`) with the actual login flow output
-/// - every role-gated route and widget already reads from here, so no other
-/// call site needs to change.
+/// There is no authentication backend yet — [signIn] is called from the login
+/// screen after the user picks an account type. Every role-gated route and
+/// widget already reads from here, so wiring real auth later only needs to
+/// replace that call site.
 class UserSession extends GetxService {
   final Rx<UserRole> _role = UserRole.hr.obs;
-  final RxString _displayName = 'Alex'.obs;
+  final RxString _displayName = ''.obs;
 
   UserRole get role => _role.value;
   String get displayName => _displayName.value;

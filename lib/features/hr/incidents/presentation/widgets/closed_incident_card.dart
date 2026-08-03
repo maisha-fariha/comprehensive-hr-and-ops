@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../../core/widgets/status_badge.dart';
 import '../../../../../core/widgets/surface_card.dart';
 import '../../domain/entities/closed_incident.dart';
@@ -33,17 +34,23 @@ class ClosedIncidentCard extends StatelessWidget {
                 width: iconBoxSize,
                 height: iconBoxSize,
                 decoration: BoxDecoration(
-                  color: iconStyle.background,
+                  color: AppColors.dividerLight,
                   borderRadius: BorderRadius.circular(
-                    ResponsiveHelper.getResponsiveRadius(context, 13),
+                    ResponsiveHelper.getResponsiveRadius(context, 12),
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Icon(
-                  iconStyle.icon,
-                  size: ResponsiveHelper.getResponsiveSize(context, 21),
-                  color: iconStyle.color,
-                ),
+                child: iconStyle.asset != null
+                    ? AppSvgIcon(
+                        iconStyle.asset!,
+                        size: 21,
+                        color: AppColors.textSecondary,
+                      )
+                    : Icon(
+                        iconStyle.materialIcon,
+                        size: ResponsiveHelper.getResponsiveSize(context, 21),
+                        color: AppColors.textSecondary,
+                      ),
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
               Expanded(

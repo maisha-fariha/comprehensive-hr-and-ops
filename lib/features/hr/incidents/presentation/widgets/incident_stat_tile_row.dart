@@ -4,18 +4,12 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../../../core/widgets/surface_card.dart';
 import '../../domain/entities/incident_stat.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../../incidents_constants.dart';
 
 class _StatTagStyle {
-  /// Existing exported Figma SVG to reuse, when one visually matches.
   final String? asset;
-
-  /// Material Icon placeholder used when no existing SVG matches the
-  /// Figma glyph (see the feature's final report for the full list of
-  /// substitutions still pending a real exported asset).
   final IconData? materialIcon;
   final Color iconColor;
   final Color iconBackground;
@@ -35,7 +29,7 @@ const Map<IncidentStatTag, _StatTagStyle> _statTagStyles = {
     iconBackground: AppColors.criticalIconBackground,
   ),
   IncidentStatTag.criticalCases: _StatTagStyle(
-    asset: AppAssets.alertCircle,
+    asset: AppAssets.circleError,
     iconColor: AppColors.criticalRed,
     iconBackground: AppColors.criticalIconBackground,
   ),
@@ -45,42 +39,40 @@ const Map<IncidentStatTag, _StatTagStyle> _statTagStyles = {
     iconBackground: AppColors.urgentIconBackground,
   ),
   IncidentStatTag.underReview: _StatTagStyle(
-    materialIcon: Icons.shield_outlined,
+    asset: 'assets/icons/incidents/under_review.svg',
     iconColor: AppColors.infoBlue,
     iconBackground: AppColors.infoIconBackground,
   ),
   IncidentStatTag.assignedInvestigators: _StatTagStyle(
-    materialIcon: Icons.person_outline_rounded,
+    asset: 'assets/icons/incidents/assigned.svg',
     iconColor: AppColors.nightPurple,
     iconBackground: AppColors.nightBackground,
   ),
   IncidentStatTag.pendingActions: _StatTagStyle(
-    materialIcon: Icons.check_box_outlined,
+    asset: 'assets/icons/incidents/pending.svg',
     iconColor: AppColors.urgentAmber,
     iconBackground: AppColors.urgentIconBackground,
   ),
   IncidentStatTag.resolvedToday: _StatTagStyle(
-    materialIcon: Icons.check_circle_outline_rounded,
+    asset: AppAssets.checkCircle,
     iconColor: AppColors.activeGreen,
     iconBackground: AppColors.activeIconBackground,
   ),
   IncidentStatTag.thisWeek: _StatTagStyle(
-    materialIcon: Icons.show_chart_rounded,
+    asset: 'assets/icons/incidents/statistics.svg',
     iconColor: AppColors.secondaryTeal,
     iconBackground: IncidentsColors.evidenceAccentBackground,
   ),
   IncidentStatTag.archived: _StatTagStyle(
-    materialIcon: Icons.archive_outlined,
+    asset: 'assets/icons/incidents/archived.svg',
     iconColor: AppColors.textSecondary,
     iconBackground: AppColors.dividerLight,
   ),
 };
 
-/// The row of 3 fixed-width summary stat tiles shown at the top of every
-/// Incidents tab (e.g. "4 Open Incidents", "1 Critical Cases", "3 Pending
-/// Review"). Figma always shows exactly 3 tiles in a single row (never a
-/// wrapping grid), so this is a plain `Row` of `Expanded` tiles rather than
-/// a `GridView`.
+/// The row of 3 summary stat tiles at the top of every Incidents tab —
+/// matched to the "Open - Incidents" Figma reference (rounded-square
+/// tinted icon containers).
 class IncidentStatTileRow extends StatelessWidget {
   final List<IncidentStat> stats;
 
@@ -88,13 +80,17 @@ class IncidentStatTileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < stats.length; i++) ...[
-          if (i != 0) SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          Expanded(child: _IncidentStatTile(stat: stats[i])),
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < stats.length; i++) ...[
+            if (i != 0)
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            Expanded(child: _IncidentStatTile(stat: stats[i])),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -107,12 +103,30 @@ class _IncidentStatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = _statTagStyles[stat.tag]!;
-    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 38);
+    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 36);
 
-    return SurfaceCard.card(
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 10, vertical: 16),
+    return Container(
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 6,
+        vertical: 14,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 20),
+        ),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowNavy.withValues(alpha: 0.03),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 2)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 6),
+          ),
+        ],
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
             width: iconBoxSize,
@@ -120,26 +134,29 @@ class _IncidentStatTile extends StatelessWidget {
             decoration: BoxDecoration(
               color: style.iconBackground,
               borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 11),
+                ResponsiveHelper.getResponsiveRadius(context, 12),
               ),
             ),
             alignment: Alignment.center,
             child: style.asset != null
-                ? AppSvgIcon(style.asset!, size: 18, color: style.iconColor)
+                ? AppSvgIcon(style.asset!, size: 17, color: style.iconColor)
                 : Icon(
                     style.materialIcon,
-                    size: ResponsiveHelper.getResponsiveSize(context, 19),
+                    size: ResponsiveHelper.getResponsiveSize(context, 17),
                     color: style.iconColor,
                   ),
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 9)),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
           Text(
             stat.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'Outfit',
-              fontWeight: FontWeight.w800,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 21),
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 22),
               color: style.iconColor,
+              letterSpacing: -0.4,
               height: 1,
             ),
           ),
@@ -153,8 +170,8 @@ class _IncidentStatTile extends StatelessWidget {
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w500,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-              color: AppColors.textSecondary,
-              height: 13 / 11,
+              color: AppColors.textMuted,
+              height: 1.2,
             ),
           ),
         ],

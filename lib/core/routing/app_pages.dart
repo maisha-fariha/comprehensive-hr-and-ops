@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/family/family_shell.dart';
 import '../../features/hr/hr_shell.dart';
 import '../../features/staff/staff_shell.dart';
@@ -12,6 +13,10 @@ import 'role_guard_middleware.dart';
 /// owns its own bottom navigation.
 abstract final class AppPages {
   static final List<GetPage> routes = [
+    GetPage(
+      name: AppRoutes.login,
+      page: () => const LoginPage(),
+    ),
     GetPage(
       name: AppRoutes.hr,
       page: () => const HrShell(),
