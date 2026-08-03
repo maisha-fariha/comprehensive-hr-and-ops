@@ -13,14 +13,18 @@ import 'scheduling/presentation/pages/scheduling_page.dart';
 /// Compliance/Team & Reports, which don't have a dedicated bottom-nav slot
 /// in the Figma bar).
 class HrShell extends StatefulWidget {
-  const HrShell({super.key});
+  /// Tab to show when the shell is (re)opened — used by pushed screens that
+  /// host their own copy of [HrBottomNavBar] (e.g. Daily Logs).
+  final int initialIndex;
+
+  const HrShell({super.key, this.initialIndex = 0});
 
   @override
   State<HrShell> createState() => _HrShellState();
 }
 
 class _HrShellState extends State<HrShell> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
   static const _tabs = <Widget>[
     ManagerDashboardPage(),
@@ -29,6 +33,12 @@ class _HrShellState extends State<HrShell> {
     IncidentsListPage(),
     HrMoreMenuPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex.clamp(0, _tabs.length - 1);
+  }
 
   @override
   Widget build(BuildContext context) {

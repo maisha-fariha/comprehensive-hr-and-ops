@@ -29,16 +29,16 @@ abstract final class AppColors {
   static const Color iconChevron = Color(0xFFC3CCD6);
 
   // Status - critical / red
-  static const Color criticalRed = Color(0xFFD64545);
-  static const Color criticalBackground = Color(0xFFFBEAEA);
+  static const Color criticalRed = Color(0xFFF44336);
+  static const Color criticalBackground = Color(0xFFF4D6D6);
   static const Color criticalBackgroundSoft = Color(0xFFFDF0F0);
   static const Color criticalIconBackground = Color(0xFFFBEDED);
 
   // Status - urgent / amber-orange
-  static const Color urgentAmber = Color(0xFFC7761B);
+  static const Color urgentAmber = Color(0xFFB4791C);
   static const Color urgentBackground = Color(0xFFFBF1E6);
   static const Color urgentBackgroundSoft = Color(0xFFFDF6EB);
-  static const Color urgentIconBackground = Color(0xFFFBF2E6);
+  static const Color urgentIconBackground = Color(0xFFFBF3E9);
 
   // Status - success / green
   static const Color successGreen = Color(0xFF3FA66D);
