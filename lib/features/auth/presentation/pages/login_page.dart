@@ -9,9 +9,8 @@ import '../../../../core/roles/user_session.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
 
-/// Staff / Manager / Family login screen matching the MediFlow Care Platform
-/// reference. UI-only — sign-in seeds [UserSession] and routes to the chosen
-/// portal (no backend auth yet).
+/// MediFlow Care Platform login screen — UI matched to the Staff Login
+/// reference. Sign-in seeds [UserSession] and routes to the chosen portal.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -20,13 +19,11 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  static const Color _headerTop = Color(0xFF0B1E30);
-  static const Color _headerMid = Color(0xFF0F2A38);
-  static const Color _headerBottom = Color(0xFF0C3D42);
-  static const Color _primaryTeal = Color(0xFF0E6867);
-  static const Color _logoTeal = Color(0xFF0F7A78);
-  static const Color _fieldBorder = Color(0xFFE8EDF2);
-  static const Color _cardShadow = Color(0xFF142846);
+  static const Color _primaryTeal = Color(0xFF006D68);
+  static const Color _fieldBorder = Color(0xFFE4E9EF);
+  static const Color _labelColor = Color(0xFF2D3748);
+  static const Color _hintColor = Color(0xFFA0AEC0);
+  static const Color _sheetTop = Color(0xFFFCFCFD);
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -43,8 +40,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _onSignIn() {
-    final session = Get.find<UserSession>();
-    session.signIn(
+    Get.find<UserSession>().signIn(
       role: _selectedType.role,
       displayName: _selectedType.defaultDisplayName,
     );
@@ -53,112 +49,147 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final sheetRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
+    final overlap = ResponsiveHelper.getResponsiveHeight(context, 28);
+
     return Scaffold(
-      backgroundColor: _headerTop,
-      body: Column(
-        children: [
-          _buildHeader(context),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceWhite,
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(ResponsiveHelper.getResponsiveRadius(context, 36)),
+      backgroundColor: _sheetTop,
+      body: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: Column(
+          children: [
+            _LoginHeader(
+              bottomPadding: overlap + ResponsiveHelper.getResponsiveHeight(context, 12),
+            ),
+            Transform.translate(
+              offset: Offset(0, -overlap),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceWhite,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(sheetRadius)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0A1A2F).withValues(alpha: 0.16),
+                      blurRadius: 28,
+                      offset: const Offset(0, -6),
+                    ),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: _cardShadow.withValues(alpha: 0.18),
-                    blurRadius: 24,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(ResponsiveHelper.getResponsiveRadius(context, 36)),
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 22,
+                  top: 26,
+                  bottom: 28,
                 ),
-                child: SingleChildScrollView(
-                  padding: ResponsiveHelper.getResponsivePadding(
-                    context,
-                    horizontal: 22,
-                    top: 28,
-                    bottom: 28,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Select your account type',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w600,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                          color: AppColors.textHeading,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select your account type',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                        color: _labelColor,
                       ),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                      _buildAccountTypeRow(context),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                      _buildLabeledField(
-                        context,
-                        label: 'Email address',
-                        child: _buildTextField(
-                          context,
-                          controller: _emailController,
-                          hint: 'Enter your email',
-                          keyboardType: TextInputType.emailAddress,
-                          prefixIcon: Icons.mail_outline_rounded,
-                        ),
-                      ),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                      _buildLabeledField(
-                        context,
-                        label: 'Password',
-                        child: _buildTextField(
-                          context,
-                          controller: _passwordController,
-                          hint: 'Enter your password',
-                          obscureText: _obscurePassword,
-                          prefixIcon: Icons.lock_outline_rounded,
-                          suffix: IconButton(
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              size: ResponsiveHelper.getResponsiveSize(context, 20),
-                              color: AppColors.textFaint,
-                            ),
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                    _AccountTypeRow(
+                      selected: _selectedType,
+                      accent: _primaryTeal,
+                      onChanged: (type) => setState(() => _selectedType = type),
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+                    _FieldLabel(text: 'Email address', color: _labelColor),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+                    _LoginTextField(
+                      controller: _emailController,
+                      hint: 'Enter your email',
+                      hintColor: _hintColor,
+                      borderColor: _fieldBorder,
+                      focusColor: _primaryTeal,
+                      keyboardType: TextInputType.emailAddress,
+                      prefixIcon: Icons.mail_outline_rounded,
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                    _FieldLabel(text: 'Password', color: _labelColor),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+                    _LoginTextField(
+                      controller: _passwordController,
+                      hint: 'Enter your password',
+                      hintColor: _hintColor,
+                      borderColor: _fieldBorder,
+                      focusColor: _primaryTeal,
+                      obscureText: _obscurePassword,
+                      prefixIcon: Icons.lock_outline_rounded,
+                      suffix: GestureDetector(
+                        onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: ResponsiveHelper.getResponsivePadding(
+                            context,
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          child: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: ResponsiveHelper.getResponsiveSize(context, 20),
+                            color: _hintColor,
                           ),
                         ),
                       ),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                      _buildRememberForgotRow(context),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                      _buildSignInButton(context),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                      _buildHipaaNote(context),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 28)),
-                      _buildAssistanceDivider(context),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                      _buildSupportRow(context),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                      _buildLegalRow(context),
-                    ],
-                  ),
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                    _RememberForgotRow(
+                      rememberMe: _rememberMe,
+                      accent: _primaryTeal,
+                      onToggleRemember: () => setState(() => _rememberMe = !_rememberMe),
+                      onForgotPassword: () => Get.toNamed(AppRoutes.forgotPassword),
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+                    _SignInButton(
+                      label: 'Sign In as ${_selectedType.label}',
+                      accent: _primaryTeal,
+                      onPressed: _onSignIn,
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                    const _HipaaNote(accent: _primaryTeal),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 26)),
+                    const _AssistanceDivider(),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                    _SupportRow(accent: _primaryTeal),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                    const _LegalRow(),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+                  ],
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildHeader(BuildContext context) {
-    final logoSize = ResponsiveHelper.getResponsiveSize(context, 48);
-    final logoRadius = ResponsiveHelper.getResponsiveRadius(context, 14);
+// ── Header ──────────────────────────────────────────────────────────────────
+
+class _LoginHeader extends StatelessWidget {
+  final double bottomPadding;
+
+  const _LoginHeader({
+    required this.bottomPadding,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final logoSize = ResponsiveHelper.getResponsiveSize(context, 46);
+    final logoRadius = ResponsiveHelper.getResponsiveRadius(context, 13);
+    final badgeIconSize = ResponsiveHelper.getResponsiveSize(context, 22);
+    final badgeIconRadius = ResponsiveHelper.getResponsiveRadius(context, 6);
 
     return Container(
       width: double.infinity,
@@ -166,88 +197,76 @@ class _LoginPageState extends State<LoginPage> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          stops: [0.0, 0.45, 1.0],
-          colors: [_headerTop, _headerMid, _headerBottom],
+          stops: [0.0, 0.55, 1.0],
+          colors: [
+            Color(0xFF0B1E2D),
+            Color(0xFF0C3540),
+            Color(0xFF054D4A),
+          ],
         ),
       ),
       child: Stack(
         clipBehavior: Clip.hardEdge,
         children: [
-          // Soft layered orbs matching the reference atmosphere.
+          // Top-right circle shape container (light opacity).
           Positioned(
-            top: -ResponsiveHelper.getResponsiveHeight(context, 90),
-            right: -ResponsiveHelper.getResponsiveWidth(context, 70),
-            child: _SoftOrb(
-              size: ResponsiveHelper.getResponsiveSize(context, 260),
-              colors: [
-                const Color(0xFF1A3A4A).withValues(alpha: 0.55),
-                const Color(0xFF1A3A4A).withValues(alpha: 0.0),
-              ],
+            top: -ResponsiveHelper.getResponsiveHeight(context, 48),
+            right: -ResponsiveHelper.getResponsiveWidth(context, 60),
+            child: Container(
+              width: ResponsiveHelper.getResponsiveSize(context, 250),
+              height: ResponsiveHelper.getResponsiveSize(context, 250),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.07),
+              ),
             ),
           ),
+          // Bottom-left circle shape container (light opacity teal).
           Positioned(
-            top: ResponsiveHelper.getResponsiveHeight(context, 20),
-            right: -ResponsiveHelper.getResponsiveWidth(context, 20),
-            child: _SoftOrb(
-              size: ResponsiveHelper.getResponsiveSize(context, 180),
-              colors: [
-                Colors.white.withValues(alpha: 0.05),
-                Colors.white.withValues(alpha: 0.0),
-              ],
-            ),
-          ),
-          Positioned(
-            bottom: -ResponsiveHelper.getResponsiveHeight(context, 70),
-            left: -ResponsiveHelper.getResponsiveWidth(context, 90),
-            child: _SoftOrb(
-              size: ResponsiveHelper.getResponsiveSize(context, 280),
-              colors: [
-                const Color(0xFF147A76).withValues(alpha: 0.28),
-                const Color(0xFF147A76).withValues(alpha: 0.0),
-              ],
-            ),
-          ),
-          Positioned(
-            bottom: ResponsiveHelper.getResponsiveHeight(context, 10),
-            right: ResponsiveHelper.getResponsiveWidth(context, 30),
-            child: _SoftOrb(
-              size: ResponsiveHelper.getResponsiveSize(context, 120),
-              colors: [
-                Colors.white.withValues(alpha: 0.04),
-                Colors.white.withValues(alpha: 0.0),
-              ],
+            bottom: -ResponsiveHelper.getResponsiveHeight(context, 75),
+            left: -ResponsiveHelper.getResponsiveWidth(context, 85),
+            child: Container(
+              width: ResponsiveHelper.getResponsiveSize(context, 270),
+              height: ResponsiveHelper.getResponsiveSize(context, 270),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF1F7A74).withValues(alpha: 0.18),
+              ),
             ),
           ),
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: ResponsiveHelper.getResponsivePadding(
-                context,
-                horizontal: 24,
-                top: 28,
-                bottom: 36,
+              padding: EdgeInsets.fromLTRB(
+                ResponsiveHelper.getResponsiveWidth(context, 24),
+                ResponsiveHelper.getResponsiveHeight(context, 18),
+                ResponsiveHelper.getResponsiveWidth(context, 24),
+                bottomPadding,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Branding: logo + MediFlow / Care Platform
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
                         width: logoSize,
                         height: logoSize,
                         decoration: BoxDecoration(
-                          color: _logoTeal,
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF0E7A74),
+                              Color(0xFF0A5F5A),
+                            ],
+                          ),
                           borderRadius: BorderRadius.circular(logoRadius),
                           boxShadow: [
                             BoxShadow(
-                              color: _logoTeal.withValues(alpha: 0.55),
-                              blurRadius: 18,
-                              spreadRadius: 1,
-                              offset: const Offset(0, 4),
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.25),
-                              blurRadius: 10,
+                              color: const Color(0xFF0A5F5A).withValues(alpha: 0.5),
+                              blurRadius: 16,
                               offset: const Offset(0, 4),
                             ),
                           ],
@@ -255,51 +274,62 @@ class _LoginPageState extends State<LoginPage> {
                         alignment: Alignment.center,
                         child: CustomPaint(
                           size: Size(
-                            ResponsiveHelper.getResponsiveSize(context, 26),
-                            ResponsiveHelper.getResponsiveSize(context, 16),
+                            ResponsiveHelper.getResponsiveSize(context, 23),
+                            ResponsiveHelper.getResponsiveSize(context, 14),
                           ),
                           painter: const _PulseLinePainter(),
                         ),
                       ),
                       SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'MediFlow',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w700,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 22),
-                              color: Colors.white,
-                              height: 1.05,
-                              letterSpacing: -0.2,
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'MediFlow',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 21),
+                                color: Colors.white,
+                                height: 1.05,
+                                letterSpacing: -0.2,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                          Text(
-                            'Care Platform',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w400,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                              color: const Color(0xFFB7C7CF),
-                              height: 1.2,
+                            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+                            Text(
+                              'Care Platform',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w400,
+                                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                                color: const Color(0xFFA8B8C4),
+                                height: 1.2,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+
+                  // Care Team Portal pill — rounded-square person icon per reference
                   Container(
-                    padding: ResponsiveHelper.getResponsivePadding(
-                      context,
-                      horizontal: 10,
-                      vertical: 7,
+                    padding: EdgeInsets.fromLTRB(
+                      ResponsiveHelper.getResponsiveWidth(context, 8),
+                      ResponsiveHelper.getResponsiveHeight(context, 6),
+                      ResponsiveHelper.getResponsiveWidth(context, 12),
+                      ResponsiveHelper.getResponsiveHeight(context, 6),
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
+                      color: Colors.white.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(
                         ResponsiveHelper.getResponsiveRadius(context, 24),
                       ),
@@ -312,17 +342,17 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: ResponsiveHelper.getResponsiveSize(context, 22),
-                          height: ResponsiveHelper.getResponsiveSize(context, 22),
+                          width: badgeIconSize,
+                          height: badgeIconSize,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.92),
-                            shape: BoxShape.circle,
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(badgeIconRadius),
                           ),
                           alignment: Alignment.center,
                           child: AppSvgIcon(
                             'assets/icons/daily_logs/daily_log_person.svg',
                             size: 12,
-                            color: _headerTop,
+                            color: const Color(0xFF0D1B2A),
                           ),
                         ),
                         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
@@ -330,36 +360,37 @@ class _LoginPageState extends State<LoginPage> {
                           'Care Team Portal',
                           style: TextStyle(
                             fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
                             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
                             color: Colors.white,
-                            height: 1.1,
+                            height: 1.15,
                           ),
                         ),
-                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
                       ],
                     ),
                   ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 28)),
+
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 26)),
+
                   Text(
                     'Welcome back, Care Team',
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 28),
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 26),
                       color: Colors.white,
-                      height: 1.15,
-                      letterSpacing: -0.3,
+                      height: 1.18,
+                      letterSpacing: -0.35,
                     ),
                   ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
                   Text(
                     'Stay connected with your shifts, clients, and daily care tasks.',
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w400,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                      color: const Color(0xFFC5D0D8),
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                      color: const Color(0xFFA0AEC0),
                       height: 1.45,
                     ),
                   ),
@@ -371,8 +402,23 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+}
 
-  Widget _buildAccountTypeRow(BuildContext context) {
+// ── Account type ────────────────────────────────────────────────────────────
+
+class _AccountTypeRow extends StatelessWidget {
+  final _AccountType selected;
+  final Color accent;
+  final ValueChanged<_AccountType> onChanged;
+
+  const _AccountTypeRow({
+    required this.selected,
+    required this.accent,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       children: [
         for (var i = 0; i < _AccountType.values.length; i++) ...[
@@ -380,49 +426,175 @@ class _LoginPageState extends State<LoginPage> {
           Expanded(
             child: _AccountTypeCard(
               type: _AccountType.values[i],
-              selected: _selectedType == _AccountType.values[i],
-              accent: _primaryTeal,
-              onTap: () => setState(() => _selectedType = _AccountType.values[i]),
+              selected: selected == _AccountType.values[i],
+              accent: accent,
+              onTap: () => onChanged(_AccountType.values[i]),
             ),
           ),
         ],
       ],
     );
   }
+}
 
-  Widget _buildLabeledField(
-    BuildContext context, {
-    required String label,
-    required Widget child,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w600,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-            color: AppColors.textHeading,
+class _AccountTypeCard extends StatelessWidget {
+  final _AccountType type;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _AccountTypeCard({
+    required this.type,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 16);
+    final iconBoxRadius = ResponsiveHelper.getResponsiveRadius(context, 12);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 8,
+            vertical: 14,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceWhite,
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(
+              color: selected ? accent : const Color(0xFFEEF1F4),
+              width: selected ? 1.5 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: selected
+                    ? accent.withValues(alpha: 0.12)
+                    : const Color(0xFF142846).withValues(alpha: 0.06),
+                blurRadius: selected ? 12 : 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: ResponsiveHelper.getResponsiveSize(context, 42),
+                height: ResponsiveHelper.getResponsiveSize(context, 42),
+                decoration: BoxDecoration(
+                  color: selected ? accent : const Color(0xFFF4F6F7),
+                  borderRadius: BorderRadius.circular(iconBoxRadius),
+                ),
+                alignment: Alignment.center,
+                child: _buildIcon(
+                  context,
+                  selected ? Colors.white : const Color(0xFF94A3B8),
+                ),
+              ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  type.label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: selected ? accent : const Color(0xFF647285),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-        child,
-      ],
+      ),
     );
   }
 
-  Widget _buildTextField(
-    BuildContext context, {
-    required TextEditingController controller,
-    required String hint,
-    required IconData prefixIcon,
-    TextInputType? keyboardType,
-    bool obscureText = false,
-    Widget? suffix,
-  }) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
+  Widget _buildIcon(BuildContext context, Color color) {
+    switch (type) {
+      case _AccountType.manager:
+        return Icon(
+          Icons.how_to_reg_outlined,
+          size: ResponsiveHelper.getResponsiveSize(context, 22),
+          color: color,
+        );
+      case _AccountType.staff:
+        return AppSvgIcon(
+          'assets/icons/daily_logs/daily_log_person.svg',
+          size: 20,
+          color: color,
+        );
+      case _AccountType.family:
+        return AppSvgIcon(
+          'assets/icons/daily_logs/daily_log_heart.svg',
+          size: 20,
+          color: color,
+        );
+    }
+  }
+}
+
+// ── Form controls ───────────────────────────────────────────────────────────
+
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _FieldLabel({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontFamily: 'Outfit',
+        fontWeight: FontWeight.w600,
+        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+        color: color,
+      ),
+    );
+  }
+}
+
+class _LoginTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final Color hintColor;
+  final Color borderColor;
+  final Color focusColor;
+  final IconData prefixIcon;
+  final TextInputType? keyboardType;
+  final bool obscureText;
+  final Widget? suffix;
+
+  const _LoginTextField({
+    required this.controller,
+    required this.hint,
+    required this.hintColor,
+    required this.borderColor,
+    required this.focusColor,
+    required this.prefixIcon,
+    this.keyboardType,
+    this.obscureText = false,
+    this.suffix,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Pill-shaped fields per reference.
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 28);
+
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
@@ -439,131 +611,177 @@ class _LoginPageState extends State<LoginPage> {
           fontFamily: 'Outfit',
           fontWeight: FontWeight.w400,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-          color: AppColors.textFaint,
+          color: hintColor,
         ),
         prefixIcon: Icon(
           prefixIcon,
           size: ResponsiveHelper.getResponsiveSize(context, 20),
-          color: AppColors.textFaint,
+          color: hintColor,
         ),
         suffixIcon: suffix,
         filled: true,
         fillColor: AppColors.surfaceWhite,
+        isDense: true,
         contentPadding: ResponsiveHelper.getResponsivePadding(
           context,
-          horizontal: 14,
-          vertical: 14,
+          horizontal: 16,
+          vertical: 15,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radius),
-          borderSide: const BorderSide(color: _fieldBorder),
+          borderSide: BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radius),
-          borderSide: const BorderSide(color: _fieldBorder),
+          borderSide: BorderSide(color: borderColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radius),
-          borderSide: const BorderSide(color: _primaryTeal, width: 1.4),
+          borderSide: BorderSide(color: focusColor, width: 1.4),
         ),
       ),
     );
   }
+}
 
-  Widget _buildRememberForgotRow(BuildContext context) {
+class _RememberForgotRow extends StatelessWidget {
+  final bool rememberMe;
+  final Color accent;
+  final VoidCallback onToggleRemember;
+  final VoidCallback onForgotPassword;
+
+  const _RememberForgotRow({
+    required this.rememberMe,
+    required this.accent,
+    required this.onToggleRemember,
+    required this.onForgotPassword,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       children: [
-        GestureDetector(
-          onTap: () => setState(() => _rememberMe = !_rememberMe),
-          behavior: HitTestBehavior.opaque,
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: ResponsiveHelper.getResponsiveSize(context, 20),
-                height: ResponsiveHelper.getResponsiveSize(context, 20),
-                decoration: BoxDecoration(
-                  color: _rememberMe ? _primaryTeal : Colors.transparent,
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveHelper.getResponsiveRadius(context, 5),
+        Flexible(
+          child: GestureDetector(
+            onTap: onToggleRemember,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: ResponsiveHelper.getResponsiveSize(context, 20),
+                  height: ResponsiveHelper.getResponsiveSize(context, 20),
+                  decoration: BoxDecoration(
+                    color: rememberMe ? accent : Colors.transparent,
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveHelper.getResponsiveRadius(context, 5),
+                    ),
+                    border: Border.all(
+                      color: rememberMe ? accent : const Color(0xFFA0AEC0),
+                      width: 1.5,
+                    ),
                   ),
-                  border: Border.all(
-                    color: _rememberMe ? _primaryTeal : AppColors.textFaint,
-                    width: 1.5,
+                  child: rememberMe
+                      ? Icon(
+                          Icons.check_rounded,
+                          size: ResponsiveHelper.getResponsiveSize(context, 14),
+                          color: Colors.white,
+                        )
+                      : null,
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                Flexible(
+                  child: Text(
+                    'Remember me',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                      color: const Color(0xFF3A4B60),
+                    ),
                   ),
                 ),
-                child: _rememberMe
-                    ? Icon(
-                        Icons.check_rounded,
-                        size: ResponsiveHelper.getResponsiveSize(context, 14),
-                        color: Colors.white,
-                      )
-                    : null,
-              ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              Text(
-                'Remember me',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w500,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: AppColors.textBody,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-        const Spacer(),
-        Text(
-          'Forgot password?',
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w700,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-            color: _primaryTeal,
+        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+        GestureDetector(
+          onTap: onForgotPassword,
+          behavior: HitTestBehavior.opaque,
+          child: Text(
+            'Forgot password?',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: accent,
+            ),
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildSignInButton(BuildContext context) {
+class _SignInButton extends StatelessWidget {
+  final String label;
+  final Color accent;
+  final VoidCallback onPressed;
+
+  const _SignInButton({
+    required this.label,
+    required this.accent,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 28);
+
     return SizedBox(
       width: double.infinity,
       height: ResponsiveHelper.getResponsiveHeight(context, 52),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, 14)),
+          borderRadius: BorderRadius.circular(radius),
           boxShadow: [
             BoxShadow(
-              color: _primaryTeal.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+              color: accent.withValues(alpha: 0.38),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: ElevatedButton(
-          onPressed: _onSignIn,
+          onPressed: onPressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: _primaryTeal,
+            backgroundColor: accent,
             foregroundColor: Colors.white,
             elevation: 0,
             shadowColor: Colors.transparent,
+            padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 14),
-              ),
+              borderRadius: BorderRadius.circular(radius),
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Sign In as ${_selectedType.label}',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                  ),
                 ),
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
@@ -574,15 +792,22 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+}
 
-  Widget _buildHipaaNote(BuildContext context) {
+class _HipaaNote extends StatelessWidget {
+  final Color accent;
+
+  const _HipaaNote({required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(
           Icons.lock_outline_rounded,
           size: ResponsiveHelper.getResponsiveSize(context, 13),
-          color: AppColors.textMuted,
+          color: accent,
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
         Flexible(
@@ -593,17 +818,22 @@ class _LoginPageState extends State<LoginPage> {
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w400,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-              color: AppColors.textMuted,
+              color: const Color(0xFF8A97A8),
             ),
           ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildAssistanceDivider(BuildContext context) {
+class _AssistanceDivider extends StatelessWidget {
+  const _AssistanceDivider();
+
+  @override
+  Widget build(BuildContext context) {
     final line = Expanded(
-      child: Container(height: 1, color: AppColors.dividerLight),
+      child: Container(height: 1, color: const Color(0xFFEEF1F4)),
     );
     return Row(
       children: [
@@ -616,7 +846,7 @@ class _LoginPageState extends State<LoginPage> {
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w500,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-              color: AppColors.textMuted,
+              color: const Color(0xFF8A97A8),
             ),
           ),
         ),
@@ -624,8 +854,15 @@ class _LoginPageState extends State<LoginPage> {
       ],
     );
   }
+}
 
-  Widget _buildSupportRow(BuildContext context) {
+class _SupportRow extends StatelessWidget {
+  final Color accent;
+
+  const _SupportRow({required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: Text.rich(
         TextSpan(
@@ -634,7 +871,7 @@ class _LoginPageState extends State<LoginPage> {
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w400,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-            color: AppColors.textBody,
+            color: const Color(0xFF3A4B60),
           ),
           children: [
             TextSpan(
@@ -643,29 +880,38 @@ class _LoginPageState extends State<LoginPage> {
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w700,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                color: _primaryTeal,
+                color: accent,
               ),
             ),
           ],
         ),
+        textAlign: TextAlign.center,
       ),
     );
   }
+}
 
-  Widget _buildLegalRow(BuildContext context) {
+class _LegalRow extends StatelessWidget {
+  const _LegalRow();
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: Text(
         'Privacy Policy · Terms of Service',
+        textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'Outfit',
           fontWeight: FontWeight.w400,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-          color: AppColors.textMuted,
+          color: const Color(0xFF8A97A8),
         ),
       ),
     );
   }
 }
+
+// ── Shared bits ─────────────────────────────────────────────────────────────
 
 enum _AccountType {
   manager(
@@ -700,125 +946,6 @@ enum _AccountType {
   });
 }
 
-class _AccountTypeCard extends StatelessWidget {
-  final _AccountType type;
-  final bool selected;
-  final Color accent;
-  final VoidCallback onTap;
-
-  const _AccountTypeCard({
-    required this.type,
-    required this.selected,
-    required this.accent,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
-    final iconBoxRadius = ResponsiveHelper.getResponsiveRadius(context, 10);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: ResponsiveHelper.getResponsivePadding(
-          context,
-          horizontal: 8,
-          vertical: 14,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceWhite,
-          borderRadius: BorderRadius.circular(radius),
-          border: Border.all(
-            color: selected ? accent : AppColors.cardBorder,
-            width: selected ? 1.6 : 1,
-          ),
-          boxShadow: selected
-              ? null
-              : [
-                  BoxShadow(
-                    color: AppColors.shadowNavy.withValues(alpha: 0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: ResponsiveHelper.getResponsiveSize(context, 40),
-              height: ResponsiveHelper.getResponsiveSize(context, 40),
-              decoration: BoxDecoration(
-                color: selected ? accent : AppColors.filterButtonBackground,
-                borderRadius: BorderRadius.circular(iconBoxRadius),
-              ),
-              alignment: Alignment.center,
-              child: _buildIcon(context, selected ? Colors.white : AppColors.textMuted),
-            ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-            Text(
-              type.label,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                color: selected ? accent : AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIcon(BuildContext context, Color color) {
-    switch (type) {
-      case _AccountType.manager:
-        return Icon(
-          Icons.how_to_reg_outlined,
-          size: ResponsiveHelper.getResponsiveSize(context, 22),
-          color: color,
-        );
-      case _AccountType.staff:
-        return AppSvgIcon(
-          'assets/icons/daily_logs/daily_log_person.svg',
-          size: 20,
-          color: color,
-        );
-      case _AccountType.family:
-        return AppSvgIcon(
-          'assets/icons/daily_logs/daily_log_heart.svg',
-          size: 20,
-          color: color,
-        );
-    }
-  }
-}
-
-class _SoftOrb extends StatelessWidget {
-  final double size;
-  final List<Color> colors;
-
-  const _SoftOrb({required this.size, required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: colors,
-          stops: const [0.35, 1.0],
-        ),
-      ),
-    );
-  }
-}
-
-/// Simplified ECG / pulse stroke used inside the MediFlow logo tile.
 class _PulseLinePainter extends CustomPainter {
   const _PulseLinePainter();
 
@@ -826,19 +953,20 @@ class _PulseLinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = Colors.white
-      ..strokeWidth = size.height * 0.18
+      ..strokeWidth = (size.height * 0.2).clamp(1.6, 2.4)
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
+    // Clean ECG-style pulse matching the MediFlow logo tile.
     final path = Path()
-      ..moveTo(0, size.height * 0.55)
-      ..lineTo(size.width * 0.18, size.height * 0.55)
-      ..lineTo(size.width * 0.30, size.height * 0.18)
-      ..lineTo(size.width * 0.42, size.height * 0.82)
-      ..lineTo(size.width * 0.54, size.height * 0.38)
-      ..lineTo(size.width * 0.66, size.height * 0.55)
-      ..lineTo(size.width, size.height * 0.55);
+      ..moveTo(0, size.height * 0.52)
+      ..lineTo(size.width * 0.22, size.height * 0.52)
+      ..lineTo(size.width * 0.32, size.height * 0.12)
+      ..lineTo(size.width * 0.44, size.height * 0.88)
+      ..lineTo(size.width * 0.56, size.height * 0.36)
+      ..lineTo(size.width * 0.66, size.height * 0.52)
+      ..lineTo(size.width, size.height * 0.52);
 
     canvas.drawPath(path, paint);
   }
