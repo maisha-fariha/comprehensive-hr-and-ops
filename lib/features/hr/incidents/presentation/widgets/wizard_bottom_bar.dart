@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 
 /// Bottom action bar for the "Create Incident" wizard: an outlined
 /// "Save Draft" button plus a filled dark primary button that reads
 /// "Continue" (with a forward-arrow) on steps 1-3, and "Submit Incident"
 /// (with a paper-plane icon) on the final Evidence step.
 ///
-/// Icon note: the save/continue-arrow/paper-plane glyphs have no matching
-/// SVG in `assets/icons/*`, so this uses Material `Icons.save_outlined`,
-/// `Icons.arrow_forward_rounded` and `Icons.send_rounded` as temporary
-/// stand-ins.
+/// Icons: `save.svg` / `submit.svg` from `assets/icons/incidents`. Continue
+/// arrow has no matching asset, so Material `Icons.arrow_forward_rounded`
+/// stays as-is.
 class WizardBottomBar extends StatelessWidget {
   final bool isLastStep;
   final VoidCallback onSaveDraft;
@@ -40,7 +40,7 @@ class WizardBottomBar extends StatelessWidget {
               Expanded(
                 child: _BottomButton(
                   label: 'Save Draft',
-                  icon: Icons.save_outlined,
+                  svgAsset: 'assets/icons/incidents/save.svg',
                   background: AppColors.filterButtonBackground,
                   foreground: AppColors.textBody,
                   onTap: onSaveDraft,
@@ -50,8 +50,9 @@ class WizardBottomBar extends StatelessWidget {
               Expanded(
                 child: _BottomButton(
                   label: isLastStep ? 'Submit Incident' : 'Continue',
-                  icon: isLastStep ? Icons.send_rounded : Icons.arrow_forward_rounded,
-                  iconTrailing: true,
+                  svgAsset: isLastStep ? 'assets/icons/incidents/submit.svg' : null,
+                  icon: isLastStep ? null : Icons.arrow_forward_rounded,
+                  iconTrailing: !isLastStep,
                   background: AppColors.primaryNavy,
                   foreground: Colors.white,
                   onTap: onPrimary,
@@ -67,7 +68,8 @@ class WizardBottomBar extends StatelessWidget {
 
 class _BottomButton extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final IconData? icon;
+  final String? svgAsset;
   final bool iconTrailing;
   final Color background;
   final Color foreground;
@@ -75,17 +77,26 @@ class _BottomButton extends StatelessWidget {
 
   const _BottomButton({
     required this.label,
-    required this.icon,
     required this.background,
     required this.foreground,
     required this.onTap,
+    this.icon,
+    this.svgAsset,
     this.iconTrailing = false,
-  });
+  }) : assert(icon != null || svgAsset != null);
 
   @override
   Widget build(BuildContext context) {
+    final iconWidget = svgAsset != null
+        ? AppSvgIcon(svgAsset!, size: 17, color: foreground)
+        : Icon(
+            icon,
+            size: ResponsiveHelper.getResponsiveSize(context, 17),
+            color: foreground,
+          );
+
     final children = [
-      Icon(icon, size: ResponsiveHelper.getResponsiveSize(context, 17), color: foreground),
+      iconWidget,
       SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
       Flexible(
         child: Text(

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 
-import '../../../../../../core/constants/app_colors.dart';
 import '../../controllers/incident_creation_controller.dart';
 import '../severity_selector.dart';
 import '../wizard_form_fields.dart';
@@ -25,8 +24,8 @@ class Step1DetailsForm extends StatelessWidget {
           number: 1,
           title: 'Incident Details',
           subtitle: 'Capture what happened and how serious it is',
-          badgeBackground: AppColors.criticalBackground,
-          badgeForeground: AppColors.criticalRed,
+          badgeBackground: Color(0xFFFBEAED),
+          badgeForeground: Color(0xFFC45C6A),
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
         const WizardFieldLabel('Incident Category', required: true),

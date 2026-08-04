@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../hr_shell.dart';
+import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../domain/entities/medication_enums.dart';
 import '../controllers/medication_controller.dart';
 import '../widgets/due_tab_view.dart';
@@ -18,8 +20,14 @@ import '../widgets/refused_tab_view.dart';
 /// ONE page with a shared header and an internal segmented tab control,
 /// since all 4 screens share identical chrome and only the list content
 /// below the tab bar changes.
+///
+/// Hosts [HrBottomNavBar] with "More" selected so the pushed route still
+/// matches the reference frames that show the manager bottom nav.
 class MedicationPage extends StatelessWidget {
   const MedicationPage({super.key});
+
+  /// Index of the "More" slot in [HrBottomNavBar.items].
+  static const int _moreTabIndex = 4;
 
   MedicationController _resolveController() {
     try {
@@ -29,12 +37,20 @@ class MedicationPage extends StatelessWidget {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => HrShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: HrBottomNavBar(
+        currentIndex: _moreTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;
@@ -54,15 +70,30 @@ class MedicationPage extends StatelessWidget {
 
         return Column(
           children: [
-            MedicationHeader(title: overview.screenTitle, subtitle: overview.screenSubtitle),
-            Padding(
-              padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16, top: 12, bottom: 8),
-              child: MedicationTabBar(
-                selectedTab: controller.selectedTab.value,
-                dueCount: overview.dueCount,
-                missedCount: overview.missedCount,
-                refusedCount: overview.refusedCount,
-                onTabSelected: controller.selectTab,
+            ColoredBox(
+              color: AppColors.surfaceWhite,
+              child: Column(
+                children: [
+                  MedicationHeader(
+                    title: overview.screenTitle,
+                    subtitle: overview.screenSubtitle,
+                  ),
+                  Padding(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 16,
+                      top: 4,
+                      bottom: 12,
+                    ),
+                    child: MedicationTabBar(
+                      selectedTab: controller.selectedTab.value,
+                      dueCount: overview.dueCount,
+                      missedCount: overview.missedCount,
+                      refusedCount: overview.refusedCount,
+                      onTabSelected: controller.selectTab,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -72,9 +103,9 @@ class MedicationPage extends StatelessWidget {
                 child: ListView(
                   padding: EdgeInsets.fromLTRB(
                     ResponsiveHelper.getResponsiveWidth(context, 16),
-                    ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ResponsiveHelper.getResponsiveHeight(context, 8),
                     ResponsiveHelper.getResponsiveWidth(context, 16),
-                    ResponsiveHelper.getResponsiveHeight(context, 32),
+                    ResponsiveHelper.getResponsiveHeight(context, 28),
                   ),
                   children: [
                     switch (controller.selectedTab.value) {

@@ -26,8 +26,8 @@ const Map<AvatarPalette, _AvatarStyle> _avatarStyles = {
   ),
 };
 
-/// Circular initials avatar used for residents and staff across every
-/// Medication tab (list rows, "ASSIGNED"/"REPORTED BY" mini-labels).
+/// Circular initials avatar used for residents and staff across Medication
+/// tabs (list rows, "ASSIGNED" / "REPORTED BY" mini-labels).
 class MedicationAvatar extends StatelessWidget {
   final String initials;
   final AvatarPalette palette;
@@ -37,7 +37,7 @@ class MedicationAvatar extends StatelessWidget {
     super.key,
     required this.initials,
     required this.palette,
-    this.size = 38,
+    this.size = 40,
   });
 
   @override
@@ -48,7 +48,7 @@ class MedicationAvatar extends StatelessWidget {
     return Container(
       width: resolvedSize,
       height: resolvedSize,
-      decoration: BoxDecoration(color: style.background, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: style.background, borderRadius: BorderRadius.circular(8)),
       alignment: Alignment.center,
       child: Text(
         initials,
@@ -57,6 +57,7 @@ class MedicationAvatar extends StatelessWidget {
           fontWeight: FontWeight.w700,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, size * 0.34),
           color: style.foreground,
+          height: 1,
         ),
       ),
     );

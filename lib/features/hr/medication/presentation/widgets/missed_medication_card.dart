@@ -1,27 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../../../core/widgets/status_badge.dart';
-import '../../../../../core/widgets/surface_card.dart';
+import '../../domain/entities/medication_enums.dart';
 import '../../domain/entities/missed_medication.dart';
-import 'medication_avatar.dart';
 
-/// A single card in the "Missed" tab's "Missed Medications" list: header
-/// row (avatar/name/med + Critical/Missed pills), a "SCHEDULED"/"MISSED"
-/// two-column mini row, a "Review Medication Issue" link row and a
-/// "Contact Staff" outlined button.
-///
-/// NOTE: the phone glyph on the "Contact Staff" button has no matching SVG
-/// in `assets/icons/{dashboard,common,nav}` and the Figma asset-download
-/// tool is unavailable this round, so [Icons.call_rounded] is used as a
-/// placeholder.
+/// Missed Medication card — avatar/name/tags, 3-column info row, and
+/// Review / Contact Staff action bar. Matched to the Missed tab reference.
 class MissedMedicationCard extends StatelessWidget {
   final MissedMedication medication;
   final VoidCallback? onReviewTap;
   final VoidCallback? onContactStaffTap;
+
+  static const Color _alertRed = Color(0xFFD64545);
+  static const Color _alertSoft = Color(0xFFFBEDED);
+  static const Color _criticalBorder = Color(0xFFF3DADA);
 
   const MissedMedicationCard({
     super.key,
@@ -32,15 +26,29 @@ class MissedMedicationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SurfaceCard.card(
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 16);
+
+    return Container(
+      width: double.infinity,
       padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: medication.isCritical ? _criticalBorder : AppColors.cardBorder,
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              MedicationAvatar(initials: medication.residentInitials, palette: medication.avatarColor),
+              _RoundedAvatar(
+                initials: medication.residentInitials,
+                palette: medication.avatarColor,
+                size: 40,
+              ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
               Expanded(
                 child: Column(
@@ -53,11 +61,13 @@ class MissedMedicationCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                        color: AppColors.textPrimary,
+                        color: AppColors.textHeading,
+                        height: 1.2,
                       ),
                     ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
                     Text(
                       '${medication.medicationName} ${medication.dose}',
                       maxLines: 1,
@@ -67,104 +77,174 @@ class MissedMedicationCard extends StatelessWidget {
                         fontWeight: FontWeight.w400,
                         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
                         color: AppColors.textMuted,
+                        height: 1.25,
                       ),
                     ),
                   ],
                 ),
               ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (medication.isCritical) ...[
-                    const StatusBadge.chip(
-                      label: 'Critical',
-                      background: AppColors.criticalRed,
-                      foreground: Colors.white,
-                    ),
+                    const _SoftTag(label: 'Critical'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
                   ],
-                  const StatusBadge.chip(
-                    label: 'Missed',
-                    background: AppColors.criticalBackgroundSoft,
-                    foreground: AppColors.criticalRed,
-                  ),
+                  const _SoftTag(label: 'Missed'),
                 ],
               ),
             ],
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          Container(height: 1, color: AppColors.dividerLight),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _MiniInfo(
-                  caption: 'SCHEDULED',
-                  value: medication.scheduledTime,
-                  valueColor: AppColors.textBody,
-                ),
-              ),
-              Expanded(
-                child: _MiniInfo(
-                  caption: 'MISSED',
-                  value: medication.missedTimeAgo,
-                  valueColor: AppColors.criticalRed,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          GestureDetector(
-            onTap: onReviewTap,
-            behavior: HitTestBehavior.opaque,
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+          IntrinsicHeight(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                AppSvgIcon(AppAssets.alertTriangle, size: 14, color: AppColors.urgentAmber),
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-                Text(
-                  'Review Medication Issue',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textPrimary,
+                Expanded(
+                  child: _MiniInfo(
+                    caption: 'SCHEDULED',
+                    child: Text(
+                      medication.scheduledTime,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                  ),
+                ),
+                _VDivider(),
+                Expanded(
+                  child: _MiniInfo(
+                    caption: 'MISSED',
+                    child: Text(
+                      medication.missedTimeAgo,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                        color: _alertRed,
+                      ),
+                    ),
+                  ),
+                ),
+                _VDivider(),
+                Expanded(
+                  child: _MiniInfo(
+                    caption: 'ASSIGNED',
+                    child: Row(
+                      children: [
+                        _RoundedAvatar(
+                          initials: medication.assigneeInitials,
+                          palette: medication.assigneeAvatarColor,
+                          size: 18,
+                          radius: 5,
+                        ),
+                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+                        Flexible(
+                          child: Text(
+                            medication.assigneeName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                              color: AppColors.textHeading,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          GestureDetector(
-            onTap: onContactStaffTap,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 14, vertical: 9),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.cardBorder),
-                borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, 10)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.call_rounded,
-                    size: ResponsiveHelper.getResponsiveSize(context, 14),
-                    color: AppColors.textBody,
-                  ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
-                  Text(
-                    'Contact Staff',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w600,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                      color: AppColors.textBody,
+          const Divider(height: 1, thickness: 1, color: AppColors.dividerLight),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: onReviewTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const AppSvgIcon(
+                          'assets/icons/medication/medication_alert.svg',
+                          size: 14,
+                          color: _alertRed,
+                        ),
+                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+                        Flexible(
+                          child: Text(
+                            'Review Medication Issue',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                              color: _alertRed,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: ResponsiveHelper.getResponsiveWidth(context, 6),
+                  ),
+                  child: const VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: AppColors.dividerLight,
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: onContactStaffTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const AppSvgIcon(
+                          'assets/icons/medication/medication_call.svg',
+                          size: 14,
+                          color: AppColors.textHeading,
+                        ),
+                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+                        Flexible(
+                          child: Text(
+                            'Contact Staff',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                              color: AppColors.textHeading,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -173,12 +253,58 @@ class MissedMedicationCard extends StatelessWidget {
   }
 }
 
+class _SoftTag extends StatelessWidget {
+  final String label;
+
+  const _SoftTag({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 8,
+        vertical: 3,
+      ),
+      decoration: BoxDecoration(
+        color: MissedMedicationCard._alertSoft,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w600,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
+          color: MissedMedicationCard._alertRed,
+          height: 1.1,
+        ),
+      ),
+    );
+  }
+}
+
+class _VDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: ResponsiveHelper.getResponsiveWidth(context, 8),
+      ),
+      child: const VerticalDivider(
+        width: 1,
+        thickness: 1,
+        color: AppColors.dividerLight,
+      ),
+    );
+  }
+}
+
 class _MiniInfo extends StatelessWidget {
   final String caption;
-  final String value;
-  final Color valueColor;
+  final Widget child;
 
-  const _MiniInfo({required this.caption, required this.value, required this.valueColor});
+  const _MiniInfo({required this.caption, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -191,22 +317,60 @@ class _MiniInfo extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w600,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9.5),
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
             color: AppColors.textFaint,
-            letterSpacing: 0.4,
+            letterSpacing: 0.5,
           ),
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
-        Text(
-          value,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w600,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-            color: valueColor,
-          ),
-        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+        child,
       ],
+    );
+  }
+}
+
+class _RoundedAvatar extends StatelessWidget {
+  final String initials;
+  final AvatarPalette palette;
+  final double size;
+  final double radius;
+
+  const _RoundedAvatar({
+    required this.initials,
+    required this.palette,
+    required this.size,
+    this.radius = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg) = switch (palette) {
+      AvatarPalette.blue => (AppColors.infoBackground, AppColors.infoBlue),
+      AvatarPalette.green => (AppColors.activeBackground, AppColors.activeGreen),
+      AvatarPalette.purple => (AppColors.nightBackground, AppColors.nightPurple),
+    };
+    final resolved = ResponsiveHelper.getResponsiveSize(context, size);
+
+    return Container(
+      width: resolved,
+      height: resolved,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, radius),
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w700,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, size * 0.32),
+          color: fg,
+          height: 1,
+        ),
+      ),
     );
   }
 }

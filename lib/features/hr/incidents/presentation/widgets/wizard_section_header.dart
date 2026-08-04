@@ -3,9 +3,11 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 
-/// "1  Incident Details / Capture what happened and how serious it is"
-/// style section header shown at the top of every wizard step, with a
-/// step-specific colored number badge.
+/// Step section header shown at the top of every wizard step:
+/// colored number badge + title + subtitle.
+///
+/// Matched to the "Incident Details" reference: soft rounded badge,
+/// bold navy title, muted subtitle — wrapped for small screens.
 class WizardSectionHeader extends StatelessWidget {
   final int number;
   final String title;
@@ -24,28 +26,28 @@ class WizardSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badgeSize = ResponsiveHelper.getResponsiveSize(context, 34);
+    final badgeSize = ResponsiveHelper.getResponsiveSize(context, 38);
+    final badgeRadius = ResponsiveHelper.getResponsiveRadius(context, 12);
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
           width: badgeSize,
           height: badgeSize,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: badgeBackground,
-            borderRadius: BorderRadius.circular(
-              ResponsiveHelper.getResponsiveRadius(context, 10),
-            ),
+            borderRadius: BorderRadius.circular(badgeRadius),
           ),
-          alignment: Alignment.center,
           child: Text(
             '$number',
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
               color: badgeForeground,
+              height: 1,
             ),
           ),
         ),
@@ -57,20 +59,27 @@ class WizardSectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
                   color: AppColors.textHeading,
+                  height: 1.2,
                 ),
               ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
               Text(
                 subtitle,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w400,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                  color: AppColors.textFaint,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: AppColors.textMuted,
+                  height: 1.35,
                 ),
               ),
             ],

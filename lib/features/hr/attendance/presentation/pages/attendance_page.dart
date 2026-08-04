@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
@@ -120,6 +121,8 @@ class AttendancePage extends StatelessWidget {
             onDutyLabel: overview.staffOnDutyLabel,
             entries: overview.staffStatus,
           ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 35)),
+          const _GeofenceCard(),
         ];
       case AttendanceTab.late:
         return [
@@ -707,11 +710,11 @@ class _StaffStatusTile extends StatelessWidget {
                 SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
                 Row(
                   children: [
-                    Icon(
+                    AppSvgIcon(
                       isMissed
-                          ? AttendanceMaterialIconFallback.noClockIn
-                          : AttendanceMaterialIconFallback.locationPin,
-                      size: ResponsiveHelper.getResponsiveSize(context, 13),
+                          ? 'assets/icons/attendance/no_location.svg'
+                          : 'assets/icons/attendance/location.svg',
+                      size: 13,
                       color: isMissed
                           ? AppColors.criticalRed
                           : AppColors.textFaint,
@@ -731,9 +734,7 @@ class _StaffStatusTile extends StatelessWidget {
                             context,
                             12,
                           ),
-                          color: isMissed
-                              ? AppColors.criticalRed
-                              : AppColors.textMuted,
+                          color: AppColors.textMuted,
                         ),
                       ),
                     ),
@@ -768,6 +769,128 @@ class _StaffStatusTile extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Today — geofence status (standalone card below Staff Status)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Geofence verification card shown under Today's Staff Status list.
+///
+/// Icon note: no shield SVG exists in `assets/icons/attendance`, so
+/// [Icons.verified_user_outlined] and [Icons.check_rounded] stand in for
+/// the shield / active-check glyphs until matching assets are added.
+class _GeofenceCard extends StatelessWidget {
+  static const Color _mintSoft = Color(0xFFEAF6F0);
+  static const Color _mintAccent = Color(0xFF2E8C58);
+
+  const _GeofenceCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final iconBox = ResponsiveHelper.getResponsiveSize(context, 44);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
+
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 14,
+        vertical: 14,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: iconBox,
+            height: iconBox,
+            decoration: BoxDecoration(
+              color: _mintSoft,
+              borderRadius: BorderRadius.circular(
+                ResponsiveHelper.getResponsiveRadius(context, 14),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: SvgPicture.asset(
+              'assets/icons/attendance/shield.svg',
+              width: ResponsiveHelper.getResponsiveSize(context, 22),
+            ),
+          ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Geofence: Sunrise Home',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    color: AppColors.textHeading,
+                    height: 1.2,
+                  ),
+                ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
+                Text(
+                  'Verification radius · 500 ft',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w400,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: AppColors.textMuted,
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+          Container(
+            padding: ResponsiveHelper.getResponsivePadding(
+              context,
+              horizontal: 10,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: _mintSoft,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check_rounded,
+                  size: ResponsiveHelper.getResponsiveSize(context, 13),
+                  color: _mintAccent,
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+                Text(
+                  'Active',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: _mintAccent,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1016,9 +1139,9 @@ class _LateArrivalCard extends StatelessWidget {
                       ),
                       Row(
                         children: [
-                          Icon(
-                            AttendanceMaterialIconFallback.locationPin,
-                            size: ResponsiveHelper.getResponsiveSize(context, 13),
+                          const AppSvgIcon(
+                            'assets/icons/attendance/location.svg',
+                            size: 13,
                             color: AppColors.textFaint,
                           ),
                           SizedBox(

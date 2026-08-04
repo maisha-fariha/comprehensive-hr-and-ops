@@ -7,9 +7,8 @@ import '../../domain/entities/schedule_dose.dart';
 import 'schedule_dose_tile.dart';
 import 'schedule_period_selector.dart';
 
-/// Content of the "Due" tab: the "Today's Medication Schedule" title block,
-/// the Today/Morning/Afternoon/Evening filter chips, the "Priority
-/// Medications" list and the "Later Today" list.
+/// Content of the "Due" tab: schedule title, period chips, Priority
+/// Medications and Later Today lists — matched to the Due tab reference.
 class DueTabView extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -17,6 +16,11 @@ class DueTabView extends StatelessWidget {
   final ValueChanged<SchedulePeriod> onPeriodSelected;
   final List<ScheduleDose> priorityDoses;
   final List<ScheduleDose> laterTodayDoses;
+
+  static const Color _priorityTitle = Color(0xFF9B3A3A);
+  static const Color _prioritySuffix = Color(0xFFB57A7A);
+  static const Color _priorityDot = Color(0xFFD64545);
+  static const Color _laterDot = Color(0xFF2A5DA6);
 
   const DueTabView({
     super.key,
@@ -30,55 +34,75 @@ class DueTabView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w700,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
-            color: AppColors.textHeading,
-          ),
-        ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w400,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-            color: AppColors.textMuted,
-          ),
-        ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-        SchedulePeriodSelector(selected: selectedPeriod, onSelected: onPeriodSelected),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-        if (priorityDoses.isNotEmpty) ...[
-          _SectionCaption(
-            dotColor: AppColors.criticalRed,
-            title: 'Priority Medications',
-            suffix: ' · Due within 30 min',
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          for (var i = 0; i < priorityDoses.length; i++) ...[
-            ScheduleDoseTile(dose: priorityDoses[i]),
-            if (i != priorityDoses.length - 1)
+    final sectionGap = ResponsiveHelper.getResponsiveHeight(context, 18);
+    final cardGap = ResponsiveHelper.getResponsiveHeight(context, 10);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
+                color: AppColors.textHeading,
+                height: 1.2,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+            Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w400,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                color: AppColors.textMuted,
+                height: 1.3,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+            SchedulePeriodSelector(
+              selected: selectedPeriod,
+              onSelected: onPeriodSelected,
+            ),
+            if (priorityDoses.isNotEmpty) ...[
+              SizedBox(height: sectionGap),
+              const _SectionCaption(
+                dotColor: _priorityDot,
+                title: 'Priority Medications',
+                titleColor: _priorityTitle,
+                suffix: ' · Due within 30 min',
+                suffixColor: _prioritySuffix,
+              ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          ],
-        ],
-        if (laterTodayDoses.isNotEmpty) ...[
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-          const _SectionCaption(dotColor: AppColors.infoBlue, title: 'Later Today'),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          for (var i = 0; i < laterTodayDoses.length; i++) ...[
-            ScheduleDoseTile(dose: laterTodayDoses[i]),
-            if (i != laterTodayDoses.length - 1)
+              for (var i = 0; i < priorityDoses.length; i++) ...[
+                if (i > 0) SizedBox(height: cardGap),
+                ScheduleDoseTile(dose: priorityDoses[i], isPriority: true),
+              ],
+            ],
+            if (laterTodayDoses.isNotEmpty) ...[
+              SizedBox(height: sectionGap),
+              const _SectionCaption(
+                dotColor: _laterDot,
+                title: 'Later Today',
+                titleColor: AppColors.textHeading,
+              ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+              for (var i = 0; i < laterTodayDoses.length; i++) ...[
+                if (i > 0) SizedBox(height: cardGap),
+                ScheduleDoseTile(dose: laterTodayDoses[i]),
+              ],
+            ],
           ],
-        ],
-      ],
+        );
+      },
     );
   }
 }
@@ -86,9 +110,17 @@ class DueTabView extends StatelessWidget {
 class _SectionCaption extends StatelessWidget {
   final Color dotColor;
   final String title;
+  final Color titleColor;
   final String suffix;
+  final Color? suffixColor;
 
-  const _SectionCaption({required this.dotColor, required this.title, this.suffix = ''});
+  const _SectionCaption({
+    required this.dotColor,
+    required this.title,
+    required this.titleColor,
+    this.suffix = '',
+    this.suffixColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -101,17 +133,16 @@ class _SectionCaption extends StatelessWidget {
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
         Flexible(
-          child: RichText(
-            overflow: TextOverflow.ellipsis,
-            text: TextSpan(
+          child: Text.rich(
+            TextSpan(
               children: [
                 TextSpan(
                   text: title,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    color: titleColor,
                   ),
                 ),
                 if (suffix.isNotEmpty)
@@ -119,13 +150,15 @@ class _SectionCaption extends StatelessWidget {
                     text: suffix,
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w400,
+                      fontWeight: FontWeight.w500,
                       fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                      color: AppColors.textMuted,
+                      color: suffixColor ?? AppColors.textMuted,
                     ),
                   ),
               ],
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

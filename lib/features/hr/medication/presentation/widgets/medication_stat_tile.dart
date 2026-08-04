@@ -1,82 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../../../core/widgets/surface_card.dart';
 import '../../domain/entities/medication_enums.dart';
 import '../../domain/entities/medication_stat_tile_data.dart';
 
 class _StatTagStyle {
-  /// A Figma-exported SVG to reuse from `assets/icons/dashboard`, if one
-  /// exists with a matching glyph. `null` when no existing asset matches,
-  /// in which case [materialIcon] is rendered instead.
-  final String? svgAsset;
-  final IconData? materialIcon;
+  final String svgAsset;
   final Color iconColor;
   final Color iconBackground;
 
   const _StatTagStyle({
-    this.svgAsset,
-    this.materialIcon,
+    required this.svgAsset,
     required this.iconColor,
     required this.iconBackground,
-  }) : assert(svgAsset != null || materialIcon != null);
+  });
 }
 
-// NOTE: `missedCount`/`missedToday` (a red "x-circle") and
-// `refusedCount`/`totalRefused` (an amber "no-entry"/power icon) have no
-// matching SVG in assets/icons/dashboard|common|nav, and the Figma MCP
-// asset-download tool is unavailable this round (monthly quota exhausted),
-// so these two use Material Icons placeholders instead of hand-authored
-// SVGs. See the feature's implementation report for the full list.
 const Map<MedicationStatTag, _StatTagStyle> _statTagStyles = {
   MedicationStatTag.compliance: _StatTagStyle(
-    svgAsset: AppAssets.checkCircle,
-    iconColor: AppColors.activeGreen,
-    iconBackground: AppColors.activeIconBackground,
+    svgAsset: 'assets/icons/medication/medication_compliance.svg',
+    iconColor: Color(0xFF2E8C58),
+    iconBackground: Color(0xFFEAF6F0),
   ),
   MedicationStatTag.dueToday: _StatTagStyle(
-    svgAsset: AppAssets.clock,
-    iconColor: AppColors.infoBlue,
-    iconBackground: AppColors.infoIconBackground,
+    svgAsset: 'assets/icons/medication/medication_clock.svg',
+    iconColor: Color(0xFF2A5DA6),
+    iconBackground: Color(0xFFEAF0F9),
   ),
   MedicationStatTag.missedCount: _StatTagStyle(
-    materialIcon: Icons.cancel_rounded,
-    iconColor: AppColors.criticalRed,
-    iconBackground: AppColors.criticalIconBackground,
+    svgAsset: 'assets/icons/medication/medication_cross_circle.svg',
+    iconColor: Color(0xFFD64545),
+    iconBackground: Color(0xFFFBEDED),
   ),
   MedicationStatTag.refusedCount: _StatTagStyle(
-    materialIcon: Icons.block_rounded,
-    iconColor: AppColors.urgentAmber,
-    iconBackground: AppColors.urgentIconBackground,
+    svgAsset: 'assets/icons/medication/medication_refused.svg',
+    iconColor: Color(0xFFC7761B),
+    iconBackground: Color(0xFFFBF1E6),
   ),
   MedicationStatTag.missedToday: _StatTagStyle(
-    materialIcon: Icons.cancel_rounded,
-    iconColor: AppColors.criticalRed,
-    iconBackground: AppColors.criticalIconBackground,
+    svgAsset: 'assets/icons/medication/medication_cross_circle.svg',
+    iconColor: Color(0xFFD64545),
+    iconBackground: Color(0xFFFBEDED),
   ),
   MedicationStatTag.criticalMissed: _StatTagStyle(
-    svgAsset: AppAssets.alertTriangle,
-    iconColor: AppColors.criticalRed,
-    iconBackground: AppColors.criticalIconBackground,
+    svgAsset: 'assets/icons/medication/medication_alert.svg',
+    iconColor: Color(0xFFA82F2F),
+    iconBackground: Color(0xFFF4E4E4),
   ),
   MedicationStatTag.totalRefused: _StatTagStyle(
-    materialIcon: Icons.block_rounded,
-    iconColor: AppColors.urgentAmber,
-    iconBackground: AppColors.urgentIconBackground,
+    svgAsset: 'assets/icons/medication/medication_refused.svg',
+    iconColor: Color(0xFFC7761B),
+    iconBackground: Color(0xFFFBF1E6),
   ),
   MedicationStatTag.needsFollowUp: _StatTagStyle(
-    svgAsset: AppAssets.checkCircle,
-    iconColor: AppColors.activeGreen,
-    iconBackground: AppColors.activeIconBackground,
+    svgAsset: 'assets/icons/medication/medication_follow_up.svg',
+    iconColor: Color(0xFFA8641A),
+    iconBackground: Color(0xFFFBF1E6),
   ),
 };
 
-/// A single stat tile: colored icon box on the left, value + label stacked
-/// on the right. Used for the Overview tab's 2x2 grid and the Missed/
-/// Refused tabs' 2-tile rows.
+/// Stat tile: soft icon box + accent value + muted label.
+/// Used by Missed/Refused tabs (and any other caller of this widget).
 class MedicationStatTile extends StatelessWidget {
   final MedicationStatTileData stat;
 
@@ -86,11 +72,20 @@ class MedicationStatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = _statTagStyles[stat.tag]!;
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
-    return SurfaceCard.card(
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+    return Container(
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 12,
+        vertical: 14,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: iconBoxSize,
@@ -102,18 +97,13 @@ class MedicationStatTile extends StatelessWidget {
               ),
             ),
             alignment: Alignment.center,
-            child: style.svgAsset != null
-                ? AppSvgIcon(style.svgAsset!, size: 19, color: style.iconColor)
-                : Icon(
-                    style.materialIcon,
-                    size: ResponsiveHelper.getResponsiveSize(context, 19),
-                    color: style.iconColor,
-                  ),
+            child: AppSvgIcon(style.svgAsset, size: 19, color: style.iconColor),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
@@ -123,11 +113,12 @@ class MedicationStatTile extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 19),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 20),
                     color: style.iconColor,
                     height: 1.1,
                   ),
                 ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
                 Text(
                   stat.label,
                   maxLines: 1,
@@ -137,6 +128,7 @@ class MedicationStatTile extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
                     color: AppColors.textSecondary,
+                    height: 1.2,
                   ),
                 ),
               ],
