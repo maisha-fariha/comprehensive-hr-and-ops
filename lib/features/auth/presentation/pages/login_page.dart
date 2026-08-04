@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 
@@ -23,7 +24,6 @@ class _LoginPageState extends State<LoginPage> {
   static const Color _fieldBorder = Color(0xFFE4E9EF);
   static const Color _labelColor = Color(0xFF2D3748);
   static const Color _hintColor = Color(0xFFA0AEC0);
-  static const Color _sheetTop = Color(0xFFFCFCFD);
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -49,37 +49,31 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final sheetRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
-    final overlap = ResponsiveHelper.getResponsiveHeight(context, 28);
+    final headerBottomRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
+    final overlap = ResponsiveHelper.getResponsiveHeight(context, 32);
+    final topInset = MediaQuery.paddingOf(context).top;
+    // Approximate header content height so the form can tuck underneath.
+    final headerBodyHeight = ResponsiveHelper.getResponsiveHeight(context, 209);
+    final headerHeight = topInset + headerBodyHeight;
+    final formTopInset = headerHeight - overlap;
 
     return Scaffold(
-      backgroundColor: _sheetTop,
+      backgroundColor: AppColors.surfaceWhite,
       body: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
-        child: Column(
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            _LoginHeader(
-              bottomPadding: overlap + ResponsiveHelper.getResponsiveHeight(context, 12),
-            ),
-            Transform.translate(
-              offset: Offset(0, -overlap),
+            // Form sits under the rounded header bottom.
+            Padding(
+              padding: EdgeInsets.only(top: formTopInset),
               child: Container(
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceWhite,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(sheetRadius)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0A1A2F).withValues(alpha: 0.16),
-                      blurRadius: 28,
-                      offset: const Offset(0, -6),
-                    ),
-                  ],
-                ),
+                color: AppColors.surfaceWhite,
                 padding: ResponsiveHelper.getResponsivePadding(
                   context,
                   horizontal: 22,
-                  top: 26,
+                  top: overlap + ResponsiveHelper.getResponsiveHeight(context, 120),
                   bottom: 28,
                 ),
                 child: Column(
@@ -110,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
                       borderColor: _fieldBorder,
                       focusColor: _primaryTeal,
                       keyboardType: TextInputType.emailAddress,
-                      prefixIcon: Icons.mail_outline_rounded,
+                      prefixIcon: 'assets/icons/common/email.svg',
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                     _FieldLabel(text: 'Password', color: _labelColor),
@@ -122,7 +116,7 @@ class _LoginPageState extends State<LoginPage> {
                       borderColor: _fieldBorder,
                       focusColor: _primaryTeal,
                       obscureText: _obscurePassword,
-                      prefixIcon: Icons.lock_outline_rounded,
+                      prefixIcon: 'assets/icons/common/lock.svg',
                       suffix: GestureDetector(
                         onTap: () => setState(() => _obscurePassword = !_obscurePassword),
                         behavior: HitTestBehavior.opaque,
@@ -155,7 +149,7 @@ class _LoginPageState extends State<LoginPage> {
                       accent: _primaryTeal,
                       onPressed: _onSignIn,
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                     const _HipaaNote(accent: _primaryTeal),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 26)),
                     const _AssistanceDivider(),
@@ -168,6 +162,11 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
             ),
+            // Header painted last so its bottom radius overlaps the form.
+            _LoginHeader(
+              bottomRadius: headerBottomRadius,
+              bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 16),
+            ),
           ],
         ),
       ),
@@ -179,9 +178,11 @@ class _LoginPageState extends State<LoginPage> {
 
 class _LoginHeader extends StatelessWidget {
   final double bottomPadding;
+  final double bottomRadius;
 
   const _LoginHeader({
     required this.bottomPadding,
+    required this.bottomRadius,
   });
 
   @override
@@ -193,28 +194,40 @@ class _LoginHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          stops: [0.0, 0.55, 1.0],
+          stops: [0.0, 0.60, 1.0],
           colors: [
-            Color(0xFF0B1E2D),
-            Color(0xFF0C3540),
-            Color(0xFF054D4A),
+            Color(0xFF1E3A5F),
+            Color(0xFF16293F),
+            Color(0xFF0E7C7B),
           ],
         ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(bottomRadius),
+          bottomRight: Radius.circular(bottomRadius),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0A1A2F).withValues(alpha: 0.22),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: Stack(
         clipBehavior: Clip.hardEdge,
         children: [
           // Top-right circle shape container (light opacity).
           Positioned(
-            top: -ResponsiveHelper.getResponsiveHeight(context, 48),
-            right: -ResponsiveHelper.getResponsiveWidth(context, 60),
+            top: -ResponsiveHelper.getResponsiveHeight(context, 100),
+            right: -ResponsiveHelper.getResponsiveWidth(context, 100),
             child: Container(
-              width: ResponsiveHelper.getResponsiveSize(context, 250),
-              height: ResponsiveHelper.getResponsiveSize(context, 250),
+              width: ResponsiveHelper.getResponsiveSize(context, 230),
+              height: ResponsiveHelper.getResponsiveSize(context, 230),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withValues(alpha: 0.07),
@@ -223,14 +236,14 @@ class _LoginHeader extends StatelessWidget {
           ),
           // Bottom-left circle shape container (light opacity teal).
           Positioned(
-            bottom: -ResponsiveHelper.getResponsiveHeight(context, 75),
-            left: -ResponsiveHelper.getResponsiveWidth(context, 85),
+            bottom: -ResponsiveHelper.getResponsiveHeight(context, 90),
+            left: -ResponsiveHelper.getResponsiveWidth(context, 50),
             child: Container(
-              width: ResponsiveHelper.getResponsiveSize(context, 270),
-              height: ResponsiveHelper.getResponsiveSize(context, 270),
+              width: ResponsiveHelper.getResponsiveSize(context, 180),
+              height: ResponsiveHelper.getResponsiveSize(context, 180),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF1F7A74).withValues(alpha: 0.18),
+                color: Colors.white.withValues(alpha: 0.07),
               ),
             ),
           ),
@@ -258,18 +271,11 @@ class _LoginHeader extends StatelessWidget {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              Color(0xFF0E7A74),
-                              Color(0xFF0A5F5A),
+                              Color(0xFF0E7C7B),
+                              Color(0xFF0A5F5E),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(logoRadius),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF0A5F5A).withValues(alpha: 0.5),
-                              blurRadius: 16,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                         alignment: Alignment.center,
                         child: CustomPaint(
@@ -468,7 +474,7 @@ class _AccountTypeCard extends StatelessWidget {
             vertical: 14,
           ),
           decoration: BoxDecoration(
-            color: AppColors.surfaceWhite,
+            color: selected? Color(0xFFF0F8F7) : AppColors.surfaceWhite,
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
               color: selected ? accent : const Color(0xFFEEF1F4),
@@ -524,8 +530,8 @@ class _AccountTypeCard extends StatelessWidget {
   Widget _buildIcon(BuildContext context, Color color) {
     switch (type) {
       case _AccountType.manager:
-        return Icon(
-          Icons.how_to_reg_outlined,
+        return AppSvgIcon(
+          'assets/icons/common/manager.svg',
           size: ResponsiveHelper.getResponsiveSize(context, 22),
           color: color,
         );
@@ -537,7 +543,7 @@ class _AccountTypeCard extends StatelessWidget {
         );
       case _AccountType.family:
         return AppSvgIcon(
-          'assets/icons/daily_logs/daily_log_heart.svg',
+          'assets/icons/common/family.svg',
           size: 20,
           color: color,
         );
@@ -573,7 +579,7 @@ class _LoginTextField extends StatelessWidget {
   final Color hintColor;
   final Color borderColor;
   final Color focusColor;
-  final IconData prefixIcon;
+  final String prefixIcon;
   final TextInputType? keyboardType;
   final bool obscureText;
   final Widget? suffix;
@@ -613,10 +619,12 @@ class _LoginTextField extends StatelessWidget {
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
           color: hintColor,
         ),
-        prefixIcon: Icon(
-          prefixIcon,
-          size: ResponsiveHelper.getResponsiveSize(context, 20),
-          color: hintColor,
+        prefixIcon: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SvgPicture.asset(
+            prefixIcon,
+            width: ResponsiveHelper.getResponsiveSize(context, 20),
+          ),
         ),
         suffixIcon: suffix,
         filled: true,
@@ -708,7 +716,7 @@ class _RememberForgotRow extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 100)),
         GestureDetector(
           onTap: onForgotPassword,
           behavior: HitTestBehavior.opaque,
@@ -740,7 +748,7 @@ class _SignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 28);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 15);
 
     return SizedBox(
       width: double.infinity,
@@ -804,10 +812,9 @@ class _HipaaNote extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(
-          Icons.lock_outline_rounded,
-          size: ResponsiveHelper.getResponsiveSize(context, 13),
-          color: accent,
+        SvgPicture.asset(
+          'assets/icons/common/lock.svg',
+          width: ResponsiveHelper.getResponsiveSize(context, 13),
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
         Flexible(

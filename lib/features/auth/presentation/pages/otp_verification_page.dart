@@ -6,6 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../widgets/auth_curved_header.dart';
 
 /// OTP / "Verify your email" screen matched to the OTP Verification reference.
 /// UI only — Verify is a no-op for now.
@@ -118,39 +119,29 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final sheetRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
-    final overlap = ResponsiveHelper.getResponsiveHeight(context, 28);
+    final headerBottomRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
+    final overlap = ResponsiveHelper.getResponsiveHeight(context, 32);
+    final topInset = MediaQuery.paddingOf(context).top;
+    // back + gaps + icon + title + email lines + bottom pad
+    final headerBodyHeight = ResponsiveHelper.getResponsiveHeight(context, 209);
+    final formTopInset = topInset + headerBodyHeight - overlap;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceWhite,
       body: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
-        child: Column(
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            _OtpHeader(
-              email: _email,
-              bottomPadding: overlap + ResponsiveHelper.getResponsiveHeight(context, 8),
-              onBack: () => Get.back(),
-            ),
-            Transform.translate(
-              offset: Offset(0, -overlap),
+            Padding(
+              padding: EdgeInsets.only(top: formTopInset),
               child: Container(
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceWhite,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(sheetRadius)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0A1A2F).withValues(alpha: 0.14),
-                      blurRadius: 24,
-                      offset: const Offset(0, -6),
-                    ),
-                  ],
-                ),
+                color: AppColors.surfaceWhite,
                 padding: ResponsiveHelper.getResponsivePadding(
                   context,
                   horizontal: 22,
-                  top: 30,
+                  top: overlap + ResponsiveHelper.getResponsiveHeight(context, 150),
                   bottom: 32,
                 ),
                 child: Column(
@@ -175,6 +166,12 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                 ),
               ),
             ),
+            _OtpHeader(
+              email: _email,
+              bottomRadius: headerBottomRadius,
+              bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 36),
+              onBack: () => Get.back(),
+            ),
           ],
         ),
       ),
@@ -185,11 +182,13 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 class _OtpHeader extends StatelessWidget {
   final String email;
   final double bottomPadding;
+  final double bottomRadius;
   final VoidCallback onBack;
 
   const _OtpHeader({
     required this.email,
     required this.bottomPadding,
+    required this.bottomRadius,
     required this.onBack,
   });
 
@@ -199,143 +198,90 @@ class _OtpHeader extends StatelessWidget {
     final iconRadius = ResponsiveHelper.getResponsiveRadius(context, 14);
     final backSize = ResponsiveHelper.getResponsiveSize(context, 40);
 
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment(-0.2, -1.0),
-          end: Alignment(0.3, 1.0),
-          stops: [0.0, 0.42, 1.0],
-          colors: [
-            Color(0xFF0B1E32),
-            Color(0xFF0E2F3A),
-            Color(0xFF104044),
-          ],
-        ),
-      ),
-      child: Stack(
-        clipBehavior: Clip.hardEdge,
+    return AuthCurvedHeader(
+      bottomPadding: bottomPadding,
+      bottomRadius: bottomRadius,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            top: -ResponsiveHelper.getResponsiveHeight(context, 70),
-            right: -ResponsiveHelper.getResponsiveWidth(context, 50),
-            child: _SoftOrb(
-              size: ResponsiveHelper.getResponsiveSize(context, 280),
-              colors: [
-                const Color(0xFF1D6B72).withValues(alpha: 0.42),
-                const Color(0xFF1D6B72).withValues(alpha: 0.12),
-                const Color(0xFF1D6B72).withValues(alpha: 0.0),
-              ],
-              stops: const [0.0, 0.45, 1.0],
+          GestureDetector(
+            onTap: onBack,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: backSize,
+              height: backSize,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 12),
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.chevron_left_rounded,
+                color: Colors.white,
+                size: ResponsiveHelper.getResponsiveSize(context, 26),
+              ),
             ),
           ),
-          Positioned(
-            bottom: -ResponsiveHelper.getResponsiveHeight(context, 80),
-            left: -ResponsiveHelper.getResponsiveWidth(context, 90),
-            child: _SoftOrb(
-              size: ResponsiveHelper.getResponsiveSize(context, 280),
-              colors: [
-                const Color(0xFF17807A).withValues(alpha: 0.36),
-                const Color(0xFF17807A).withValues(alpha: 0.10),
-                const Color(0xFF17807A).withValues(alpha: 0.0),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+          Container(
+            width: iconSize,
+            height: iconSize,
+            decoration: BoxDecoration(
+              color: const Color(0xFF126868),
+              borderRadius: BorderRadius.circular(iconRadius),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF126868).withValues(alpha: 0.45),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
               ],
-              stops: const [0.0, 0.5, 1.0],
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.mark_email_unread_outlined,
+              color: Colors.white,
+              size: ResponsiveHelper.getResponsiveSize(context, 26),
             ),
           ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                ResponsiveHelper.getResponsiveWidth(context, 22),
-                ResponsiveHelper.getResponsiveHeight(context, 8),
-                ResponsiveHelper.getResponsiveWidth(context, 22),
-                bottomPadding,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: onBack,
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: backSize,
-                      height: backSize,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(
-                          ResponsiveHelper.getResponsiveRadius(context, 12),
-                        ),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.14),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.chevron_left_rounded,
-                        color: Colors.white,
-                        size: ResponsiveHelper.getResponsiveSize(context, 26),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                  Container(
-                    width: iconSize,
-                    height: iconSize,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF126868),
-                      borderRadius: BorderRadius.circular(iconRadius),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF126868).withValues(alpha: 0.45),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Icons.mark_email_unread_outlined,
-                      color: Colors.white,
-                      size: ResponsiveHelper.getResponsiveSize(context, 26),
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                  Text(
-                    'Verify your email',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 26),
-                      color: Colors.white,
-                      height: 1.15,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                  Text(
-                    'Enter the 6-digit code sent to',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w400,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                      color: const Color(0xFFD1D5DB),
-                      height: 1.4,
-                    ),
-                  ),
-                  Text(
-                    email,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                      color: Colors.white,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+          Text(
+            'Verify your email',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 26),
+              color: Colors.white,
+              height: 1.15,
+              letterSpacing: -0.3,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+          Text(
+            'Enter the 6-digit code sent to',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+              color: const Color(0xFFD1D5DB),
+              height: 1.4,
+            ),
+          ),
+          Text(
+            email,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              color: Colors.white,
+              height: 1.4,
             ),
           ),
         ],
@@ -501,7 +447,7 @@ class _VerifyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 28);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 15);
 
     return SizedBox(
       width: double.infinity,
@@ -582,33 +528,6 @@ class _SecurityNote extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SoftOrb extends StatelessWidget {
-  final double size;
-  final List<Color> colors;
-  final List<double>? stops;
-
-  const _SoftOrb({
-    required this.size,
-    required this.colors,
-    this.stops,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: colors,
-          stops: stops ?? const [0.35, 1.0],
-        ),
-      ),
     );
   }
 }

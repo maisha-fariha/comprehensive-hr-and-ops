@@ -6,6 +6,7 @@ import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
+import '../widgets/auth_curved_header.dart';
 
 /// "Reset your password" screen matched to the Forgot Password reference.
 /// UI only — Send Reset Link navigates to OTP verification.
@@ -45,38 +46,29 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
-    final sheetRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
-    final overlap = ResponsiveHelper.getResponsiveHeight(context, 28);
+    final headerBottomRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
+    final overlap = ResponsiveHelper.getResponsiveHeight(context, 32);
+    final topInset = MediaQuery.paddingOf(context).top;
+    // back + gaps + icon + title + subtitle + bottom pad
+    final headerBodyHeight = ResponsiveHelper.getResponsiveHeight(context, 209);
+    final formTopInset = topInset + headerBodyHeight - overlap;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceWhite,
       body: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
-        child: Column(
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            _ForgotHeader(
-              bottomPadding: overlap + ResponsiveHelper.getResponsiveHeight(context, 8),
-              onBack: _goBack,
-            ),
-            Transform.translate(
-              offset: Offset(0, -overlap),
+            Padding(
+              padding: EdgeInsets.only(top: formTopInset),
               child: Container(
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceWhite,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(sheetRadius)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0A1A2F).withValues(alpha: 0.14),
-                      blurRadius: 24,
-                      offset: const Offset(0, -6),
-                    ),
-                  ],
-                ),
+                color: AppColors.surfaceWhite,
                 padding: ResponsiveHelper.getResponsivePadding(
                   context,
                   horizontal: 22,
-                  top: 28,
+                  top: overlap + ResponsiveHelper.getResponsiveHeight(context, 150),
                   bottom: 32,
                 ),
                 child: Column(
@@ -113,6 +105,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 ),
               ),
             ),
+            _ForgotHeader(
+              bottomRadius: headerBottomRadius,
+              bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 36),
+              onBack: _goBack,
+            ),
           ],
         ),
       ),
@@ -122,10 +119,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
 class _ForgotHeader extends StatelessWidget {
   final double bottomPadding;
+  final double bottomRadius;
   final VoidCallback onBack;
 
   const _ForgotHeader({
     required this.bottomPadding,
+    required this.bottomRadius,
     required this.onBack,
   });
 
@@ -135,131 +134,78 @@ class _ForgotHeader extends StatelessWidget {
     final iconRadius = ResponsiveHelper.getResponsiveRadius(context, 14);
     final backSize = ResponsiveHelper.getResponsiveSize(context, 40);
 
-    return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment(-0.2, -1.0),
-          end: Alignment(0.3, 1.0),
-          stops: [0.0, 0.42, 1.0],
-          colors: [
-            Color(0xFF0B1E32),
-            Color(0xFF0E2F3A),
-            Color(0xFF104044),
-          ],
-        ),
-      ),
-      child: Stack(
-        clipBehavior: Clip.hardEdge,
+    return AuthCurvedHeader(
+      bottomPadding: bottomPadding,
+      bottomRadius: bottomRadius,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            top: -ResponsiveHelper.getResponsiveHeight(context, 70),
-            right: -ResponsiveHelper.getResponsiveWidth(context, 50),
-            child: _SoftOrb(
-              size: ResponsiveHelper.getResponsiveSize(context, 280),
-              colors: [
-                const Color(0xFF1D6B72).withValues(alpha: 0.42),
-                const Color(0xFF1D6B72).withValues(alpha: 0.12),
-                const Color(0xFF1D6B72).withValues(alpha: 0.0),
-              ],
-              stops: const [0.0, 0.45, 1.0],
+          GestureDetector(
+            onTap: onBack,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: backSize,
+              height: backSize,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 12),
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.chevron_left_rounded,
+                color: Colors.white,
+                size: ResponsiveHelper.getResponsiveSize(context, 26),
+              ),
             ),
           ),
-          Positioned(
-            bottom: -ResponsiveHelper.getResponsiveHeight(context, 80),
-            left: -ResponsiveHelper.getResponsiveWidth(context, 90),
-            child: _SoftOrb(
-              size: ResponsiveHelper.getResponsiveSize(context, 280),
-              colors: [
-                const Color(0xFF17807A).withValues(alpha: 0.36),
-                const Color(0xFF17807A).withValues(alpha: 0.10),
-                const Color(0xFF17807A).withValues(alpha: 0.0),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+          Container(
+            width: iconSize,
+            height: iconSize,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0C6B66),
+              borderRadius: BorderRadius.circular(iconRadius),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0C6B66).withValues(alpha: 0.45),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
               ],
-              stops: const [0.0, 0.5, 1.0],
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.lock_open_rounded,
+              color: Colors.white,
+              size: ResponsiveHelper.getResponsiveSize(context, 26),
             ),
           ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                ResponsiveHelper.getResponsiveWidth(context, 22),
-                ResponsiveHelper.getResponsiveHeight(context, 8),
-                ResponsiveHelper.getResponsiveWidth(context, 22),
-                bottomPadding,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: onBack,
-                    behavior: HitTestBehavior.opaque,
-                    child: Container(
-                      width: backSize,
-                      height: backSize,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(
-                          ResponsiveHelper.getResponsiveRadius(context, 12),
-                        ),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.14),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.chevron_left_rounded,
-                        color: Colors.white,
-                        size: ResponsiveHelper.getResponsiveSize(context, 26),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                  Container(
-                    width: iconSize,
-                    height: iconSize,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0C6B66),
-                      borderRadius: BorderRadius.circular(iconRadius),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0C6B66).withValues(alpha: 0.45),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      Icons.lock_open_rounded,
-                      color: Colors.white,
-                      size: ResponsiveHelper.getResponsiveSize(context, 26),
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                  Text(
-                    'Reset your password',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 26),
-                      color: Colors.white,
-                      height: 1.15,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                  Text(
-                    "Enter your email and we'll send you a password reset link.",
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w400,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                      color: const Color(0xFFD1D5DB),
-                      height: 1.45,
-                    ),
-                  ),
-                ],
-              ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+          Text(
+            'Reset your password',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 26),
+              color: Colors.white,
+              height: 1.15,
+              letterSpacing: -0.3,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+          Text(
+            "Enter your email and we'll send you a password reset link.",
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+              color: const Color(0xFFD1D5DB),
+              height: 1.45,
             ),
           ),
         ],
@@ -404,7 +350,7 @@ class _SendResetButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 28);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 15);
 
     return SizedBox(
       width: double.infinity,
@@ -503,33 +449,6 @@ class _BackToSignInRow extends StatelessWidget {
             ],
           ),
           textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-}
-
-class _SoftOrb extends StatelessWidget {
-  final double size;
-  final List<Color> colors;
-  final List<double>? stops;
-
-  const _SoftOrb({
-    required this.size,
-    required this.colors,
-    this.stops,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: colors,
-          stops: stops ?? const [0.35, 1.0],
         ),
       ),
     );
