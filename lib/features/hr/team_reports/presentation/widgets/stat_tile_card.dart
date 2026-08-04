@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/surface_card.dart';
 import 'team_reports_icon_box.dart';
 
-/// Compact "icon + value + label" tile used in the stat rows at the top of
-/// the Team, Reports and Messages tabs.
+/// Compact "icon + value + label" stat tile for Team / Reports / Messages.
 class StatTileCard extends StatelessWidget {
   final String? asset;
   final IconData? materialIcon;
@@ -14,6 +12,7 @@ class StatTileCard extends StatelessWidget {
   final Color background;
   final String value;
   final String label;
+  final Color? valueColor;
   final VoidCallback? onTap;
 
   const StatTileCard({
@@ -24,18 +23,29 @@ class StatTileCard extends StatelessWidget {
     required this.background,
     required this.value,
     required this.label,
+    this.valueColor,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SurfaceCard.card(
-        padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 14, vertical: 14),
+      child: Container(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 12,
+          vertical: 14,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             TeamReportsIconBox(
               asset: asset,
@@ -44,12 +54,13 @@ class StatTileCard extends StatelessWidget {
               background: background,
               boxSize: 40,
               iconSize: 19,
-              radius: 11,
+              radius: 12,
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
@@ -59,13 +70,12 @@ class StatTileCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 19),
-                      color: AppColors.textHeading,
-                      letterSpacing: -0.3,
-                      height: 1,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 20),
+                      color: valueColor ?? AppColors.textHeading,
+                      height: 1.1,
                     ),
                   ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
                   Text(
                     label,
                     maxLines: 1,
@@ -74,8 +84,8 @@ class StatTileCard extends StatelessWidget {
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w500,
                       fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-                      color: AppColors.textMuted,
-                      height: 14 / 11.5,
+                      color: AppColors.textSecondary,
+                      height: 1.2,
                     ),
                   ),
                 ],

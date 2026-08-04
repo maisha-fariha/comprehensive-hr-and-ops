@@ -29,9 +29,11 @@ class TeamReportsTextLink extends StatelessWidget {
           ],
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
               color: AppColors.secondaryTeal,
             ),

@@ -4,12 +4,18 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/team_reports_enums.dart';
 
-/// The pill-shaped "Team | Reports | Messages" segmented control shared by
-/// all three tabs, with an unread-count badge on the "Messages" segment.
+/// Pill segmented control: Team | Reports | Messages, with a soft unread
+/// badge on Messages when unselected — matched to the reference.
 class TeamReportsSegmentedTabs extends StatelessWidget {
   final TeamReportsTab selectedTab;
   final int messagesBadgeCount;
   final ValueChanged<TeamReportsTab> onTabSelected;
+
+  static const Color _trackBackground = Color(0xFFF1F5F9);
+  static const Color _selectedLabel = Color(0xFF0D685E);
+  static const Color _unselectedLabel = Color(0xFF718096);
+  static const Color _badgeSoft = Color(0xFFD9E7FF);
+  static const Color _badgeFg = Color(0xFF1E40AF);
 
   const TeamReportsSegmentedTabs({
     super.key,
@@ -21,11 +27,12 @@ class TeamReportsSegmentedTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 3.5),
       decoration: BoxDecoration(
-        color: AppColors.filterButtonBackground,
+        color: _trackBackground,
         borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
+          ResponsiveHelper.getResponsiveRadius(context, 12),
         ),
       ),
       child: Row(
@@ -49,7 +56,9 @@ class TeamReportsSegmentedTabs extends StatelessWidget {
               label: 'Messages',
               isSelected: selectedTab == TeamReportsTab.messages,
               onTap: () => onTabSelected(TeamReportsTab.messages),
-              badgeCount: messagesBadgeCount,
+              badgeCount: selectedTab == TeamReportsTab.messages
+                  ? 0
+                  : messagesBadgeCount,
             ),
           ),
         ],
@@ -77,17 +86,22 @@ class _Segment extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 9),
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          vertical: 10,
+          horizontal: 4,
+        ),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.surfaceWhite : Colors.transparent,
           borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 11),
+            ResponsiveHelper.getResponsiveRadius(context, 8),
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.shadowNavy.withValues(alpha: 0.08),
+                    color: const Color(0xFF1A2B3C).withValues(alpha: 0.08),
                     offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
                     blurRadius: ResponsiveHelper.getResponsiveHeight(context, 3),
                   ),
@@ -96,7 +110,6 @@ class _Segment extends StatelessWidget {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
               child: Text(
@@ -105,21 +118,23 @@ class _Segment extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: isSelected ? AppColors.secondaryTeal : AppColors.textMuted,
+                  color: isSelected
+                      ? TeamReportsSegmentedTabs._selectedLabel
+                      : TeamReportsSegmentedTabs._unselectedLabel,
+                  height: 1.1,
                 ),
               ),
             ),
             if (badgeCount > 0) ...[
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
               Container(
-                constraints: const BoxConstraints(minWidth: 16),
-                height: ResponsiveHelper.getResponsiveSize(context, 16),
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 4),
+                width: ResponsiveHelper.getResponsiveSize(context, 18),
+                height: ResponsiveHelper.getResponsiveSize(context, 18),
                 decoration: const BoxDecoration(
-                  color: AppColors.secondaryTeal,
-                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                  color: TeamReportsSegmentedTabs._badgeSoft,
+                  shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -128,7 +143,7 @@ class _Segment extends StatelessWidget {
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
-                    color: Colors.white,
+                    color: TeamReportsSegmentedTabs._badgeFg,
                     height: 1,
                   ),
                 ),
