@@ -1,25 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../../../core/widgets/status_badge.dart';
-import '../../../../../core/widgets/surface_card.dart';
 import '../../domain/entities/compliance_checklist_item.dart';
 import '../../domain/entities/tasks_compliance_enums.dart';
 import 'person_avatar_chip.dart';
 
 class _ChecklistStatusStyle {
-  final String? svgAsset;
-  final IconData? materialIcon;
+  final String svgAsset;
   final Color color;
   final Color background;
   final String badgeLabel;
 
   const _ChecklistStatusStyle({
-    this.svgAsset,
-    this.materialIcon,
+    required this.svgAsset,
     required this.color,
     required this.background,
     required this.badgeLabel,
@@ -28,28 +23,26 @@ class _ChecklistStatusStyle {
 
 const Map<ComplianceItemStatus, _ChecklistStatusStyle> _statusStyles = {
   ComplianceItemStatus.completed: _ChecklistStatusStyle(
-    svgAsset: AppAssets.checkCircle,
-    color: AppColors.activeGreen,
-    background: AppColors.activeIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_tick.svg',
+    color: Color(0xFF2E8C58),
+    background: Color(0xFFEAF6F0),
     badgeLabel: 'Completed',
   ),
   ComplianceItemStatus.pending: _ChecklistStatusStyle(
-    svgAsset: AppAssets.clock,
-    color: AppColors.urgentAmber,
-    background: AppColors.urgentIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_clock.svg',
+    color: Color(0xFFB36B21),
+    background: Color(0xFFFCF5ED),
     badgeLabel: 'Pending',
   ),
-  // "Due Soon" has no matching exported SVG (a small archive/box glyph in
-  // Figma), so it falls back to the closest Material icon.
   ComplianceItemStatus.dueSoon: _ChecklistStatusStyle(
-    materialIcon: Icons.inventory_2_outlined,
-    color: AppColors.infoBlue,
-    background: AppColors.infoIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/taska_training.svg',
+    color: Color(0xFF2A5DA6),
+    background: Color(0xFFEAF0F9),
     badgeLabel: 'Due Soon',
   ),
 };
 
-/// A single row in the "Compliance Checklist" list on the "Compliance" tab.
+/// Compliance Checklist row — matched to the Compliance tab reference.
 class ComplianceChecklistTile extends StatelessWidget {
   final ComplianceChecklistItem item;
   final VoidCallback? onTap;
@@ -60,12 +53,19 @@ class ComplianceChecklistTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = _statusStyles[item.status]!;
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SurfaceCard.card(
+      child: Container(
+        width: double.infinity,
         padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -74,18 +74,14 @@ class ComplianceChecklistTile extends StatelessWidget {
               height: iconBoxSize,
               decoration: BoxDecoration(
                 color: style.background,
-                borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, 12)),
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 12),
+                ),
               ),
               alignment: Alignment.center,
-              child: style.svgAsset != null
-                  ? AppSvgIcon(style.svgAsset!, size: 18, color: style.color)
-                  : Icon(
-                      style.materialIcon,
-                      size: ResponsiveHelper.getResponsiveSize(context, 18),
-                      color: style.color,
-                    ),
+              child: AppSvgIcon(style.svgAsset, size: 16, color: style.color),
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,29 +89,36 @@ class ComplianceChecklistTile extends StatelessWidget {
                 children: [
                   Text(
                     item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
                       color: AppColors.textHeading,
+                      height: 1.25,
                     ),
                   ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        '${item.category} · ',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w400,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                          color: AppColors.textMuted,
+                      Flexible(
+                        child: Text(
+                          '${item.category} · ',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w400,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                            color: AppColors.textMuted,
+                          ),
                         ),
                       ),
                       PersonAvatarChip(assignee: item.assignee),
                       SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
                       Flexible(
+                        flex: 2,
                         child: Text(
                           '${item.assignee.name} · ${item.dateLabel}',
                           maxLines: 1,
@@ -123,7 +126,7 @@ class ComplianceChecklistTile extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w500,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
                             color: AppColors.textMuted,
                           ),
                         ),
@@ -134,10 +137,26 @@ class ComplianceChecklistTile extends StatelessWidget {
               ),
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-            StatusBadge.pill(
-              label: style.badgeLabel,
-              background: style.background,
-              foreground: style.color,
+            Container(
+              padding: ResponsiveHelper.getResponsivePadding(
+                context,
+                horizontal: 9,
+                vertical: 5,
+              ),
+              decoration: BoxDecoration(
+                color: style.background,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                style.badgeLabel,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
+                  color: style.color,
+                  height: 1.1,
+                ),
+              ),
             ),
           ],
         ),

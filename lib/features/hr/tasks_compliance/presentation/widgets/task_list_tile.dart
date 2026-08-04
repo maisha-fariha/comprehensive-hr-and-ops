@@ -2,51 +2,47 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/status_badge.dart';
-import '../../../../../core/widgets/surface_card.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/entities/tasks_compliance_enums.dart';
 
 class _CategoryStyle {
-  final IconData materialIcon;
+  final String svgAsset;
   final Color color;
   final Color background;
   final String label;
 
   const _CategoryStyle({
-    required this.materialIcon,
+    required this.svgAsset,
     required this.color,
     required this.background,
     required this.label,
   });
 }
 
-// Figma export has no exact SVG match for these glyphs (flame, counter/table,
-// medication cart, shield-check) in the icon set already used elsewhere in
-// this app, so each falls back to the closest Material icon.
 const Map<TaskCategory, _CategoryStyle> _categoryStyles = {
   TaskCategory.safety: _CategoryStyle(
-    materialIcon: Icons.local_fire_department_rounded,
-    color: AppColors.criticalRed,
-    background: AppColors.criticalIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_fire.svg',
+    color: Color(0xFFD64545),
+    background: Color(0xFFFBEDED),
     label: 'Safety',
   ),
   TaskCategory.facilities: _CategoryStyle(
-    materialIcon: Icons.countertops_outlined,
-    color: AppColors.urgentAmber,
-    background: AppColors.urgentIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_kitchen.svg',
+    color: Color(0xFFB36B21),
+    background: Color(0xFFFCF5ED),
     label: 'Facilities',
   ),
   TaskCategory.medication: _CategoryStyle(
-    materialIcon: Icons.medical_services_outlined,
-    color: AppColors.activeGreen,
-    background: AppColors.activeIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_cart_check.svg',
+    color: Color(0xFF2E8C58),
+    background: Color(0xFFEAF6F0),
     label: 'Medication',
   ),
   TaskCategory.audit: _CategoryStyle(
-    materialIcon: Icons.verified_user_rounded,
-    color: AppColors.infoBlue,
-    background: AppColors.infoIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_shield.svg',
+    color: Color(0xFF2A5DA6),
+    background: Color(0xFFEAF0F9),
     label: 'Audit',
   ),
 };
@@ -56,31 +52,37 @@ class _StatusStyle {
   final Color background;
   final String label;
 
-  const _StatusStyle({required this.color, required this.background, required this.label});
+  const _StatusStyle({
+    required this.color,
+    required this.background,
+    required this.label,
+  });
 }
 
 const Map<TaskStatus, _StatusStyle> _statusStyles = {
   TaskStatus.overdue: _StatusStyle(
-    color: AppColors.criticalRed,
-    background: AppColors.criticalBackground,
+    color: Color(0xFFD64545),
+    background: Color(0xFFFBEDED),
     label: 'Overdue',
   ),
   TaskStatus.due: _StatusStyle(
-    color: AppColors.urgentAmber,
-    background: AppColors.urgentBackground,
+    color: Color(0xFFB36B21),
+    background: Color(0xFFFCF5ED),
     label: 'Due',
   ),
   TaskStatus.upcoming: _StatusStyle(
-    color: AppColors.infoBlue,
-    background: AppColors.infoBackground,
+    color: Color(0xFF2A5DA6),
+    background: Color(0xFFEAF0F9),
     label: 'Upcoming',
   ),
 };
 
-/// A single row in the "Tasks Due" list on the "Tasks" tab.
+/// A single "Tasks Due" card — matched to the Tasks tab reference.
 class TaskListTile extends StatelessWidget {
   final TaskItem task;
   final VoidCallback? onTap;
+
+  static const Color _overdueBorder = Color(0xFFF3DADA);
 
   const TaskListTile({super.key, required this.task, this.onTap});
 
@@ -88,13 +90,23 @@ class TaskListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final categoryStyle = _categoryStyles[task.category]!;
     final statusStyle = _statusStyles[task.status]!;
+    final isOverdue = task.status == TaskStatus.overdue;
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 42);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SurfaceCard.card(
+      child: Container(
+        width: double.infinity,
         padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(
+            color: isOverdue ? _overdueBorder : AppColors.cardBorder,
+          ),
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -103,12 +115,14 @@ class TaskListTile extends StatelessWidget {
               height: iconBoxSize,
               decoration: BoxDecoration(
                 color: categoryStyle.background,
-                borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, 13)),
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 12),
+                ),
               ),
               alignment: Alignment.center,
-              child: Icon(
-                categoryStyle.materialIcon,
-                size: ResponsiveHelper.getResponsiveSize(context, 19),
+              child: AppSvgIcon(
+                categoryStyle.svgAsset,
+                size: 19,
                 color: categoryStyle.color,
               ),
             ),
@@ -120,26 +134,32 @@ class TaskListTile extends StatelessWidget {
                 children: [
                   Text(
                     task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
                       color: AppColors.textHeading,
+                      height: 1.2,
                     ),
                   ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: ResponsiveHelper.getResponsiveHeight(context, 4)),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          task.isToday ? Icons.access_time_rounded : Icons.calendar_today_outlined,
-                          size: ResponsiveHelper.getResponsiveSize(context, 12),
-                          color: AppColors.textMuted,
-                        ),
-                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
-                        Text(
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+                  Row(
+                    children: [
+                      AppSvgIcon(
+                        task.isToday
+                            ? 'assets/icons/tasks_compliance/tasks_clock.svg'
+                            : 'assets/icons/tasks_compliance/tasks_calendar.svg',
+                        size: 12,
+                        color: AppColors.textMuted,
+                      ),
+                      SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+                      Flexible(
+                        child: Text(
                           task.timeLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w400,
@@ -147,14 +167,19 @@ class TaskListTile extends StatelessWidget {
                             color: AppColors.textMuted,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
                   Container(
-                    padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 10, vertical: 4),
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppColors.dividerLight,
-                      borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, 999)),
+                      color: AppColors.filterButtonBackground,
+                      borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       categoryStyle.label,
@@ -162,7 +187,8 @@ class TaskListTile extends StatelessWidget {
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w500,
                         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-                        color: AppColors.textSecondary,
+                        color: AppColors.textBody,
+                        height: 1.1,
                       ),
                     ),
                   ),
@@ -170,10 +196,26 @@ class TaskListTile extends StatelessWidget {
               ),
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-            StatusBadge.pill(
-              label: statusStyle.label,
-              background: statusStyle.background,
-              foreground: statusStyle.color,
+            Container(
+              padding: ResponsiveHelper.getResponsivePadding(
+                context,
+                horizontal: 10,
+                vertical: 5,
+              ),
+              decoration: BoxDecoration(
+                color: statusStyle.background,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                statusStyle.label,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+                  color: statusStyle.color,
+                  height: 1.1,
+                ),
+              ),
             ),
           ],
         ),

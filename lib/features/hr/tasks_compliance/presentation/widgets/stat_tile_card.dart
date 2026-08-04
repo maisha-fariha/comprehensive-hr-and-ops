@@ -3,17 +3,13 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../../../core/widgets/surface_card.dart';
 
 /// Whether a [StatTileCard] lays its icon to the left of the value/label
-/// (used by the Tasks/Corrective 2x2 grids) or above a centered value/label
-/// (used by the Compliance 3-column row).
+/// (Tasks/Corrective 2x2 grids) or above a centered value/label
+/// (legacy vertical callers).
 enum StatTileLayout { horizontal, vertical }
 
-/// A single stat tile shared by all 3 "Tasks & Compliance" tabs' summary
-/// rows/grids (e.g. "8 Due Today", "94% ...", "42 Completed"). Renders
-/// either an existing Figma-exported SVG ([svgAsset]) or, for glyphs with no
-/// exported asset available, a Material [materialIcon] fallback.
+/// Shared summary tile for Tasks & Compliance stats grids.
 class StatTileCard extends StatelessWidget {
   final String? svgAsset;
   final IconData? materialIcon;
@@ -34,84 +30,116 @@ class StatTileCard extends StatelessWidget {
     required this.valueColor,
     required this.label,
     this.layout = StatTileLayout.horizontal,
-  }) : assert(svgAsset != null || materialIcon != null, 'Provide either svgAsset or materialIcon');
+  }) : assert(svgAsset != null || materialIcon != null);
 
   @override
   Widget build(BuildContext context) {
     final isHorizontal = layout == StatTileLayout.horizontal;
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
     final iconBox = Container(
       width: iconBoxSize,
       height: iconBoxSize,
       decoration: BoxDecoration(
         color: iconBackground,
-        borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, 12)),
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 12),
+        ),
       ),
       alignment: Alignment.center,
       child: svgAsset != null
           ? AppSvgIcon(svgAsset!, size: 19, color: iconColor)
-          : Icon(materialIcon, size: ResponsiveHelper.getResponsiveSize(context, 19), color: iconColor),
+          : Icon(
+              materialIcon,
+              size: ResponsiveHelper.getResponsiveSize(context, 19),
+              color: iconColor,
+            ),
     );
 
-    final valueText = Text(
-      value,
-      style: TextStyle(
-        fontFamily: 'Outfit',
-        fontWeight: FontWeight.w700,
-        fontSize: ResponsiveHelper.getResponsiveFontSize(context, isHorizontal ? 19 : 21),
-        color: valueColor,
-        height: 1,
-      ),
-    );
-
-    final labelText = Text(
-      label,
-      textAlign: isHorizontal ? TextAlign.start : TextAlign.center,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontFamily: 'Outfit',
-        fontWeight: FontWeight.w500,
-        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-        color: AppColors.textSecondary,
-        height: 15 / 11.5,
-      ),
-    );
-
-    return SurfaceCard.card(
+    return Container(
       padding: ResponsiveHelper.getResponsivePadding(
         context,
-        horizontal: isHorizontal ? 12 : 10,
-        vertical: isHorizontal ? 12 : 16,
+        horizontal: isHorizontal ? 12 : 8,
+        vertical: isHorizontal ? 14 : 14,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: AppColors.cardBorder),
       ),
       child: isHorizontal
           ? Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 iconBox,
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      valueText,
+                      Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 20),
+                          color: valueColor,
+                          height: 1.1,
+                        ),
+                      ),
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                      labelText,
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w500,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                          color: AppColors.textSecondary,
+                          height: 1.2,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             )
           : Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 iconBox,
                 SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-                valueText,
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 20),
+                    color: valueColor,
+                    height: 1.1,
+                  ),
+                ),
                 SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
-                labelText,
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+                    color: AppColors.textSecondary,
+                    height: 1.25,
+                  ),
+                ),
               ],
             ),
     );
