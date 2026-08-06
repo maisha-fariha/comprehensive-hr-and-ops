@@ -6,23 +6,30 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/section_header_row.dart';
+import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
+import '../../../staff_shell.dart';
 import '../controllers/staff_attendance_controller.dart';
+import '../widgets/attendance_history_section.dart';
 import '../widgets/break_row.dart';
 import '../widgets/clock_out_button.dart';
-import '../widgets/geofence_row.dart';
 import '../widgets/on_shift_banner.dart';
 import '../widgets/selfie_verification_row.dart';
 import '../widgets/shift_details_card.dart';
 import '../widgets/staff_attendance_header.dart';
-import '../widgets/time_worked_card.dart';
 
 /// "Attendance" — the Staff (care-worker) portal's clock-in/out screen.
 ///
 /// Reproduction of the reference "Attendance" screenshot. Single,
 /// non-tabbed screen (unlike the HR Attendance feature's segmented
 /// Today/Late/Missed/OT tabs).
+///
+/// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
+/// matches the reference frames that show the staff bottom nav.
 class StaffAttendancePage extends StatelessWidget {
   const StaffAttendancePage({super.key});
+
+  /// Index of the "More" slot in [StaffBottomNavBar.items].
+  static const int _moreTabIndex = 4;
 
   StaffAttendanceController _resolveController() {
     try {
@@ -32,12 +39,20 @@ class StaffAttendancePage extends StatelessWidget {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => StaffShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: StaffBottomNavBar(
+        currentIndex: _moreTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;
@@ -83,13 +98,9 @@ class StaffAttendancePage extends StatelessWidget {
                     ShiftDetailsCard(
                       locationName: overview.shiftLocationName,
                       timeRange: overview.shiftTimeRange,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    TimeWorkedCard(elapsedTimeLabel: overview.elapsedTimeLabel),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    GeofenceRow(
+                      elapsedTimeLabel: overview.elapsedTimeLabel,
                       isWithinGeofence: overview.isWithinGeofence,
-                      address: overview.geofenceAddress,
+                      geofenceAddress: overview.geofenceAddress,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                     SelfieVerificationRow(
@@ -100,6 +111,8 @@ class StaffAttendancePage extends StatelessWidget {
                     BreakRow(isOnBreak: overview.isOnBreak, statusLabel: overview.breakStatusLabel),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
                     const ClockOutButton(),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
+                    const AttendanceHistorySection(),
                   ],
                 ),
               ),
