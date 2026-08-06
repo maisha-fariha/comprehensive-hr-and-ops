@@ -7,12 +7,10 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/week_day.dart';
 import 'day_chip.dart';
 
-/// The "‹ May 12 – May 18, 2025 ›" week label + navigation chevrons, and the
-/// row of 7 day chips beneath it.
+/// Week range label with previous/next nav buttons, plus the 7 day chips.
 ///
-/// Both chevrons reuse the existing `AppAssets.chevronRight` SVG (the
-/// "previous" one rotated 180°), the same convention as the HR Scheduling
-/// feature's `SchedulingAssets.monthChevron`.
+/// Chevrons reuse [AppAssets.chevronRight] (previous rotated 180°), in the
+/// same bordered rounded-square style as [StaffScheduleHeader].
 class WeekNavigator extends StatelessWidget {
   final String weekRangeLabel;
   final List<WeekDay> days;
@@ -31,25 +29,43 @@ class WeekNavigator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 40);
+
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _NavChevron(rotated: true, onTap: onPreviousWeek),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 14)),
-            Text(
-              weekRangeLabel,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
-                color: AppColors.textPrimary,
+        SizedBox(
+          height: buttonSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: buttonSize + ResponsiveHelper.getResponsiveWidth(context, 10),
+                ),
+                child: Text(
+                  weekRangeLabel,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                    color: AppColors.textHeading,
+                    height: 1.2,
+                  ),
+                ),
               ),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 14)),
-            _NavChevron(rotated: false, onTap: onNextWeek),
-          ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _NavChevron(rotated: true, onTap: onPreviousWeek),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _NavChevron(rotated: false, onTap: onNextWeek),
+              ),
+            ],
+          ),
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
         Row(
@@ -75,16 +91,27 @@ class _NavChevron extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = AppSvgIcon(AppAssets.chevronRight, size: 15, color: AppColors.textSecondary);
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final buttonRadius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    final icon = const AppSvgIcon(
+      AppAssets.chevronRight,
+      size: 18,
+      color: AppColors.textHeading,
+    );
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: ResponsiveHelper.getResponsiveSize(context, 24),
-        height: ResponsiveHelper.getResponsiveSize(context, 24),
-        child: Center(
-          child: rotated ? Transform.rotate(angle: 3.14159, child: icon) : icon,
+      child: Container(
+        width: buttonSize,
+        height: buttonSize,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(buttonRadius),
+          border: Border.all(color: AppColors.cardBorder),
         ),
+        alignment: Alignment.center,
+        child: rotated ? Transform.rotate(angle: 3.14159, child: icon) : icon,
       ),
     );
   }

@@ -13,10 +13,6 @@ import '../widgets/staff_quick_actions_section.dart';
 import '../widgets/today_shift_card.dart';
 
 /// The Staff Dashboard — "Home" screen of the Staff (care-worker) portal.
-///
-/// Reproduction of the reference "Home/Dashboard" screenshot. Distinct from
-/// `ManagerDashboardPage` (a different portal/role), but reuses the same
-/// gradient-header + floating-card visual language for consistency.
 class StaffDashboardPage extends StatelessWidget {
   const StaffDashboardPage({super.key});
 
@@ -35,11 +31,12 @@ class StaffDashboardPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       body: Obx(() {
-        final response = controller.state.value;
-        final overview = response.data;
+        final overview = controller.state.value.data;
 
         if (overview == null && controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+          );
         }
 
         if (overview == null) {
@@ -51,48 +48,61 @@ class StaffDashboardPage extends StatelessWidget {
           );
         }
 
-        final topInset = ResponsiveHelper.getResponsiveHeight(
-              context,
-              AppDimens.searchBarOverlap,
-            ) +
-            ResponsiveHelper.getResponsiveHeight(context, 18);
+        final horizontal = ResponsiveHelper.getResponsiveWidth(
+          context,
+          AppDimens.screenPaddingHorizontal,
+        );
+        final overlap = ResponsiveHelper.getResponsiveHeight(
+          context,
+          kStaffShiftCardOverlap,
+        );
+        final afterShiftGap = overlap + ResponsiveHelper.getResponsiveHeight(context, 16);
 
-        return Column(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
+        return RefreshIndicator(
+          color: AppColors.secondaryTeal,
+          onRefresh: controller.refresh,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                StaffDashboardHeader(overview: overview),
-                Positioned(
-                  left: ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                  right: ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                  bottom: -ResponsiveHelper.getResponsiveHeight(context, AppDimens.searchBarOverlap),
-                  child: TodayShiftCard(shift: overview.todayShift),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    StaffDashboardHeader(overview: overview),
+                    Positioned(
+                      left: horizontal,
+                      right: horizontal,
+                      bottom: -overlap,
+                      child: TodayShiftCard(shift: overview.todayShift),
+                    ),
+                  ],
+                ),
+                SizedBox(height: afterShiftGap),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontal,
+                    0,
+                    horizontal,
+                    ResponsiveHelper.getResponsiveHeight(context, 28),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      StaffOverviewSection(stats: overview.overviewStats),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                      StaffAlertsBanner(
+                        count: overview.alertCount,
+                        label: overview.alertLabel,
+                      ),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                      StaffQuickActionsSection(actions: overview.quickActions),
+                    ],
+                  ),
                 ),
               ],
             ),
-            Expanded(
-              child: RefreshIndicator(
-                color: AppColors.secondaryTeal,
-                onRefresh: controller.refresh,
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                    topInset,
-                    ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                    ResponsiveHelper.getResponsiveHeight(context, 42),
-                  ),
-                  children: [
-                    StaffOverviewSection(stats: overview.overviewStats),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    StaffAlertsBanner(count: overview.alertCount, label: overview.alertLabel),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                    StaffQuickActionsSection(actions: overview.quickActions),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
         );
       }),
     );

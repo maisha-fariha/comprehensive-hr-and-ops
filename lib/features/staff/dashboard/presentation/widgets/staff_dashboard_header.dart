@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
-import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../staff_core_constants.dart';
 import '../../domain/entities/staff_dashboard_overview.dart';
 
-/// The teal gradient hero header: org switcher, notification bell, avatar
-/// and the "Good morning" greeting block.
-///
-/// Visually mirrors the HR Manager Dashboard's `DashboardHeader` (same
-/// gradient/decorative-circle treatment) so the Staff portal stays
-/// consistent with the Manager portal.
+/// How far [TodayShiftCard] overlaps the gradient header.
+const double kStaffShiftCardOverlap = 38;
+
+/// Teal gradient hero: org switcher, notifications, avatar, greeting.
 class StaffDashboardHeader extends StatelessWidget {
   final StaffDashboardOverview overview;
   final VoidCallback? onOrganizationTap;
@@ -29,116 +26,132 @@ class StaffDashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
+    final dateLabel = overview.dateLabel.toUpperCase().replaceAll('·', '•');
+
+    // No ClipRect — bottom-left circle must overflow below the header.
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          child: const DecoratedBox(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment(-0.37, -0.93),
-                end: Alignment(0.37, 0.93),
-                stops: [0, 0.58, 1],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.secondaryTeal,
-                  AppColors.secondaryTealDark,
-                  AppColors.secondaryTealDeep,
+                  Color(0xFF0B6B66),
+                  Color(0xFF085550),
+                  Color(0xFF064743),
                 ],
               ),
             ),
           ),
-          Positioned(
-            top: -100,
-            right: -70,
-            child: Container(
-              width: 230,
-              height: 230,
-              decoration: const BoxDecoration(
-                color: AppColors.whiteOpacity04,
-                shape: BoxShape.circle,
-              ),
+        ),
+        Positioned(
+          top: -120,
+          right: -70,
+          child: Container(
+            width: 280,
+            height: 280,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.055),
+              shape: BoxShape.circle,
             ),
           ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: ResponsiveHelper.getResponsivePadding(
-                context,
-                horizontal: 20,
-                top: 5,
-                bottom: 20,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _OrganizationSwitcher(
-                        name: overview.organizationName,
-                        onTap: onOrganizationTap,
-                      ),
-                      Row(
-                        children: [
-                          _NotificationButton(
-                            count: overview.unreadNotificationCount,
-                            onTap: onNotificationsTap,
-                          ),
-                          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-                          _AvatarButton(onTap: onAvatarTap),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                  Text(
-                    overview.dateLabel.toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w600,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                      color: AppColors.whiteOpacity62,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.only(
-                      top: ResponsiveHelper.getResponsiveHeight(context, 2),
-                      bottom: ResponsiveHelper.getResponsiveHeight(context, 3),
-                    ),
-                    child: Text(
-                      overview.greetingLine,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 26),
-                        color: Colors.white,
-                        letterSpacing: -0.4,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    overview.greetingSubtitle,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w400,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                      color: AppColors.whiteOpacity80,
-                    ),
-                  ),
-                ],
-              ),
+        ),
+        // Bottom-left decorative circle — peeks under the shift card onto
+        // the scaffold top-left (needs parent Stack clipBehavior: none).
+        Positioned(
+          left: -ResponsiveHelper.getResponsiveWidth(context, 72),
+          bottom: -ResponsiveHelper.getResponsiveHeight(context, 70),
+          child: Container(
+            width: ResponsiveHelper.getResponsiveSize(context, 210),
+            height: ResponsiveHelper.getResponsiveSize(context, 210),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.05),
             ),
           ),
-        ],
-      ),
+        ),
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: ResponsiveHelper.getResponsivePadding(
+              context,
+              horizontal: 20,
+              top: 8,
+              bottom: 54,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _OrganizationSwitcher(
+                          name: overview.organizationName,
+                          onTap: onOrganizationTap,
+                        ),
+                      ),
+                    ),
+                    _NotificationButton(
+                      count: overview.unreadNotificationCount,
+                      onTap: onNotificationsTap,
+                    ),
+                    SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+                    _AvatarButton(onTap: onAvatarTap),
+                  ],
+                ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                Text(
+                  dateLabel,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                    color: Colors.white.withValues(alpha: 0.85),
+                    letterSpacing: 0.9,
+                  ),
+                ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+                Text(
+                  overview.greetingLine,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 26),
+                    color: Colors.white,
+                    letterSpacing: -0.35,
+                    height: 1.15,
+                  ),
+                ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+                Text(
+                  overview.greetingSubtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w400,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    color: Colors.white.withValues(alpha: 0.88),
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
 
-/// NOTE: the org-switcher glyph is a "swap organization" icon in the
-/// reference screenshot; no matching SVG exists yet, so
-/// `StaffMaterialIconFallback.orgSwitch` (`Icons.sync_rounded`) stands in
-/// for it — see the feature's final report.
 class _OrganizationSwitcher extends StatelessWidget {
   final String name;
   final VoidCallback? onTap;
@@ -147,47 +160,63 @@ class _OrganizationSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final logoSize = ResponsiveHelper.getResponsiveSize(context, 30);
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: ResponsiveHelper.getResponsivePadding(context, left: 8, right: 14, top: 7, bottom: 7),
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          left: 7,
+          right: 12,
+          top: 6,
+          bottom: 6,
+        ),
         decoration: BoxDecoration(
-          color: AppColors.whiteOpacity13,
-          border: Border.all(color: AppColors.whiteOpacity16),
+          color: Colors.white.withValues(alpha: 0.12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: ResponsiveHelper.getResponsiveSize(context, 28),
-              height: ResponsiveHelper.getResponsiveSize(context, 28),
+              width: logoSize,
+              height: logoSize,
               decoration: BoxDecoration(
-                color: AppColors.surfaceWhite,
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(
                   ResponsiveHelper.getResponsiveRadius(context, 8),
                 ),
               ),
               alignment: Alignment.center,
-              child: Icon(
-                StaffMaterialIconFallback.orgSwitch,
-                size: ResponsiveHelper.getResponsiveSize(context, 16),
-                color: AppColors.secondaryTeal,
+              // No leaf SVG in assets — eco stands in for the brand mark.
+              child: SvgPicture.asset(
+                'assets/icons/staff_core/leaf.svg',
+                width: ResponsiveHelper.getResponsiveSize(context, 17),
               ),
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 9)),
-            Text(
-              name,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                color: Colors.white,
+            Flexible(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
+                  color: Colors.white,
+                ),
               ),
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 9)),
-            const AppSvgIcon(AppAssets.chevronDown, size: 16, color: AppColors.whiteOpacity70),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 20),
+              color: Colors.white.withValues(alpha: 0.92),
+            ),
           ],
         ),
       ),
@@ -217,10 +246,10 @@ class _NotificationButton extends StatelessWidget {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                color: AppColors.whiteOpacity13,
-                border: Border.all(color: AppColors.whiteOpacity16),
+                color: Colors.white.withValues(alpha: 0.12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                 borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 13),
+                  ResponsiveHelper.getResponsiveRadius(context, 12),
                 ),
               ),
               alignment: Alignment.center,
@@ -228,25 +257,25 @@ class _NotificationButton extends StatelessWidget {
             ),
             if (count > 0)
               Positioned(
-                top: -5,
-                right: -6,
+                top: -3,
+                right: -4,
                 child: Container(
-                  constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
+                  constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.criticalRed,
-                    border: Border.all(color: AppColors.secondaryTealDark, width: 2),
+                    color: const Color(0xFFE53935),
+                    border: Border.all(color: const Color(0xFF064743), width: 1.5),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     '$count',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w700,
-                      fontSize: 11,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
                       color: Colors.white,
-                      height: 1.2,
+                      height: 1.1,
                     ),
                   ),
                 ),
@@ -258,9 +287,6 @@ class _NotificationButton extends StatelessWidget {
   }
 }
 
-/// NOTE: the reference screenshot shows a plain generic profile silhouette
-/// rather than initials, so `StaffMaterialIconFallback.personAvatar`
-/// (`Icons.person_rounded`) stands in for it — see the final report.
 class _AvatarButton extends StatelessWidget {
   final VoidCallback? onTap;
 
@@ -276,23 +302,16 @@ class _AvatarButton extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: AppColors.surfaceWhite,
+          color: const Color(0xFFE8EEF0),
           borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 13),
+            ResponsiveHelper.getResponsiveRadius(context, 12),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 2)),
-              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 4),
-            ),
-          ],
         ),
         alignment: Alignment.center,
         child: Icon(
-          StaffMaterialIconFallback.personAvatar,
+          Icons.person_rounded,
           size: ResponsiveHelper.getResponsiveSize(context, 22),
-          color: AppColors.secondaryTeal,
+          color: const Color(0xFF8A97A8),
         ),
       ),
     );
