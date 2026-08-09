@@ -1,44 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/staff_daily_log_summary_stat.dart';
 import '../../domain/entities/staff_daily_logs_enums.dart';
 
 class _StatTagStyle {
   final String svgAsset;
+  final Color valueColor;
   final Color iconColor;
   final Color iconBackground;
 
-  const _StatTagStyle({required this.svgAsset, required this.iconColor, required this.iconBackground});
+  const _StatTagStyle({
+    required this.svgAsset,
+    required this.valueColor,
+    required this.iconColor,
+    required this.iconBackground,
+  });
 }
 
-// Every tile reuses an existing dashboard icon/color pair - no Material
-// icon stand-ins are needed for this feature's stat tiles.
+/// Icons from `assets/icons/staff_daily_logs/`.
 const Map<StaffDailyLogStatTag, _StatTagStyle> _statTagStyles = {
   StaffDailyLogStatTag.submittedToday: _StatTagStyle(
-    svgAsset: AppAssets.checkCircle,
-    iconColor: AppColors.activeGreen,
-    iconBackground: AppColors.activeIconBackground,
+    svgAsset: 'assets/icons/staff_daily_logs/circle_check.svg',
+    valueColor: Color(0xFF2E8C58),
+    iconColor: Color(0xFF2E8C58),
+    iconBackground: Color(0xFFE6F6EE),
   ),
   StaffDailyLogStatTag.pendingReview: _StatTagStyle(
-    svgAsset: AppAssets.clock,
-    iconColor: AppColors.urgentAmber,
-    iconBackground: AppColors.urgentIconBackground,
+    svgAsset: 'assets/icons/staff_daily_logs/clock.svg',
+    valueColor: Color(0xFFD97706),
+    iconColor: Color(0xFFD97706),
+    iconBackground: Color(0xFFFFF4E5),
   ),
   StaffDailyLogStatTag.flaggedNotes: _StatTagStyle(
-    svgAsset: AppAssets.flag,
-    iconColor: AppColors.criticalRed,
-    iconBackground: AppColors.criticalIconBackground,
+    svgAsset: 'assets/icons/staff_daily_logs/flag.svg',
+    valueColor: Color(0xFFE5484D),
+    iconColor: Color(0xFFE5484D),
+    iconBackground: Color(0xFFFFEBEE),
   ),
 };
 
-/// A single tile in the "3 stat tiles" row shown at the top of every Staff
-/// Daily Logs tab: icon → value → label, matching the reference
-/// screenshots.
+/// A single tile in the top stats row: circular icon → colored value →
+/// muted two-line-capable label on a white elevated card.
 class StaffDailyLogStatTile extends StatelessWidget {
   final StaffDailyLogSummaryStat stat;
 
@@ -47,25 +52,25 @@ class StaffDailyLogStatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = _statTagStyles[stat.tag]!;
-    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 40);
-    final radius = ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusCard);
+    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 38);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 16);
 
     return Container(
-      padding: ResponsiveHelper.getResponsivePadding(context, vertical: 16, horizontal: 6),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        vertical: 14,
+        horizontal: 8,
+      ),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
-        border: Border.all(color: AppColors.cardBorder),
         borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
           BoxShadow(
-            color: AppColors.shadowNavy.withValues(alpha: 0.04),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 1),
-          ),
-          BoxShadow(
-            color: AppColors.shadowNavy.withValues(alpha: 0.04),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 8),
+            color: AppColors.shadowNavy.withValues(alpha: 0.05),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 4)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 12),
           ),
         ],
       ),
@@ -77,25 +82,25 @@ class StaffDailyLogStatTile extends StatelessWidget {
             height: iconBoxSize,
             decoration: BoxDecoration(
               color: style.iconBackground,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusIconBoxMedium),
-              ),
+              shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: AppSvgIcon(style.svgAsset, size: 19, color: style.iconColor),
+            child: AppSvgIcon(style.svgAsset, size: 18, color: style.iconColor),
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
           Text(
             stat.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 20),
-              color: style.iconColor,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 22),
+              color: style.valueColor,
               height: 1,
             ),
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
           Text(
             stat.label,
             textAlign: TextAlign.center,
@@ -106,7 +111,7 @@ class StaffDailyLogStatTile extends StatelessWidget {
               fontWeight: FontWeight.w500,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
               color: AppColors.textMuted,
-              height: 1.2,
+              height: 1.25,
             ),
           ),
         ],

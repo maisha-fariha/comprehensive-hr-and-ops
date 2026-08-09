@@ -7,12 +7,15 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../../../core/widgets/surface_card.dart';
+import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
+import '../../../staff_shell.dart';
 import '../../domain/entities/daily_note_client_info.dart';
 import '../controllers/daily_note_controller.dart';
 import '../widgets/daily_note_app_bar.dart';
 import '../widgets/daily_note_attachments_section.dart';
 import '../widgets/daily_note_client_info_card.dart';
 import '../widgets/daily_note_field_row.dart';
+import '../widgets/daily_note_handover_section.dart';
 
 /// The "Daily Note" screen: a client-specific care-note form opened from a
 /// Staff Daily Logs client row/card.
@@ -21,10 +24,16 @@ import '../widgets/daily_note_field_row.dart';
 /// Built from a reference screenshot (live Figma MCP access was
 /// unavailable while this screen was authored - see implementation
 /// report).
+///
+/// Hosts [StaffBottomNavBar] with "Clients" selected so the pushed route
+/// still matches frames that show the staff bottom nav.
 class DailyNotePage extends StatelessWidget {
   final DailyNoteClientInfo client;
 
   const DailyNotePage({super.key, this.client = DailyNoteClientInfo.fallback});
+
+  /// Index of the "Clients" slot in [StaffBottomNavBar.items].
+  static const int _clientsTabIndex = 2;
 
   DailyNoteController _resolveController() {
     try {
@@ -34,13 +43,22 @@ class DailyNotePage extends StatelessWidget {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => StaffShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: StaffBottomNavBar(
+        currentIndex: _clientsTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             DailyNoteAppBar(onSave: () => Get.back()),
@@ -91,6 +109,8 @@ class DailyNotePage extends StatelessWidget {
                       ),
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                       const DailyNoteAttachmentsSection(),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                      DailyNoteHandoverSection(onSubmit: () => Get.back()),
                     ],
                   ),
                 );
