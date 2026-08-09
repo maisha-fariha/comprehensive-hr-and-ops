@@ -24,7 +24,7 @@ abstract final class AppColors {
   static const Color textBody = Color(0xFF3A4B60);
   static const Color textSecondary = Color(0xFF647285);
   static const Color textMuted = Color(0xFF8A97A8);
-  static const Color textFaint = Color(0xFF94A3B8);
+  static const Color textFaint = Color(0xFF64748B);
   static const Color textPlaceholder = Color(0xFF757575);
   static const Color iconChevron = Color(0xFFC3CCD6);
 

@@ -5,36 +5,57 @@ import '../../../../../../core/constants/app_assets.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/widgets/app_svg_icon.dart';
 
-/// Bold field label shown above every field in the Create Incident form.
+/// Field label with optional red required asterisk.
 class CreateIncidentFieldLabel extends StatelessWidget {
   final String text;
+  final bool required;
 
-  const CreateIncidentFieldLabel(this.text, {super.key});
+  static const Color _asterisk = Color(0xFFE5484D);
+
+  const CreateIncidentFieldLabel(this.text, {super.key, this.required = false});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 7)),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontFamily: 'Outfit',
-          fontWeight: FontWeight.w700,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-          color: AppColors.textHeading,
+      padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 8)),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: text,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                color: AppColors.textHeading,
+                height: 1.2,
+              ),
+            ),
+            if (required)
+              TextSpan(
+                text: ' *',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: _asterisk,
+                  height: 1.2,
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// The shared white/outlined field "shell" (border, radius, padding) used
-/// by every text/dropdown/date/time field on the Create Incident form,
-/// with an optional trailing icon slot.
+/// Filled light-gray field shell matching the Create Incident reference.
 class _FieldShell extends StatelessWidget {
   final Widget child;
   final Widget? trailing;
   final VoidCallback? onTap;
+
+  static const Color _fill = Color(0xFFF4F7F9);
 
   const _FieldShell({required this.child, this.trailing, this.onTap});
 
@@ -42,12 +63,15 @@ class _FieldShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final content = Container(
       width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 14, vertical: 14),
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 14,
+        vertical: 14,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        border: Border.all(color: AppColors.searchBorder),
+        color: _fill,
         borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
+          ResponsiveHelper.getResponsiveRadius(context, 12),
         ),
       ),
       child: Row(
@@ -71,11 +95,12 @@ TextStyle _fieldTextStyle(BuildContext context, {required bool isPlaceholder}) {
     fontFamily: 'Outfit',
     fontWeight: FontWeight.w500,
     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-    color: isPlaceholder ? AppColors.textFaint : AppColors.textHeading,
+    color: isPlaceholder ? const Color(0xFF94A3B8) : AppColors.textHeading,
+    height: 1.25,
   );
 }
 
-/// A plain editable outlined text field, e.g. the incident title / location.
+/// Editable filled text field (title / location).
 class CreateIncidentTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
@@ -99,45 +124,58 @@ class CreateIncidentTextField extends StatelessWidget {
   }
 }
 
-/// A display-only "dropdown-look" field with a chevron - this is a mock UI
-/// with no backing dropdown menu logic, matching the current scope of the
-/// feature (front-end only, no real form persistence yet).
+/// Display-only dropdown-look field with trailing chevron.
 class CreateIncidentDropdownField extends StatelessWidget {
   final String? value;
   final String placeholder;
   final VoidCallback? onTap;
 
-  const CreateIncidentDropdownField({super.key, this.value, required this.placeholder, this.onTap});
+  const CreateIncidentDropdownField({
+    super.key,
+    this.value,
+    required this.placeholder,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final empty = value == null || value!.isEmpty;
     return _FieldShell(
       onTap: onTap,
-      trailing: const AppSvgIcon(AppAssets.chevronDown, size: 15, color: AppColors.textFaint),
+      trailing: const AppSvgIcon(
+        AppAssets.chevronDown,
+        size: 15,
+        color: Color(0xFF94A3B8),
+      ),
       child: Text(
-        value ?? placeholder,
+        empty ? placeholder : value!,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: _fieldTextStyle(context, isPlaceholder: value == null),
+        style: _fieldTextStyle(context, isPlaceholder: false),
       ),
     );
   }
 }
 
-/// An outlined date field with a trailing calendar icon (reuses the
-/// existing `nav_calendar.svg` asset - a plain calendar outline that is an
-/// exact visual match, unlike `calendar_check`/`calendar_plus` which both
-/// bundle an extra symbol).
+/// Filled date field with trailing calendar icon.
 class CreateIncidentDateField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
 
-  const CreateIncidentDateField({super.key, required this.controller, this.hint = 'MM/DD/YYYY'});
+  const CreateIncidentDateField({
+    super.key,
+    required this.controller,
+    this.hint = 'MM/DD/YYYY',
+  });
 
   @override
   Widget build(BuildContext context) {
     return _FieldShell(
-      trailing: const AppSvgIcon(AppAssets.navCalendar, size: 16, color: AppColors.textFaint),
+      trailing: const AppSvgIcon(
+        AppAssets.navCalendar,
+        size: 16,
+        color: AppColors.textHeading,
+      ),
       child: TextField(
         controller: controller,
         style: _fieldTextStyle(context, isPlaceholder: false),
@@ -152,18 +190,25 @@ class CreateIncidentDateField extends StatelessWidget {
   }
 }
 
-/// An outlined time field with a trailing clock icon (reuses the existing
-/// `clock.svg` asset - an exact visual match).
+/// Filled time field with trailing clock icon.
 class CreateIncidentTimeField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
 
-  const CreateIncidentTimeField({super.key, required this.controller, this.hint = 'HH:MM'});
+  const CreateIncidentTimeField({
+    super.key,
+    required this.controller,
+    this.hint = 'HH:MM',
+  });
 
   @override
   Widget build(BuildContext context) {
     return _FieldShell(
-      trailing: const AppSvgIcon(AppAssets.clock, size: 16, color: AppColors.textFaint),
+      trailing: const AppSvgIcon(
+        AppAssets.clock,
+        size: 16,
+        color: AppColors.textHeading,
+      ),
       child: TextField(
         controller: controller,
         style: _fieldTextStyle(context, isPlaceholder: false),

@@ -1,21 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../../core/constants/app_colors.dart';
+import '../../../../../../core/widgets/app_svg_icon.dart';
 
-/// Red-tinted alert box shown on the Incident Details screen only when the
-/// incident's severity is High or Critical (see
-/// `IncidentDetail.requiresUrgentReview`).
+/// Red-tinted alert box shown inside the Incident Summary card when the
+/// incident's severity is High or Critical.
 class HighSeverityAlertBanner extends StatelessWidget {
+  static const Color _background = Color(0xFFFEF2F2);
+  static const Color _border = Color(0xFFFECACA);
+  static const Color _foreground = Color(0xFF991B1B);
+
   const HighSeverityAlertBanner({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 14,
+        vertical: 12,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.criticalBackgroundSoft,
-        border: Border.all(color: AppColors.criticalBackground),
+        color: _background,
+        border: Border.all(color: _border),
         borderRadius: BorderRadius.circular(
           ResponsiveHelper.getResponsiveRadius(context, 14),
         ),
@@ -23,10 +31,15 @@ class HighSeverityAlertBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            size: ResponsiveHelper.getResponsiveSize(context, 18),
-            color: AppColors.criticalRed,
+          Padding(
+            padding: EdgeInsets.only(
+              top: ResponsiveHelper.getResponsiveHeight(context, 1),
+            ),
+            child: AppSvgIcon(
+              'assets/icons/staff_incidents/alert.svg',
+              size: ResponsiveHelper.getResponsiveSize(context, 16),
+              color: _foreground,
+            ),
           ),
           SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
           Expanded(
@@ -36,8 +49,8 @@ class HighSeverityAlertBanner extends StatelessWidget {
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w600,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                color: AppColors.criticalRed,
-                height: 1.35,
+                color: _foreground,
+                height: 1.4,
               ),
             ),
           ),

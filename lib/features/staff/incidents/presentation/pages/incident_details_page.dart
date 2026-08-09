@@ -4,8 +4,14 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
+import '../../../staff_shell.dart';
 import '../controllers/incident_details_controller.dart';
-import '../widgets/incident_details/high_severity_alert_banner.dart';
+import '../widgets/incident_details/incident_activity_log_section.dart';
+import '../widgets/incident_details/incident_description_section.dart';
+import '../widgets/incident_details/incident_details_actions.dart';
+import '../widgets/incident_details/incident_evidence_section.dart';
 import '../widgets/incident_details/incident_info_section.dart';
 import '../widgets/incident_details/incident_people_section.dart';
 import '../widgets/incident_details/incident_summary_card.dart';
@@ -18,8 +24,14 @@ import '../widgets/staff_incidents_header.dart';
 /// built without Figma MCP access (monthly quota exhausted) - see the
 /// feature's final report for details on any approximated content and
 /// icon placeholders.
+///
+/// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
+/// matches reference frames that show the staff bottom nav.
 class IncidentDetailsPage extends StatefulWidget {
   final String incidentId;
+
+  /// Index of the "More" slot in [StaffBottomNavBar.items].
+  static const int _moreTabIndex = 4;
 
   const IncidentDetailsPage({super.key, required this.incidentId});
 
@@ -45,24 +57,33 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => StaffShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: StaffBottomNavBar(
+        currentIndex: IncidentDetailsPage._moreTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             StaffIncidentsHeader(
               title: 'Incident Details',
               subtitle: 'View full incident report and details',
               onBack: Get.back,
-              trailing: GestureDetector(
+              trailing: StaffIncidentsHeader.iconButton(
+                context: context,
                 onTap: () {},
-                behavior: HitTestBehavior.opaque,
-                child: Icon(
-                  Icons.ios_share_rounded,
-                  size: ResponsiveHelper.getResponsiveSize(context, 20),
-                  color: AppColors.textPrimary,
+                child: AppSvgIcon(
+                  'assets/icons/staff_incidents/share.svg',
+                  size: 18,
+                  color: AppColors.textHeading,
                 ),
               ),
             ),
@@ -103,14 +124,18 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                   ),
                   children: [
                     IncidentSummaryCard(detail: detail),
-                    if (detail.requiresUrgentReview) ...[
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                      const HighSeverityAlertBanner(),
-                    ],
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     IncidentInfoSection(detail: detail),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     IncidentPeopleSection(detail: detail),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                    const IncidentDescriptionSection(),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                    const IncidentEvidenceSection(),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                    const IncidentActivityLogSection(),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                    const IncidentDetailsActions(),
                   ],
                 );
               }),

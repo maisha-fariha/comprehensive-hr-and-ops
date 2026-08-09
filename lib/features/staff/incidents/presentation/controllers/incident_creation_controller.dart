@@ -24,7 +24,10 @@ class IncidentCreationController extends GetxController {
 
   // Section 3 - People & Location
   final Rx<String?> resident = Rx<String?>(null);
-  final TextEditingController locationController = TextEditingController();
+  final Rx<String?> location = Rx<String?>(null);
+
+  // Section 4 - Description
+  final TextEditingController descriptionController = TextEditingController();
 
   void selectSeverity(IncidentSeverity value) => severity.value = value;
 
@@ -33,7 +36,7 @@ class IncidentCreationController extends GetxController {
     incidentTitleController.dispose();
     incidentDateController.dispose();
     incidentTimeController.dispose();
-    locationController.dispose();
+    descriptionController.dispose();
     super.onClose();
   }
 }
