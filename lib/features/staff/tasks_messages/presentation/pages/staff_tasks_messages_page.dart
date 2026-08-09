@@ -60,19 +60,26 @@ class StaffTasksMessagesPage extends StatelessWidget {
 
           return Column(
             children: [
-              const TasksMessagesHeader(title: 'Tasks & Messages'),
-              Padding(
-                padding: ResponsiveHelper.getResponsivePadding(
-                  context,
-                  horizontal: AppDimens.screenPaddingHorizontal,
-                ),
-                child: TasksMessagesSegmentedTabs(
-                  selectedTab: selectedTab,
-                  tasksCount: overview.tasks.length,
-                  messagesCount: overview.conversations.length,
-                  onTabSelected: controller.selectTab,
-                ),
-              ),
+              ColoredBox(color: AppColors.surfaceWhite, child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const TasksMessagesHeader(title: 'Tasks & Messages'),
+                  Padding(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: AppDimens.screenPaddingHorizontal,
+                      top: 16,
+                      bottom: 16,
+                    ),
+                    child: TasksMessagesSegmentedTabs(
+                      selectedTab: selectedTab,
+                      tasksCount: overview.tasks.length,
+                      messagesCount: overview.conversations.length,
+                      onTabSelected: controller.selectTab,
+                    ),
+                  ),
+                ],
+              )),
               Expanded(
                 child: RefreshIndicator(
                   color: AppColors.secondaryTeal,

@@ -18,7 +18,7 @@ class StaffBottomNavBar extends StatelessWidget {
     StaffBottomNavItemData(asset: AppAssets.navHome, label: 'Home'),
     StaffBottomNavItemData(asset: AppAssets.navCalendar, label: 'Schedule'),
     StaffBottomNavItemData(asset: AppAssets.users, label: 'Clients'),
-    StaffBottomNavItemData(asset: AppAssets.clipboardCheck, label: 'MAR / Tasks'),
+    StaffBottomNavItemData(asset: AppAssets.navChecklist, label: 'MAR / Tasks'),
     StaffBottomNavItemData(asset: AppAssets.navMore, label: 'More'),
   ];
 

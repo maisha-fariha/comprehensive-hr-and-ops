@@ -2,17 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
-import '../../staff_tasks_messages_constants.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// Header for the Message Details (conversation thread) screen: a back
-/// chevron, a small avatar, the contact's name + "Active now"/"Offline"
-/// status line, and phone/video call icon buttons.
-///
-/// Icon note: no matching SVGs exist in `assets/icons/*` for a back
-/// chevron, phone-call or video-call glyph, so this uses
-/// `Icons.arrow_back_ios_new_rounded`, `Icons.call_rounded` and
-/// `Icons.videocam_rounded` as temporary stand-ins.
+/// Header for the Message Details thread: bordered back, avatar + status,
+/// phone/video actions.
 class ThreadHeader extends StatelessWidget {
   final String contactName;
   final String contactInitials;
@@ -20,6 +15,12 @@ class ThreadHeader extends StatelessWidget {
   final VoidCallback? onBack;
   final VoidCallback? onCallTap;
   final VoidCallback? onVideoTap;
+
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _activeGreen = Color(0xFF2D8A56);
+  static const Color _avatarBg = Color(0xFFE8F0FE);
+  static const Color _avatarFg = Color(0xFF2A5DA6);
+  static const Color _actionIcon = Color(0xFF0E7C7B);
 
   const ThreadHeader({
     super.key,
@@ -33,108 +34,181 @@ class ThreadHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarSize = ResponsiveHelper.getResponsiveSize(context, StaffTasksMessagesDimens.avatarSizeLarge - 8);
+    final avatarSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final statusDot = ResponsiveHelper.getResponsiveSize(context, 11);
 
-    return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16, top: 10, bottom: 12),
-      child: Row(
+    return ColoredBox(
+      color: AppColors.surfaceWhite,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
-            onTap: onBack ?? Get.back,
-            behavior: HitTestBehavior.opaque,
-            child: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              size: ResponsiveHelper.getResponsiveSize(context, 18),
-              color: AppColors.textHeading,
+          Padding(
+            padding: ResponsiveHelper.getResponsivePadding(
+              context,
+              horizontal: 16,
+              top: 10,
+              bottom: 12,
             ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          Container(
-            width: avatarSize,
-            height: avatarSize,
-            decoration: const BoxDecoration(color: AppColors.infoIconBackground, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Text(
-              contactInitials,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                color: AppColors.infoBlue,
-              ),
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
               children: [
-                Text(
-                  contactName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                    color: AppColors.textHeading,
+                _SquareIconButton(
+                  onTap: onBack ?? Get.back,
+                  child: Transform.rotate(
+                    angle: 3.14159,
+                    child: const AppSvgIcon(
+                      AppAssets.chevronRight,
+                      size: 18,
+                      color: _titleColor,
+                    ),
                   ),
                 ),
-                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+                Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    if (isActiveNow) ...[
-                      Container(
-                        width: ResponsiveHelper.getResponsiveSize(context, 6),
-                        height: ResponsiveHelper.getResponsiveSize(context, 6),
-                        decoration: const BoxDecoration(color: AppColors.activeGreen, shape: BoxShape.circle),
+                    Container(
+                      width: avatarSize,
+                      height: avatarSize,
+                      decoration: const BoxDecoration(
+                        color: _avatarBg,
+                        shape: BoxShape.circle,
                       ),
-                      SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
-                    ],
-                    Text(
-                      isActiveNow ? 'Active now' : 'Offline',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w400,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-                        color: isActiveNow ? AppColors.activeGreen : AppColors.textFaint,
+                      alignment: Alignment.center,
+                      child: Text(
+                        contactInitials,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                          color: _avatarFg,
+                          height: 1,
+                        ),
                       ),
                     ),
+                    if (isActiveNow)
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          width: statusDot,
+                          height: statusDot,
+                          decoration: BoxDecoration(
+                            color: _activeGreen,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.surfaceWhite,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        contactName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                          color: _titleColor,
+                          height: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
+                      Row(
+                        children: [
+                          if (isActiveNow) ...[
+                            Container(
+                              width: ResponsiveHelper.getResponsiveSize(context, 6),
+                              height: ResponsiveHelper.getResponsiveSize(context, 6),
+                              decoration: const BoxDecoration(
+                                color: _activeGreen,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+                          ],
+                          Flexible(
+                            child: Text(
+                              isActiveNow ? 'Active now' : 'Offline',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w500,
+                                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                                color: isActiveNow ? _activeGreen : AppColors.textFaint,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                _SquareIconButton(
+                  onTap: onCallTap,
+                  child: AppSvgIcon(
+                    'assets/icons/staff_tasks_messages/phone.svg',
+                    size: ResponsiveHelper.getResponsiveSize(context, 18),
+                    color: _actionIcon,
+                  ),
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                _SquareIconButton(
+                  onTap: onVideoTap,
+                  child: AppSvgIcon(
+                    'assets/icons/staff_tasks_messages/video.svg',
+                    size: ResponsiveHelper.getResponsiveSize(context, 18),
+                    color: _actionIcon,
+                  ),
                 ),
               ],
             ),
           ),
-          _CircleIconButton(icon: Icons.call_rounded, onTap: onCallTap),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          _CircleIconButton(icon: Icons.videocam_rounded, onTap: onVideoTap),
+          const Divider(height: 1, thickness: 1, color: AppColors.cardBorder),
         ],
       ),
     );
   }
 }
 
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
+class _SquareIconButton extends StatelessWidget {
+  final Widget child;
   final VoidCallback? onTap;
 
-  const _CircleIconButton({required this.icon, this.onTap});
+  const _SquareIconButton({required this.child, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final size = ResponsiveHelper.getResponsiveSize(context, 36);
+    final size = ResponsiveHelper.getResponsiveSize(context, 40);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: const BoxDecoration(color: AppColors.filterButtonBackground, shape: BoxShape.circle),
-        alignment: Alignment.center,
-        child: Icon(icon, size: ResponsiveHelper.getResponsiveSize(context, 18), color: AppColors.secondaryTeal),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius),
+        child: Ink(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceWhite,
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Center(child: child),
+        ),
       ),
     );
   }

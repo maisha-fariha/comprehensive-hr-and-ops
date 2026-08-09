@@ -1,36 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/status_badge.dart';
-import '../../../../../core/widgets/surface_card.dart';
 import '../../domain/entities/missed_dose.dart';
 import 'dose_note_box.dart';
 import 'medication_route_row.dart';
 import 'staff_medication_avatar.dart';
 import 'status_by_row.dart';
 
-/// A single card in the "Missed" tab's "Missed Doses" list: header row
-/// (avatar/name/med + "SCHED. {time}" pill), a red "Missed by {name}"
-/// status row and a "Reason: ..." note box.
+/// A single card in the Missed tab, matched to the reference.
 class MissedDoseCard extends StatelessWidget {
   final MissedDose dose;
+
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _schedLabel = Color(0xFF94A3B8);
+  static const Color _divider = Color(0xFFEEF2F6);
+  static const Color _missedRed = Color(0xFFDC2626);
+  static const Color _noteBg = Color(0xFFF8FAFC);
 
   const MissedDoseCard({super.key, required this.dose});
 
   @override
   Widget build(BuildContext context) {
-    return SurfaceCard.card(
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
+
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowNavy.withValues(alpha: 0.05),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 4)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 12),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              StaffMedicationAvatar(initials: dose.residentInitials, palette: dose.avatarColor),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
+              StaffMedicationAvatar(
+                initials: dose.residentInitials,
+                palette: dose.avatarColor,
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,49 +61,78 @@ class MissedDoseCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                        color: _titleColor,
+                        height: 1.25,
                       ),
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
                     Text(
                       '${dose.medicationName} ${dose.dose}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w500,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                        color: AppColors.textBody,
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                        color: _titleColor,
+                        height: 1.25,
                       ),
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
                     MedicationRouteRow(route: dose.route),
                   ],
                 ),
               ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              StatusBadge.chip(
-                label: 'SCHED. ${dose.scheduledTimeLabel}',
-                background: AppColors.criticalBackground,
-                foreground: AppColors.criticalRed,
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'SCHED.',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
+                      color: _schedLabel,
+                      letterSpacing: 0.6,
+                      height: 1.2,
+                    ),
+                  ),
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+                  Text(
+                    dose.scheduledTimeLabel,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                      color: _titleColor,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
+            ),
+            child: const Divider(height: 1, thickness: 1, color: _divider),
+          ),
           StatusByRow(
             label: 'Missed',
             byName: dose.missedByName,
             background: AppColors.criticalBackground,
-            foreground: AppColors.criticalRed,
-            svgAsset: AppAssets.alertCircle,
+            foreground: _missedRed,
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
           DoseNoteBox(
             label: 'Reason',
             text: dose.reason,
-            background: AppColors.criticalBackgroundSoft,
+            background: _noteBg,
           ),
         ],
       ),

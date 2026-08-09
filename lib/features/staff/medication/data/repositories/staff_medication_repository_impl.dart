@@ -65,7 +65,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
             medicationName: 'Insulin Glargine',
             dose: '12u',
             route: MedicationRoute.injectionSubcut,
-            timeLabel: '1:00 PM',
+            timeLabel: '11:00 AM',
             section: DueDoseSection.laterToday,
             status: DueDoseStatus.upcoming,
           ),

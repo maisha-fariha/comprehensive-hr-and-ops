@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
+import '../../../staff_shell.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../controllers/staff_medication_controller.dart';
 import '../widgets/administered_tab_view.dart';
@@ -18,7 +20,13 @@ import '../widgets/staff_medication_tab_bar.dart';
 /// as ONE page with a shared header and an internal segmented tab control,
 /// since all 4 screens share identical chrome and only the list content
 /// below the tab bar changes.
+///
+/// Hosts [StaffBottomNavBar] with "MAR / Tasks" selected so the pushed route
+/// still matches reference frames that show the staff bottom nav.
 class StaffMedicationPage extends StatelessWidget {
+  /// Index of the "MAR / Tasks" slot in [StaffBottomNavBar.items].
+  static const int _marTasksTabIndex = 3;
+
   const StaffMedicationPage({super.key});
 
   StaffMedicationController _resolveController() {
@@ -29,12 +37,20 @@ class StaffMedicationPage extends StatelessWidget {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => StaffShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: StaffBottomNavBar(
+        currentIndex: _marTasksTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;
@@ -54,14 +70,27 @@ class StaffMedicationPage extends StatelessWidget {
 
         return Column(
           children: [
-            StaffMedicationHeader(title: overview.screenTitle),
-            Padding(
-              padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16, top: 12, bottom: 8),
-              child: StaffMedicationTabBar(
-                selectedTab: controller.selectedTab.value,
-                administeredCount: overview.administeredDoses.length,
-                missedCount: overview.missedDoses.length,
-                onTabSelected: controller.selectTab,
+            ColoredBox(
+              color: AppColors.surfaceWhite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StaffMedicationHeader(title: overview.screenTitle),
+                  Padding(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 16,
+                      top: 12,
+                      bottom: 8,
+                    ),
+                    child: StaffMedicationTabBar(
+                      selectedTab: controller.selectedTab.value,
+                      administeredCount: overview.administeredDoses.length,
+                      missedCount: overview.missedDoses.length,
+                      onTabSelected: controller.selectTab,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
