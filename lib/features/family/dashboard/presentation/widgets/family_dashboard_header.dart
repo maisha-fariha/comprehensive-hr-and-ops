@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
@@ -6,14 +7,20 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/family_dashboard_overview.dart';
 import '../../family_dashboard_constants.dart';
+import 'family_dashboard_search_bar.dart';
 
-/// The teal gradient hero header: residence switcher, notifications, avatar
-/// and the "Good morning" greeting block.
+/// Teal hero header: residence switcher, notifications, avatar, and greeting.
 class FamilyDashboardHeader extends StatelessWidget {
   final FamilyDashboardOverview overview;
   final VoidCallback? onResidenceTap;
   final VoidCallback? onNotificationsTap;
   final VoidCallback? onAvatarTap;
+
+  static const Color _headerTop = Color(0xFF12807E);
+  static const Color _headerMid = Color(0xFF0C6462);
+  static const Color _headerBottom = Color(0xFF0A5250);
+  static const Color _badgeRed = Color(0xFFE53935);
+  static const Color _statusBadge = Color(0xFF7C5CD6);
 
   const FamilyDashboardHeader({
     super.key,
@@ -25,107 +32,120 @@ class FamilyDashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment(-0.37, -0.93),
-                end: Alignment(0.37, 0.93),
-                stops: [0, 0.58, 1],
-                colors: [
-                  AppColors.secondaryTeal,
-                  AppColors.secondaryTealDark,
-                  AppColors.secondaryTealDeep,
-                ],
+    final dateLabel = overview.dateLabel.toUpperCase().replaceAll('·', '•');
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: ClipRect(
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [_headerTop, _headerMid, _headerBottom],
+                  ),
+                ),
               ),
             ),
-          ),
-          Positioned(
-            top: -100,
-            right: -70,
-            child: Container(
-              width: 230,
-              height: 230,
-              decoration: const BoxDecoration(
-                color: AppColors.whiteOpacity04,
-                shape: BoxShape.circle,
+            // Single decorative circle — top-right only.
+            Positioned(
+              top: -110,
+              right: -80,
+              child: IgnorePointer(
+                child: Container(
+                  width: 220,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    shape: BoxShape.circle,
+                  ),
+                ),
               ),
             ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: ResponsiveHelper.getResponsivePadding(
-                context,
-                horizontal: 20,
-                top: 5,
-                bottom: 20,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _ResidenceSwitcher(
-                        name: overview.residenceName,
-                        onTap: onResidenceTap,
-                      ),
-                      Row(
-                        children: [
-                          _NotificationButton(
-                            count: overview.unreadNotificationCount,
-                            onTap: onNotificationsTap,
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 20,
+                  top: 8,
+                  // Room above the overlapping search bar (centered on the seam).
+                  bottom: 40,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: _ResidenceSwitcher(
+                              name: overview.residenceName,
+                              onTap: onResidenceTap,
+                            ),
                           ),
-                          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-                          _AvatarButton(onTap: onAvatarTap),
-                        ],
+                        ),
+                        _NotificationButton(
+                          count: overview.unreadNotificationCount,
+                          onTap: onNotificationsTap,
+                        ),
+                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+                        _AvatarButton(onTap: onAvatarTap),
+                      ],
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                    Text(
+                      dateLabel,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                        color: Colors.white.withValues(alpha: 0.85),
+                        letterSpacing: 0.9,
                       ),
-                    ],
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                  Text(
-                    overview.dateLabel.toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w600,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                      color: AppColors.whiteOpacity62,
-                      letterSpacing: 0.6,
                     ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.only(
-                      top: ResponsiveHelper.getResponsiveHeight(context, 2),
-                      bottom: ResponsiveHelper.getResponsiveHeight(context, 3),
-                    ),
-                    child: Text(
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+                    Text(
                       overview.greetingLine,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
                         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 26),
                         color: Colors.white,
-                        letterSpacing: -0.4,
+                        letterSpacing: -0.35,
+                        height: 1.15,
                       ),
                     ),
-                  ),
-                  Text(
-                    overview.greetingSubtitle,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w400,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                      color: AppColors.whiteOpacity80,
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+                    Text(
+                      overview.greetingSubtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                        color: Colors.white.withValues(alpha: 0.88),
+                        height: 1.3,
+                      ),
                     ),
-                  ),
-                ],
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                    FamilyDashboardSearchBar(),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -139,43 +159,61 @@ class _ResidenceSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final logoSize = ResponsiveHelper.getResponsiveSize(context, 28);
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: ResponsiveHelper.getResponsivePadding(context, left: 8, right: 14, top: 7, bottom: 7),
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          left: 6,
+          right: 12,
+          top: 6,
+          bottom: 6,
+        ),
         decoration: BoxDecoration(
-          color: AppColors.whiteOpacity13,
-          border: Border.all(color: AppColors.whiteOpacity16),
+          color: Colors.white.withValues(alpha: 0.12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: ResponsiveHelper.getResponsiveSize(context, 28),
-              height: ResponsiveHelper.getResponsiveSize(context, 28),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceWhite,
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 8),
-                ),
+              width: logoSize,
+              height: logoSize,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
-              child: const AppSvgIcon(AppAssets.homeSmall, size: 17, color: AppColors.secondaryTeal),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 9)),
-            Text(
-              name,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                color: Colors.white,
+              child: const AppSvgIcon(
+                AppAssets.homeSmall,
+                size: 15,
+                color: AppColors.secondaryTeal,
               ),
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 9)),
-            const AppSvgIcon(AppAssets.chevronDown, size: 16, color: AppColors.whiteOpacity70),
+            Flexible(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 20),
+              color: Colors.white.withValues(alpha: 0.92),
+            ),
           ],
         ),
       ),
@@ -205,10 +243,10 @@ class _NotificationButton extends StatelessWidget {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                color: AppColors.whiteOpacity13,
-                border: Border.all(color: AppColors.whiteOpacity16),
+                color: Colors.white.withValues(alpha: 0.12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                 borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 13),
+                  ResponsiveHelper.getResponsiveRadius(context, 12),
                 ),
               ),
               alignment: Alignment.center,
@@ -216,25 +254,25 @@ class _NotificationButton extends StatelessWidget {
             ),
             if (count > 0)
               Positioned(
-                top: -5,
-                right: -6,
+                top: -3,
+                right: -4,
                 child: Container(
-                  constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
+                  constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.criticalRed,
-                    border: Border.all(color: AppColors.secondaryTealDark, width: 2),
+                    color: FamilyDashboardHeader._badgeRed,
+                    border: Border.all(color: FamilyDashboardHeader._headerBottom, width: 1.5),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     '$count',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Outfit',
                       fontWeight: FontWeight.w700,
-                      fontSize: 11,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
                       color: Colors.white,
-                      height: 1.2,
+                      height: 1.1,
                     ),
                   ),
                 ),
@@ -246,11 +284,9 @@ class _NotificationButton extends StatelessWidget {
   }
 }
 
-/// The Figma design shows a circular resident photo here. No real photo
-/// asset pipeline exists yet, so this renders a plain circular placeholder
-/// with a person glyph.
-// TODO(figma-asset): swap for the real resident photo (Image.network/asset)
-// once a media pipeline exists.
+/// Circular avatar placeholder. The reference shows a resident photo; until a
+/// media pipeline exists this uses a person glyph plus the purple status badge.
+// TODO(figma-asset): swap for the real resident photo once available.
 class _AvatarButton extends StatelessWidget {
   final VoidCallback? onTap;
 
@@ -259,29 +295,39 @@ class _AvatarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = ResponsiveHelper.getResponsiveSize(context, 42);
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
+      child: SizedBox(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          color: FamilyDashboardColors.avatarPlaceholderBackground,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 2)),
-              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 4),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: FamilyDashboardColors.avatarPlaceholderBackground,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 2)),
+                    blurRadius: ResponsiveHelper.getResponsiveHeight(context, 4),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.person_rounded,
+                size: ResponsiveHelper.getResponsiveSize(context, 22),
+                color: FamilyDashboardColors.avatarPlaceholderIcon,
+              ),
             ),
           ],
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          Icons.person_rounded,
-          size: ResponsiveHelper.getResponsiveSize(context, 24),
-          color: FamilyDashboardColors.avatarPlaceholderIcon,
         ),
       ),
     );

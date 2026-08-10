@@ -51,49 +51,53 @@ class FamilyDashboardPage extends StatelessWidget {
           );
         }
 
-        final topInset = ResponsiveHelper.getResponsiveHeight(
+        final horizontalPad = ResponsiveHelper.getResponsiveWidth(
+          context,
+          AppDimens.screenPaddingHorizontal,
+        );
+        // Half the search-bar height so the bar is centered on the teal/body seam.
+        final searchOverlap = ResponsiveHelper.getResponsiveHeight(
               context,
-              AppDimens.searchBarOverlap,
-            ) +
-            ResponsiveHelper.getResponsiveHeight(context, 18);
+              AppDimens.searchBarHeight,
+            ) /
+            2;
 
-        return Column(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
+        return RefreshIndicator(
+          color: AppColors.secondaryTeal,
+          onRefresh: controller.refresh,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                FamilyDashboardHeader(overview: overview),
-                Positioned(
-                  left: ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                  right: ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                  bottom: -ResponsiveHelper.getResponsiveHeight(context, AppDimens.searchBarOverlap),
-                  child: const FamilyDashboardSearchBar(),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    FamilyDashboardHeader(overview: overview),
+                  ],
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPad,
+                    searchOverlap + ResponsiveHelper.getResponsiveHeight(context, 18),
+                    horizontalPad,
+                    ResponsiveHelper.getResponsiveHeight(context, 42),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      FamilyNeedsAttentionCard(alerts: overview.attentionAlerts),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                      FamilyTodaysOverviewSection(
+                        stats: overview.overviewStats,
+                        lastUpdatedLabel: overview.lastUpdatedLabel,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            Expanded(
-              child: RefreshIndicator(
-                color: AppColors.secondaryTeal,
-                onRefresh: controller.refresh,
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                    topInset,
-                    ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                    ResponsiveHelper.getResponsiveHeight(context, 42),
-                  ),
-                  children: [
-                    FamilyNeedsAttentionCard(alerts: overview.attentionAlerts),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    FamilyTodaysOverviewSection(
-                      stats: overview.overviewStats,
-                      lastUpdatedLabel: overview.lastUpdatedLabel,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
         );
       }),
     );
