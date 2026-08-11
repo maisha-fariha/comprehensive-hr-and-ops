@@ -6,6 +6,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/section_header_row.dart';
+import '../../../family_shell.dart';
+import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_linked_client.dart';
 import '../../domain/entities/family_preference_item.dart';
 import '../controllers/family_profile_settings_controller.dart';
@@ -22,11 +24,15 @@ import '../widgets/family_settings_toggle_row.dart';
 ///
 /// Pushed as a standalone route (e.g. `Get.to(() => const
 /// FamilyProfileSettingsPage())`) from the Family "More" hub, so it owns
-/// its own `Scaffold`/`SafeArea` rather than being embedded in a shell —
-/// the same convention used by `StaffAttendancePage` when pushed outside
-/// the Staff bottom-nav shell.
+/// its own `Scaffold`/`SafeArea` rather than being embedded in a shell.
+///
+/// Hosts [FamilyBottomNavBar] with "More" selected so the pushed route still
+/// matches reference frames that show the family bottom nav.
 class FamilyProfileSettingsPage extends StatelessWidget {
   const FamilyProfileSettingsPage({super.key});
+
+  /// Index of the "More" slot in [FamilyBottomNavBar.items].
+  static const int _moreTabIndex = 4;
 
   FamilyProfileSettingsController _resolveController() {
     try {
@@ -36,12 +42,20 @@ class FamilyProfileSettingsPage extends StatelessWidget {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => FamilyShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: FamilyBottomNavBar(
+        currentIndex: _moreTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;
@@ -98,6 +112,22 @@ class FamilyProfileSettingsPage extends StatelessWidget {
                     _PreferencesCard(items: overview.preferenceItems),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'App Settings'),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                    // Obx(
+                    //   () => FamilySettingsToggleRow(
+                    //     label: 'Push Notifications',
+                    //     value: controller.pushNotificationsEnabled.value,
+                    //     onChanged: controller.togglePushNotifications,
+                    //   ),
+                    // ),
+                    // SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                    // Obx(
+                    //   () => FamilySettingsToggleRow(
+                    //     label: 'Dark Mode',
+                    //     value: controller.darkModeEnabled.value,
+                    //     onChanged: controller.toggleDarkMode,
+                    //   ),
+                    // ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
                     const FamilyLogOutRow(),
                   ],
