@@ -4,18 +4,23 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../domain/entities/family_messages_enums.dart';
 import 'attachment_option_tile.dart';
 
-/// Row of 3 equal-width [AttachmentOptionTile]s: Photo, PDF and Document.
+/// Row of 3 equal-width attachment tiles: Photo, PDF, Document.
 class AttachmentOptionsRow extends StatelessWidget {
   final Set<MessageAttachmentType> selected;
   final ValueChanged<MessageAttachmentType> onToggle;
 
-  const AttachmentOptionsRow({super.key, required this.selected, required this.onToggle});
+  const AttachmentOptionsRow({
+    super.key,
+    required this.selected,
+    required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
     final gap = SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10));
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final type in MessageAttachmentType.values) ...[
           if (type != MessageAttachmentType.values.first) gap,

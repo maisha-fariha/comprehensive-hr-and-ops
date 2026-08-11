@@ -81,12 +81,23 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
 
           return Column(
             children: [
-              const FamilyMessagesHeader(title: 'Messages'),
-              Padding(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20),
-                child: FamilyMessagesSearchBar(
-                  controller: _searchController,
-                  onChanged: _controller.updateSearchQuery,
+              ColoredBox(
+                color: AppColors.surfaceWhite,
+                child: Column(
+                  children: [
+                    const FamilyMessagesHeader(title: 'Messages'),
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 16,
+                        bottom: 14,
+                      ),
+                      child: FamilyMessagesSearchBar(
+                        controller: _searchController,
+                        onChanged: _controller.updateSearchQuery,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Expanded(

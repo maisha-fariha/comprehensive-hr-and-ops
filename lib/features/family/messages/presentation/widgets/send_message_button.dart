@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
@@ -35,9 +36,9 @@ class SendMessageButton extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.send_rounded,
-                  size: ResponsiveHelper.getResponsiveSize(context, 19),
+                SvgPicture.asset(
+                  'assets/icons/family_messages/send.svg',
+                  width: ResponsiveHelper.getResponsiveSize(context, 19),
                   color: Colors.white,
                 ),
                 SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),

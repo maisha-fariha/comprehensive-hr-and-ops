@@ -109,7 +109,7 @@ class _FamilyBottomNavItem extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 AppSvgIcon(data.asset, size: 22, color: color),
-                if (data.badgeCount != null && data.badgeCount! > 0)
+                if (!isActive && data.badgeCount != null && data.badgeCount! > 0)
                   Positioned(
                     right: -8,
                     top: -4,

@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../family_messages_constants.dart';
 
-/// The large bordered rounded multiline textarea under the "Message" label
-/// on the "New Message" compose screen.
+/// Multiline bordered textarea under the "Message" label.
 class ComposeMessageField extends StatelessWidget {
   final TextEditingController controller;
+
+  static const Color _border = Color(0xFFE2E8EE);
+  static const Color _text = Color(0xFF1A2B48);
+  static const Color _hint = Color(0xFF9AA8B8);
 
   const ComposeMessageField({super.key, required this.controller});
 
@@ -16,12 +18,19 @@ class ComposeMessageField extends StatelessWidget {
     return Container(
       width: double.infinity,
       constraints: BoxConstraints(
-        minHeight: ResponsiveHelper.getResponsiveHeight(context, FamilyMessagesDimens.composeTextAreaMinHeight),
+        minHeight: ResponsiveHelper.getResponsiveHeight(
+          context,
+          FamilyMessagesDimens.composeTextAreaMinHeight,
+        ),
       ),
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 14, vertical: 12),
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 14,
+        vertical: 12,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        border: Border.all(color: AppColors.searchBorder),
+        color: Colors.white,
+        border: Border.all(color: _border),
         borderRadius: BorderRadius.circular(
           ResponsiveHelper.getResponsiveRadius(context, 14),
         ),
@@ -29,12 +38,13 @@ class ComposeMessageField extends StatelessWidget {
       child: TextField(
         controller: controller,
         maxLines: null,
-        minLines: 4,
+        minLines: 5,
         style: TextStyle(
           fontFamily: 'Outfit',
           fontWeight: FontWeight.w500,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-          color: AppColors.textHeading,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+          color: _text,
+          height: 1.4,
         ),
         decoration: InputDecoration(
           isDense: true,
@@ -43,8 +53,9 @@ class ComposeMessageField extends StatelessWidget {
           hintStyle: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w400,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-            color: AppColors.textFaint,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+            color: _hint,
+            height: 1.4,
           ),
         ),
       ),

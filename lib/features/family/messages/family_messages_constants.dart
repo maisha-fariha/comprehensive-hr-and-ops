@@ -20,7 +20,7 @@ abstract final class FamilyMessagesDimens {
   static const double conversationAvatarSize = 46;
   static const double unreadBadgeSize = 18;
   static const double recipientChipAvatarSize = 20;
-  static const double attachmentTileHeight = 78;
+  static const double attachmentTileHeight = 90;
   static const double composeTextAreaMinHeight = 120;
 
   const FamilyMessagesDimens._();
