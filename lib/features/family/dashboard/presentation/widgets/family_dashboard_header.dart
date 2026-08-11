@@ -189,7 +189,7 @@ class _ResidenceSwitcher extends StatelessWidget {
               ),
               alignment: Alignment.center,
               child: const AppSvgIcon(
-                AppAssets.homeSmall,
+                AppAssets.navHome,
                 size: 15,
                 color: AppColors.secondaryTeal,
               ),

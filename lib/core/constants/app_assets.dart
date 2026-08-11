@@ -27,6 +27,7 @@ abstract final class AppAssets {
   // Bottom navigation icons
   static const String navHome = '$_nav/nav_home.svg';
   static const String navCalendar = '$_nav/nav_calendar.svg';
+  static const String navAppointment = '$_nav/nav_appoinment.svg';
   static const String navChecklist = '$_nav/nav_checklist.svg';
   static const String navBell = '$_nav/nav_bell.svg';
   static const String navMore = '$_nav/nav_more.svg';

@@ -7,8 +7,11 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../controllers/family_dashboard_controller.dart';
 import '../widgets/family_dashboard_header.dart';
-import '../widgets/family_dashboard_search_bar.dart';
 import '../widgets/family_needs_attention_card.dart';
+import '../widgets/family_next_appointment_section.dart';
+import '../widgets/family_quick_actions_section.dart';
+import '../widgets/family_recent_update_section.dart';
+import '../widgets/family_today_at_a_glance_section.dart';
 import '../widgets/family_todays_overview_section.dart';
 
 /// The Family Dashboard - "Home" tab of the Family portal.
@@ -87,11 +90,35 @@ class FamilyDashboardPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       FamilyNeedsAttentionCard(alerts: overview.attentionAlerts),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                       FamilyTodaysOverviewSection(
                         stats: overview.overviewStats,
                         lastUpdatedLabel: overview.lastUpdatedLabel,
                       ),
+                      if (overview.nextAppointment != null) ...[
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                        FamilyNextAppointmentSection(
+                          appointment: overview.nextAppointment!,
+                        ),
+                      ],
+                      if (overview.recentUpdate != null) ...[
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                        FamilyRecentUpdateSection(
+                          update: overview.recentUpdate!,
+                        ),
+                      ],
+                      if (overview.glanceItems.isNotEmpty) ...[
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                        FamilyTodayAtAGlanceSection(
+                          items: overview.glanceItems,
+                        ),
+                      ],
+                      if (overview.quickActions.isNotEmpty) ...[
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                        FamilyQuickActionsSection(
+                          actions: overview.quickActions,
+                        ),
+                      ],
                     ],
                   ),
                 ),
