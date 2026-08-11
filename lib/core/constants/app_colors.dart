@@ -79,7 +79,7 @@ abstract final class AppColors {
   static const Color whiteOpacity70 = Color(0xB3FFFFFF); // rgba(255,255,255,.70)
   static const Color whiteOpacity80 = Color(0xCCFFFFFF); // rgba(255,255,255,.80)
 
-  static const Color shadowNavy = Color(0xFF142846);
+  static const Color shadowNavy = Color(0xFF16293F);
   static const Color shadowTeal = Color(0xFF0E4A54);
 
   const AppColors._();

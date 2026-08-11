@@ -191,7 +191,7 @@ class AppointmentInfoBanner extends StatelessWidget {
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w500,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                color: AppColors.secondaryTealDark,
+                color: Color(0xFF2A5250),
                 height: 1.35,
               ),
             ),

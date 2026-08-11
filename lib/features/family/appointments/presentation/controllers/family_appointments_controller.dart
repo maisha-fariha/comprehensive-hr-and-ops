@@ -35,11 +35,10 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
 
   /// Sectioned rows for the currently selected tab.
   ///
-  /// The "All" and "Upcoming" tabs share the same non-completed
-  /// appointments, split into an "Upcoming" section (everything except
-  /// family visits) and a "Family Visits" section - the "Completed" tab
-  /// instead shows every completed appointment (including completed family
-  /// visits) under a single "Completed" section, per the Figma screenshots.
+  /// - **All**: Upcoming + Family Visits (active) + Past (completed).
+  /// - **Upcoming**: Upcoming + Family Visits (active + completed family
+  ///   visits — the Completed Emily row is the 3rd Family Visits card).
+  /// - **Completed**: single "Completed" section with every completed row.
   List<FamilyAppointmentSection> get visibleSections {
     if (selectedTab.value == FamilyAppointmentsTab.completed) {
       final completed = appointments.where((a) => a.status == FamilyAppointmentStatus.completed).toList();
@@ -49,11 +48,22 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
 
     final active = appointments.where((a) => a.status != FamilyAppointmentStatus.completed).toList();
     final upcoming = active.where((a) => a.iconKind != FamilyAppointmentIconKind.familyVisit).toList();
-    final familyVisits = active.where((a) => a.iconKind == FamilyAppointmentIconKind.familyVisit).toList();
+
+    final List<FamilyAppointment> familyVisits;
+    if (selectedTab.value == FamilyAppointmentsTab.upcoming) {
+      // Include completed family visits under Family Visits (not a Past section).
+      familyVisits = appointments.where((a) => a.iconKind == FamilyAppointmentIconKind.familyVisit).toList();
+    } else {
+      familyVisits = active.where((a) => a.iconKind == FamilyAppointmentIconKind.familyVisit).toList();
+    }
+
+    final past = appointments.where((a) => a.status == FamilyAppointmentStatus.completed).toList();
 
     return [
       if (upcoming.isNotEmpty) FamilyAppointmentSection(title: 'Upcoming', appointments: upcoming),
       if (familyVisits.isNotEmpty) FamilyAppointmentSection(title: 'Family Visits', appointments: familyVisits),
+      if (selectedTab.value == FamilyAppointmentsTab.all && past.isNotEmpty)
+        FamilyAppointmentSection(title: 'Past', appointments: past),
     ];
   }
 

@@ -13,14 +13,18 @@ import 'presentation/widgets/family_bottom_nav_bar.dart';
 /// Profile & Settings, which don't have a dedicated bottom-nav slot in the
 /// Figma bar).
 class FamilyShell extends StatefulWidget {
-  const FamilyShell({super.key});
+  /// Tab to show when the shell is (re)opened — used by pushed screens that
+  /// host their own copy of [FamilyBottomNavBar] (e.g. Create Appointment).
+  final int initialIndex;
+
+  const FamilyShell({super.key, this.initialIndex = 0});
 
   @override
   State<FamilyShell> createState() => _FamilyShellState();
 }
 
 class _FamilyShellState extends State<FamilyShell> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
   static const _tabs = <Widget>[
     FamilyDashboardPage(),
@@ -29,6 +33,12 @@ class _FamilyShellState extends State<FamilyShell> {
     FamilyMessagesListPage(),
     FamilyMoreMenuPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex.clamp(0, _tabs.length - 1);
+  }
 
   @override
   Widget build(BuildContext context) {

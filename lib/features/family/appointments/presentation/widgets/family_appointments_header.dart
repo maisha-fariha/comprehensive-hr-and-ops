@@ -1,28 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/constants/app_assets.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// Shared top app bar for the Family Appointments feature: a bordered
-/// rounded-square back button plus a centered title, used by both the
-/// Appointments list screen and the Create Appointment form.
-///
-/// Icon note: the back chevron has no matching SVG in `assets/icons/*`, so
-/// this uses the Material `Icons.arrow_back_ios_new_rounded` as a temporary
-/// stand-in, matching the pattern already used by the Staff Incidents
-/// feature's header.
+/// Shared top bar for Family Appointments: bordered back + centered title.
 class FamilyAppointmentsHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onBack;
+
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _buttonBorder = Color(0xFFE2E8EE);
 
   const FamilyAppointmentsHeader({super.key, required this.title, this.onBack});
 
   @override
   Widget build(BuildContext context) {
-    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 42);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
     return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 8, bottom: 14),
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 16,
+        top: 10,
+        bottom: 12,
+      ),
       child: Row(
         children: [
           GestureDetector(
@@ -32,17 +35,18 @@ class FamilyAppointmentsHeader extends StatelessWidget {
               width: buttonSize,
               height: buttonSize,
               decoration: BoxDecoration(
-                color: AppColors.surfaceWhite,
-                border: Border.all(color: AppColors.searchBorder),
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 12),
-                ),
+                color: Colors.white,
+                border: Border.all(color: _buttonBorder),
+                borderRadius: BorderRadius.circular(radius),
               ),
               alignment: Alignment.center,
-              child: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                size: ResponsiveHelper.getResponsiveSize(context, 17),
-                color: AppColors.textPrimary,
+              child: Transform.rotate(
+                angle: 3.14159,
+                child: const AppSvgIcon(
+                  AppAssets.chevronRight,
+                  size: 18,
+                  color: _titleColor,
+                ),
               ),
             ),
           ),
@@ -55,8 +59,9 @@ class FamilyAppointmentsHeader extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 19),
-                color: AppColors.textHeading,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
+                color: _titleColor,
+                height: 1.2,
               ),
             ),
           ),

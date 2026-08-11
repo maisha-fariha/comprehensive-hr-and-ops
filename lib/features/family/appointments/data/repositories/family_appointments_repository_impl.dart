@@ -45,7 +45,15 @@ class FamilyAppointmentsRepositoryImpl implements FamilyAppointmentsRepository {
       location: 'Sunrise Home',
       iconKind: FamilyAppointmentIconKind.familyVisit,
     ),
-    // "Completed" tab only.
+    FamilyAppointment(
+      id: 'visit-with-michael',
+      dateTimeLabel: 'May 25, 2025 · 1:00 PM',
+      status: FamilyAppointmentStatus.approved,
+      title: 'Visit with Michael',
+      location: 'Sunrise Home',
+      iconKind: FamilyAppointmentIconKind.familyVisit,
+    ),
+    // "Completed" / Past — also shown as the 3rd Family Visits row on Upcoming.
     FamilyAppointment(
       id: 'visit-with-emily-completed',
       dateTimeLabel: 'Apr 30, 2025 · 4:00 PM',
