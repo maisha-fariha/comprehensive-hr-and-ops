@@ -4,8 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/constants/app_dimens.dart';
-import '../../../../../core/widgets/section_header_row.dart';
+import '../../../family_shell.dart';
+import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 import '../controllers/family_visit_requests_controller.dart';
 import '../widgets/family_visit_requests_header.dart';
@@ -18,14 +18,11 @@ import 'visit_request_details_page.dart';
 /// The Family Visit Requests list screen - "All / My Requests / History"
 /// tabs of the Family portal.
 ///
-/// Reproduction of the Figma "All - Visit Requests", "My Requests - Visit
-/// Requests" and "History - Visit Requests" screenshots, built without
-/// Figma MCP access (monthly quota exhausted) - see the feature's final
-/// report for details on any approximated content and icon placeholders.
+/// Pushed as a standalone route from the Family "More" hub, so it owns its
+/// own `Scaffold` rather than being embedded in a shell.
 ///
-/// Pushed as a standalone route (e.g. `Get.to(() => const
-/// FamilyVisitRequestsListPage())`) from the Family "More" hub, so it owns
-/// its own `Scaffold`/`SafeArea` rather than being embedded in a shell.
+/// Hosts [FamilyBottomNavBar] with "More" selected so the pushed route still
+/// matches reference frames that show the family bottom nav.
 class FamilyVisitRequestsListPage extends StatefulWidget {
   const FamilyVisitRequestsListPage({super.key});
 
@@ -34,6 +31,9 @@ class FamilyVisitRequestsListPage extends StatefulWidget {
 }
 
 class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPage> {
+  /// Index of the "More" slot in [FamilyBottomNavBar.items].
+  static const int _moreTabIndex = 4;
+
   late final FamilyVisitRequestsController _controller;
 
   @override
@@ -54,10 +54,18 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
     Get.to(() => VisitRequestDetailsPage(requestId: requestId));
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => FamilyShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: FamilyBottomNavBar(
+        currentIndex: _moreTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: SafeArea(
         bottom: false,
         child: Obx(() {
@@ -80,12 +88,23 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
 
           return Column(
             children: [
-              FamilyVisitRequestsHeader(onBackTap: Get.back),
-              Padding(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20),
-                child: FamilyVisitRequestsTabBar(
-                  selected: selectedTab,
-                  onSelected: _controller.selectTab,
+              ColoredBox(
+                color: AppColors.surfaceWhite,
+                child: Column(
+                  children: [
+                    FamilyVisitRequestsHeader(onBackTap: Get.back),
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 16,
+                        bottom: 16,
+                      ),
+                      child: FamilyVisitRequestsTabBar(
+                        selected: selectedTab,
+                        onSelected: _controller.selectTab,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Expanded(
@@ -117,6 +136,8 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
 class _AllRequestsTab extends StatelessWidget {
   final FamilyVisitRequestsController controller;
 
+  static const Color _sectionTitle = Color(0xFF1A2B48);
+
   const _AllRequestsTab({required this.controller});
 
   @override
@@ -125,16 +146,26 @@ class _AllRequestsTab extends StatelessWidget {
 
     return ListView.separated(
       padding: EdgeInsets.fromLTRB(
-        ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-        ResponsiveHelper.getResponsiveHeight(context, 16),
-        ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+        ResponsiveHelper.getResponsiveWidth(context, 16),
+        ResponsiveHelper.getResponsiveHeight(context, 18),
+        ResponsiveHelper.getResponsiveWidth(context, 16),
         ResponsiveHelper.getResponsiveHeight(context, 24),
       ),
       itemCount: requests.length + 1,
-      separatorBuilder: (context, index) => SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+      separatorBuilder: (context, index) =>
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
       itemBuilder: (context, index) {
         if (index == 0) {
-          return const SectionHeaderRow(title: 'All Requests');
+          return Text(
+            'All Requests',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+              color: _sectionTitle,
+              height: 1.2,
+            ),
+          );
         }
         return VisitRequestRowCard(request: requests[index - 1]);
       },
@@ -145,6 +176,8 @@ class _AllRequestsTab extends StatelessWidget {
 class _HistoryTab extends StatelessWidget {
   final FamilyVisitRequestsController controller;
 
+  static const Color _sectionTitle = Color(0xFF1A2B48);
+
   const _HistoryTab({required this.controller});
 
   @override
@@ -153,16 +186,26 @@ class _HistoryTab extends StatelessWidget {
 
     return ListView.separated(
       padding: EdgeInsets.fromLTRB(
-        ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-        ResponsiveHelper.getResponsiveHeight(context, 16),
-        ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+        ResponsiveHelper.getResponsiveWidth(context, 16),
+        ResponsiveHelper.getResponsiveHeight(context, 18),
+        ResponsiveHelper.getResponsiveWidth(context, 16),
         ResponsiveHelper.getResponsiveHeight(context, 24),
       ),
       itemCount: requests.length + 1,
-      separatorBuilder: (context, index) => SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+      separatorBuilder: (context, index) =>
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
       itemBuilder: (context, index) {
         if (index == 0) {
-          return const SectionHeaderRow(title: 'Past Requests');
+          return Text(
+            'Past Requests',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+              color: _sectionTitle,
+              height: 1.2,
+            ),
+          );
         }
         return VisitRequestRowCard(request: requests[index - 1]);
       },
@@ -174,6 +217,8 @@ class _MyRequestsTab extends StatelessWidget {
   final FamilyVisitRequestsController controller;
   final ValueChanged<String> onViewDetails;
 
+  static const Color _sectionTitle = Color(0xFF1A2B48);
+
   const _MyRequestsTab({required this.controller, required this.onViewDetails});
 
   @override
@@ -182,13 +227,14 @@ class _MyRequestsTab extends StatelessWidget {
 
     return ListView.separated(
       padding: EdgeInsets.fromLTRB(
-        ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-        ResponsiveHelper.getResponsiveHeight(context, 16),
-        ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+        ResponsiveHelper.getResponsiveWidth(context, 16),
+        ResponsiveHelper.getResponsiveHeight(context, 18),
+        ResponsiveHelper.getResponsiveWidth(context, 16),
         ResponsiveHelper.getResponsiveHeight(context, 24),
       ),
       itemCount: requests.length + 2,
-      separatorBuilder: (context, index) => SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+      separatorBuilder: (context, index) =>
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
       itemBuilder: (context, index) {
         if (index == 0) {
           return MyVisitRequestsStatChips(
@@ -198,7 +244,21 @@ class _MyRequestsTab extends StatelessWidget {
           );
         }
         if (index == 1) {
-          return const SectionHeaderRow(title: 'My Requests');
+          return Padding(
+            padding: EdgeInsets.only(
+              top: ResponsiveHelper.getResponsiveHeight(context, 4),
+            ),
+            child: Text(
+              'My Requests',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+                color: _sectionTitle,
+                height: 1.2,
+              ),
+            ),
+          );
         }
         final request = requests[index - 2];
         return MyVisitRequestCard(

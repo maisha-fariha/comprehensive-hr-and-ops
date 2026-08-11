@@ -6,6 +6,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/section_header_row.dart';
+import '../../domain/entities/family_linked_client.dart';
+import '../../domain/entities/family_preference_item.dart';
 import '../controllers/family_profile_settings_controller.dart';
 import '../widgets/family_add_client_link.dart';
 import '../widgets/family_linked_client_row.dart';
@@ -65,7 +67,10 @@ class FamilyProfileSettingsPage extends StatelessWidget {
               color: AppColors.surfaceWhite,
               child: SafeArea(
                 bottom: false,
-                child: FamilyProfileSettingsHeader(onBackTap: () => Navigator.maybePop(context)),
+                child: FamilyProfileSettingsHeader(
+                  onBackTap: () => Navigator.maybePop(context),
+                  initials: overview.profile.initials,
+                ),
               ),
             ),
             Expanded(
@@ -86,36 +91,13 @@ class FamilyProfileSettingsPage extends StatelessWidget {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
                     const SectionHeaderRow(title: 'Linked Clients'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    for (final client in overview.linkedClients) ...[
-                      FamilyLinkedClientRow(client: client),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
-                    ],
-                    const FamilyAddClientLink(),
+                    _LinkedClientsCard(clients: overview.linkedClients),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'Preferences & Support'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    for (final item in overview.preferenceItems) ...[
-                      FamilyPreferenceTile(item: item),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    ],
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+                    _PreferencesCard(items: overview.preferenceItems),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'App Settings'),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    Obx(
-                      () => FamilySettingsToggleRow(
-                        label: 'Push Notifications',
-                        value: controller.pushNotificationsEnabled.value,
-                        onChanged: controller.togglePushNotifications,
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    Obx(
-                      () => FamilySettingsToggleRow(
-                        label: 'Dark Mode',
-                        value: controller.darkModeEnabled.value,
-                        onChanged: controller.toggleDarkMode,
-                      ),
-                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
                     const FamilyLogOutRow(),
                   ],
@@ -125,6 +107,120 @@ class FamilyProfileSettingsPage extends StatelessWidget {
           ],
         );
       }),
+    );
+  }
+}
+
+/// White card wrapping linked-client rows, a divider, and the add/switch link.
+class _LinkedClientsCard extends StatelessWidget {
+  final List<FamilyLinkedClient> clients;
+
+  static const Color _cardBorder = Color(0xFFEEF1F4);
+  static const Color _divider = Color(0xFFEEF1F4);
+  static const Color _shadow = Color(0xFF142846);
+
+  const _LinkedClientsCard({required this.clients});
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 20);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: _cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: _shadow.withValues(alpha: 0.04),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
+          ),
+          BoxShadow(
+            color: _shadow.withValues(alpha: 0.05),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < clients.length; i++) ...[
+            if (i > 0)
+              Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 16,
+                ),
+                child: const Divider(height: 1, thickness: 1, color: _divider),
+              ),
+            FamilyLinkedClientRow(client: clients[i]),
+          ],
+          Padding(
+            padding: ResponsiveHelper.getResponsivePadding(
+              context,
+              horizontal: 16,
+            ),
+            child: const Divider(height: 1, thickness: 1, color: _divider),
+          ),
+          const FamilyAddClientLink(),
+        ],
+      ),
+    );
+  }
+}
+
+/// White card wrapping Preferences & Support rows with inset dividers.
+class _PreferencesCard extends StatelessWidget {
+  final List<FamilyPreferenceItem> items;
+
+  static const Color _cardBorder = Color(0xFFEEF1F4);
+  static const Color _divider = Color(0xFFEEF1F4);
+  static const Color _shadow = Color(0xFF142846);
+
+  const _PreferencesCard({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 20);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: _cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: _shadow.withValues(alpha: 0.04),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
+          ),
+          BoxShadow(
+            color: _shadow.withValues(alpha: 0.05),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0)
+              Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 16,
+                ),
+                child: const Divider(height: 1, thickness: 1, color: _divider),
+              ),
+            FamilyPreferenceTile(item: items[i]),
+          ],
+        ],
+      ),
     );
   }
 }
