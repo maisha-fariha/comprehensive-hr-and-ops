@@ -1,65 +1,71 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/family_daily_update_entry.dart';
 import '../../domain/entities/family_daily_update_enums.dart';
-import '../../family_daily_updates_constants.dart';
 
 class _CategoryStyle {
-  final IconData icon;
-  final Color color;
+  final String asset;
+  final Color accent;
   final Color background;
 
-  const _CategoryStyle({required this.icon, required this.color, required this.background});
+  const _CategoryStyle({
+    required this.asset,
+    required this.accent,
+    required this.background,
+  });
 }
 
-// None of these 5 emoji-style glyphs (mood/meals/activities/community
-// outing/sleep) have a matching SVG in `assets/icons/*`, so every entry here
-// uses a Material `Icons.*` stand-in - flagged in the final report.
-final Map<DailyUpdateCategory, _CategoryStyle> _categoryStyles = {
-  DailyUpdateCategory.mood: const _CategoryStyle(
-    icon: Icons.sentiment_satisfied_alt_rounded,
-    color: AppColors.activeGreen,
-    background: AppColors.activeIconBackground,
+const Map<DailyUpdateCategory, _CategoryStyle> _categoryStyles = {
+  DailyUpdateCategory.mood: _CategoryStyle(
+    asset: 'assets/icons/family_core/emoji.svg',
+    accent: Color(0xFF2E8C58),
+    background: Color(0xFFEAF6F0),
   ),
-  DailyUpdateCategory.meals: const _CategoryStyle(
-    icon: Icons.restaurant_rounded,
-    color: FamilyDailyUpdatesColors.mealsForeground,
-    background: FamilyDailyUpdatesColors.mealsBackground,
+  DailyUpdateCategory.meals: _CategoryStyle(
+    asset: 'assets/icons/family_core/meals.svg',
+    accent: Color(0xFF5B6B8C),
+    background: Color(0xFFEBEEF7),
   ),
-  DailyUpdateCategory.activities: const _CategoryStyle(
-    icon: Icons.self_improvement_rounded,
-    color: AppColors.nightPurple,
-    background: AppColors.nightBackground,
+  DailyUpdateCategory.activities: _CategoryStyle(
+    asset: 'assets/icons/family_core/activities.svg',
+    accent: Color(0xFF6A4BC7),
+    background: Color(0xFFF0ECFB),
   ),
-  DailyUpdateCategory.communityOuting: const _CategoryStyle(
-    icon: Icons.image_rounded,
-    color: AppColors.infoBlue,
-    background: AppColors.infoIconBackground,
+  DailyUpdateCategory.communityOuting: _CategoryStyle(
+    asset: 'assets/icons/family_core/image.svg',
+    accent: Color(0xFF3D7A6A),
+    background: Color(0xFFE8F3EE),
   ),
-  DailyUpdateCategory.sleep: const _CategoryStyle(
-    icon: Icons.nightlight_round,
-    color: FamilyDailyUpdatesColors.sleepForeground,
-    background: FamilyDailyUpdatesColors.sleepBackground,
+  DailyUpdateCategory.sleep: _CategoryStyle(
+    asset: 'assets/icons/family_core/sleep.svg',
+    accent: Color(0xFFD98324),
+    background: Color(0xFFFBF1E6),
   ),
 };
 
-/// A single row in the "Daily Updates" vertical timeline: a time label, a
-/// colored dot connected by a vertical divider to the next row, the
-/// entry's title/description, and a small colored icon-in-rounded-box on
-/// the row's trailing edge.
+/// A single Daily Updates timeline row: time, dashed track + node, and card.
 class FamilyDailyUpdateTimelineTile extends StatelessWidget {
   final FamilyDailyUpdateEntry entry;
+
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _bodyColor = Color(0xFF707B81);
+  static const Color _nodeColor = Color(0xFF0E7C7B);
+  static const Color _lineColor = Color(0xFFD1D9DB);
+  static const Color _border = Color(0xFFEEF1F4);
+  static const Color _shadow = Color(0xFF142846);
 
   const FamilyDailyUpdateTimelineTile({super.key, required this.entry});
 
   @override
   Widget build(BuildContext context) {
     final style = _categoryStyles[entry.category]!;
-    final dotSize = ResponsiveHelper.getResponsiveSize(context, 11);
-    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 38);
-    final timeColumnWidth = ResponsiveHelper.getResponsiveWidth(context, 62);
+    final nodeSize = ResponsiveHelper.getResponsiveSize(context, 12);
+    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 42);
+    final timeColumnWidth = ResponsiveHelper.getResponsiveWidth(context, 68);
+    final trackWidth = ResponsiveHelper.getResponsiveWidth(context, 18);
+    final cardRadius = ResponsiveHelper.getResponsiveRadius(context, 16);
 
     return IntrinsicHeight(
       child: Row(
@@ -68,93 +74,120 @@ class FamilyDailyUpdateTimelineTile extends StatelessWidget {
           SizedBox(
             width: timeColumnWidth,
             child: Padding(
-              padding: EdgeInsets.only(top: ResponsiveHelper.getResponsiveHeight(context, 1)),
+              padding: EdgeInsets.only(top: ResponsiveHelper.getResponsiveHeight(context, 18)),
               child: Text(
                 entry.timeLabel,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                  color: AppColors.textMuted,
+                  color: _titleColor,
+                  height: 1.2,
                 ),
               ),
             ),
           ),
           SizedBox(
-            width: ResponsiveHelper.getResponsiveWidth(context, 16),
+            width: trackWidth,
             child: Column(
               children: [
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
                 Container(
-                  width: dotSize,
-                  height: dotSize,
-                  margin: EdgeInsets.only(top: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                  decoration: BoxDecoration(color: style.color, shape: BoxShape.circle),
+                  width: nodeSize,
+                  height: nodeSize,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _nodeColor, width: 2),
+                  ),
                 ),
                 if (entry.showTimelineDivider)
-                  Expanded(
+                  const Expanded(
                     child: Padding(
-                      padding: EdgeInsets.only(top: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                      child: Center(
-                        child: Container(width: 2, color: AppColors.timelineDivider),
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: CustomPaint(
+                        painter: _DashedLinePainter(color: _lineColor),
+                        child: SizedBox(width: 2),
                       ),
                     ),
                   ),
               ],
             ),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 22)),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          entry.title,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w600,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                        Text(
-                          entry.description,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w400,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                            color: AppColors.textSecondary,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
+              padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              child: Container(
+                padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(cardRadius),
+                  border: Border.all(color: _border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _shadow.withValues(alpha: 0.04),
+                      offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+                      blurRadius: ResponsiveHelper.getResponsiveHeight(context, 1),
                     ),
-                  ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-                  Container(
-                    width: iconBoxSize,
-                    height: iconBoxSize,
-                    decoration: BoxDecoration(
-                      color: style.background,
-                      borderRadius: BorderRadius.circular(
-                        ResponsiveHelper.getResponsiveRadius(context, 11),
+                    BoxShadow(
+                      color: _shadow.withValues(alpha: 0.05),
+                      offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 8)),
+                      blurRadius: ResponsiveHelper.getResponsiveHeight(context, 16),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            entry.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
+                              color: _titleColor,
+                              height: 1.2,
+                            ),
+                          ),
+                          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+                          Text(
+                            entry.description,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w400,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                              color: _bodyColor,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      style.icon,
-                      size: ResponsiveHelper.getResponsiveSize(context, 18),
-                      color: style.color,
+                    SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+                    Container(
+                      width: iconBoxSize,
+                      height: iconBoxSize,
+                      decoration: BoxDecoration(
+                        color: style.background,
+                        borderRadius: BorderRadius.circular(
+                          ResponsiveHelper.getResponsiveRadius(context, 12),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: AppSvgIcon(style.asset, size: 20, color: style.accent),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -162,4 +195,32 @@ class FamilyDailyUpdateTimelineTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DashedLinePainter extends CustomPainter {
+  final Color color;
+
+  const _DashedLinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    const dashHeight = 4.0;
+    const dashGap = 4.0;
+    var y = 0.0;
+    final x = size.width / 2;
+
+    while (y < size.height) {
+      final endY = (y + dashHeight).clamp(0.0, size.height);
+      canvas.drawLine(Offset(x, y), Offset(x, endY), paint);
+      y += dashHeight + dashGap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLinePainter oldDelegate) => oldDelegate.color != color;
 }
