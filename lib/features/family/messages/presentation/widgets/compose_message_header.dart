@@ -73,7 +73,7 @@ class ComposeMessageHeader extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'Manrope',
                       fontWeight: FontWeight.w700,
                       fontSize: ResponsiveHelper.getResponsiveFontSize(
                         context,
@@ -92,7 +92,7 @@ class ComposeMessageHeader extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'Manrope',
                       fontWeight: FontWeight.w400,
                       fontSize: ResponsiveHelper.getResponsiveFontSize(
                         context,

@@ -56,7 +56,7 @@ class RecipientChip extends StatelessWidget {
             child: Text(
               recipient.initials,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w700,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9),
                 color: Colors.white,
@@ -70,7 +70,7 @@ class RecipientChip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w600,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
               color: _name,

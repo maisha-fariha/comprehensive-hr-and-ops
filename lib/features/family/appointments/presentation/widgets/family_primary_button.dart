@@ -44,7 +44,7 @@ class FamilyPrimaryButton extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
                     color: Colors.white,

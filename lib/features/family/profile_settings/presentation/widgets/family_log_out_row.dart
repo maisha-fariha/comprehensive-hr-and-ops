@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 
 /// Stadium "Sign Out" action at the bottom of Profile & Settings —
@@ -19,7 +21,7 @@ class FamilyLogOutRow extends StatelessWidget {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 999);
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: onTap ?? () => Get.find<UserSession>().signOut(),
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,

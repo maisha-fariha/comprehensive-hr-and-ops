@@ -99,7 +99,7 @@ class AttachmentOptionTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w500,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
                   color: selected ? _selectedLabel : _label,

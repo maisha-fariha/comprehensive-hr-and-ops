@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../routing/app_routes.dart';
 import 'user_role.dart';
 
 /// Minimal, app-wide session holder for the signed-in user's active role.
@@ -18,6 +19,13 @@ class UserSession extends GetxService {
   void signIn({required UserRole role, required String displayName}) {
     _role.value = role;
     _displayName.value = displayName;
+  }
+
+  /// Clears the local session and returns to the login screen, dropping the
+  /// current portal stack so back cannot restore a signed-in shell.
+  void signOut() {
+    _displayName.value = '';
+    Get.offAllNamed(AppRoutes.login);
   }
 
   bool hasRole(UserRole requiredRole) => _role.value == requiredRole;

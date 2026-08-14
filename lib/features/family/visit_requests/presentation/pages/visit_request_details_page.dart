@@ -90,7 +90,7 @@ class _VisitRequestDetailsPageState extends State<VisitRequestDetailsPage> {
                             : _controller.errorMessage.value,
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'Manrope',
                           fontWeight: FontWeight.w500,
                           color: AppColors.textSecondary,
                         ),

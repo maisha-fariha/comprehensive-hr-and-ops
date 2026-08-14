@@ -61,7 +61,7 @@ class VisitRequestRowCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(
                       context,
@@ -132,7 +132,7 @@ class _MetaLine extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w400,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
               color: VisitRequestRowCard._metaColor,

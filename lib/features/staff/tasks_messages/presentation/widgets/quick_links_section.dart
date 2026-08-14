@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
 
 /// "Quick Links" grid under the Tasks list: Profile / Training / Documents /
 /// Notifications.
@@ -83,7 +85,9 @@ class _QuickLinkCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {},
+        onTap: item.label == 'Profile'
+            ? () => Get.to(() => const StaffProfileSettingsPage())
+            : null,
         borderRadius: BorderRadius.circular(radius),
         child: Ink(
           padding: ResponsiveHelper.getResponsivePadding(

@@ -159,7 +159,7 @@ class _AllRequestsTab extends StatelessWidget {
           return Text(
             'All Requests',
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w700,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
               color: _sectionTitle,
@@ -199,7 +199,7 @@ class _HistoryTab extends StatelessWidget {
           return Text(
             'Past Requests',
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w700,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
               color: _sectionTitle,
@@ -251,7 +251,7 @@ class _MyRequestsTab extends StatelessWidget {
             child: Text(
               'My Requests',
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w700,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
                 color: _sectionTitle,
@@ -290,7 +290,7 @@ class _VisitRequestsError extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w500,
                 color: AppColors.textSecondary,
               ),

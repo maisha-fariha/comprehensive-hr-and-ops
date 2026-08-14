@@ -21,7 +21,7 @@ class ComposeFieldLabel extends StatelessWidget {
       child: Text.rich(
         TextSpan(
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'Manrope',
             fontWeight: FontWeight.w700,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
             color: _titleColor,
@@ -33,7 +33,7 @@ class ComposeFieldLabel extends StatelessWidget {
               TextSpan(
                 text: ' $suffix',
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w400,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
                   color: _suffixColor,

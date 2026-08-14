@@ -92,7 +92,7 @@ class _TabItem extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'Manrope',
             fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
             color: isActive

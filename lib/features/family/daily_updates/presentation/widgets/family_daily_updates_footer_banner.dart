@@ -42,7 +42,7 @@ class FamilyDailyUpdatesFooterBanner extends StatelessWidget {
             child: Text(
               message,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w500,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
                 color: _fg,

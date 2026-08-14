@@ -45,7 +45,7 @@ class SendMessageButton extends StatelessWidget {
                 Text(
                   'Send Message',
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
                     color: Colors.white,

@@ -133,7 +133,7 @@ class _FamilyDocumentsError extends StatelessWidget {
                 message,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
                 ),

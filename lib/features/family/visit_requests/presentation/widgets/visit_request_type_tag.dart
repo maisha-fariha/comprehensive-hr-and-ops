@@ -55,7 +55,7 @@ class VisitRequestTypeTag extends StatelessWidget {
           Text(
             _label,
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w600,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
               color: _foreground,

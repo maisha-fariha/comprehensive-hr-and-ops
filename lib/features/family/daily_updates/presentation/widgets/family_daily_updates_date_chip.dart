@@ -35,7 +35,7 @@ class FamilyDailyUpdatesDateChip extends StatelessWidget {
                 TextSpan(
                   text: leading,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
                     color: _todayColor,
@@ -46,7 +46,7 @@ class FamilyDailyUpdatesDateChip extends StatelessWidget {
                   TextSpan(
                     text: '  •  ',
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'Manrope',
                       fontWeight: FontWeight.w500,
                       fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
                       color: _dateColor,
@@ -56,7 +56,7 @@ class FamilyDailyUpdatesDateChip extends StatelessWidget {
                   TextSpan(
                     text: trailing,
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'Manrope',
                       fontWeight: FontWeight.w500,
                       fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
                       color: _dateColor,

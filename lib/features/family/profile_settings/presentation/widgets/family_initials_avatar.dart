@@ -29,7 +29,7 @@ class FamilyInitialsAvatar extends StatelessWidget {
       child: Text(
         initials,
         style: TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w700,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, size * 0.32),
           color: foreground,

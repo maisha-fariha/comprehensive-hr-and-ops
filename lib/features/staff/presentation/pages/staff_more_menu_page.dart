@@ -7,6 +7,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
+import '../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
 import '../widgets/staff_menu_entry.dart';
 
 /// "More" tab of the Staff bottom navigation — a navigation hub for the
@@ -14,8 +15,7 @@ import '../widgets/staff_menu_entry.dart';
 /// bottom bar (Home/Schedule/Clients/MAR-Tasks/More only has 5 slots).
 ///
 /// This menu itself isn't a distinct Figma frame; it's a pragmatic way to
-/// make the Attendance and Incidents screens reachable end-to-end from a
-/// single bottom-nav destination.
+/// make Attendance, Incidents and Profile & Settings reachable end-to-end.
 class StaffMoreMenuPage extends StatelessWidget {
   const StaffMoreMenuPage({super.key});
 
@@ -34,6 +34,13 @@ class StaffMoreMenuPage extends StatelessWidget {
       title: 'Incidents',
       subtitle: 'My reports & all residence incidents',
     ),
+    StaffMenuEntry(
+      icon: Icons.person_outline_rounded,
+      iconBackground: AppColors.nightBackground,
+      iconColor: AppColors.nightPurple,
+      title: 'Profile & Settings',
+      subtitle: 'Account, assigned clients & preferences',
+    ),
   ];
 
   void _open(BuildContext context, int index) {
@@ -43,6 +50,9 @@ class StaffMoreMenuPage extends StatelessWidget {
         break;
       case 1:
         Get.to(() => const StaffIncidentsListPage());
+        break;
+      case 2:
+        Get.to(() => const StaffProfileSettingsPage());
         break;
     }
   }

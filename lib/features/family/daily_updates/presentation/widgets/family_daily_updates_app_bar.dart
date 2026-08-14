@@ -66,7 +66,7 @@ class FamilyDailyUpdatesAppBar extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'Manrope',
                       fontWeight: FontWeight.w700,
                       fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
                       color: _titleColor,
@@ -80,7 +80,7 @@ class FamilyDailyUpdatesAppBar extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'Outfit',
+                      fontFamily: 'Manrope',
                       fontWeight: FontWeight.w400,
                       fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
                       color: _subtitleColor,

@@ -60,7 +60,7 @@ class FamilyMessagesHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w700,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
                   color: _titleColor,

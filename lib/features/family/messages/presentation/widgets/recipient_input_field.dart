@@ -59,7 +59,7 @@ class RecipientInputField extends StatelessWidget {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => onSubmitted(),
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w500,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
                   color: _text,
@@ -72,7 +72,7 @@ class RecipientInputField extends StatelessWidget {
                   ),
                   hintText: 'Add recipient...',
                   hintStyle: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w400,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(
                       context,

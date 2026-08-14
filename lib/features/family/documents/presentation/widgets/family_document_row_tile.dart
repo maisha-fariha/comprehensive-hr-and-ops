@@ -134,7 +134,7 @@ class FamilyDocumentRowTile extends StatelessWidget {
                 Text(
                   document.fileType.label,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(
                       context,
@@ -158,7 +158,7 @@ class FamilyDocumentRowTile extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(
                       context,
@@ -176,7 +176,7 @@ class FamilyDocumentRowTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w400,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(
                       context,

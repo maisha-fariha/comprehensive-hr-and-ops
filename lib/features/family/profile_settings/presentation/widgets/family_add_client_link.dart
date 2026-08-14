@@ -32,7 +32,7 @@ class FamilyAddClientLink extends StatelessWidget {
             Text(
               'Add / Switch Client',
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w700,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
                 color: _actionColor,

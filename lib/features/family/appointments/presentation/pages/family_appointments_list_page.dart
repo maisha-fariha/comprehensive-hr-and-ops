@@ -157,7 +157,7 @@ class _FamilyAppointmentsListPageState
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontFamily: 'Outfit',
+                                    fontFamily: 'Manrope',
                                     fontWeight: FontWeight.w700,
                                     fontSize: ResponsiveHelper.getResponsiveFontSize(
                                       context,
@@ -230,7 +230,7 @@ class _NoResults extends StatelessWidget {
         'No appointments to show.',
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w500,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
           color: AppColors.textSecondary,
@@ -264,7 +264,7 @@ class _AppointmentsError extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w500,
                 color: AppColors.textSecondary,
               ),

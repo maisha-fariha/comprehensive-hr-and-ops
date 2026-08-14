@@ -178,7 +178,7 @@ class FamilyAppointmentCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'Manrope',
                           fontWeight: FontWeight.w700,
                           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
                           color: _dateColor,
@@ -202,7 +202,7 @@ class FamilyAppointmentCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'Manrope',
                           fontWeight: FontWeight.w700,
                           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
                           color: status.foreground,
@@ -218,7 +218,7 @@ class FamilyAppointmentCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
                     color: _titleColor,
@@ -246,7 +246,7 @@ class FamilyAppointmentCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'Manrope',
                           fontWeight: FontWeight.w400,
                           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
                           color: _locationColor,

@@ -70,7 +70,7 @@ class _CaptionValue extends StatelessWidget {
         Text(
           caption,
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'Manrope',
             fontWeight: FontWeight.w700,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
             color: PurposeNotesCard._captionColor,
@@ -82,7 +82,7 @@ class _CaptionValue extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'Manrope',
             fontWeight: FontWeight.w500,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
             color: PurposeNotesCard._valueColor,

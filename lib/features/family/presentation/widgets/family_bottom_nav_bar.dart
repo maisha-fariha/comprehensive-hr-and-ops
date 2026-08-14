@@ -124,7 +124,7 @@ class _FamilyBottomNavItem extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9.5),
                 color: color,
@@ -156,11 +156,11 @@ class _MessagesBadge extends StatelessWidget {
       child: Text(
         '$count',
         style: TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w700,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9),
           color: Colors.white,
-          height: 1.1,
+          height: 1.1, 
         ),
       ),
     );

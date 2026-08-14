@@ -93,7 +93,7 @@ class MyVisitRequestCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: 'Manrope',
                           fontWeight: FontWeight.w700,
                           fontSize: ResponsiveHelper.getResponsiveFontSize(
                             context,
@@ -137,7 +137,7 @@ class MyVisitRequestCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w400,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(
                       context,
@@ -159,7 +159,7 @@ class MyVisitRequestCard extends StatelessWidget {
               maxLines: 4,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w400,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
                 color: _metaColor,
@@ -206,7 +206,7 @@ class _ViewRequestDetailsButton extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(
                       context,

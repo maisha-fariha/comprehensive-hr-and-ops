@@ -40,7 +40,7 @@ class ComposeMessageField extends StatelessWidget {
         maxLines: null,
         minLines: 5,
         style: TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w500,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
           color: _text,
@@ -51,7 +51,7 @@ class ComposeMessageField extends StatelessWidget {
           border: InputBorder.none,
           hintText: 'Write your message...',
           hintStyle: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'Manrope',
             fontWeight: FontWeight.w400,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
             color: _hint,

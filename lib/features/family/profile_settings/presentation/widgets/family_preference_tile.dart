@@ -59,7 +59,7 @@ class FamilyPreferenceTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w600,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(
                     context,

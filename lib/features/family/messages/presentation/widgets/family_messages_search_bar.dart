@@ -40,7 +40,7 @@ class FamilyMessagesSearchBar extends StatelessWidget {
               controller: controller,
               onChanged: onChanged,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w500,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
                 color: _text,
@@ -54,7 +54,7 @@ class FamilyMessagesSearchBar extends StatelessWidget {
                 ),
                 hintText: 'Search people or groups',
                 hintStyle: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w400,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
                   color: _hint,

@@ -143,7 +143,7 @@ class _NoResults extends StatelessWidget {
         'No conversations match your search.',
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w500,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
           color: AppColors.textSecondary,
@@ -173,7 +173,7 @@ class _MessagesError extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w500,
                 color: AppColors.textSecondary,
               ),

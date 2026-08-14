@@ -23,7 +23,7 @@ class AppointmentFieldLabel extends StatelessWidget {
           Text(
             text,
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w700,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
               color: AppColors.textHeading,
@@ -34,7 +34,7 @@ class AppointmentFieldLabel extends StatelessWidget {
             Text(
               suffix!,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w400,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
                 color: AppColors.textFaint,
@@ -79,7 +79,7 @@ class AppointmentDropdownField extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w600,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
                 color: AppColors.textHeading,
@@ -125,7 +125,7 @@ class AppointmentNoteField extends StatelessWidget {
             minLines: 3,
             maxLength: FamilyAppointmentsConstants.noteMaxLength,
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w500,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
               color: AppColors.textHeading,
@@ -136,7 +136,7 @@ class AppointmentNoteField extends StatelessWidget {
               counterText: '',
               hintText: hint,
               hintStyle: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w400,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
                 color: AppColors.textFaint,
@@ -146,7 +146,7 @@ class AppointmentNoteField extends StatelessWidget {
           Text(
             '$length/${FamilyAppointmentsConstants.noteMaxLength}',
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w400,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
               color: AppColors.textFaint,
@@ -188,7 +188,7 @@ class AppointmentInfoBanner extends StatelessWidget {
             child: Text(
               message,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w500,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
                 color: Color(0xFF2A5250),

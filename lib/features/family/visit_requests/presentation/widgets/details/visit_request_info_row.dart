@@ -43,7 +43,7 @@ class VisitRequestInfoRow extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w400,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
                   color: AppColors.textFaint,
@@ -53,7 +53,7 @@ class VisitRequestInfoRow extends StatelessWidget {
               Text(
                 value,
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w700,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
                   color: AppColors.textHeading,

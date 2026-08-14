@@ -102,7 +102,7 @@ class _StatChip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w700,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 22),
               color: color,
@@ -116,7 +116,7 @@ class _StatChip extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'Outfit',
+              fontFamily: 'Manrope',
               fontWeight: FontWeight.w500,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
               color: MyVisitRequestsStatChips._label,

@@ -19,7 +19,7 @@ class FamilyDashboardSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final height = ResponsiveHelper.getResponsiveHeight(context, AppDimens.searchBarHeight);
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 999);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 16);
     final filterSize = ResponsiveHelper.getResponsiveSize(context, 36);
 
     return Material(
