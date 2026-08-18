@@ -3,7 +3,6 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/medication_enums.dart';
-import 'medication_count_badge.dart';
 
 class _TabData {
   final MedicationTab tab;
@@ -21,16 +20,25 @@ class _TabData {
   });
 }
 
-/// The 4-way segmented control shared by every Medication tab: "Overview",
-/// "Due N", "Missed N", "Refused N". The active segment renders as a raised
-/// white pill; inactive segments show a muted label plus a colored count
-/// badge (hidden on the active segment, matching the reference screens).
+/// Pill segmented control for Medication MAR — matched to the header + tab
+/// bar reference (white chrome, soft track, raised selected segment).
 class MedicationTabBar extends StatelessWidget {
   final MedicationTab selectedTab;
   final int dueCount;
   final int missedCount;
   final int refusedCount;
   final ValueChanged<MedicationTab> onTabSelected;
+
+  static const Color _trackBackground = Color(0xFFF1F5F9);
+  static const Color _selectedLabel = Color(0xFF0D685E);
+  static const Color _unselectedLabel = Color(0xFF718096);
+
+  static const Color _dueBadgeBg = Color(0xFFDBEAFE);
+  static const Color _dueBadgeFg = Color(0xFF1E40AF);
+  static const Color _missedBadgeBg = Color(0xFFFEE2E2);
+  static const Color _missedBadgeFg = Color(0xFFB91C1C);
+  static const Color _refusedBadgeBg = Color(0xFFFFEDD5);
+  static const Color _refusedBadgeFg = Color(0xFF9A3412);
 
   const MedicationTabBar({
     super.key,
@@ -49,30 +57,33 @@ class MedicationTabBar extends StatelessWidget {
         tab: MedicationTab.due,
         label: 'Due',
         count: dueCount,
-        badgeBackground: AppColors.infoBackground,
-        badgeForeground: AppColors.infoBlue,
+        badgeBackground: _dueBadgeBg,
+        badgeForeground: _dueBadgeFg,
       ),
       _TabData(
         tab: MedicationTab.missed,
         label: 'Missed',
         count: missedCount,
-        badgeBackground: AppColors.criticalBackground,
-        badgeForeground: AppColors.criticalRed,
+        badgeBackground: _missedBadgeBg,
+        badgeForeground: _missedBadgeFg,
       ),
       _TabData(
         tab: MedicationTab.refused,
         label: 'Refused',
         count: refusedCount,
-        badgeBackground: AppColors.urgentBackground,
-        badgeForeground: AppColors.urgentAmber,
+        badgeBackground: _refusedBadgeBg,
+        badgeForeground: _refusedBadgeFg,
       ),
     ];
 
     return Container(
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 3.5),
       decoration: BoxDecoration(
-        color: AppColors.scaffoldBackground,
-        borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, 14)),
+        color: _trackBackground,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 15),
+        ),
       ),
       child: Row(
         children: [
@@ -95,7 +106,11 @@ class _TabSegment extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _TabSegment({required this.data, required this.isSelected, required this.onTap});
+  const _TabSegment({
+    required this.data,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -103,15 +118,22 @@ class _TabSegment extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 9),
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          vertical: 9,
+          horizontal: 2,
+        ),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.surfaceWhite : Colors.transparent,
-          borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, 11)),
+          borderRadius: BorderRadius.circular(
+            ResponsiveHelper.getResponsiveRadius(context, 8),
+          ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.shadowNavy.withValues(alpha: 0.06),
+                    color: const Color(0xFF1A2B3C).withValues(alpha: 0.08),
                     offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
                     blurRadius: ResponsiveHelper.getResponsiveHeight(context, 3),
                   ),
@@ -121,7 +143,6 @@ class _TabSegment extends StatelessWidget {
         alignment: Alignment.center,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
               child: Text(
@@ -132,19 +153,55 @@ class _TabSegment extends StatelessWidget {
                   fontFamily: 'Outfit',
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                  color: isSelected ? AppColors.secondaryTeal : AppColors.textSecondary,
+                  color: isSelected
+                      ? MedicationTabBar._selectedLabel
+                      : MedicationTabBar._unselectedLabel,
+                  height: 1.1,
                 ),
               ),
             ),
             if (!isSelected && data.count != null) ...[
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
-              MedicationCountBadge(
+              _TabCountBadge(
                 count: data.count!,
                 background: data.badgeBackground,
                 foreground: data.badgeForeground,
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TabCountBadge extends StatelessWidget {
+  final int count;
+  final Color background;
+  final Color foreground;
+
+  const _TabCountBadge({
+    required this.count,
+    required this.background,
+    required this.foreground,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final size = ResponsiveHelper.getResponsiveSize(context, 17);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(
+        '$count',
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w700,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
+          color: foreground,
+          height: 1,
         ),
       ),
     );

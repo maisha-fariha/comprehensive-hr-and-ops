@@ -4,8 +4,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../staff_medication_constants.dart';
 
-/// Circular initials avatar used for residents/staff across every Staff
-/// Medication tab.
+/// Rounded-square initials avatar used for residents across Staff Medication.
 class StaffMedicationAvatar extends StatelessWidget {
   final String initials;
   final AvatarPalette palette;
@@ -15,7 +14,7 @@ class StaffMedicationAvatar extends StatelessWidget {
     super.key,
     required this.initials,
     required this.palette,
-    this.size = 38,
+    this.size = 44,
   });
 
   @override
@@ -26,15 +25,21 @@ class StaffMedicationAvatar extends StatelessWidget {
     return Container(
       width: resolvedSize,
       height: resolvedSize,
-      decoration: BoxDecoration(color: style.background, shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: style.background,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 12),
+        ),
+      ),
       alignment: Alignment.center,
       child: Text(
         initials,
         style: TextStyle(
           fontFamily: 'Outfit',
           fontWeight: FontWeight.w700,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, size * 0.34),
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, size * 0.32),
           color: style.foreground,
+          height: 1,
         ),
       ),
     );

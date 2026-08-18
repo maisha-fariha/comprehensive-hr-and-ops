@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../../core/widgets/surface_card.dart';
 import '../../domain/entities/investigation_incident.dart';
 import 'incident_icon_style.dart';
@@ -49,11 +50,17 @@ class InvestigationIncidentCard extends StatelessWidget {
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Icon(
-                  iconStyle.icon,
-                  size: ResponsiveHelper.getResponsiveSize(context, 21),
-                  color: iconStyle.color,
-                ),
+                child: iconStyle.asset != null
+                    ? AppSvgIcon(
+                        iconStyle.asset!,
+                        size: 21,
+                        color: iconStyle.color,
+                      )
+                    : Icon(
+                        iconStyle.materialIcon,
+                        size: ResponsiveHelper.getResponsiveSize(context, 21),
+                        color: iconStyle.color,
+                      ),
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
               Expanded(
@@ -162,7 +169,7 @@ class InvestigationIncidentCard extends StatelessWidget {
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
               Expanded(
                 child: _OutlinedActionButton(
-                  icon: Icons.edit_outlined,
+                  svgAsset: 'assets/icons/incidents/edit.svg',
                   label: 'Add Note',
                   color: AppColors.textSecondary,
                   onTap: onAddNote,
@@ -234,17 +241,19 @@ class _OngoingPill extends StatelessWidget {
 }
 
 class _OutlinedActionButton extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? svgAsset;
   final String label;
   final Color color;
   final VoidCallback? onTap;
 
   const _OutlinedActionButton({
-    required this.icon,
+    this.icon,
+    this.svgAsset,
     required this.label,
     required this.color,
     this.onTap,
-  });
+  }) : assert(icon != null || svgAsset != null);
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +272,14 @@ class _OutlinedActionButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: ResponsiveHelper.getResponsiveSize(context, 15), color: color),
+            if (svgAsset != null)
+              AppSvgIcon(svgAsset!, size: 15, color: color)
+            else
+              Icon(
+                icon,
+                size: ResponsiveHelper.getResponsiveSize(context, 15),
+                color: color,
+              ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
             Flexible(
               child: Text(

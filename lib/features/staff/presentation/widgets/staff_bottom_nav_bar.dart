@@ -12,16 +12,13 @@ class StaffBottomNavItemData {
   const StaffBottomNavItemData({required this.asset, required this.label});
 }
 
-/// Bottom navigation bar for the Staff portal shell: Home / Schedule /
-/// Clients / MAR-Tasks / More. Visually mirrors the Manager portal's
-/// [HrBottomNavBar] (same surface, shadow and active/inactive colors) so the
-/// two role portals stay consistent, with Staff-specific labels/icons.
+/// Bottom navigation bar for the Staff portal shell.
 class StaffBottomNavBar extends StatelessWidget {
   static const List<StaffBottomNavItemData> items = [
     StaffBottomNavItemData(asset: AppAssets.navHome, label: 'Home'),
     StaffBottomNavItemData(asset: AppAssets.navCalendar, label: 'Schedule'),
     StaffBottomNavItemData(asset: AppAssets.users, label: 'Clients'),
-    StaffBottomNavItemData(asset: AppAssets.clipboardCheck, label: 'MAR / Tasks'),
+    StaffBottomNavItemData(asset: AppAssets.navChecklist, label: 'MAR / Tasks'),
     StaffBottomNavItemData(asset: AppAssets.navMore, label: 'More'),
   ];
 
@@ -37,22 +34,21 @@ class StaffBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.surfaceWhite,
-        border: const Border(top: BorderSide(color: AppColors.cardBorder)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowNavy.withValues(alpha: 0.05),
-            offset: Offset(0, -ResponsiveHelper.getResponsiveHeight(context, 4)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 8),
-          ),
-        ],
+        border: Border(top: BorderSide(color: AppColors.cardBorder)),
       ),
       child: SafeArea(
         top: false,
-        minimum: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 10)),
+        minimum: EdgeInsets.only(
+          bottom: ResponsiveHelper.getResponsiveHeight(context, 6),
+        ),
         child: Padding(
-          padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 12, top: 10),
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 8,
+            top: 8,
+          ),
           child: Row(
             children: List.generate(items.length, (index) {
               final item = items[index];
@@ -91,12 +87,12 @@ class _StaffBottomNavItem extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 6),
+        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             AppSvgIcon(data.asset, size: 22, color: color),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
             Text(
               data.label,
               maxLines: 1,
@@ -104,7 +100,7 @@ class _StaffBottomNavItem extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Outfit',
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9.5),
                 color: color,
               ),

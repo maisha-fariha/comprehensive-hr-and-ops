@@ -1,167 +1,229 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/status_badge.dart';
-import '../../../../../core/widgets/surface_card.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../staff_core_constants.dart';
 import '../../domain/entities/staff_shift.dart';
 import 'shift_avatar_circle.dart';
 
-/// A single shift card in "My Schedule"'s "My Shifts" list: title (+ an
-/// optional "TODAY" tag), a date/time subtitle, a location row, an
-/// avatar-stack + staffing ratio + role tag row, a trailing "Confirmed"
-/// pill, and a colored staffing-level progress bar underneath.
-///
-/// NOTE: the location-pin glyph has no matching exported SVG yet, so
-/// `StaffMaterialIconFallback.locationPin` stands in for it — see the
-/// feature's final report.
+/// A single shift row inside the shared "My Shifts" card (no outer card).
 class ShiftCard extends StatelessWidget {
   final StaffShift shift;
   final VoidCallback? onTap;
+  final bool showDividerBar;
 
-  const ShiftCard({super.key, required this.shift, this.onTap});
+  static const Color _primaryText = Color(0xFF1A232E);
+  static const Color _secondaryText = Color(0xFF72849A);
+
+  const ShiftCard({
+    super.key,
+    required this.shift,
+    this.onTap,
+    this.showDividerBar = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     final style = staffingLevelStyles[shift.staffingLevel]!;
+    final fill = (shift.filled / shift.total).clamp(0.0, 1.0);
+    final rowGap = ResponsiveHelper.getResponsiveHeight(context, 6);
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 14)),
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: SurfaceCard.card(
-          padding: ResponsiveHelper.getResponsivePadding(context, all: 17),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Title · TODAY .................. Confirmed
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            shift.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        if (shift.isToday) ...[
-                          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
-                          StatusBadge.chip(
-                            label: 'TODAY',
-                            background: AppColors.quickActionCreateShiftBg,
-                            foreground: AppColors.secondaryTeal,
-                          ),
-                        ],
-                      ],
-                    ),
+              Flexible(
+                child: Text(
+                  shift.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
+                    color: _primaryText,
+                    height: 1.2,
                   ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                  StatusBadge.pill(
-                    label: shift.statusLabel,
-                    background: AppColors.activeBackground,
-                    foreground: AppColors.activeGreen,
-                  ),
-                ],
-              ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
-              Text(
-                shift.dateTimeLabel,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w400,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                  color: AppColors.textMuted,
                 ),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-              Row(
-                children: [
-                  Icon(
-                    StaffMaterialIconFallback.locationPin,
-                    size: ResponsiveHelper.getResponsiveSize(context, 13),
-                    color: AppColors.textFaint,
-                  ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
-                  Text(
-                    shift.location,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+              if (shift.isToday) ...[
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+                _Badge(
+                  label: 'TODAY',
+                  color: const Color(0xFF2D8C83),
+                  background: const Color(0xFFEBF7F6),
+                  radius: 8,
+                ),
+              ],
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              _Badge(
+                label: shift.statusLabel,
+                color: const Color(0xFF2E8C58),
+                background: const Color(0xFFEAF5EF),
+                radius: 999,
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      for (var i = 0; i < shift.avatars.length; i++)
-                        ShiftAvatarCircle(avatar: shift.avatars[i], paletteIndex: i, isFirst: i == 0),
-                    ],
-                  ),
-                  if (shift.extraStaffCount > 0) ...[
-                    SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-                    Text(
-                      '+${shift.extraStaffCount} staff',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w500,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
-                  Text(
-                    '${shift.filled}/${shift.total}',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-                  StatusBadge.chip(
-                    label: shift.roleTag,
-                    background: AppColors.dividerLight,
-                    foreground: AppColors.textSecondary,
-                  ),
-                ],
+            ],
+          ),
+          SizedBox(height: rowGap),
+          Text(
+            shift.dateTimeLabel,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w500,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: _secondaryText,
+              height: 1.3,
+            ),
+          ),
+          SizedBox(height: rowGap),
+          Row(
+            children: [
+              const AppSvgIcon(
+                'assets/icons/staff_core/location.svg',
+                size: 12,
+                color: _secondaryText,
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: SizedBox(
-                  height: ResponsiveHelper.getResponsiveHeight(context, StaffDimens.progressBarHeight),
-                  child: Stack(
-                    children: [
-                      Container(color: AppColors.dividerLight),
-                      FractionallySizedBox(
-                        widthFactor: (shift.filled / shift.total).clamp(0, 1),
-                        child: Container(color: style.accent),
-                      ),
-                    ],
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+              Flexible(
+                child: Text(
+                  shift.location,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: _secondaryText,
                   ),
                 ),
               ),
             ],
           ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          // Avatars + staff ........ ratio · role
+          Row(
+            children: [
+              Flexible(
+                child: Row(
+                  children: [
+                    for (var i = 0; i < shift.avatars.length; i++)
+                      ShiftAvatarCircle(
+                        avatar: shift.avatars[i],
+                        paletteIndex: i,
+                        isFirst: i == 0,
+                      ),
+                    if (shift.extraStaffCount > 0) ...[
+                      SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+                      Flexible(
+                        child: Text(
+                          '+${shift.extraStaffCount} staff',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w500,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                            color: _secondaryText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              Text(
+                '${shift.filled}/${shift.total}',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: _primaryText,
+                ),
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+              _Badge(
+                label: shift.roleTag,
+                color: const Color(0xFF3D6FB6),
+                background: const Color(0xFFE8F0FE),
+                radius: 8,
+              ),
+            ],
+          ),
+          if (showDividerBar) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(
+                  context,
+                  StaffDimens.progressBarHeight,
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const ColoredBox(color: Color(0xFFF1F3F4)),
+                    FractionallySizedBox(
+                      widthFactor: fill,
+                      alignment: Alignment.centerLeft,
+                      child: ColoredBox(color: style.accent),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+  final Color background;
+  final double radius;
+
+  const _Badge({
+    required this.label,
+    required this.color,
+    required this.background,
+    required this.radius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 8,
+        vertical: 3,
+      ),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, radius),
+        ),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w700,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
+          color: color,
+          height: 1.1,
         ),
       ),
     );

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-/// Small rounded numeric pill used everywhere a section/tab shows a count
-/// next to its title (tab bar labels, "Missed Doses", etc).
+/// Small circular/pill count badge used next to Medication MAR tab labels.
 class StaffMedicationCountBadge extends StatelessWidget {
   final int count;
   final Color background;
@@ -17,11 +16,16 @@ class StaffMedicationCountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = ResponsiveHelper.getResponsiveSize(context, 20);
+
     return Container(
-      constraints: BoxConstraints(minWidth: ResponsiveHelper.getResponsiveSize(context, 19)),
-      height: ResponsiveHelper.getResponsiveSize(context, 19),
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 6.4),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(999)),
+      constraints: BoxConstraints(minWidth: size, minHeight: size),
+      height: size,
+      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
       alignment: Alignment.center,
       child: Text(
         '$count',
@@ -30,6 +34,7 @@ class StaffMedicationCountBadge extends StatelessWidget {
           fontWeight: FontWeight.w700,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
           color: foreground,
+          height: 1,
         ),
       ),
     );

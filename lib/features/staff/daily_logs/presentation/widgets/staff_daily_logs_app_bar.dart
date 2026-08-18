@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// Plain white top bar for the Staff "Daily Logs" screen: a back chevron
-/// and the centered "Daily Logs" title.
+/// Plain white header: rounded bordered back button + centered "Daily Logs".
 ///
-/// Icon note: no matching back-chevron SVG exists in `assets/icons/*`, so
-/// this uses `Icons.arrow_back_ios_new_rounded` as a temporary stand-in -
-/// flag this for swapping to a real exported Figma asset later.
+/// Matches [StaffScheduleHeader] / [StaffAttendanceHeader]. The back chevron
+/// reuses [AppAssets.chevronRight] rotated 180°.
 class StaffDailyLogsAppBar extends StatelessWidget {
   final VoidCallback? onBack;
 
@@ -17,36 +17,63 @@ class StaffDailyLogsAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 24);
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final buttonRadius = ResponsiveHelper.getResponsiveRadius(context, 12);
+
     return ColoredBox(
       color: AppColors.surfaceWhite,
       child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 14, bottom: 14),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: onBack ?? Get.back,
-              behavior: HitTestBehavior.opaque,
-              child: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                size: ResponsiveHelper.getResponsiveSize(context, 18),
-                color: AppColors.textPrimary,
-              ),
-            ),
-            Expanded(
-              child: Text(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 20,
+          top: 8,
+          bottom: 12,
+        ),
+        child: SizedBox(
+          height: buttonSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Text(
                 'Daily Logs',
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
-                  color: AppColors.textPrimary,
+                  color: AppColors.textHeading,
+                  height: 1.2,
                 ),
               ),
-            ),
-            SizedBox(width: buttonSize),
-          ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: onBack ?? Get.back,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: buttonSize,
+                    height: buttonSize,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceWhite,
+                      borderRadius: BorderRadius.circular(buttonRadius),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    alignment: Alignment.center,
+                    child: Transform.rotate(
+                      angle: 3.14159,
+                      child: const AppSvgIcon(
+                        AppAssets.chevronRight,
+                        size: 18,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
-import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/section_header_row.dart';
 import '../controllers/family_appointments_controller.dart';
 import '../widgets/family_appointment_card.dart';
 import '../widgets/family_appointments_filter_pills.dart';
@@ -24,10 +23,12 @@ class FamilyAppointmentsListPage extends StatefulWidget {
   const FamilyAppointmentsListPage({super.key});
 
   @override
-  State<FamilyAppointmentsListPage> createState() => _FamilyAppointmentsListPageState();
+  State<FamilyAppointmentsListPage> createState() =>
+      _FamilyAppointmentsListPageState();
 }
 
-class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage> {
+class _FamilyAppointmentsListPageState
+    extends State<FamilyAppointmentsListPage> {
   late final FamilyAppointmentsController _controller;
 
   @override
@@ -40,7 +41,10 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
     try {
       return Get.find<FamilyAppointmentsController>();
     } catch (_) {
-      return Get.put(GetIt.instance<FamilyAppointmentsController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<FamilyAppointmentsController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -59,7 +63,9 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
           final hasData = response.data != null;
 
           if (!hasData && _controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+            );
           }
 
           if (!hasData) {
@@ -76,14 +82,36 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
 
           return Column(
             children: [
-              FamilyAppointmentsHeader(title: 'Appointments', onBack: Get.back),
-              Padding(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20),
-                child: FamilyAppointmentsTabBar(selected: selectedTab, onSelected: _controller.selectTab),
-              ),
-              Padding(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 14),
-                child: const FamilyAppointmentsFilterPills(),
+              ColoredBox(
+                color: AppColors.surfaceWhite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FamilyAppointmentsHeader(
+                      title: 'Appointments',
+                      onBack: Get.back,
+                    ),
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 20,
+                      ),
+                      child: FamilyAppointmentsTabBar(
+                        selected: selectedTab,
+                        onSelected: _controller.selectTab,
+                      ),
+                    ),
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 20,
+                        top: 14,
+                        bottom: 14,
+                      ),
+                      child: const FamilyAppointmentsFilterPills(),
+                    ),
+                  ],
+                ),
               ),
               Expanded(
                 child: RefreshIndicator(
@@ -92,8 +120,14 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
                   child: sections.isEmpty
                       ? ListView(
                           padding: EdgeInsets.symmetric(
-                            horizontal: ResponsiveHelper.getResponsiveWidth(context, 20),
-                            vertical: ResponsiveHelper.getResponsiveHeight(context, 40),
+                            horizontal: ResponsiveHelper.getResponsiveWidth(
+                              context,
+                              20,
+                            ),
+                            vertical: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              40,
+                            ),
                           ),
                           children: const [_NoResults()],
                         )
@@ -110,12 +144,51 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (sectionIndex != 0) SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                                SectionHeaderRow(title: section.title),
-                                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                                for (var i = 0; i < section.appointments.length; i++) ...[
-                                  if (i != 0) SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                                  FamilyAppointmentCard(appointment: section.appointments[i]),
+                                if (sectionIndex != 0)
+                                  SizedBox(
+                                    height:
+                                        ResponsiveHelper.getResponsiveHeight(
+                                          context,
+                                          24,
+                                        ),
+                                  ),
+                                Text(
+                                  section.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontFamily: 'Manrope',
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                      context,
+                                      18,
+                                    ),
+                                    color: const Color(0xFF11212E),
+                                    height: 1.2,
+                                  ),
+                                ),
+                                SizedBox(
+                                  height: ResponsiveHelper.getResponsiveHeight(
+                                    context,
+                                    12,
+                                  ),
+                                ),
+                                for (
+                                  var i = 0;
+                                  i < section.appointments.length;
+                                  i++
+                                ) ...[
+                                  if (i != 0)
+                                    SizedBox(
+                                      height:
+                                          ResponsiveHelper.getResponsiveHeight(
+                                            context,
+                                            12,
+                                          ),
+                                    ),
+                                  FamilyAppointmentCard(
+                                    appointment: section.appointments[i],
+                                  ),
                                 ],
                               ],
                             );
@@ -123,17 +196,20 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
                         ),
                 ),
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  ResponsiveHelper.getResponsiveWidth(context, 20),
-                  0,
-                  ResponsiveHelper.getResponsiveWidth(context, 20),
-                  ResponsiveHelper.getResponsiveHeight(context, 14),
-                ),
-                child: FamilyPrimaryButton(
-                  label: 'Create Appointment',
-                  icon: Icons.add_rounded,
-                  onTap: _openCreateAppointment,
+              ColoredBox(
+                color: AppColors.surfaceWhite,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    ResponsiveHelper.getResponsiveWidth(context, 20),
+                    ResponsiveHelper.getResponsiveHeight(context, 14),
+                    ResponsiveHelper.getResponsiveWidth(context, 20),
+                    ResponsiveHelper.getResponsiveHeight(context, 14),
+                  ),
+                  child: FamilyPrimaryButton(
+                    label: 'Create Appointment',
+                    icon: Icons.add_rounded,
+                    onTap: _openCreateAppointment,
+                  ),
                 ),
               ),
             ],
@@ -154,7 +230,7 @@ class _NoResults extends StatelessWidget {
         'No appointments to show.',
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w500,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
           color: AppColors.textSecondary,
@@ -178,13 +254,17 @@ class _AppointmentsError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.criticalRed, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.criticalRed,
+              size: 40,
+            ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Text(
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w500,
                 color: AppColors.textSecondary,
               ),
@@ -192,7 +272,9 @@ class _AppointmentsError extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+              ),
               child: const Text('Retry'),
             ),
           ],

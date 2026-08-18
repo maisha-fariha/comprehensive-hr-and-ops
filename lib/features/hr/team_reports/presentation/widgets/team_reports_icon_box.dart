@@ -3,13 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// A colored, rounded icon container used across every stat tile, list row
-/// and card on the Team/Reports/Messages tabs.
-///
-/// Renders [asset] through the shared [AppSvgIcon] when available; falls
-/// back to [materialIcon] for the handful of glyphs that have no matching
-/// exported SVG (no new icons could be downloaded from Figma this round -
-/// see the feature's final report for the full list of placeholders).
+/// Colored rounded icon container used across Team & Reports tiles.
 class TeamReportsIconBox extends StatelessWidget {
   final String? asset;
   final IconData? materialIcon;
@@ -25,10 +19,10 @@ class TeamReportsIconBox extends StatelessWidget {
     this.materialIcon,
     required this.color,
     required this.background,
-    this.boxSize = 42,
-    this.iconSize = 21,
+    this.boxSize = 40,
+    this.iconSize = 19,
     this.radius = 12,
-  }) : assert(asset != null || materialIcon != null, 'Provide an asset or a materialIcon');
+  }) : assert(asset != null || materialIcon != null);
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +38,11 @@ class TeamReportsIconBox extends StatelessWidget {
       alignment: Alignment.center,
       child: asset != null
           ? AppSvgIcon(asset!, size: iconSize, color: color)
-          : Icon(materialIcon, size: ResponsiveHelper.getResponsiveSize(context, iconSize), color: color),
+          : Icon(
+              materialIcon,
+              size: ResponsiveHelper.getResponsiveSize(context, iconSize),
+              color: color,
+            ),
     );
   }
 }

@@ -2,14 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/constants/app_dimens.dart';
-import '../../../staff_core_constants.dart';
 
-/// Full-width outlined red button pinned near the bottom of the screen.
-///
-/// NOTE: the leading arrow glyph has no matching exported SVG yet, so
-/// `StaffMaterialIconFallback.clockOutArrow` stands in for it — see the
-/// feature's final report.
+/// Full-width outlined red Clock Out button.
 class ClockOutButton extends StatelessWidget {
   final VoidCallback? onTap;
 
@@ -17,25 +11,26 @@ class ClockOutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: double.infinity,
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 15),
+        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 14),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.criticalRed),
-          borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusButton),
-          ),
+          color: AppColors.surfaceWhite,
+          border: Border.all(color: const Color(0xFFD64545)),
+          borderRadius: BorderRadius.circular(radius),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              StaffMaterialIconFallback.clockOutArrow,
-              size: ResponsiveHelper.getResponsiveSize(context, 17),
-              color: AppColors.criticalRed,
+              Icons.logout_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 18),
+              color: const Color(0xFFD64545),
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
             Text(
@@ -44,7 +39,7 @@ class ClockOutButton extends StatelessWidget {
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w700,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                color: AppColors.criticalRed,
+                color: const Color(0xFFD64545),
               ),
             ),
           ],

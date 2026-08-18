@@ -1,28 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
-
-/// Bold field label used above every field on the "New Message" compose
-/// screen ("To", "Message", "Attachments"), with an optional grey suffix
-/// (e.g. "(Optional)").
+/// Bold field label used above compose fields ("To", "Message", "Attachments"),
+/// with an optional muted suffix (e.g. "(Optional)").
 class ComposeFieldLabel extends StatelessWidget {
   final String text;
   final String? suffix;
+
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _suffixColor = Color(0xFF8E9BAE);
 
   const ComposeFieldLabel(this.text, {super.key, this.suffix});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 8)),
-      child: RichText(
-        text: TextSpan(
+      padding: EdgeInsets.only(
+        bottom: ResponsiveHelper.getResponsiveHeight(context, 8),
+      ),
+      child: Text.rich(
+        TextSpan(
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'Manrope',
             fontWeight: FontWeight.w700,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-            color: AppColors.textHeading,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+            color: _titleColor,
+            height: 1.2,
           ),
           children: [
             TextSpan(text: text),
@@ -30,13 +33,16 @@ class ComposeFieldLabel extends StatelessWidget {
               TextSpan(
                 text: ' $suffix',
                 style: TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w400,
-                  color: AppColors.textFaint,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: _suffixColor,
                 ),
               ),
           ],
         ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

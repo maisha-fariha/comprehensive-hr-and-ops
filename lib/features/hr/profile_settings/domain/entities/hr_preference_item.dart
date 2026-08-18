@@ -1,0 +1,16 @@
+import 'package:flutter/foundation.dart';
+
+enum HrPreferenceType {
+  notifications,
+  helpCenter,
+  contactSupport,
+  privacySecurity,
+}
+
+@immutable
+class HrPreferenceItem {
+  final HrPreferenceType type;
+  final String label;
+
+  const HrPreferenceItem({required this.type, required this.label});
+}

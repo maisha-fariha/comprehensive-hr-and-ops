@@ -35,6 +35,7 @@ class SubmittedTabView extends StatelessWidget {
         ResponsiveHelper.getResponsiveHeight(context, 32),
       ),
       children: [
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
         StaffDailyLogStatsRow(stats: stats),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
         SectionHeaderRow(

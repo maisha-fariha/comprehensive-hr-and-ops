@@ -96,27 +96,73 @@ class WizardHeader extends StatelessWidget {
             ],
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-          Row(
-            children: [
-              for (var i = 0; i < _stepLabels.length; i++) ...[
-                if (i != 0)
-                  Expanded(
-                    child: Container(
-                      height: 1.5,
-                      color: i <= currentIndex ? AppColors.activeGreen : AppColors.cardBorder,
-                    ),
-                  ),
-                _StepCircle(
-                  index: i,
-                  label: _stepLabels[i],
-                  isCompleted: i < currentIndex,
-                  isActive: i == currentIndex,
-                  onTap: onStepTap == null ? null : () => onStepTap!(IncidentCreationStep.values[i]),
-                ),
-              ],
-            ],
+          _WizardStepBar(
+            currentIndex: currentIndex,
+            onStepTap: onStepTap,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WizardStepBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<IncidentCreationStep>? onStepTap;
+
+  const _WizardStepBar({
+    required this.currentIndex,
+    this.onStepTap,
+  });
+
+  static const Color _inactiveCircle = Color(0xFFEDF2F7);
+  static const Color _inactiveContent = Color(0xFF94A3B8);
+  static const Color _connector = Color(0xFFDDE3EA);
+  static const Color _activeHalo = Color(0xFFE8EEF4);
+  static const Color _completedCircle = Color(0xFFDFF3EE);
+  static const Color _completedContent = Color(0xFF0E7C7B);
+
+  @override
+  Widget build(BuildContext context) {
+    final outerSize = ResponsiveHelper.getResponsiveSize(context, 36);
+    final lineTop = (outerSize - 1.5) / 2;
+
+    return SizedBox(
+      height: outerSize + ResponsiveHelper.getResponsiveHeight(context, 22),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stepCount = _stepLabels.length;
+          final slotWidth = constraints.maxWidth / stepCount;
+
+          return Stack(
+            children: [
+              // Single connector behind circles (circles cover the segment under them).
+              Positioned(
+                top: lineTop,
+                left: slotWidth / 2,
+                right: slotWidth / 2,
+                child: Container(height: 1.5, color: _connector),
+              ),
+              Row(
+                children: [
+                  for (var i = 0; i < stepCount; i++)
+                    Expanded(
+                      child: _StepCircle(
+                        index: i,
+                        label: _stepLabels[i],
+                        isActive: i == currentIndex,
+                        isCompleted: i < currentIndex,
+                        outerSize: outerSize,
+                        onTap: onStepTap == null
+                            ? null
+                            : () => onStepTap!(IncidentCreationStep.values[i]),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -127,6 +173,7 @@ class _StepCircle extends StatelessWidget {
   final String label;
   final bool isCompleted;
   final bool isActive;
+  final double outerSize;
   final VoidCallback? onTap;
 
   const _StepCircle({
@@ -134,23 +181,102 @@ class _StepCircle extends StatelessWidget {
     required this.label,
     required this.isCompleted,
     required this.isActive,
+    required this.outerSize,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final size = ResponsiveHelper.getResponsiveSize(context, 30);
-    final Color circleColor;
-    final Color textColor;
-    if (isCompleted) {
-      circleColor = AppColors.activeBackground;
-      textColor = AppColors.activeGreen;
-    } else if (isActive) {
-      circleColor = AppColors.primaryNavy;
-      textColor = Colors.white;
+    final innerSize = ResponsiveHelper.getResponsiveSize(context, 28);
+    final haloPad = (outerSize - innerSize) / 2;
+
+    final Widget circle;
+    if (isActive) {
+      // Active: light outer ring + solid navy inner circle.
+      circle = Container(
+        width: outerSize,
+        height: outerSize,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: _WizardStepBar._activeHalo,
+          shape: BoxShape.circle,
+        ),
+        child: Container(
+          width: innerSize,
+          height: innerSize,
+          decoration: const BoxDecoration(
+            color: AppColors.primaryNavy,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '${index + 1}',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: Colors.white,
+              height: 1,
+            ),
+          ),
+        ),
+      );
+    } else if (isCompleted) {
+      // Completed: mint circle + teal checkmark (reference).
+      circle = Padding(
+        padding: EdgeInsets.all(haloPad),
+        child: Container(
+          width: innerSize,
+          height: innerSize,
+          decoration: const BoxDecoration(
+            color: _WizardStepBar._completedCircle,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.check_rounded,
+            size: ResponsiveHelper.getResponsiveSize(context, 16),
+            color: _WizardStepBar._completedContent,
+          ),
+        ),
+      );
     } else {
-      circleColor = AppColors.dividerLight;
-      textColor = AppColors.textFaint;
+      // Pending: light grey-blue fill + muted number.
+      circle = Padding(
+        padding: EdgeInsets.all(haloPad),
+        child: Container(
+          width: innerSize,
+          height: innerSize,
+          decoration: const BoxDecoration(
+            color: _WizardStepBar._inactiveCircle,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '${index + 1}',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: _WizardStepBar._inactiveContent,
+              height: 1,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final Color labelColor;
+    final FontWeight labelWeight;
+    if (isCompleted) {
+      labelColor = _WizardStepBar._completedContent;
+      labelWeight = FontWeight.w700;
+    } else if (isActive) {
+      labelColor = AppColors.primaryNavy;
+      labelWeight = FontWeight.w700;
+    } else {
+      labelColor = _WizardStepBar._inactiveContent;
+      labelWeight = FontWeight.w500;
     }
 
     return GestureDetector(
@@ -159,33 +285,19 @@ class _StepCircle extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(color: circleColor, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: isCompleted
-                ? Icon(Icons.check_rounded, size: ResponsiveHelper.getResponsiveSize(context, 16), color: textColor)
-                : Text(
-                    '${index + 1}',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                      color: textColor,
-                    ),
-                  ),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+          circle,
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Outfit',
-              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
-              color: isActive
-                  ? AppColors.textHeading
-                  : (isCompleted ? AppColors.activeGreen : AppColors.textFaint),
+              fontWeight: labelWeight,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+              color: labelColor,
+              height: 1.1,
             ),
           ),
         ],

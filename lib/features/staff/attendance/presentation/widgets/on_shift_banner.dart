@@ -1,63 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
-import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/constants/app_dimens.dart';
-import '../../../../../core/widgets/app_svg_icon.dart';
-
-/// Green-tinted banner card: a check icon, "You are On Shift" and a
-/// "Started at HH:MM" subtitle.
+/// Centered light-mint "You are On Shift" banner with a status dot.
 class OnShiftBanner extends StatelessWidget {
   final bool isOnShift;
   final String startedLabel;
 
-  const OnShiftBanner({super.key, required this.isOnShift, required this.startedLabel});
+  static const Color _mint = Color(0xFFEAF7F0);
+  static const Color _forest = Color(0xFF2D7A50);
+
+  const OnShiftBanner({
+    super.key,
+    required this.isOnShift,
+    required this.startedLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
+
     return Container(
-      decoration: BoxDecoration(
-        color: AppColors.activeBackground,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusCard),
-        ),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 20,
+        vertical: 16,
       ),
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
+      decoration: BoxDecoration(
+        color: _mint,
+        borderRadius: BorderRadius.circular(radius),
+      ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: ResponsiveHelper.getResponsiveSize(context, 38),
-            height: ResponsiveHelper.getResponsiveSize(context, 38),
-            decoration: const BoxDecoration(color: AppColors.activeGreen, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: const AppSvgIcon(AppAssets.checkCircle, size: 19, color: Colors.white),
+            width: ResponsiveHelper.getResponsiveSize(context, 9),
+            height: ResponsiveHelper.getResponsiveSize(context, 9),
+            decoration: const BoxDecoration(
+              color: _forest,
+              shape: BoxShape.circle,
+            ),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                isOnShift ? 'You are On Shift' : 'You are Off Shift',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
-                  color: AppColors.textHeading,
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isOnShift ? 'You are On Shift' : 'You are Off Shift',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
+                    color: _forest,
+                    height: 1.2,
+                  ),
                 ),
-              ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-              Text(
-                startedLabel,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w500,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                  color: AppColors.activeGreen,
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+                Text(
+                  startedLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w400,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    color: _forest,
+                    height: 1.2,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

@@ -13,20 +13,22 @@ import '../../../../../core/constants/app_colors.dart';
 /// feature's `StaffPrimaryButton`.
 class FamilyPrimaryButton extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final IconData? icon;
   final VoidCallback onTap;
 
-  const FamilyPrimaryButton({super.key, required this.label, required this.icon, required this.onTap});
+  const FamilyPrimaryButton({super.key, required this.label,  this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: Material(
+        elevation: 4,
         color: AppColors.secondaryTeal,
         borderRadius: BorderRadius.circular(
           ResponsiveHelper.getResponsiveRadius(context, 16),
         ),
+        shadowColor: AppColors.shadowNavy.withValues(alpha: 0.22),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(
@@ -42,7 +44,7 @@ class FamilyPrimaryButton extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
                     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
                     color: Colors.white,

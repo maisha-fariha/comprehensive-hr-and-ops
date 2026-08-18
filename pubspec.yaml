@@ -114,3 +114,6 @@ flutter:
     - family: Outfit
       fonts:
         - asset: assets/fonts/outfit/Outfit-Variable.ttf
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope/Manrope-VariableFont_wght.ttf

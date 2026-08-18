@@ -62,7 +62,7 @@ class ComposeMessagePage extends StatelessWidget {
                     const ComposeFieldLabel('To'),
                     Obx(
                       () => RecipientInputField(
-                        recipients: controller.recipients,
+                        recipients: controller.recipients.toList(),
                         controller: controller.recipientInputController,
                         onRemoveRecipient: controller.removeRecipient,
                         onSubmitted: controller.addRecipientFromInput,
@@ -76,7 +76,7 @@ class ComposeMessagePage extends StatelessWidget {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
                     Obx(
                       () => AttachmentOptionsRow(
-                        selected: controller.selectedAttachments,
+                        selected: controller.selectedAttachments.toSet(),
                         onToggle: controller.toggleAttachment,
                       ),
                     ),

@@ -1,31 +1,114 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/constants/app_dimens.dart';
-import '../../../../../core/widgets/surface_card.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/family_document.dart';
-import '../../family_documents_constants.dart';
+import '../../domain/entities/family_document_enums.dart';
 
-/// A single row in the "Documents" list: a colored file-type icon box, a
-/// title + subtext line, and a trailing circular download button.
+class _DocVisual {
+  final String asset;
+  final Color background;
+  final Color foreground;
+
+  const _DocVisual({
+    required this.asset,
+    required this.background,
+    required this.foreground,
+  });
+}
+
+/// A single Documents list card: typed icon badge, title + meta, download.
 class FamilyDocumentRowTile extends StatelessWidget {
   final FamilyDocument document;
   final VoidCallback? onDownloadTap;
 
-  const FamilyDocumentRowTile({super.key, required this.document, this.onDownloadTap});
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _metaColor = Color(0xFF71839B);
+  static const Color _cardBorder = Color(0xFFEEF1F4);
+  static const Color _shadow = Color(0xFF142846);
+  static const Color _downloadBg = Color(0xFFF1F5F9);
+  static const Color _downloadIcon = Color(0xFF0E7C7B);
+
+  static const String _summaryIcon = 'assets/icons/family_more/summary.svg';
+  static const String _calendarIcon = 'assets/icons/family_more/calendar.svg';
+  static const String _imageIcon = 'assets/icons/family_more/image.svg';
+  static const String _downloadAsset = 'assets/icons/family_more/download.svg';
+
+  static const _DocVisual _pdfPink = _DocVisual(
+    asset: _summaryIcon,
+    background: Color(0xFFFCEDED),
+    foreground: Color(0xFFD64545),
+  );
+  static const _DocVisual _pdfOrange = _DocVisual(
+    asset: _summaryIcon,
+    background: Color(0xFFFBF0E4),
+    foreground: Color(0xFFD98324),
+  );
+  static const _DocVisual _pdfPurple = _DocVisual(
+    asset: _summaryIcon,
+    background: Color(0xFFF0ECFB),
+    foreground: Color(0xFF6A4BC7),
+  );
+  static const _DocVisual _calendarPink = _DocVisual(
+    asset: _calendarIcon,
+    background: Color(0xFFFCEDED),
+    foreground: Color(0xFFD64545),
+  );
+  static const _DocVisual _jpgOrange = _DocVisual(
+    asset: _imageIcon,
+    background: Color(0xFFFBF0E4),
+    foreground: Color(0xFFD98324),
+  );
+
+  const FamilyDocumentRowTile({
+    super.key,
+    required this.document,
+    this.onDownloadTap,
+  });
+
+  _DocVisual get _visual {
+    if (document.fileType == FamilyDocumentFileType.jpg) {
+      return _jpgOrange;
+    }
+
+    return switch (document.id) {
+      'visit-policy-guidelines' => _pdfOrange,
+      'emergency-contacts' => _pdfPurple,
+      'activities-calendar' => _calendarPink,
+      _ => _pdfPink,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final style = FamilyDocumentsConstants.fileTypeStyle(document.fileType);
-    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, AppDimens.iconBoxLarge);
-    final downloadButtonSize = ResponsiveHelper.getResponsiveSize(context, AppDimens.iconBoxSmall);
+    final visual = _visual;
+    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 44);
+    final downloadSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
 
-    return SurfaceCard.card(
+    return Container(
+      width: double.infinity,
       padding: ResponsiveHelper.getResponsivePadding(
         context,
-        horizontal: AppDimens.cardPaddingHorizontal,
-        vertical: 12,
+        horizontal: 14,
+        vertical: 14,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: _cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: _shadow.withValues(alpha: 0.04),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
+          ),
+          BoxShadow(
+            color: _shadow.withValues(alpha: 0.05),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -33,19 +116,38 @@ class FamilyDocumentRowTile extends StatelessWidget {
             width: iconBoxSize,
             height: iconBoxSize,
             decoration: BoxDecoration(
-              color: style.background,
+              color: visual.background,
               borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusIconBoxLarge),
+                ResponsiveHelper.getResponsiveRadius(context, 12),
               ),
             ),
             alignment: Alignment.center,
-            child: Icon(
-              FamilyDocumentsConstants.fileTypeIcon(document.fileType),
-              size: ResponsiveHelper.getResponsiveFontSize(context, AppDimens.iconMedium),
-              color: style.foreground,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppSvgIcon(
+                  visual.asset,
+                  size: 22,
+                  color: visual.foreground,
+                ),
+                Text(
+                  document.fileType.label,
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      7,
+                    ),
+                    color: visual.foreground,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 14)),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,21 +155,35 @@ class FamilyDocumentRowTile extends StatelessWidget {
               children: [
                 Text(
                   document.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
-                    color: AppColors.textHeading,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      14.5,
+                    ),
+                    color: _titleColor,
+                    height: 1.25,
                   ),
                 ),
-                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
+                SizedBox(
+                  height: ResponsiveHelper.getResponsiveHeight(context, 4),
+                ),
                 Text(
                   document.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textSecondary,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      12,
+                    ),
+                    color: _metaColor,
+                    height: 1.25,
                   ),
                 ),
               ],
@@ -78,21 +194,17 @@ class FamilyDocumentRowTile extends StatelessWidget {
             onTap: onDownloadTap,
             behavior: HitTestBehavior.opaque,
             child: Container(
-              width: downloadButtonSize,
-              height: downloadButtonSize,
-              decoration: const BoxDecoration(
-                color: AppColors.scaffoldBackground,
-                shape: BoxShape.circle,
+              width: downloadSize,
+              height: downloadSize,
+              decoration: BoxDecoration(
+                color: _downloadBg,
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+                border: Border.all(color: Color(0xFFE7EBF0), width: 1)
               ),
               alignment: Alignment.center,
-              // No existing SVG matches a download glyph and the Figma
-              // asset-download tool is unavailable this round (monthly
-              // quota exhausted), so this uses Material
-              // `Icons.download_rounded` as a temporary stand-in.
-              child: Icon(
-                Icons.download_rounded,
-                size: ResponsiveHelper.getResponsiveFontSize(context, 18),
-                color: AppColors.textSecondary,
+              child: const AppSvgIcon(
+                _downloadAsset,
+                size: 19,
               ),
             ),
           ),

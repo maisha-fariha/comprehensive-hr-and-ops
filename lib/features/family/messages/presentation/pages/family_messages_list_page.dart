@@ -81,12 +81,23 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
 
           return Column(
             children: [
-              const FamilyMessagesHeader(title: 'Messages'),
-              Padding(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20),
-                child: FamilyMessagesSearchBar(
-                  controller: _searchController,
-                  onChanged: _controller.updateSearchQuery,
+              ColoredBox(
+                color: AppColors.surfaceWhite,
+                child: Column(
+                  children: [
+                    const FamilyMessagesHeader(title: 'Messages'),
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 16,
+                        bottom: 14,
+                      ),
+                      child: FamilyMessagesSearchBar(
+                        controller: _searchController,
+                        onChanged: _controller.updateSearchQuery,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Expanded(
@@ -132,7 +143,7 @@ class _NoResults extends StatelessWidget {
         'No conversations match your search.',
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w500,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
           color: AppColors.textSecondary,
@@ -162,7 +173,7 @@ class _MessagesError extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w500,
                 color: AppColors.textSecondary,
               ),

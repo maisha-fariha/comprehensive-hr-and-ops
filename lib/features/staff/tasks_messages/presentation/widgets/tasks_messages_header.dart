@@ -2,15 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// Plain white header shared by both segments of the "Tasks & Messages"
-/// list screen: a back chevron and a centered title.
-///
-/// Icon note: no matching SVG exists in `assets/icons/*` for a back
-/// chevron, so this uses `Icons.arrow_back_ios_new_rounded` as a temporary
-/// stand-in, mirroring the same fallback already used by
-/// `lib/features/hr/incidents/presentation/widgets/wizard_header.dart`.
+/// White header for Tasks & Messages: bordered back chevron + centered title.
 class TasksMessagesHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onBack;
@@ -19,38 +15,63 @@ class TasksMessagesHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconSlotWidth = ResponsiveHelper.getResponsiveWidth(context, 24);
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final buttonRadius = ResponsiveHelper.getResponsiveRadius(context, 12);
 
-    return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 10, bottom: 14),
-      child: Row(
-        children: [
-          SizedBox(
-            width: iconSlotWidth,
-            child: GestureDetector(
-              onTap: onBack ?? Get.back,
-              behavior: HitTestBehavior.opaque,
-              child: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                size: ResponsiveHelper.getResponsiveSize(context, 18),
-                color: AppColors.textHeading,
-              ),
-            ),
+    final backButton = GestureDetector(
+      onTap: onBack ?? Get.back,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: buttonSize,
+        height: buttonSize,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(buttonRadius),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        alignment: Alignment.center,
+        child: Transform.rotate(
+          angle: 3.14159,
+          child: const AppSvgIcon(
+            AppAssets.chevronRight,
+            size: 18,
+            color: AppColors.textHeading,
           ),
-          Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
-                color: AppColors.textHeading,
+        ),
+      ),
+    );
+
+    return ColoredBox(
+      color: AppColors.surfaceWhite,
+      child: Padding(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 20,
+          top: 8,
+          bottom: 12,
+        ),
+        child: SizedBox(
+          height: buttonSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
+                  color: AppColors.textHeading,
+                  height: 1.2,
+                ),
               ),
-            ),
+              Align(alignment: Alignment.centerLeft, child: backButton),
+            ],
           ),
-          SizedBox(width: iconSlotWidth),
-        ],
+        ),
       ),
     );
   }

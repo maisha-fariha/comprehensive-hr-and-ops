@@ -1,36 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// Teal circular floating action button with a white "+" icon, pinned to
-/// the bottom-right of the "Messages" list screen to start a new message.
-///
-/// Icon note: no matching SVG exists in `assets/icons/*` for a plain "+"
-/// glyph, so this uses `Icons.add_rounded` as a temporary stand-in.
+/// Squircle teal FAB with a white "+" used to start a new message.
 class NewMessageFab extends StatelessWidget {
   final VoidCallback onTap;
+
+  static const Color _background = Color(0xFF0E7C7B);
+  static const Color _shadow = Color(0xFF0E7C7B);
 
   const NewMessageFab({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final size = ResponsiveHelper.getResponsiveSize(context, 56);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
 
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Material(
-        color: AppColors.secondaryTeal,
-        shape: const CircleBorder(),
-        elevation: 4,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Icon(
-            Icons.add_rounded,
-            size: ResponsiveHelper.getResponsiveSize(context, 26),
-            color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius),
+        child: Ink(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: _background,
+            borderRadius: BorderRadius.circular(radius),
+            boxShadow: [
+              BoxShadow(
+                color: _shadow.withValues(alpha: 0.40),
+                offset: Offset(
+                  0,
+                  ResponsiveHelper.getResponsiveHeight(context, 12),
+                ),
+                blurRadius: ResponsiveHelper.getResponsiveHeight(context, 26),
+              ),
+            ],
+          ),
+          child: Center(
+            child: SvgPicture.asset(
+              'assets/icons/family_messages/plus.svg',
+              width: 26,
+            ),
           ),
         ),
       ),

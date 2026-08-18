@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
-import '../../family_visit_requests_constants.dart';
 
-/// Color + label treatment for a [VisitRequestStatus], shared by the
-/// status pill on every list row/card and the small colored dot on "My
-/// Requests" cards - so every screen in this feature stays visually
-/// consistent with a single source of truth.
+/// Color + label treatment for a [VisitRequestStatus], shared across Visit
+/// Requests list/cards so every screen stays visually consistent.
 class VisitRequestStatusStyle {
   final String label;
   final Color color;
@@ -32,8 +29,8 @@ class VisitRequestStatusStyle {
     ),
     VisitRequestStatus.rejected: VisitRequestStatusStyle(
       label: 'Rejected',
-      color: AppColors.criticalRed,
-      background: AppColors.criticalBackground,
+      color: Color(0xFFB91C1C),
+      background: Color(0xFFFBE9E9),
     ),
     VisitRequestStatus.rescheduleRequested: VisitRequestStatusStyle(
       label: 'Reschedule Requested',
@@ -42,15 +39,16 @@ class VisitRequestStatusStyle {
     ),
     VisitRequestStatus.completed: VisitRequestStatusStyle(
       label: 'Completed',
-      color: FamilyVisitRequestsColors.neutralStatusForeground,
-      background: FamilyVisitRequestsColors.neutralStatusBackground,
+      color: Color(0xFF64748B),
+      background: Color(0xFFF1F5F9),
     ),
     VisitRequestStatus.cancelled: VisitRequestStatusStyle(
       label: 'Cancelled',
-      color: FamilyVisitRequestsColors.neutralStatusForeground,
-      background: FamilyVisitRequestsColors.neutralStatusBackground,
+      color: Color(0xFF64748B),
+      background: Color(0xFFF1F5F9),
     ),
   };
 
-  factory VisitRequestStatusStyle.of(VisitRequestStatus status) => _values[status]!;
+  factory VisitRequestStatusStyle.of(VisitRequestStatus status) =>
+      _values[status]!;
 }

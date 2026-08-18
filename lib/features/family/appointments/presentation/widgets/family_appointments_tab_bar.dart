@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/family_appointments_enums.dart';
 
 const Map<FamilyAppointmentsTab, String> _tabLabels = {
@@ -10,25 +9,30 @@ const Map<FamilyAppointmentsTab, String> _tabLabels = {
   FamilyAppointmentsTab.completed: 'Completed',
 };
 
-/// Segmented "All / Upcoming / Completed" tab control at the top of the
-/// Family Appointments list screen, reusing the raised-white-pill visual
-/// pattern already established by `StaffIncidentsTabBar`/
-/// `StaffMedicationTabBar` (rebuilt locally rather than imported, per the
-/// Family portal's module boundary rules).
+/// Segmented All / Upcoming / Completed control for Appointments.
 class FamilyAppointmentsTabBar extends StatelessWidget {
   final FamilyAppointmentsTab selected;
   final ValueChanged<FamilyAppointmentsTab> onSelected;
 
-  const FamilyAppointmentsTabBar({super.key, required this.selected, required this.onSelected});
+  static const Color _track = Color(0xFFF4F7F9);
+  static const Color _activeText = Color(0xFF0E7C7B);
+  static const Color _inactiveText = Color(0xFF8E9BAE);
+  static const Color _shadow = Color(0xFF142846);
+
+  const FamilyAppointmentsTabBar({
+    super.key,
+    required this.selected,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
       decoration: BoxDecoration(
-        color: AppColors.scaffoldBackground,
+        color: _track,
         borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
+          ResponsiveHelper.getResponsiveRadius(context, 15),
         ),
       ),
       child: Row(
@@ -52,7 +56,11 @@ class _TabItem extends StatelessWidget {
   final bool isActive;
   final VoidCallback onTap;
 
-  const _TabItem({required this.label, required this.isActive, required this.onTap});
+  const _TabItem({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -61,18 +69,18 @@ class _TabItem extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 10),
+        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 11, horizontal: 4),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.surfaceWhite : Colors.transparent,
+          color: isActive ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 11),
+            ResponsiveHelper.getResponsiveRadius(context, 8),
           ),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: AppColors.shadowNavy.withValues(alpha: 0.05),
-                    offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-                    blurRadius: ResponsiveHelper.getResponsiveHeight(context, 3),
+                    color: FamilyAppointmentsTabBar._shadow.withValues(alpha: 0.06),
+                    offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 2)),
+                    blurRadius: ResponsiveHelper.getResponsiveHeight(context, 6),
                   ),
                 ]
               : null,
@@ -82,11 +90,15 @@ class _TabItem extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w600,
+            fontFamily: 'Manrope',
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-            color: isActive ? AppColors.secondaryTeal : AppColors.textSecondary,
+            color: isActive
+                ? FamilyAppointmentsTabBar._activeText
+                : FamilyAppointmentsTabBar._inactiveText,
+            height: 1.15,
           ),
         ),
       ),

@@ -4,6 +4,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
+import '../../../family_shell.dart';
+import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/appointment_request_controller.dart';
 import '../widgets/appointment_form_fields.dart';
 import '../widgets/family_appointments_header.dart';
@@ -19,8 +21,14 @@ import '../widgets/request_type_toggle.dart';
 /// Type" segmented toggle at the top switches the AppBar title plus a
 /// handful of field labels/values, matching the reference structure of the
 /// Staff Incidents feature's single-page "Create Incident" form.
+///
+/// Hosts [FamilyBottomNavBar] with "Appointments" selected so the pushed
+/// route still matches reference frames that show the family bottom nav.
 class CreateAppointmentPage extends StatelessWidget {
   const CreateAppointmentPage({super.key});
+
+  /// Index of the "Appointments" slot in [FamilyBottomNavBar.items].
+  static const int _appointmentsTabIndex = 2;
 
   /// Always starts a fresh controller instance for a new draft rather than
   /// resolving the `get_it`-registered singleton - reusing the same
@@ -35,6 +43,10 @@ class CreateAppointmentPage extends StatelessWidget {
     return Get.put(AppointmentRequestController());
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => FamilyShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
@@ -42,7 +54,12 @@ class CreateAppointmentPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: FamilyBottomNavBar(
+        currentIndex: _appointmentsTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: SafeArea(
+        bottom: false,
         child: Obx(() {
           return Column(
             children: [
@@ -79,21 +96,14 @@ class CreateAppointmentPage extends StatelessWidget {
                       ),
                       fieldGap,
                       AppointmentInfoBanner(message: controller.bannerMessage),
+                      Padding(
+                        padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 0, top: 12, bottom: 12),
+                        child: FamilyPrimaryButton(
+                          label: 'Submit Request',
+                          onTap: Get.back,
+                        ),
+                      ),
                     ],
-                  ),
-                ),
-              ),
-              DecoratedBox(
-                decoration: const BoxDecoration(
-                  color: AppColors.surfaceWhite,
-                  border: Border(top: BorderSide(color: AppColors.cardBorder)),
-                ),
-                child: Padding(
-                  padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 12, bottom: 12),
-                  child: FamilyPrimaryButton(
-                    label: 'Submit Request',
-                    icon: Icons.send_rounded,
-                    onTap: Get.back,
                   ),
                 ),
               ),

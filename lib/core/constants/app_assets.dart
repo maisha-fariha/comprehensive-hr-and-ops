@@ -19,10 +19,15 @@ abstract final class AppAssets {
   static const String checkCircle = '$_dashboard/check_circle.svg';
   static const String notePencil = '$_dashboard/note_pencil.svg';
   static const String messageCircle = '$_dashboard/message_circle.svg';
+  static const String approaching = '$_dashboard/approaching.svg';
+  static const String circleError = '$_dashboard/circle_error.svg';
+  static const String crossCircle = '$_dashboard/cross_circle.svg';
+  static const String timer = '$_dashboard/timer.svg';
 
   // Bottom navigation icons
   static const String navHome = '$_nav/nav_home.svg';
   static const String navCalendar = '$_nav/nav_calendar.svg';
+  static const String navAppointment = '$_nav/nav_appoinment.svg';
   static const String navChecklist = '$_nav/nav_checklist.svg';
   static const String navBell = '$_nav/nav_bell.svg';
   static const String navMore = '$_nav/nav_more.svg';

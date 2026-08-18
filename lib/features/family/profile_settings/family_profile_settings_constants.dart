@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/app_assets.dart';
 import '../../../core/constants/app_colors.dart';
 import 'domain/entities/family_preference_item.dart';
 
@@ -16,8 +15,8 @@ abstract final class FamilyProfileSettingsConstants {
   /// `AppColors` status pair, and the exact Figma value can't be sampled
   /// this round (MCP quota exhausted), so this is a close visual
   /// approximation kept local to this feature.
-  static const Color profileAvatarBackground = Color(0xFFF7DCD4);
-  static const Color profileAvatarForeground = Color(0xFFC1604A);
+  static const Color profileAvatarBackground = Color(0xFFEBCABF);
+  static const Color profileAvatarForeground = Color(0xFF8D5F4D);
 
   /// Background/foreground for a linked-client "JD" avatar. Reuses the
   /// shared "info" blue tint, matching the reference screenshot exactly.
@@ -25,26 +24,20 @@ abstract final class FamilyProfileSettingsConstants {
   static const Color linkedClientAvatarForeground = AppColors.infoBlue;
 
   /// Icon-box background/foreground shared by every "Preferences & Support"
-  /// row. Reuses the shared "active" mint/teal tint.
-  static const Color preferenceIconBackground = AppColors.activeIconBackground;
-  static const Color preferenceIconForeground = AppColors.secondaryTeal;
+  /// row. Reference uses a pale mint box with teal outline glyphs.
+  static const Color preferenceIconBackground = Color(0xFFEFF6F4);
+  static const Color preferenceIconForeground = Color(0xFF0E7C7B);
+
+  static const String _moreIcons = 'assets/icons/family_more';
 
   /// Glyph shown inside a "Preferences & Support" row's icon box.
-  ///
-  /// [FamilyPreferenceType.notifications] and [FamilyPreferenceType.contactSupport]
-  /// reuse the existing `AppAssets.bell`/`AppAssets.messageCircle` SVGs.
-  /// [FamilyPreferenceType.helpCenter] and [FamilyPreferenceType.privacySecurity]
-  /// have no matching export under `assets/icons/{dashboard,common,nav}`
-  /// and the Figma asset-download tool is unavailable this round (monthly
-  /// quota exhausted), so `Icons.help_outline_rounded` and
-  /// `Icons.shield_outlined` are used as Material placeholders — see the
-  /// feature's implementation report for the full list of substitutions.
-  static ({String? svgAsset, IconData? materialIcon}) preferenceIcon(FamilyPreferenceType type) {
+  /// All assets live under [assets/icons/family_more].
+  static String preferenceIconAsset(FamilyPreferenceType type) {
     return switch (type) {
-      FamilyPreferenceType.notifications => (svgAsset: AppAssets.bell, materialIcon: null),
-      FamilyPreferenceType.helpCenter => (svgAsset: null, materialIcon: Icons.help_outline_rounded),
-      FamilyPreferenceType.contactSupport => (svgAsset: AppAssets.messageCircle, materialIcon: null),
-      FamilyPreferenceType.privacySecurity => (svgAsset: null, materialIcon: Icons.shield_outlined),
+      FamilyPreferenceType.notifications => '$_moreIcons/notification.svg',
+      FamilyPreferenceType.helpCenter => '$_moreIcons/help.svg',
+      FamilyPreferenceType.contactSupport => '$_moreIcons/message.svg',
+      FamilyPreferenceType.privacySecurity => '$_moreIcons/shield_outlined.svg',
     };
   }
 

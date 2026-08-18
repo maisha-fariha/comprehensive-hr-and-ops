@@ -13,14 +13,18 @@ import 'scheduling/presentation/pages/staff_schedule_page.dart';
 /// single bottom-nav slot in the Figma bar) and More (a hub for
 /// Attendance/Incidents, which also have no dedicated bottom-nav slot).
 class StaffShell extends StatefulWidget {
-  const StaffShell({super.key});
+  /// Tab to show when the shell is (re)opened — used by pushed screens that
+  /// host their own copy of [StaffBottomNavBar] (e.g. Attendance).
+  final int initialIndex;
+
+  const StaffShell({super.key, this.initialIndex = 0});
 
   @override
   State<StaffShell> createState() => _StaffShellState();
 }
 
 class _StaffShellState extends State<StaffShell> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
   static const _tabs = <Widget>[
     StaffDashboardPage(),
@@ -29,6 +33,12 @@ class _StaffShellState extends State<StaffShell> {
     StaffMarTasksMenuPage(),
     StaffMoreMenuPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex.clamp(0, _tabs.length - 1);
+  }
 
   @override
   Widget build(BuildContext context) {

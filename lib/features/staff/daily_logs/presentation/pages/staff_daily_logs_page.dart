@@ -74,13 +74,18 @@ class StaffDailyLogsPage extends StatelessWidget {
 
           return Column(
             children: [
-              const StaffDailyLogsAppBar(),
-              StaffDailyLogsTabBar(
-                selectedTab: controller.selectedTab.value,
-                myClientsCount: overview.myClientsTotalCount,
-                inProgressCount: overview.inProgressClients.length,
-                submittedCount: overview.submittedTotalCount,
-                onTabSelected: controller.selectTab,
+              ColoredBox(
+                color: AppColors.surfaceWhite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const StaffDailyLogsAppBar(),
+                    StaffDailyLogsTabBar(
+                      selectedTab: controller.selectedTab.value,
+                      onTabSelected: controller.selectTab,
+                    ),
+                  ],
+                ),
               ),
               Expanded(
                 child: RefreshIndicator(

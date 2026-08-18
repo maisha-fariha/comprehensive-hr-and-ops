@@ -1,58 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
-import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// The plain white header for the "Documents" screen: a back chevron and a
-/// centered title, matching the convention used by other pushed, non-tabbed
-/// detail screens (see `StaffAttendanceHeader`).
-///
-/// The back chevron reuses the existing `AppAssets.chevronRight` SVG rotated
-/// 180°, the same convention used across the HR/Staff portals, so no new
-/// icon asset is needed.
+/// White header for Family Documents: bordered back + centered title.
 class FamilyDocumentsHeader extends StatelessWidget {
   final VoidCallback? onBackTap;
+
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _buttonBorder = Color(0xFFE2E8EE);
 
   const FamilyDocumentsHeader({super.key, this.onBackTap});
 
   @override
   Widget build(BuildContext context) {
-    final buttonBoxSize = ResponsiveHelper.getResponsiveSize(context, AppDimens.iconBoxMedium);
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 42);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
-    return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 8, bottom: 8),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: onBackTap,
-            behavior: HitTestBehavior.opaque,
-            child: SizedBox(
-              width: buttonBoxSize,
-              height: buttonBoxSize,
-              child: Transform.rotate(
-                angle: 3.14159,
-                child: const AppSvgIcon(AppAssets.chevronRight, size: 20, color: AppColors.textPrimary),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: Text(
-                'Documents',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17.5),
-                  color: AppColors.textHeading,
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 16,
+          top: 10,
+          bottom: 0,
+        ),
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: onBackTap ?? Get.back,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: buttonSize,
+                height: buttonSize,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: _buttonBorder),
+                  borderRadius: BorderRadius.circular(radius),
+                ),
+                alignment: Alignment.center,
+                child: Transform.rotate(
+                  angle: 3.14159,
+                  child: const AppSvgIcon(
+                    AppAssets.chevronRight,
+                    size: 18,
+                    color: _titleColor,
+                  ),
                 ),
               ),
             ),
-          ),
-          SizedBox(width: buttonBoxSize),
-        ],
+            Expanded(
+              child: Text(
+                'Documents',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
+                  color: _titleColor,
+                  height: 1.2,
+                ),
+              ),
+            ),
+            SizedBox(width: buttonSize),
+          ],
+        ),
       ),
     );
   }

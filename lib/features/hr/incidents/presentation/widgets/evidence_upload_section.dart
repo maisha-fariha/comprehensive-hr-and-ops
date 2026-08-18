@@ -2,71 +2,93 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../incidents_constants.dart';
 
-/// "Upload Evidence" dashed drop-zone on the wizard's "Evidence" step:
-/// upload-cloud icon, "Drag & drop, or **browse files**" text and a size/
-/// format caption.
-///
-/// Icon note: no existing SVG matches an upload-cloud glyph, so this uses
-/// Material `Icons.upload_rounded` as a temporary stand-in.
+/// "Upload Evidence" dashed drop-zone on the wizard's Evidence step.
 class EvidenceUploadDropzone extends StatelessWidget {
   final VoidCallback? onBrowseFiles;
+
+  static const Color _zoneBackground = Color(0xFFF4F7F9);
+  static const Color _zoneBorder = Color(0xFFD5DEE6);
+  static const Color _iconTile = Color(0xFFE8EEF3);
 
   const EvidenceUploadDropzone({super.key, this.onBrowseFiles});
 
   @override
   Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
+    final iconBox = ResponsiveHelper.getResponsiveSize(context, 48);
+
     return GestureDetector(
       onTap: onBrowseFiles,
       behavior: HitTestBehavior.opaque,
       child: CustomPaint(
-        painter: _DashedRectPainter(color: AppColors.searchBorder),
-        child: Padding(
-          padding: ResponsiveHelper.getResponsivePadding(context, vertical: 28, horizontal: 16),
+        painter: _DashedRectPainter(color: _zoneBorder, radius: radius),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: _zoneBackground,
+            borderRadius: BorderRadius.circular(radius),
+          ),
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            vertical: 28,
+            horizontal: 16,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: ResponsiveHelper.getResponsiveSize(context, 44),
-                height: ResponsiveHelper.getResponsiveSize(context, 44),
+                width: iconBox,
+                height: iconBox,
                 decoration: BoxDecoration(
-                  color: AppColors.scaffoldBackground,
+                  color: _iconTile,
                   borderRadius: BorderRadius.circular(
                     ResponsiveHelper.getResponsiveRadius(context, 12),
                   ),
                 ),
                 alignment: Alignment.center,
-                child: Icon(
-                  Icons.upload_rounded,
-                  size: ResponsiveHelper.getResponsiveSize(context, 20),
-                  color: AppColors.textPrimary,
+                child: const AppSvgIcon(
+                  'assets/icons/incidents/upload.svg',
+                  size: 22,
+                  color: Color(0xFF1E3A5F),
                 ),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-              RichText(
-                text: TextSpan(
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+              Text.rich(
+                TextSpan(
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
                     color: AppColors.textHeading,
                   ),
-                  children: const [
-                    TextSpan(text: 'Drag & drop, or '),
-                    TextSpan(text: 'browse files', style: TextStyle(color: AppColors.secondaryTeal)),
+                  children: [
+                    const TextSpan(text: 'Drag & drop, or '),
+                    TextSpan(
+                      text: 'browse files',
+                      style: TextStyle(
+                        color: AppColors.secondaryTeal,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
+                textAlign: TextAlign.center,
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
               Text(
                 'Images, PDF and documents · up to 25MB each',
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w400,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-                  color: AppColors.textFaint,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                  color: AppColors.textMuted,
+                  height: 1.35,
                 ),
               ),
             ],
@@ -79,39 +101,45 @@ class EvidenceUploadDropzone extends StatelessWidget {
 
 class _DashedRectPainter extends CustomPainter {
   final Color color;
+  final double radius;
 
-  const _DashedRectPainter({required this.color});
+  const _DashedRectPainter({
+    required this.color,
+    required this.radius,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rrect = RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(16));
+    final inset = 0.7;
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(inset, inset, size.width - inset * 2, size.height - inset * 2),
+      Radius.circular(radius),
+    );
     final path = Path()..addRRect(rrect);
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
 
-    const dashWidth = 6.0;
+    const dashWidth = 5.5;
     const dashGap = 4.0;
     for (final metric in path.computeMetrics()) {
       var distance = 0.0;
       while (distance < metric.length) {
-        final next = distance + dashWidth;
-        canvas.drawPath(metric.extractPath(distance, next.clamp(0, metric.length)), paint);
+        final next = (distance + dashWidth).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, next), paint);
         distance = next + dashGap;
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _DashedRectPainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(covariant _DashedRectPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
-/// A single uploaded-file row below the drop-zone, e.g.
-/// "incident-scene-01.jpg / JPG · 2.4 MB" with a trailing remove button.
-///
-/// Icon note: no existing SVG matches an image-file glyph, so this uses
-/// Material `Icons.image_outlined` as a temporary stand-in.
+/// Uploaded file row below the drop-zone.
 class EvidenceFileChip extends StatelessWidget {
   final String fileName;
   final String subtitle;
@@ -126,15 +154,20 @@ class EvidenceFileChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 36);
+    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 40);
 
     return Container(
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 10),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 12,
+        vertical: 12,
+      ),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
         border: Border.all(color: AppColors.searchBorder),
         borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 13),
+          ResponsiveHelper.getResponsiveRadius(context, 14),
         ),
       ),
       child: Row(
@@ -149,13 +182,13 @@ class EvidenceFileChip extends StatelessWidget {
               ),
             ),
             alignment: Alignment.center,
-            child: Icon(
-              Icons.image_outlined,
-              size: ResponsiveHelper.getResponsiveSize(context, 17),
+            child: const AppSvgIcon(
+              'assets/icons/incidents/image.svg',
+              size: 18,
               color: AppColors.secondaryTeal,
             ),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,29 +201,37 @@ class EvidenceFileChip extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
                     color: AppColors.textHeading,
+                    height: 1.2,
                   ),
                 ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
                 Text(
                   subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-                    color: AppColors.textFaint,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                    color: AppColors.textMuted,
                   ),
                 ),
               ],
             ),
           ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
           GestureDetector(
             onTap: onRemove,
             behavior: HitTestBehavior.opaque,
-            child: Icon(
-              Icons.close_rounded,
-              size: ResponsiveHelper.getResponsiveSize(context, 18),
-              color: AppColors.textFaint,
+            child: Padding(
+              padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
+              child: Icon(
+                Icons.close_rounded,
+                size: ResponsiveHelper.getResponsiveSize(context, 18),
+                color: AppColors.textFaint,
+              ),
             ),
           ),
         ],

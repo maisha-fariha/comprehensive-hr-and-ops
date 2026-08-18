@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/surface_card.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/family_messages_enums.dart';
 import '../../family_messages_constants.dart';
@@ -15,119 +14,172 @@ class _AvatarPalette {
 }
 
 const Map<ConversationAccent, _AvatarPalette> _avatarPalette = {
-  ConversationAccent.orange: _AvatarPalette(AppColors.urgentIconBackground, AppColors.urgentAmber),
-  ConversationAccent.blue: _AvatarPalette(AppColors.infoIconBackground, AppColors.infoBlue),
-  ConversationAccent.green: _AvatarPalette(AppColors.activeIconBackground, AppColors.activeGreen),
-  ConversationAccent.purple: _AvatarPalette(AppColors.nightBackground, AppColors.nightPurple),
+  ConversationAccent.orange: _AvatarPalette(Color(0xFFFBF0E4), Color(0xFFC4883A)),
+  ConversationAccent.blue: _AvatarPalette(Color(0xFFE8F0FA), Color(0xFF2A5DA6)),
+  ConversationAccent.green: _AvatarPalette(Color(0xFFE8F6EE), Color(0xFF2E8C58)),
+  ConversationAccent.purple: _AvatarPalette(Color(0xFFF0ECFB), Color(0xFF6A4BC7)),
 };
 
-/// A single row in the "Messages" list screen's conversation list: an
-/// avatar (initials, or an icon for team/group chats), name + role/team
-/// subtitle, a truncated preview line, a top-right timestamp and an
-/// optional unread-count badge below it.
-///
-/// Icon note: no matching SVGs exist in `assets/icons/*` for a
-/// building/team or people/group glyph, so this uses
-/// `Icons.apartment_rounded` and `Icons.groups_rounded` as temporary
-/// stand-ins for [ConversationAvatarType.team]/[ConversationAvatarType.group]
-/// avatars.
+/// A single conversation card on the Family Messages list.
 class ConversationRowTile extends StatelessWidget {
   final ConversationPreview conversation;
   final VoidCallback? onTap;
 
-  const ConversationRowTile({super.key, required this.conversation, this.onTap});
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _subtitleColor = Color(0xFF0E7C7B);
+  static const Color _previewColor = Color(0xFF7A8798);
+  static const Color _timeColor = Color(0xFF9AA8B8);
+  static const Color _cardBorder = Color(0xFFDCEBEA);
+  static const Color _shadow = Color(0xFF142846);
+  static const Color _badge = Color(0xFF0E7C7B);
+  static const String _teamIcon = 'assets/icons/family_messages/team.svg';
+
+  const ConversationRowTile({
+    super.key,
+    required this.conversation,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final avatarSize = ResponsiveHelper.getResponsiveSize(context, FamilyMessagesDimens.conversationAvatarSize);
+    final avatarSize = ResponsiveHelper.getResponsiveSize(
+      context,
+      FamilyMessagesDimens.conversationAvatarSize,
+    );
     final palette = _avatarPalette[conversation.accent]!;
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
 
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SurfaceCard.card(
-        padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 14, vertical: 13),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: avatarSize,
-              height: avatarSize,
-              decoration: BoxDecoration(
-                color: palette.background,
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 14),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: _AvatarGlyph(conversation: conversation, color: palette.foreground),
+      child: Container(
+        width: double.infinity,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 14,
+          vertical: 14,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: _cardBorder),
+          boxShadow: [
+            BoxShadow(
+              color: _shadow.withValues(alpha: 0.04),
+              offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    conversation.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                  Text(
-                    conversation.subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
-                  Text(
-                    conversation.previewText,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w400,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                      color: AppColors.textMuted,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  conversation.timeLabel,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-                    color: AppColors.textFaint,
-                  ),
-                ),
-                if (conversation.unreadCount > 0) ...[
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                  _UnreadBadge(count: conversation.unreadCount),
-                ],
-              ],
+            BoxShadow(
+              color: _shadow.withValues(alpha: 0.05),
+              offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
+              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
             ),
           ],
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: avatarSize,
+                height: avatarSize,
+                decoration: BoxDecoration(
+                  color: palette.background,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: _AvatarGlyph(
+                  conversation: conversation,
+                  color: palette.foreground,
+                ),
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      conversation.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          15,
+                        ),
+                        color: _titleColor,
+                        height: 1.2,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 3),
+                    ),
+                    Text(
+                      conversation.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w500,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12,
+                        ),
+                        color: _subtitleColor,
+                        height: 1.2,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 5),
+                    ),
+                    Text(
+                      conversation.previewText,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12.5,
+                        ),
+                        color: _previewColor,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    conversation.timeLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontWeight: FontWeight.w400,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(
+                        context,
+                        11,
+                      ),
+                      color: _timeColor,
+                      height: 1.2,
+                    ),
+                  ),
+                  if (conversation.unreadCount > 0) ...[
+                    const Spacer(),
+                    _UnreadBadge(count: conversation.unreadCount),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -138,7 +190,10 @@ class _AvatarGlyph extends StatelessWidget {
   final ConversationPreview conversation;
   final Color color;
 
-  const _AvatarGlyph({required this.conversation, required this.color});
+  const _AvatarGlyph({
+    required this.conversation,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -147,16 +202,20 @@ class _AvatarGlyph extends StatelessWidget {
         return Text(
           conversation.initials,
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'Manrope',
             fontWeight: FontWeight.w700,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
             color: color,
+            height: 1,
           ),
         );
       case ConversationAvatarType.team:
-        return Icon(Icons.apartment_rounded, size: ResponsiveHelper.getResponsiveSize(context, 20), color: color);
       case ConversationAvatarType.group:
-        return Icon(Icons.groups_rounded, size: ResponsiveHelper.getResponsiveSize(context, 20), color: color);
+        return AppSvgIcon(
+          ConversationRowTile._teamIcon,
+          size: 20,
+          color: color,
+        );
     }
   }
 }
@@ -168,21 +227,27 @@ class _UnreadBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = ResponsiveHelper.getResponsiveSize(context, FamilyMessagesDimens.unreadBadgeSize);
+    final size = ResponsiveHelper.getResponsiveSize(
+      context,
+      FamilyMessagesDimens.unreadBadgeSize,
+    );
 
     return Container(
       constraints: BoxConstraints(minWidth: size, minHeight: size),
       padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 5),
-      decoration: const BoxDecoration(color: AppColors.secondaryTeal, shape: BoxShape.circle),
+      decoration: const BoxDecoration(
+        color: ConversationRowTile._badge,
+        shape: BoxShape.circle,
+      ),
       alignment: Alignment.center,
       child: Text(
         '$count',
         style: TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w700,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
           color: Colors.white,
-          height: 1.2,
+          height: 1.1,
         ),
       ),
     );

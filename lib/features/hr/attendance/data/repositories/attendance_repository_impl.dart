@@ -119,7 +119,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
             value: '14m',
             label: 'Avg Delay',
             tone: AttendanceStatTone.warning,
-            iconData: AttendanceMaterialIconFallback.avgDelay,
+            iconAsset: AttendanceAssets.avgDelay,
           ),
           AttendanceStat(
             id: 'affected',
@@ -169,7 +169,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
             value: '1',
             label: 'Missed Today',
             tone: AttendanceStatTone.critical,
-            iconAsset: AttendanceAssets.missed,
+            iconAsset: AttendanceAssets.missedToday,
           ),
           AttendanceStat(
             id: 'critical',
@@ -222,7 +222,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
             value: '2',
             label: 'Approaching',
             tone: AttendanceStatTone.warning,
-            iconData: AttendanceMaterialIconFallback.approachingLimit,
+            iconAsset: AttendanceAssets.approachingLimit,
           ),
         ],
         overtimeEntries: [

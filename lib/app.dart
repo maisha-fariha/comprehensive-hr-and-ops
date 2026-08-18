@@ -22,7 +22,7 @@ class ComprehensiveHrAndOpsApp extends StatelessWidget {
           title: 'Comprehensive HR & Operations Platform',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
-          initialRoute: AppRoutes.hr,
+          initialRoute: AppRoutes.login,
           getPages: AppPages.routes,
         );
       },

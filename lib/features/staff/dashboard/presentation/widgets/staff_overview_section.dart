@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/widgets/section_header_row.dart';
+import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_overview_stat.dart';
 import 'staff_overview_stat_card.dart';
 
@@ -15,9 +15,17 @@ class StaffOverviewSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeaderRow(title: "Today's Overview"),
+        Text(
+          "Today's Overview",
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w700,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
+            color: AppColors.textHeading,
+          ),
+        ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         GridView.builder(
           shrinkWrap: true,
@@ -27,10 +35,7 @@ class StaffOverviewSection extends StatelessWidget {
             crossAxisCount: 2,
             mainAxisSpacing: ResponsiveHelper.getResponsiveHeight(context, 12),
             crossAxisSpacing: ResponsiveHelper.getResponsiveWidth(context, 12),
-            // Fixed row extent (not `childAspectRatio`) so card height stays
-            // independent of the grid's actual column width, matching the
-            // HR Dashboard's `TodaysOverviewSection` convention.
-            mainAxisExtent: ResponsiveHelper.getResponsiveHeight(context, 150),
+            mainAxisExtent: ResponsiveHelper.getResponsiveHeight(context, 142),
           ),
           itemBuilder: (context, index) {
             final stat = stats[index];

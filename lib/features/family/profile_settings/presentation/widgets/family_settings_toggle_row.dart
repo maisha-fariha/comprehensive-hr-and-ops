@@ -35,7 +35,7 @@ class FamilySettingsToggleRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w600,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
                 color: AppColors.textHeading,

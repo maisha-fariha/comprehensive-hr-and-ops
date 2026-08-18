@@ -98,7 +98,7 @@ class StaffStatusTile extends StatelessWidget {
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w500,
                             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                            color: isMissed ? AppColors.criticalRed : AppColors.textMuted,
+                            color: AppColors.textMuted,
                           ),
                         ),
                       ),

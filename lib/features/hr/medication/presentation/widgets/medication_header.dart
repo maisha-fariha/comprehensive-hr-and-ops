@@ -29,11 +29,8 @@ class MedicationHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceWhite,
-        border: Border(bottom: BorderSide(color: AppColors.dividerLight)),
-      ),
+    return ColoredBox(
+      color: AppColors.surfaceWhite,
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -41,7 +38,7 @@ class MedicationHeader extends StatelessWidget {
             context,
             horizontal: 16,
             top: 8,
-            bottom: 12,
+            bottom: 8,
           ),
           child: Row(
             children: [
@@ -83,9 +80,22 @@ class MedicationHeader extends StatelessWidget {
               GestureDetector(
                 onTap: onSearchTap,
                 behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: ResponsiveHelper.getResponsivePadding(context, all: 7),
-                  child: const AppSvgIcon(AppAssets.search, size: 20, color: AppColors.textPrimary),
+                child: Container(
+                  width: ResponsiveHelper.getResponsiveSize(context, 36),
+                  height: ResponsiveHelper.getResponsiveSize(context, 36),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceWhite,
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveHelper.getResponsiveRadius(context, 10),
+                    ),
+                    border: Border.all(color: AppColors.searchBorder),
+                  ),
+                  alignment: Alignment.center,
+                  child: const AppSvgIcon(
+                    AppAssets.search,
+                    size: 18,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
             ],

@@ -3,44 +3,14 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../../../core/widgets/status_badge.dart';
 import '../../daily_logs_constants.dart';
 import '../../domain/entities/daily_logs_enums.dart';
 import '../../domain/entities/handover_entry.dart';
 import '../../domain/entities/handover_note.dart';
-import 'initials_avatar.dart';
 
-class _NoteStyle {
-  final String svgAsset;
-  final Color iconColor;
-  final Color iconBackground;
-
-  const _NoteStyle({required this.svgAsset, required this.iconColor, required this.iconBackground});
-}
-
-// The "observation" note type has no matching eye-glyph SVG in
-// `assets/icons/*` - `Icons.visibility_rounded` is used as a temporary
-// stand-in there (flagged in the final report).
-const Map<HandoverNoteType, _NoteStyle> _noteIconStyles = {
-  HandoverNoteType.medication: _NoteStyle(
-    svgAsset: AppAssets.pill,
-    iconColor: AppColors.criticalRed,
-    iconBackground: AppColors.criticalIconBackground,
-  ),
-  HandoverNoteType.task: _NoteStyle(
-    svgAsset: AppAssets.clipboardCheck,
-    iconColor: AppColors.infoBlue,
-    iconBackground: AppColors.infoIconBackground,
-  ),
-};
-
-/// A single card in the Handover tab's "Handover Timeline" list.
-///
-/// Renders a colored left accent bar, a "From → To" shift-transition
-/// header, an optional FROM/TO staff row, an optional bulleted
-/// "Important Notes" list, and an optional acknowledgement caption/button.
+/// A single card in the Handover tab's "Handover Timeline" list — matched
+/// to the "Handover - Daily-logs" Figma reference.
 class HandoverEntryCard extends StatelessWidget {
   final HandoverEntry entry;
   final VoidCallback? onAcknowledge;
@@ -49,81 +19,114 @@ class HandoverEntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusCard);
-    final accentColor = entry.isUrgent ? AppColors.criticalRed : AppColors.cardBorder;
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 16);
+    final accentColor = entry.isUrgent
+        ? AppColors.criticalRed
+        : AppColors.secondaryTeal;
+    final accentWidth = ResponsiveHelper.getResponsiveWidth(context, 4);
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 12)),
-      child: Container(
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceWhite,
-          border: Border.all(color: AppColors.cardBorder),
-          borderRadius: BorderRadius.circular(radius),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadowNavy.withValues(alpha: 0.04),
-              offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 1),
-            ),
-            BoxShadow(
-              color: AppColors.shadowNavy.withValues(alpha: 0.04),
-              offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
-              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 8),
-            ),
-          ],
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: ResponsiveHelper.getResponsiveWidth(context, DailyLogsConstants.handoverAccentBarWidth),
-                color: accentColor,
-              ),
-              Expanded(
-                child: Padding(
-                  padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _HeaderRow(entry: entry),
-                      if (entry.fromStaffName != null && entry.toStaffName != null) ...[
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                        _FromToRow(entry: entry),
-                      ],
-                      if (entry.notes.isNotEmpty) ...[
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                        Text(
-                          'Important Notes',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w600,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                            color: AppColors.textPrimary,
-                          ),
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        border: Border.all(color: AppColors.cardBorder),
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadowNavy.withValues(alpha: 0.03),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 2)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 6),
+          ),
+        ],
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: accentWidth, color: accentColor),
+            Expanded(
+              child: Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  all: 14,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HeaderRow(entry: entry),
+                    if (entry.fromStaffName != null &&
+                        entry.toStaffName != null) ...[
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          14,
                         ),
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                        for (var i = 0; i < entry.notes.length; i++) ...[
-                          if (i != 0) SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                          _NoteRow(note: entry.notes[i]),
-                        ],
-                      ],
-                      if (entry.acknowledgementCaption != null) ...[
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                        _AcknowledgementRow(caption: entry.acknowledgementCaption!, onAcknowledge: onAcknowledge),
+                      ),
+                      _FromToRow(entry: entry),
+                    ],
+                    if (entry.notes.isNotEmpty) ...[
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          14,
+                        ),
+                      ),
+                      Text(
+                        'IMPORTANT NOTES',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            10,
+                          ),
+                          color: AppColors.textFaint,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          10,
+                        ),
+                      ),
+                      for (var i = 0; i < entry.notes.length; i++) ...[
+                        if (i != 0)
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              10,
+                            ),
+                          ),
+                        _NoteRow(note: entry.notes[i]),
                       ],
                     ],
-                  ),
+                    if (entry.acknowledgementCaption != null) ...[
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          14,
+                        ),
+                      ),
+                      _AcknowledgementRow(
+                        caption: entry.acknowledgementCaption!,
+                        onAcknowledge: onAcknowledge,
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Header: shift pills + Urgent / Routine tag
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _HeaderRow extends StatelessWidget {
   final HandoverEntry entry;
@@ -134,52 +137,133 @@ class _HeaderRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(text: entry.fromShiftLabel),
-                const TextSpan(text: '  →  '),
-                TextSpan(text: entry.toShiftLabel),
-              ],
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
-              color: AppColors.textPrimary,
-            ),
+        Flexible(
+          child: Row(
+            children: [
+              Flexible(child: _ShiftChip(label: entry.fromShiftLabel)),
+              Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 6,
+                ),
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  size: ResponsiveHelper.getResponsiveSize(context, 14),
+                  color: AppColors.secondaryTeal,
+                ),
+              ),
+              Flexible(child: _ShiftChip(label: entry.toShiftLabel)),
+            ],
           ),
         ),
+        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
         if (entry.isUrgent)
-          const StatusBadge.chip(
+          const _StatusTag(
             label: 'Urgent',
-            background: AppColors.criticalBackgroundSoft,
+            background: AppColors.criticalIconBackground,
             foreground: AppColors.criticalRed,
+            iconAsset: AppAssets.alertTriangle,
           )
         else if (entry.tagLabel != null)
-          Container(
-            padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.quickActionCreateShiftBg,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              entry.tagLabel!,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
-                color: AppColors.secondaryTeal,
-              ),
-            ),
+          _StatusTag(
+            label: entry.tagLabel!.replaceFirst(RegExp(r'^\$\s*'), ''),
+            background: AppColors.activeBackground,
+            foreground: AppColors.activeGreen,
+            iconAsset: 'assets/icons/daily_logs/dollar.svg',
           ),
       ],
     );
   }
 }
+
+class _ShiftChip extends StatelessWidget {
+  final String label;
+
+  const _ShiftChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 10,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.filterButtonBackground,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 8),
+        ),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w600,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+          color: AppColors.textHeading,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusTag extends StatelessWidget {
+  final String label;
+  final Color background;
+  final Color foreground;
+  final String? iconAsset;
+
+  const _StatusTag({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    this.iconAsset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 9,
+        vertical: 5,
+      ),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 999),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (iconAsset != null) ...[
+            AppSvgIcon(iconAsset!, size: 11, color: foreground),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+              color: foreground,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FROM → TO staff row
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _FromToRow extends StatelessWidget {
   final HandoverEntry entry;
@@ -191,27 +275,27 @@ class _FromToRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _PersonColumn(
-            label: 'FROM',
+          child: _PersonChip(
+            roleLabel: 'FROM',
             initials: entry.fromStaffInitials!,
             name: entry.fromStaffName!,
             colorPair: DailyLogsConstants.avatarPalette[0],
           ),
         ),
         Padding(
-          padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 8),
-          child: Text(
-            '→',
-            style: TextStyle(
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-              color: AppColors.textFaint,
-              fontWeight: FontWeight.w600,
-            ),
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 6,
+          ),
+          child: Icon(
+            Icons.arrow_forward_rounded,
+            size: ResponsiveHelper.getResponsiveSize(context, 14),
+            color: AppColors.iconChevron,
           ),
         ),
         Expanded(
-          child: _PersonColumn(
-            label: 'TO',
+          child: _PersonChip(
+            roleLabel: 'TO',
             initials: entry.toStaffInitials!,
             name: entry.toStaffName!,
             colorPair: DailyLogsConstants.avatarPalette[2],
@@ -222,14 +306,14 @@ class _FromToRow extends StatelessWidget {
   }
 }
 
-class _PersonColumn extends StatelessWidget {
-  final String label;
+class _PersonChip extends StatelessWidget {
+  final String roleLabel;
   final String initials;
   final String name;
   final AvatarColorPair colorPair;
 
-  const _PersonColumn({
-    required this.label,
+  const _PersonChip({
+    required this.roleLabel,
     required this.initials,
     required this.name,
     required this.colorPair,
@@ -237,41 +321,54 @@ class _PersonColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
+    final avatarSize = ResponsiveHelper.getResponsiveSize(context, 28);
+
+    return Row(
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w600,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9.5),
-            color: AppColors.textFaint,
-            letterSpacing: 0.4,
+        Container(
+          width: avatarSize,
+          height: avatarSize,
+          decoration: BoxDecoration(
+            color: colorPair.background,
+            borderRadius: BorderRadius.circular(
+              ResponsiveHelper.getResponsiveRadius(context, 12),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            initials,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
+              color: colorPair.foreground,
+              height: 1,
+            ),
           ),
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
-        Row(
+        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            InitialsAvatar(
-              initials: initials,
-              background: colorPair.background,
-              foreground: colorPair.foreground,
-              size: 24,
+            Text(
+              '$roleLabel ',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+                color: AppColors.textMuted,
+              ),
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
-            Expanded(
-              child: Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: AppColors.textPrimary,
+            Text(
+              name,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(
+                  context,
+                  12.5,
                 ),
+                color: AppColors.textHeading,
               ),
             ),
           ],
@@ -281,6 +378,10 @@ class _PersonColumn extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Important notes
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _NoteRow extends StatelessWidget {
   final HandoverNote note;
 
@@ -288,50 +389,92 @@ class _NoteRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _noteIconStyles[note.type];
-    final iconSize = ResponsiveHelper.getResponsiveSize(context, 20);
+    final (iconWidget, iconBg) = _iconFor(context, note.type);
+    final boxSize = ResponsiveHelper.getResponsiveSize(context, 23);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: iconSize,
-          height: iconSize,
+          width: 22,
+          height: boxSize,
           decoration: BoxDecoration(
-            color: style?.iconBackground ?? AppColors.urgentIconBackground,
-            shape: BoxShape.circle,
+            color: iconBg,
+            borderRadius: BorderRadius.circular(
+              ResponsiveHelper.getResponsiveRadius(context, 8),
+            ),
           ),
           alignment: Alignment.center,
-          child: style != null
-              ? AppSvgIcon(style.svgAsset, size: 11, color: style.iconColor)
-              : Icon(Icons.visibility_rounded, size: ResponsiveHelper.getResponsiveSize(context, 11), color: AppColors.urgentAmber),
+          child: iconWidget,
         ),
-        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
         Expanded(
           child: Text.rich(
             TextSpan(
               children: [
                 TextSpan(
                   text: '${note.title} — ',
-                  style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textHeading,
+                  ),
                 ),
                 TextSpan(
                   text: note.description,
-                  style: const TextStyle(fontWeight: FontWeight.w400, color: AppColors.textBody),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.textBody,
+                  ),
                 ),
               ],
             ),
             style: TextStyle(
               fontFamily: 'Outfit',
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-              height: 1.35,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+              height: 1.4,
             ),
           ),
         ),
       ],
     );
   }
+
+  (Widget, Color) _iconFor(BuildContext context, HandoverNoteType type) {
+    switch (type) {
+      case HandoverNoteType.medication:
+        return (
+          const AppSvgIcon(
+            'assets/icons/daily_logs/daily_log_heart.svg',
+            size: 14,
+            color: AppColors.criticalRed,
+          ),
+          AppColors.criticalIconBackground,
+        );
+      case HandoverNoteType.observation:
+        return (
+          Icon(
+            Icons.visibility_outlined,
+            size: ResponsiveHelper.getResponsiveSize(context, 14),
+            color: AppColors.urgentAmber,
+          ),
+          AppColors.urgentIconBackground,
+        );
+      case HandoverNoteType.task:
+        return (
+          const AppSvgIcon(
+            'assets/icons/daily_logs/daily_log_task.svg',
+            size: 14,
+            color: AppColors.infoBlue,
+          ),
+          AppColors.infoIconBackground,
+        );
+    }
+  }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Acknowledgement footer
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _AcknowledgementRow extends StatelessWidget {
   final String caption;
@@ -344,9 +487,12 @@ class _AcknowledgementRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: ResponsiveHelper.getResponsiveSize(context, 6),
-          height: ResponsiveHelper.getResponsiveSize(context, 6),
-          decoration: const BoxDecoration(color: AppColors.urgentAmber, shape: BoxShape.circle),
+          width: ResponsiveHelper.getResponsiveSize(context, 7),
+          height: ResponsiveHelper.getResponsiveSize(context, 7),
+          decoration: const BoxDecoration(
+            color: AppColors.urgentAmber,
+            shape: BoxShape.circle,
+          ),
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
         Expanded(
@@ -357,7 +503,7 @@ class _AcknowledgementRow extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w500,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
               color: AppColors.urgentAmber,
             ),
           ),
@@ -367,22 +513,37 @@ class _AcknowledgementRow extends StatelessWidget {
           onTap: onAcknowledge,
           behavior: HitTestBehavior.opaque,
           child: Container(
-            padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 14, vertical: 9),
+            padding: ResponsiveHelper.getResponsivePadding(
+              context,
+              horizontal: 14,
+              vertical: 10,
+            ),
             decoration: BoxDecoration(
               color: AppColors.secondaryTeal,
-              borderRadius: BorderRadius.circular(ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusButton)),
+              borderRadius: BorderRadius.circular(
+                ResponsiveHelper.getResponsiveRadius(context, 12),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const AppSvgIcon(AppAssets.checkCircle, size: 13, color: Colors.white),
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+                const AppSvgIcon(
+                  AppAssets.checkCircle,
+                  size: 15,
+                  color: Colors.white,
+                ),
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 5),
+                ),
                 Text(
                   'Acknowledge',
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      12.5,
+                    ),
                     color: Colors.white,
                   ),
                 ),

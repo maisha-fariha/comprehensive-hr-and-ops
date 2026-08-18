@@ -43,7 +43,7 @@ class CancelRequestButton extends StatelessWidget {
               'Cancel Request',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'Outfit',
+                fontFamily: 'Manrope',
                 fontWeight: FontWeight.w700,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
                 color: AppColors.criticalRed,

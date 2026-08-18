@@ -18,7 +18,7 @@ class IncidentDetailsSectionLabel extends StatelessWidget {
         fontFamily: 'Outfit',
         fontWeight: FontWeight.w700,
         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-        color: AppColors.textFaint,
+        color: AppColors.secondaryTeal,
         letterSpacing: 0.6,
       ),
     );

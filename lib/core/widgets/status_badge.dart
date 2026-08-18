@@ -47,7 +47,7 @@ class StatusBadge extends StatelessWidget {
       padding: ResponsiveHelper.getResponsivePadding(
         context,
         horizontal: padding.horizontal / 2,
-        vertical: padding.vertical / 2,
+        vertical: padding.vertical,
       ),
       decoration: BoxDecoration(
         color: background,

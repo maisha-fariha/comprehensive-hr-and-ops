@@ -17,15 +17,17 @@ class FamilyBottomNavItemData {
   });
 }
 
-/// Bottom navigation bar for the Family portal shell: Home / Updates /
-/// Appointments / Messages / More. Visually mirrors the Manager and Staff
-/// bars (same surface, shadow and active/inactive colors) so all three role
-/// portals stay consistent.
+/// Bottom navigation for the Family portal: Home / Updates / Appointments /
+/// Messages / More. Used by [FamilyShell].
 class FamilyBottomNavBar extends StatelessWidget {
+  static const Color _activeColor = Color(0xFF107C7C);
+  static const Color _inactiveColor = Color(0xFF8E9CB2);
+  static const Color _topBorder = Color(0xFFE8EDF1);
+
   static const List<FamilyBottomNavItemData> items = [
     FamilyBottomNavItemData(asset: AppAssets.navHome, label: 'Home'),
-    FamilyBottomNavItemData(asset: AppAssets.notePencil, label: 'Updates'),
-    FamilyBottomNavItemData(asset: AppAssets.navCalendar, label: 'Appointments'),
+    FamilyBottomNavItemData(asset: AppAssets.navCalendar, label: 'Updates'),
+    FamilyBottomNavItemData(asset: AppAssets.navAppointment, label: 'Appointments'),
     FamilyBottomNavItemData(
       asset: AppAssets.messageCircle,
       label: 'Messages',
@@ -46,27 +48,20 @@ class FamilyBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.surfaceWhite,
-        border: const Border(top: BorderSide(color: AppColors.cardBorder)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowNavy.withValues(alpha: 0.05),
-            offset: Offset(0, -ResponsiveHelper.getResponsiveHeight(context, 4)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 8),
-          ),
-        ],
+        border: Border(top: BorderSide(color: _topBorder)),
       ),
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.only(
-          bottom: ResponsiveHelper.getResponsiveHeight(context, 10),
+          bottom: ResponsiveHelper.getResponsiveHeight(context, 6),
         ),
         child: Padding(
           padding: ResponsiveHelper.getResponsivePadding(
             context,
-            horizontal: 12,
-            top: 10,
+            horizontal: 6,
+            top: 8,
           ),
           child: Row(
             children: List.generate(items.length, (index) {
@@ -100,13 +95,13 @@ class _FamilyBottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? AppColors.secondaryTeal : AppColors.navInactive;
+    final color = isActive ? FamilyBottomNavBar._activeColor : FamilyBottomNavBar._inactiveColor;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 6),
+        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -114,7 +109,7 @@ class _FamilyBottomNavItem extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 AppSvgIcon(data.asset, size: 22, color: color),
-                if (data.badgeCount != null && data.badgeCount! > 0)
+                if (!isActive && data.badgeCount != null && data.badgeCount! > 0)
                   Positioned(
                     right: -8,
                     top: -4,
@@ -122,17 +117,18 @@ class _FamilyBottomNavItem extends StatelessWidget {
                   ),
               ],
             ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
             Text(
               data.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                fontFamily: 'Manrope',
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9.5),
                 color: color,
+                height: 1.15,
               ),
             ),
           ],
@@ -150,22 +146,21 @@ class _MessagesBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 3.5),
       decoration: BoxDecoration(
-        color: AppColors.criticalRed,
+        color: const Color(0xFFE53935),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.surfaceWhite, width: 1),
       ),
       alignment: Alignment.center,
       child: Text(
         '$count',
-        style: const TextStyle(
-          fontFamily: 'Outfit',
+        style: TextStyle(
+          fontFamily: 'Manrope',
           fontWeight: FontWeight.w700,
-          fontSize: 9.5,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9),
           color: Colors.white,
-          height: 1.2,
+          height: 1.1, 
         ),
       ),
     );

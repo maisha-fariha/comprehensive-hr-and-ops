@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// Plain white top bar for the "Daily Note" screen: a back chevron, the
-/// centered "Daily Note" title and a trailing teal "Save" text button.
-///
-/// Icon note: no matching back-chevron/save SVGs exist in `assets/icons/*`,
-/// so this uses `Icons.arrow_back_ios_new_rounded` and
-/// `Icons.save_outlined` as temporary stand-ins - flag these for swapping
-/// to real exported Figma assets later.
+/// White header: bordered back button, centered "Daily Note", trailing teal
+/// "Save" — matches Schedule / Daily Logs / Attendance headers.
 class DailyNoteAppBar extends StatelessWidget {
   final VoidCallback? onBack;
   final VoidCallback? onSave;
@@ -19,58 +16,87 @@ class DailyNoteAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final buttonRadius = ResponsiveHelper.getResponsiveRadius(context, 12);
+
     return ColoredBox(
       color: AppColors.surfaceWhite,
       child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 14, bottom: 14),
-        child: Row(
-          children: [
-            GestureDetector(
-              onTap: onBack ?? Get.back,
-              behavior: HitTestBehavior.opaque,
-              child: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                size: ResponsiveHelper.getResponsiveSize(context, 18),
-                color: AppColors.textPrimary,
-              ),
-            ),
-            Expanded(
-              child: Text(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 20,
+          top: 8,
+          bottom: 12,
+        ),
+        child: SizedBox(
+          height: buttonSize,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Text(
                 'Daily Note',
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
-                  color: AppColors.textPrimary,
+                  color: AppColors.textHeading,
+                  height: 1.2,
                 ),
               ),
-            ),
-            GestureDetector(
-              onTap: onSave,
-              behavior: HitTestBehavior.opaque,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.save_outlined,
-                    size: ResponsiveHelper.getResponsiveSize(context, 15),
-                    color: AppColors.secondaryTeal,
-                  ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
-                  Text(
-                    'Save',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w600,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
-                      color: AppColors.secondaryTeal,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: onBack ?? Get.back,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: buttonSize,
+                    height: buttonSize,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceWhite,
+                      borderRadius: BorderRadius.circular(buttonRadius),
+                      border: Border.all(color: AppColors.cardBorder),
+                    ),
+                    alignment: Alignment.center,
+                    child: Transform.rotate(
+                      angle: 3.14159,
+                      child: const AppSvgIcon(
+                        AppAssets.chevronRight,
+                        size: 18,
+                        color: AppColors.textHeading,
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: onSave,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      vertical: 8,
+                      horizontal: 2,
+                    ),
+                    child: Text(
+                      'Save',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                        color: AppColors.secondaryTeal,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

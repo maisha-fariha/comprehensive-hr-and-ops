@@ -8,6 +8,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/surface_card.dart';
 import '../../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../../medication/presentation/pages/medication_page.dart';
+import '../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
 import '../../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
 import '../../team_reports/presentation/pages/team_reports_page.dart';
 
@@ -16,9 +17,8 @@ import '../../team_reports/presentation/pages/team_reports_page.dart';
 /// Figma bottom bar (Home/Schedule/Attendance/Alerts/More only has 5 slots).
 ///
 /// This menu itself isn't a distinct Figma frame; it's a pragmatic way to
-/// make the Daily Logs, Medication, Tasks & Compliance and Team & Reports
-/// screens reachable end-to-end until the real "More" destination/IA is
-/// captured from Figma.
+/// make the Daily Logs, Medication, Tasks & Compliance, Team & Reports and
+/// Profile & Settings screens reachable end-to-end.
 class HrMoreMenuPage extends StatelessWidget {
   const HrMoreMenuPage({super.key});
 
@@ -51,6 +51,13 @@ class HrMoreMenuPage extends StatelessWidget {
       title: 'Team & Reports',
       subtitle: 'Staff roster, reports & messages',
     ),
+    _MoreMenuEntry(
+      icon: Icons.person_outline_rounded,
+      iconBackground: AppColors.criticalBackgroundSoft,
+      iconColor: AppColors.criticalRed,
+      title: 'Profile & Settings',
+      subtitle: 'Account, residences & preferences',
+    ),
   ];
 
   void _open(BuildContext context, int index) {
@@ -66,6 +73,9 @@ class HrMoreMenuPage extends StatelessWidget {
         break;
       case 3:
         Get.to(() => const TeamReportsPage());
+        break;
+      case 4:
+        Get.to(() => const HrProfileSettingsPage());
         break;
     }
   }

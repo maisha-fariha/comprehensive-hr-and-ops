@@ -2,56 +2,69 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/section_header_row.dart';
-import '../../../../../core/widgets/surface_card.dart';
+import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/team_reports_enums.dart';
 import '../../domain/entities/team_tab_overview.dart';
-import '../../team_reports_assets.dart';
 import 'conversation_tile.dart';
 import 'stat_tile_card.dart';
 import 'top_report_tile.dart';
 
 class _TeamStatStyle {
-  final String? asset;
-  final IconData? materialIcon;
+  final String asset;
   final Color color;
   final Color background;
+  final Color valueColor;
 
-  const _TeamStatStyle({this.asset, this.materialIcon, required this.color, required this.background});
+  const _TeamStatStyle({
+    required this.asset,
+    required this.color,
+    required this.background,
+    required this.valueColor,
+  });
 }
 
 const Map<TeamStatTag, _TeamStatStyle> _teamStatStyles = {
   TeamStatTag.totalStaff: _TeamStatStyle(
-    asset: TeamReportsAssets.totalStaff,
-    color: AppColors.infoBlue,
-    background: AppColors.infoIconBackground,
+    asset: 'assets/icons/team_reports/team_staff.svg',
+    color: Color(0xFF0E7C7B),
+    background: Color(0xFFE3F3F1),
+    valueColor: AppColors.textHeading,
   ),
   TeamStatTag.onDutyNow: _TeamStatStyle(
-    asset: TeamReportsAssets.onDutyNow,
-    color: AppColors.activeGreen,
-    background: AppColors.activeIconBackground,
+    asset: 'assets/icons/team_reports/team_duty.svg',
+    color: Color(0xFF2E8C58),
+    background: Color(0xFFEAF6F0),
+    valueColor: Color(0xFF2E8C58),
   ),
   TeamStatTag.openShifts: _TeamStatStyle(
-    asset: TeamReportsAssets.openShifts,
-    color: AppColors.urgentAmber,
-    background: AppColors.urgentIconBackground,
+    asset: 'assets/icons/team_reports/team_calendar.svg',
+    color: Color(0xFF2A5DA6),
+    background: Color(0xFFEAF0F9),
+    valueColor: Color(0xFF2A5DA6),
   ),
-  // No matching exported SVG for a person-add glyph; falls back to a
-  // Material icon (see the feature's final report).
   TeamStatTag.vacancies: _TeamStatStyle(
-    materialIcon: Icons.person_add_alt_1_rounded,
-    color: AppColors.urgentAmber,
-    background: AppColors.urgentIconBackground,
+    asset: 'assets/icons/team_reports/team_vacancy.svg',
+    color: Color(0xFFB36B21),
+    background: Color(0xFFFCF5ED),
+    valueColor: Color(0xFFB36B21),
   ),
 };
 
-/// Content of the "Team" segment: overview stats, top reports and a recent
-/// message preview.
+/// Team tab content: overview stats, top reports, recent messages.
 class TeamTabView extends StatelessWidget {
   final TeamTabOverview overview;
   final VoidCallback? onViewAllStats;
   final VoidCallback? onViewAllReports;
   final VoidCallback? onViewAllMessages;
+
+  /// UI-only second preview message from the reference (not in domain model).
+  static const ConversationPreview _mikePreview = ConversationPreview(
+    id: 'mike-t-recent',
+    senderName: 'Mike T.',
+    initials: 'MT',
+    timeLabel: 'Yesterday',
+    previewText: 'Requesting coverage for Friday evening...',
+  );
 
   const TeamTabView({
     super.key,
@@ -63,55 +76,101 @@ class TeamTabView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeaderRow(title: 'Team Overview', trailing: ViewAllLink(onTap: onViewAllStats)),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: overview.stats.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: ResponsiveHelper.getResponsiveHeight(context, 12),
-            crossAxisSpacing: ResponsiveHelper.getResponsiveWidth(context, 12),
-            // Fixed row extent (not `childAspectRatio`) so the tile's height
-            // never depends on the grid's actual column width.
-            mainAxisExtent: ResponsiveHelper.getResponsiveHeight(context, 78),
-          ),
-          itemBuilder: (context, index) {
-            final stat = overview.stats[index];
-            final style = _teamStatStyles[stat.tag]!;
-            return StatTileCard(
-              asset: style.asset,
-              materialIcon: style.materialIcon,
-              color: style.color,
-              background: style.background,
-              value: stat.value,
-              label: stat.label,
-            );
-          },
-        ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-        SectionHeaderRow(title: 'Top Reports', trailing: ViewAllLink(onTap: onViewAllReports)),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-        SurfaceCard.card(
-          padding: ResponsiveHelper.getResponsivePadding(context, left: 14, right: 14, top: 2, bottom: 2),
-          child: Column(
-            children: [
-              for (var i = 0; i < overview.topReports.length; i++)
-                TopReportTile(
-                  item: overview.topReports[i],
-                  showDivider: i != overview.topReports.length - 1,
-                ),
+    final sectionGap = ResponsiveHelper.getResponsiveHeight(context, 18);
+    final cardGap = ResponsiveHelper.getResponsiveHeight(context, 10);
+    final messages = [overview.recentMessage, _mikePreview];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SectionHeader(title: 'Team Overview', onViewAll: onViewAllStats),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: overview.stats.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: ResponsiveHelper.getResponsiveHeight(context, 10),
+                crossAxisSpacing: ResponsiveHelper.getResponsiveWidth(context, 10),
+                mainAxisExtent: ResponsiveHelper.getResponsiveHeight(context, 78),
+              ),
+              itemBuilder: (context, index) {
+                final stat = overview.stats[index];
+                final style = _teamStatStyles[stat.tag]!;
+                return StatTileCard(
+                  asset: style.asset,
+                  color: style.color,
+                  background: style.background,
+                  value: stat.value,
+                  valueColor: style.valueColor,
+                  label: stat.label,
+                );
+              },
+            ),
+            SizedBox(height: sectionGap),
+            _SectionHeader(title: 'Top Reports', onViewAll: onViewAllReports),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            for (var i = 0; i < overview.topReports.length; i++) ...[
+              if (i > 0) SizedBox(height: cardGap),
+              TopReportTile(item: overview.topReports[i]),
             ],
+            SizedBox(height: sectionGap),
+            _SectionHeader(title: 'Recent Messages', onViewAll: onViewAllMessages),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            for (var i = 0; i < messages.length; i++) ...[
+              if (i > 0) SizedBox(height: cardGap),
+              ConversationTile(
+                conversation: messages[i],
+                showUnreadBadge: false,
+                showTrailingStatusDot: true,
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback? onViewAll;
+
+  const _SectionHeader({required this.title, this.onViewAll});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
+              color: AppColors.textHeading,
+            ),
           ),
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-        SectionHeaderRow(title: 'Recent Messages', trailing: ViewAllLink(onTap: onViewAllMessages)),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-        ConversationTile(conversation: overview.recentMessage, showUnreadBadge: false),
+        GestureDetector(
+          onTap: onViewAll,
+          behavior: HitTestBehavior.opaque,
+          child: Text(
+            'View all',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+              color: AppColors.secondaryTeal,
+            ),
+          ),
+        ),
       ],
     );
   }

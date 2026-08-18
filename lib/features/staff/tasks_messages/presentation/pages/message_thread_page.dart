@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
+import '../../../staff_shell.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
 import '../controllers/message_thread_controller.dart';
 import '../widgets/chat_bubble.dart';
@@ -21,8 +23,14 @@ import '../widgets/typing_indicator.dart';
 /// into GetX tagged with [conversationId] the first time this page is
 /// opened for that conversation, so switching between conversations never
 /// mixes up message lists.
+///
+/// Hosts [StaffBottomNavBar] with "MAR / Tasks" selected so the pushed route
+/// still matches reference frames that show the staff bottom nav.
 class MessageThreadPage extends StatelessWidget {
   final String conversationId;
+
+  /// Index of the "MAR / Tasks" slot in [StaffBottomNavBar.items].
+  static const int _marTasksTabIndex = 3;
 
   const MessageThreadPage({super.key, required this.conversationId});
 
@@ -40,12 +48,20 @@ class MessageThreadPage extends StatelessWidget {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => StaffShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: StaffBottomNavBar(
+        currentIndex: _marTasksTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: SafeArea(
         bottom: false,
         child: Obx(() {
@@ -93,12 +109,22 @@ class MessageThreadPage extends StatelessWidget {
                     const DateDivider(label: 'Today'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                     for (var i = 0; i < messages.length; i++) ...[
-                      ChatBubble(message: messages[i]),
+                      ChatBubble(
+                        message: messages[i],
+                        contactInitials: thread.contactInitials,
+                        // Avatar on the first bubble of a consecutive same-direction group.
+                        showAvatar: i == 0 || messages[i].direction != messages[i - 1].direction,
+                      ),
                       if (i != messages.length - 1)
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                        SizedBox(
+                          height: ResponsiveHelper.getResponsiveHeight(
+                            context,
+                            messages[i].direction == messages[i + 1].direction ? 10 : 16,
+                          ),
+                        ),
                     ],
                     if (thread.isOtherPersonTyping) ...[
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                       TypingIndicator(contactInitials: thread.contactInitials),
                     ],
                   ],

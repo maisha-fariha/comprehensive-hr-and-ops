@@ -5,6 +5,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../family_shell.dart';
+import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/family_documents_controller.dart';
 import '../widgets/family_document_row_tile.dart';
 import '../widgets/family_documents_caption.dart';
@@ -15,11 +17,15 @@ import '../widgets/family_documents_header.dart';
 ///
 /// Pushed as a standalone route (e.g. `Get.to(() => const
 /// FamilyDocumentsPage())`) from the Family "More" hub, so it owns its own
-/// `Scaffold`/`SafeArea` rather than being embedded in a shell — the same
-/// convention used by `StaffAttendancePage` when pushed outside the Staff
-/// bottom-nav shell.
+/// `Scaffold`/`SafeArea` rather than being embedded in a shell.
+///
+/// Hosts [FamilyBottomNavBar] with "More" selected so the pushed route still
+/// matches reference frames that show the family bottom nav.
 class FamilyDocumentsPage extends StatelessWidget {
   const FamilyDocumentsPage({super.key});
+
+  /// Index of the "More" slot in [FamilyBottomNavBar.items].
+  static const int _moreTabIndex = 4;
 
   FamilyDocumentsController _resolveController() {
     try {
@@ -29,12 +35,20 @@ class FamilyDocumentsPage extends StatelessWidget {
     }
   }
 
+  void _onBottomNavTap(int index) {
+    Get.offAll(() => FamilyShell(initialIndex: index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: FamilyBottomNavBar(
+        currentIndex: _moreTabIndex,
+        onTap: _onBottomNavTap,
+      ),
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;
@@ -119,7 +133,7 @@ class _FamilyDocumentsError extends StatelessWidget {
                 message,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontFamily: 'Outfit',
+                  fontFamily: 'Manrope',
                   fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
                 ),

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// The "+ Add / Switch Client" teal link row below the "Linked Clients"
-/// list — a plain tappable row with no card background.
+/// The "+ Add / Switch Client" teal action row at the bottom of the
+/// Linked Clients card.
 class FamilyAddClientLink extends StatelessWidget {
   final VoidCallback? onTap;
+
+  static const Color _actionColor = Color(0xFF0E7C7B);
+  static const String _plusIcon =
+      'assets/icons/family_appointments/plus_outlined.svg';
 
   const FamilyAddClientLink({super.key, this.onTap});
 
@@ -16,23 +20,23 @@ class FamilyAddClientLink extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 6),
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 16,
+          vertical: 16,
+        ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.add_rounded,
-              size: ResponsiveHelper.getResponsiveFontSize(context, 17),
-              color: AppColors.secondaryTeal,
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+            Icon(Icons.add_rounded, color: _actionColor, size: 20,),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
             Text(
               'Add / Switch Client',
               style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                color: AppColors.secondaryTeal,
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                color: _actionColor,
+                height: 1.2,
               ),
             ),
           ],

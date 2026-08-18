@@ -24,21 +24,21 @@ abstract final class AppColors {
   static const Color textBody = Color(0xFF3A4B60);
   static const Color textSecondary = Color(0xFF647285);
   static const Color textMuted = Color(0xFF8A97A8);
-  static const Color textFaint = Color(0xFF94A3B8);
+  static const Color textFaint = Color(0xFF64748B);
   static const Color textPlaceholder = Color(0xFF757575);
   static const Color iconChevron = Color(0xFFC3CCD6);
 
   // Status - critical / red
-  static const Color criticalRed = Color(0xFFD64545);
-  static const Color criticalBackground = Color(0xFFFBEAEA);
+  static const Color criticalRed = Color(0xFFF44336);
+  static const Color criticalBackground = Color(0xFFF4D6D6);
   static const Color criticalBackgroundSoft = Color(0xFFFDF0F0);
   static const Color criticalIconBackground = Color(0xFFFBEDED);
 
   // Status - urgent / amber-orange
-  static const Color urgentAmber = Color(0xFFC7761B);
+  static const Color urgentAmber = Color(0xFFB4791C);
   static const Color urgentBackground = Color(0xFFFBF1E6);
   static const Color urgentBackgroundSoft = Color(0xFFFDF6EB);
-  static const Color urgentIconBackground = Color(0xFFFBF2E6);
+  static const Color urgentIconBackground = Color(0xFFFBF3E9);
 
   // Status - success / green
   static const Color successGreen = Color(0xFF3FA66D);
@@ -79,7 +79,7 @@ abstract final class AppColors {
   static const Color whiteOpacity70 = Color(0xB3FFFFFF); // rgba(255,255,255,.70)
   static const Color whiteOpacity80 = Color(0xCCFFFFFF); // rgba(255,255,255,.80)
 
-  static const Color shadowNavy = Color(0xFF142846);
+  static const Color shadowNavy = Color(0xFF16293F);
   static const Color shadowTeal = Color(0xFF0E4A54);
 
   const AppColors._();

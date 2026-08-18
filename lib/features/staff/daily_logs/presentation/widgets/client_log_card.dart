@@ -5,20 +5,19 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../../core/widgets/status_badge.dart';
-import '../../../../../core/widgets/surface_card.dart';
 import '../../domain/entities/staff_client_log_entry.dart';
 import '../../staff_daily_logs_constants.dart';
 import 'client_status_style.dart';
 import 'initials_avatar.dart';
 
-/// A single card in the "In Progress" / "Submitted" tabs' client list: an
-/// initials avatar, a shift-name eyebrow above the client name, a small
-/// status-colored dot next to the caption, and a trailing status pill with
-/// a chevron to open the client's "Daily Note".
+/// Elevated client card used by In Progress / Submitted lists: avatar with
+/// status dot, shift eyebrow, name, clock caption, status pill + chevron.
 class ClientLogCard extends StatelessWidget {
   final StaffClientLogEntry entry;
   final int avatarPaletteIndex;
   final VoidCallback? onTap;
+
+  static const String _staffClock = 'assets/icons/staff_daily_logs/clock.svg';
 
   const ClientLogCard({
     super.key,
@@ -30,16 +29,36 @@ class ClientLogCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusStyle = clientStatusStyles[entry.status]!;
-    final avatarColors =
-        StaffDailyLogsConstants.avatarPalette[avatarPaletteIndex % StaffDailyLogsConstants.avatarPalette.length];
+    final avatarColors = StaffDailyLogsConstants
+        .avatarPalette[avatarPaletteIndex % StaffDailyLogsConstants.avatarPalette.length];
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
 
     return Padding(
-      padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 12)),
+      padding: EdgeInsets.only(
+        bottom: ResponsiveHelper.getResponsiveHeight(context, 12),
+      ),
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
-        child: SurfaceCard.card(
-          padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+        child: Container(
+          width: double.infinity,
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 16,
+            vertical: 16,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceWhite,
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: AppColors.cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.shadowNavy.withValues(alpha: 0.05),
+                offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 3)),
+                blurRadius: ResponsiveHelper.getResponsiveHeight(context, 10),
+              ),
+            ],
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -47,8 +66,10 @@ class ClientLogCard extends StatelessWidget {
                 initials: entry.initials,
                 background: avatarColors.background,
                 foreground: avatarColors.foreground,
+                size: 46,
+                statusDotColor: statusStyle.foreground,
               ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,43 +77,51 @@ class ClientLogCard extends StatelessWidget {
                   children: [
                     Text(
                       entry.shiftLabel.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w600,
                         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
-                        color: AppColors.textMuted,
-                        letterSpacing: 0.4,
+                        color: const Color(0xFF94A3B8),
+                        letterSpacing: 0.5,
+                        height: 1.2,
                       ),
                     ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
                     Text(
                       entry.clientName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                        color: AppColors.textHeading,
+                        height: 1.2,
                       ),
                     ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
                     Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          width: ResponsiveHelper.getResponsiveSize(context, 6),
-                          height: ResponsiveHelper.getResponsiveSize(context, 6),
-                          decoration: BoxDecoration(color: statusStyle.foreground, shape: BoxShape.circle),
+                        const AppSvgIcon(
+                          _staffClock,
+                          size: 12,
+                          color: AppColors.textMuted,
                         ),
                         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
-                        Text(
-                          entry.subtitleLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w400,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-                            color: AppColors.textMuted,
+                        Flexible(
+                          child: Text(
+                            entry.subtitleLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w400,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                              color: AppColors.textMuted,
+                              height: 1.2,
+                            ),
                           ),
                         ),
                       ],
@@ -105,13 +134,17 @@ class ClientLogCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  StatusBadge.chip(
+                  StatusBadge.pill(
                     label: statusStyle.label,
                     background: statusStyle.background,
                     foreground: statusStyle.foreground,
                   ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                  const AppSvgIcon(AppAssets.chevronRight, size: 16, color: AppColors.iconChevron),
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                  const AppSvgIcon(
+                    AppAssets.chevronRight,
+                    size: 16,
+                    color: AppColors.iconChevron,
+                  ),
                 ],
               ),
             ],

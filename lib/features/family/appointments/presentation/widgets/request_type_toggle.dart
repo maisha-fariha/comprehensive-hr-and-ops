@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/family_appointments_enums.dart';
 
 const Map<AppointmentRequestType, String> _segmentLabels = {
@@ -10,23 +9,35 @@ const Map<AppointmentRequestType, String> _segmentLabels = {
 };
 
 /// The "Request Type" segmented toggle at the top of the Create Appointment
-/// form, switching between the "Visit" and "Appointment" field sets. Reuses
-/// the same raised-white-pill visual pattern as the Appointments list's
-/// segmented tab bar, per the app's existing segmented-control language.
+/// form, switching between the "Visit" and "Appointment" field sets.
 class RequestTypeToggle extends StatelessWidget {
   final AppointmentRequestType selected;
   final ValueChanged<AppointmentRequestType> onSelected;
 
-  const RequestTypeToggle({super.key, required this.selected, required this.onSelected});
+  static const Color _track = Color(0xFFF0F4F7);
+  static const Color _trackBorder = Color(0xFFE4E9EE);
+  static const Color _activeText = Color(0xFF0B6B5F);
+  static const Color _inactiveText = Color(0xFF6B7B8A);
+  static const Color _shadow = Color(0xFF142846);
+
+  const RequestTypeToggle({
+    super.key,
+    required this.selected,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 15);
+
     return Container(
       padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
       decoration: BoxDecoration(
-        color: AppColors.scaffoldBackground,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
+        color: _track,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: _trackBorder,
+          width: ResponsiveHelper.getResponsiveWidth(context, 1),
         ),
       ),
       child: Row(
@@ -50,7 +61,11 @@ class _ToggleSegment extends StatelessWidget {
   final bool isActive;
   final VoidCallback onTap;
 
-  const _ToggleSegment({required this.label, required this.isActive, required this.onTap});
+  const _ToggleSegment({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -59,18 +74,26 @@ class _ToggleSegment extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 12),
+        curve: Curves.easeOut,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          vertical: 12,
+          horizontal: 8,
+        ),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.surfaceWhite : Colors.transparent,
+          color: isActive ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 11),
+            ResponsiveHelper.getResponsiveRadius(context, 8),
           ),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: AppColors.shadowNavy.withValues(alpha: 0.06),
-                    offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-                    blurRadius: ResponsiveHelper.getResponsiveHeight(context, 3),
+                    color: RequestTypeToggle._shadow.withValues(alpha: 0.08),
+                    offset: Offset(
+                      0,
+                      ResponsiveHelper.getResponsiveHeight(context, 1),
+                    ),
+                    blurRadius: ResponsiveHelper.getResponsiveHeight(context, 4),
                   ),
                 ]
               : null,
@@ -80,11 +103,15 @@ class _ToggleSegment extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: TextStyle(
-            fontFamily: 'Outfit',
+            fontFamily: 'Manrope',
             fontWeight: FontWeight.w700,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-            color: isActive ? AppColors.secondaryTeal : AppColors.textSecondary,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+            color: isActive
+                ? RequestTypeToggle._activeText
+                : RequestTypeToggle._inactiveText,
+            height: 1.15,
           ),
         ),
       ),

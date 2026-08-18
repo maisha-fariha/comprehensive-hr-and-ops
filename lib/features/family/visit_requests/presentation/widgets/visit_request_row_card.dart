@@ -1,38 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
-import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../../core/widgets/status_badge.dart';
-import '../../../../../core/widgets/surface_card.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 import '../../domain/entities/visit_request.dart';
 import 'visit_request_status_style.dart';
 import 'visit_request_type_tag.dart';
 
-/// A single request row shown on both the "All" and "History" tabs of the
-/// Visit Requests list.
-///
-/// The "All" tab's rows include a location-or-telehealth line (driven by
-/// [VisitRequest.mode]); the "History" tab's rows omit that line entirely,
-/// per the Figma screenshots - handled here by only rendering the line
-/// when [VisitRequest.mode] is non-null.
-///
-/// Icon note: no location-pin/video-call glyphs exist in `assets/icons/*`
-/// yet, so this uses Material `Icons.location_on_outlined` /
-/// `Icons.videocam_outlined` as temporary stand-ins.
+/// A single request card on the "All" and "History" Visit Requests tabs.
 class VisitRequestRowCard extends StatelessWidget {
   final VisitRequest request;
+
+  static const Color _titleColor = Color(0xFF1A2B48);
+  static const Color _metaColor = Color(0xFF6B7B8A);
+  static const Color _iconColor = Color(0xFF8E9BAE);
+  static const Color _cardBorder = Color(0xFFEEF1F4);
+  static const Color _shadow = Color(0xFF142846);
+  static const String _locationIcon =
+      'assets/icons/family_visit_requests/location.svg';
+  static const String _calendarIcon =
+      'assets/icons/family_visit_requests/calendar.svg';
 
   const VisitRequestRowCard({super.key, required this.request});
 
   @override
   Widget build(BuildContext context) {
     final statusStyle = VisitRequestStatusStyle.of(request.status);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
 
-    return SurfaceCard.card(
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 15),
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: _cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: _shadow.withValues(alpha: 0.04),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
+          ),
+          BoxShadow(
+            color: _shadow.withValues(alpha: 0.05),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -45,42 +61,46 @@ class VisitRequestRowCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontFamily: 'Outfit',
+                    fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                    color: AppColors.textHeading,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      15.5,
+                    ),
+                    color: _titleColor,
+                    height: 1.2,
                   ),
                 ),
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              StatusBadge.pill(
-                label: statusStyle.label,
-                background: statusStyle.background,
-                foreground: statusStyle.color,
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: StatusBadge.pill(
+                    label: statusStyle.label,
+                    background: statusStyle.background,
+                    foreground: statusStyle.color,
+                  ),
+                ),
               ),
             ],
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
           VisitRequestTypeTag(type: request.type),
           if (request.mode != null) ...[
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-            _ModeLine(mode: request.mode!, locationLabel: request.locationLabel),
-          ],
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-          Row(
-            children: [
-              const AppSvgIcon(AppAssets.navCalendar, size: 14, color: AppColors.textFaint),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-              Text(
-                request.dateTimeLabel,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w400,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                  color: AppColors.textMuted,
-                ),
-              ),
-            ],
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            _MetaLine(
+              iconAsset: _locationIcon,
+              text: request.mode == VisitRequestMode.telehealth
+                  ? 'Telehealth'
+                  : (request.locationLabel ?? ''),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+          ] else
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+          _MetaLine(
+            iconAsset: _calendarIcon,
+            text: request.dateTimeLabel,
           ),
         ],
       ),
@@ -88,31 +108,36 @@ class VisitRequestRowCard extends StatelessWidget {
   }
 }
 
-class _ModeLine extends StatelessWidget {
-  final VisitRequestMode mode;
-  final String? locationLabel;
+class _MetaLine extends StatelessWidget {
+  final String iconAsset;
+  final String text;
 
-  const _ModeLine({required this.mode, this.locationLabel});
+  const _MetaLine({required this.iconAsset, required this.text});
 
   @override
   Widget build(BuildContext context) {
-    final isTelehealth = mode == VisitRequestMode.telehealth;
+    if (text.isEmpty) return const SizedBox.shrink();
 
     return Row(
       children: [
-        Icon(
-          isTelehealth ? Icons.videocam_outlined : Icons.location_on_outlined,
-          size: ResponsiveHelper.getResponsiveSize(context, 14),
-          color: AppColors.textFaint,
+        AppSvgIcon(
+          iconAsset,
+          size: 14,
+          color: VisitRequestRowCard._iconColor,
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-        Text(
-          isTelehealth ? 'Telehealth' : (locationLabel ?? ''),
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w400,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-            color: AppColors.textSecondary,
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontWeight: FontWeight.w400,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+              color: VisitRequestRowCard._metaColor,
+              height: 1.25,
+            ),
           ),
         ),
       ],

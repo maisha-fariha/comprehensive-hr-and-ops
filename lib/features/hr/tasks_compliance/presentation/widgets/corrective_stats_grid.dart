@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
-import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/corrective_stat.dart';
 import '../../domain/entities/tasks_compliance_enums.dart';
 import 'stat_tile_card.dart';
@@ -12,34 +10,37 @@ class _CorrectiveStatStyle {
   final Color color;
   final Color background;
 
-  const _CorrectiveStatStyle({required this.svgAsset, required this.color, required this.background});
+  const _CorrectiveStatStyle({
+    required this.svgAsset,
+    required this.color,
+    required this.background,
+  });
 }
 
 const Map<CorrectiveStatTag, _CorrectiveStatStyle> _correctiveStatStyles = {
   CorrectiveStatTag.open: _CorrectiveStatStyle(
-    svgAsset: AppAssets.messageCircle,
-    color: AppColors.infoBlue,
-    background: AppColors.infoIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_action.svg',
+    color: Color(0xFF2A5DA6),
+    background: Color(0xFFEAF0F9),
   ),
   CorrectiveStatTag.inProgress: _CorrectiveStatStyle(
-    svgAsset: AppAssets.clock,
-    color: AppColors.urgentAmber,
-    background: AppColors.urgentIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_in_progress.svg',
+    color: Color(0xFFB36B21),
+    background: Color(0xFFFCF5ED),
   ),
   CorrectiveStatTag.completed: _CorrectiveStatStyle(
-    svgAsset: AppAssets.checkCircle,
-    color: AppColors.activeGreen,
-    background: AppColors.activeIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_completed.svg',
+    color: Color(0xFF2E8C58),
+    background: Color(0xFFEAF6F0),
   ),
   CorrectiveStatTag.overdue: _CorrectiveStatStyle(
-    svgAsset: AppAssets.alertTriangle,
-    color: AppColors.criticalRed,
-    background: AppColors.criticalIconBackground,
+    svgAsset: 'assets/icons/tasks_compliance/tasks_alert.svg',
+    color: Color(0xFFD64545),
+    background: Color(0xFFFBEDED),
   ),
 };
 
-/// The "Corrective" tab's 2x2 stat grid (Open Actions / In Progress /
-/// Completed / Overdue).
+/// Corrective tab 2x2 stat grid — matched to the Corrective reference.
 class CorrectiveStatsGrid extends StatelessWidget {
   final List<CorrectiveStat> stats;
 
@@ -53,9 +54,9 @@ class CorrectiveStatsGrid extends StatelessWidget {
       itemCount: stats.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        mainAxisSpacing: ResponsiveHelper.getResponsiveHeight(context, 12),
-        crossAxisSpacing: ResponsiveHelper.getResponsiveWidth(context, 12),
-        mainAxisExtent: ResponsiveHelper.getResponsiveHeight(context, 82),
+        mainAxisSpacing: ResponsiveHelper.getResponsiveHeight(context, 10),
+        crossAxisSpacing: ResponsiveHelper.getResponsiveWidth(context, 10),
+        mainAxisExtent: ResponsiveHelper.getResponsiveHeight(context, 78),
       ),
       itemBuilder: (context, index) {
         final stat = stats[index];
