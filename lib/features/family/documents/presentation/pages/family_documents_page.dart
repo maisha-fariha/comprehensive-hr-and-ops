@@ -88,7 +88,22 @@ class FamilyDocumentsPage extends StatelessWidget {
               child: RefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
-                child: ListView.separated(
+                child: documents.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              80,
+                            ),
+                          ),
+                          const Center(
+                            child: Text('No approved documents have been shared.'),
+                          ),
+                        ],
+                      )
+                    : ListView.separated(
                   padding: EdgeInsets.fromLTRB(
                     ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
                     ResponsiveHelper.getResponsiveHeight(context, 16),
@@ -100,7 +115,10 @@ class FamilyDocumentsPage extends StatelessWidget {
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
                   itemBuilder: (context, index) {
                     final document = documents[index];
-                    return FamilyDocumentRowTile(document: document);
+                    return FamilyDocumentRowTile(
+                      document: document,
+                      onDownloadTap: () => controller.download(document),
+                    );
                   },
                 ),
               ),

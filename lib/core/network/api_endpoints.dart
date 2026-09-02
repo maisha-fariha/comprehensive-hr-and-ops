@@ -86,6 +86,8 @@ abstract final class ApiEndpoints {
       '$familyTickets/$id/messages';
   static String ticketMessages(String id) => '$tickets/$id/messages';
   static String ticketClose(String id) => '$tickets/$id/close';
+  static String uploadById(String id) => '$uploads/$id';
+  static String uploadDownload(String id) => '$uploads/$id/download';
 
   // ── Medication MAR ──────────────────────────────────────────────────────
   static const String marDue = '/mar/due';

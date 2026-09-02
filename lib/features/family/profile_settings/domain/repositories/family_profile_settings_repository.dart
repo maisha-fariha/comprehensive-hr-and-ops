@@ -9,4 +9,13 @@ abstract class FamilyProfileSettingsRepository {
     required String subject,
     required String body,
   });
+
+  Future<Result<Map<String, bool>>> getNotificationPreferences();
+
+  Future<Result<void>> updateNotificationPreferences(Map<String, bool> values);
+
+  Future<Result<void>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  });
 }

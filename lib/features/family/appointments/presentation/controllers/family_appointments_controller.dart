@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
@@ -30,8 +30,35 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
   }
 
   final Rx<FamilyAppointmentsTab> selectedTab = FamilyAppointmentsTab.all.obs;
+  final RxnString typeFilter = RxnString();
+  final Rxn<DateTimeRange> dateRange = Rxn<DateTimeRange>();
 
   List<FamilyAppointment> get appointments => state.value.data ?? const [];
+
+  List<FamilyAppointment> get _filtered {
+    var items = appointments;
+    final type = typeFilter.value;
+    if (type != null && type.isNotEmpty) {
+      items = items.where((item) {
+        final value = item.type.toLowerCase();
+        if (type == 'visit') {
+          return value.contains('visit') || value.contains('family');
+        }
+        return value == type;
+      }).toList();
+    }
+    final range = dateRange.value;
+    if (range != null) {
+      items = items.where((item) {
+        final at = item.scheduledAt;
+        if (at == null) return true;
+        final local = at.toLocal();
+        return !local.isBefore(range.start) &&
+            !local.isAfter(range.end.add(const Duration(days: 1)));
+      }).toList();
+    }
+    return items;
+  }
 
   /// Sectioned rows for the currently selected tab.
   ///
@@ -41,22 +68,23 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
   /// - **Completed**: single "Completed" section with every completed row.
   List<FamilyAppointmentSection> get visibleSections {
     if (selectedTab.value == FamilyAppointmentsTab.completed) {
-      final completed = appointments.where(_isPast).toList();
+    final completed = _filtered.where(_isPast).toList();
       if (completed.isEmpty) return const [];
       return [FamilyAppointmentSection(title: 'Past', appointments: completed)];
     }
 
-    final active = appointments.where((a) => !_isPast(a)).toList();
+    final source = _filtered;
+    final active = source.where((a) => !_isPast(a)).toList();
     final upcoming = active.where((a) => a.iconKind != FamilyAppointmentIconKind.familyVisit).toList();
 
     final List<FamilyAppointment> familyVisits;
     if (selectedTab.value == FamilyAppointmentsTab.upcoming) {
-      familyVisits = appointments.where((a) => a.iconKind == FamilyAppointmentIconKind.familyVisit).toList();
+      familyVisits = source.where((a) => a.iconKind == FamilyAppointmentIconKind.familyVisit).toList();
     } else {
       familyVisits = active.where((a) => a.iconKind == FamilyAppointmentIconKind.familyVisit).toList();
     }
 
-    final past = appointments.where(_isPast).toList();
+    final past = source.where(_isPast).toList();
 
     return [
       if (upcoming.isNotEmpty) FamilyAppointmentSection(title: 'Upcoming', appointments: upcoming),
@@ -75,11 +103,76 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
       case FamilyAppointmentStatus.upcoming:
       case FamilyAppointmentStatus.pending:
       case FamilyAppointmentStatus.approved:
+      case FamilyAppointmentStatus.rescheduleRequested:
         return false;
     }
   }
 
   void selectTab(FamilyAppointmentsTab tab) => selectedTab.value = tab;
+
+  void setTypeFilter(String? type) => typeFilter.value = type;
+
+  void setDateRange(DateTimeRange? range) => dateRange.value = range;
+
+  String get typeFilterLabel {
+    switch (typeFilter.value) {
+      case 'visit':
+        return 'Visits';
+      case 'medical':
+        return 'Medical';
+      case 'therapy':
+        return 'Therapy';
+      case 'activity':
+        return 'Activity';
+      default:
+        return 'All types';
+    }
+  }
+
+  String get dateRangeLabel {
+    final range = dateRange.value;
+    if (range == null) return 'Date range';
+    return '${range.start.month}/${range.start.day} – ${range.end.month}/${range.end.day}';
+  }
+
+  bool canAct(FamilyAppointment appointment) {
+    switch (appointment.status) {
+      case FamilyAppointmentStatus.pending:
+      case FamilyAppointmentStatus.approved:
+      case FamilyAppointmentStatus.rescheduleRequested:
+      case FamilyAppointmentStatus.upcoming:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Future<void> rescheduleTo(String id, DateTime scheduledAt) async {
+    final result = await repository.reschedule(
+      appointmentId: id,
+      scheduledAt: scheduledAt,
+    );
+    result.when(
+      success: (_) => loadAppointments(),
+      failure: (error) => Get.snackbar(
+        'Could not reschedule',
+        error.message,
+        snackPosition: SnackPosition.BOTTOM,
+      ),
+    );
+  }
+
+  Future<void> cancelAppointment(String id) async {
+    final result = await repository.cancel(id);
+    result.when(
+      success: (_) => loadAppointments(),
+      failure: (error) => Get.snackbar(
+        'Could not cancel',
+        error.message,
+        snackPosition: SnackPosition.BOTTOM,
+      ),
+    );
+  }
 
   Future<void> loadAppointments() async {
     setLoading(true);

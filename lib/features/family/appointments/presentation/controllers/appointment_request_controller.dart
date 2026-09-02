@@ -15,12 +15,16 @@ class AppointmentRequestController extends GetxController {
       : repository = repository ?? GetIt.instance<FamilyAppointmentsRepository>();
 
   final Rx<AppointmentRequestType> requestType = AppointmentRequestType.visit.obs;
+  final RxString appointmentKind = 'medical'.obs;
   final Rx<DateTime> preferredAt = DateTime(
     DateTime.now().year,
     DateTime.now().month,
     DateTime.now().day + 1,
     14,
   ).obs;
+  final TextEditingController locationController = TextEditingController(
+    text: 'In-Person at Residence',
+  );
   final TextEditingController noteController = TextEditingController(
     text: FamilyAppointmentsConstants.visitPresetNote,
   );
@@ -42,9 +46,18 @@ class AppointmentRequestController extends GetxController {
   String get preferredTime => IsoDateRange.timeLabel(preferredAt.value);
 
   String get thirdFieldLabel => isVisit ? 'Purpose' : 'Appointment Type';
-  String get thirdFieldValue => isVisit ? 'Family Visit' : 'Physician Visit';
 
-  String get locationModeValue => isVisit ? 'In-Person at Residence' : 'In-Person at Clinic';
+  String get thirdFieldValue {
+    if (isVisit) return 'Family Visit';
+    switch (appointmentKind.value) {
+      case 'therapy':
+        return 'Therapy';
+      case 'activity':
+        return 'Activity';
+      default:
+        return 'Medical';
+    }
+  }
 
   String get notePlaceholder => isVisit ? '' : 'Add any relevant details for the care team...';
 
@@ -55,9 +68,39 @@ class AppointmentRequestController extends GetxController {
   void selectRequestType(AppointmentRequestType type) {
     if (requestType.value == type) return;
     requestType.value = type;
+    locationController.text =
+        type == AppointmentRequestType.visit
+            ? 'In-Person at Residence'
+            : 'In-Person at Clinic';
     noteController.text = type == AppointmentRequestType.visit
         ? FamilyAppointmentsConstants.visitPresetNote
         : '';
+  }
+
+  Future<void> pickAppointmentKind(BuildContext context) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('Medical'),
+              onTap: () => Navigator.pop(context, 'medical'),
+            ),
+            ListTile(
+              title: const Text('Therapy'),
+              onTap: () => Navigator.pop(context, 'therapy'),
+            ),
+            ListTile(
+              title: const Text('Activity'),
+              onTap: () => Navigator.pop(context, 'activity'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null) appointmentKind.value = selected;
   }
 
   Future<void> pickDate(BuildContext context) async {
@@ -97,9 +140,9 @@ class AppointmentRequestController extends GetxController {
     if (isSubmitting.value) return;
     isSubmitting.value = true;
     final result = await repository.createAppointment(
-      type: isVisit ? 'family_visit' : 'appointment',
+      type: isVisit ? 'visit' : appointmentKind.value,
       scheduledAt: preferredAt.value,
-      location: locationModeValue,
+      location: locationController.text.trim(),
       notes: noteController.text,
     );
     isSubmitting.value = false;
@@ -125,6 +168,7 @@ class AppointmentRequestController extends GetxController {
 
   @override
   void onClose() {
+    locationController.dispose();
     noteController.dispose();
     super.onClose();
   }

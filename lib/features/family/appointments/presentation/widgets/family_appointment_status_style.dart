@@ -33,6 +33,12 @@ class FamilyAppointmentStatusStyle {
           background: AppColors.activeBackground,
           foreground: AppColors.activeGreen,
         );
+      case FamilyAppointmentStatus.rescheduleRequested:
+        return const FamilyAppointmentStatusStyle(
+          label: 'Reschedule requested',
+          background: AppColors.urgentBackground,
+          foreground: AppColors.urgentAmber,
+        );
       case FamilyAppointmentStatus.completed:
         return const FamilyAppointmentStatusStyle(
           label: 'Completed',

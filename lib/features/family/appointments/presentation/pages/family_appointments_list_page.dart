@@ -4,6 +4,9 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../domain/entities/family_appointment.dart';
+import '../../domain/entities/family_appointments_enums.dart';
+import '../../../visit_requests/presentation/pages/visit_request_details_page.dart';
 import '../controllers/family_appointments_controller.dart';
 import '../widgets/family_appointment_card.dart';
 import '../widgets/family_appointments_filter_pills.dart';
@@ -50,6 +53,104 @@ class _FamilyAppointmentsListPageState
 
   void _openCreateAppointment() {
     Get.to(() => const CreateAppointmentPage());
+  }
+
+  Future<void> _pickDateRange(BuildContext context) async {
+    final now = DateTime.now();
+    final selected = await showDateRangePicker(
+      context: context,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 365)),
+      initialDateRange: _controller.dateRange.value,
+    );
+    _controller.setDateRange(selected);
+  }
+
+  Future<void> _pickType(BuildContext context) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('All types'),
+              onTap: () => Navigator.pop(context, ''),
+            ),
+            ListTile(
+              title: const Text('Visits'),
+              onTap: () => Navigator.pop(context, 'visit'),
+            ),
+            ListTile(
+              title: const Text('Medical'),
+              onTap: () => Navigator.pop(context, 'medical'),
+            ),
+            ListTile(
+              title: const Text('Therapy'),
+              onTap: () => Navigator.pop(context, 'therapy'),
+            ),
+            ListTile(
+              title: const Text('Activity'),
+              onTap: () => Navigator.pop(context, 'activity'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    _controller.setTypeFilter(selected.isEmpty ? null : selected);
+  }
+
+  Future<void> _onAppointmentTap(
+    BuildContext context,
+    FamilyAppointment appointment,
+  ) async {
+    if (appointment.iconKind == FamilyAppointmentIconKind.familyVisit) {
+      Get.to(() => VisitRequestDetailsPage(requestId: appointment.id));
+      return;
+    }
+    if (!_controller.canAct(appointment)) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('Reschedule'),
+              onTap: () => Navigator.pop(context, 'reschedule'),
+            ),
+            ListTile(
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(context, 'cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == 'reschedule' && context.mounted) {
+      final now = DateTime.now();
+      final date = await showDatePicker(
+        context: context,
+        initialDate: now.add(const Duration(days: 1)),
+        firstDate: now,
+        lastDate: now.add(const Duration(days: 365)),
+      );
+      if (date == null || !context.mounted) return;
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(
+          appointment.scheduledAt ?? DateTime(date.year, date.month, date.day, 14),
+        ),
+      );
+      if (time == null) return;
+      await _controller.rescheduleTo(
+        appointment.id,
+        DateTime(date.year, date.month, date.day, time.hour, time.minute),
+      );
+    } else if (action == 'cancel') {
+      await _controller.cancelAppointment(appointment.id);
+    }
   }
 
   @override
@@ -108,7 +209,12 @@ class _FamilyAppointmentsListPageState
                         top: 14,
                         bottom: 14,
                       ),
-                      child: const FamilyAppointmentsFilterPills(),
+                      child: FamilyAppointmentsFilterPills(
+                        dateLabel: _controller.dateRangeLabel,
+                        typeLabel: _controller.typeFilterLabel,
+                        onDateTap: () => _pickDateRange(context),
+                        onTypeTap: () => _pickType(context),
+                      ),
                     ),
                   ],
                 ),
@@ -188,6 +294,10 @@ class _FamilyAppointmentsListPageState
                                     ),
                                   FamilyAppointmentCard(
                                     appointment: section.appointments[i],
+                                    onTap: () => _onAppointmentTap(
+                                      context,
+                                      section.appointments[i],
+                                    ),
                                   ),
                                 ],
                               ],

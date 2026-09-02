@@ -3,6 +3,7 @@ import 'package:gems_core/gems_core.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../domain/entities/conversation_preview.dart';
+import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/repositories/family_messages_repository.dart';
 import '../mappers/family_messages_mapper.dart';
 
@@ -20,6 +21,16 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
     return result.when(
       success: (body) async =>
           Result.success(FamilyMessagesMapper.listFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<FamilyConversationThread>> getConversation(String id) async {
+    final result = await _api.get(ApiEndpoints.familyConversation(id));
+    return result.when(
+      success: (body) async =>
+          Result.success(FamilyMessagesMapper.threadFrom(body)),
       failure: (error) async => Result.failure(error),
     );
   }

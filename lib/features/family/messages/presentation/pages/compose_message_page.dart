@@ -4,7 +4,6 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../controllers/compose_message_controller.dart';
-import '../widgets/attachment_options_row.dart';
 import '../widgets/compose_field_label.dart';
 import '../widgets/compose_message_field.dart';
 import '../widgets/compose_message_header.dart';
@@ -86,15 +85,6 @@ class ComposeMessagePage extends StatelessWidget {
                     fieldGap,
                     const ComposeFieldLabel('Message'),
                     ComposeMessageField(controller: controller.messageController),
-                    fieldGap,
-                    const ComposeFieldLabel('Attachments', suffix: '(Optional)'),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
-                    Obx(
-                      () => AttachmentOptionsRow(
-                        selected: controller.selectedAttachments.toSet(),
-                        onToggle: controller.toggleAttachment,
-                      ),
-                    ),
                     fieldGap,
                     Obx(
                       () => PriorityToggleRow(

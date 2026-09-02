@@ -15,12 +15,12 @@ class FamilyDashboardHeader extends StatelessWidget {
   final VoidCallback? onResidenceTap;
   final VoidCallback? onNotificationsTap;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onSearchTap;
 
   static const Color _headerTop = Color(0xFF12807E);
   static const Color _headerMid = Color(0xFF0C6462);
   static const Color _headerBottom = Color(0xFF0A5250);
   static const Color _badgeRed = Color(0xFFE53935);
-  static const Color _statusBadge = Color(0xFF7C5CD6);
 
   const FamilyDashboardHeader({
     super.key,
@@ -28,6 +28,7 @@ class FamilyDashboardHeader extends StatelessWidget {
     this.onResidenceTap,
     this.onNotificationsTap,
     this.onAvatarTap,
+    this.onSearchTap,
   });
 
   @override
@@ -139,7 +140,7 @@ class FamilyDashboardHeader extends StatelessWidget {
                       ),
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                    FamilyDashboardSearchBar(),
+                    FamilyDashboardSearchBar(onTap: onSearchTap),
                   ],
                 ),
               ),

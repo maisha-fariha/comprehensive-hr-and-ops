@@ -32,6 +32,7 @@ class _StatusVisual {
 /// A single appointment card on the Family Appointments list.
 class FamilyAppointmentCard extends StatelessWidget {
   final FamilyAppointment appointment;
+  final VoidCallback? onTap;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _dateColor = Color(0xFF0E7C7B);
@@ -40,7 +41,11 @@ class FamilyAppointmentCard extends StatelessWidget {
   static const Color _shadow = Color(0xFF142846);
   static const String _locationAsset = 'assets/icons/family_appointments/location.svg';
 
-  const FamilyAppointmentCard({super.key, required this.appointment});
+  const FamilyAppointmentCard({
+    super.key,
+    required this.appointment,
+    this.onTap,
+  });
 
   _IconVisual get _iconVisual {
     if (appointment.status == FamilyAppointmentStatus.completed) {
@@ -99,6 +104,12 @@ class FamilyAppointmentCard extends StatelessWidget {
           background: Color(0xFFE6F4F1),
           foreground: Color(0xFF006E5C),
         );
+      case FamilyAppointmentStatus.rescheduleRequested:
+        return const _StatusVisual(
+          label: 'Reschedule requested',
+          background: Color(0xFFFFF3E0),
+          foreground: Color(0xFFE65100),
+        );
       case FamilyAppointmentStatus.completed:
         return const _StatusVisual(
           label: 'Completed',
@@ -140,7 +151,10 @@ class FamilyAppointmentCard extends StatelessWidget {
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 48);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 20);
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       width: double.infinity,
       padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
       decoration: BoxDecoration(
@@ -272,6 +286,7 @@ class FamilyAppointmentCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -33,6 +33,10 @@ abstract final class JsonCodec {
         'linkedClients',
         'documents',
         'appointments',
+        'conversations',
+        'notifications',
+        'hits',
+        'search',
       ]) {
         final nested = map[key];
         if (nested is List) return nested;

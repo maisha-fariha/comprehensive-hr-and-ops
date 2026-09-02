@@ -40,7 +40,7 @@ class VisitRequestsRepositoryImpl implements VisitRequestsRepository {
     required String requestId,
     required DateTime scheduledAt,
   }) async {
-    final result = await _api.post(
+    final result = await _api.patch(
       ApiEndpoints.familyAppointmentReschedule(requestId),
       data: {'scheduledAt': scheduledAt.toUtc().toIso8601String()},
     );

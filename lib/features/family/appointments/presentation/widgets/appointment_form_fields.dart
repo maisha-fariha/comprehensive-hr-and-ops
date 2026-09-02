@@ -104,6 +104,57 @@ class AppointmentDropdownField extends StatelessWidget {
   }
 }
 
+/// A single-line outlined text field used for location / purpose.
+class AppointmentTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+
+  const AppointmentTextField({
+    super.key,
+    required this.controller,
+    required this.hint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 16,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        border: Border.all(color: AppColors.searchBorder),
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 14),
+        ),
+      ),
+      child: TextField(
+        controller: controller,
+        style: TextStyle(
+          fontFamily: 'Manrope',
+          fontWeight: FontWeight.w600,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+          color: AppColors.textHeading,
+        ),
+        decoration: InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          hintText: hint,
+          hintStyle: TextStyle(
+            fontFamily: 'Manrope',
+            fontWeight: FontWeight.w400,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+            color: AppColors.textFaint,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The multiline "Add a Note" textarea with a right-aligned character
 /// counter (e.g. "63/250"), shown near the bottom of the Create Appointment
 /// form.

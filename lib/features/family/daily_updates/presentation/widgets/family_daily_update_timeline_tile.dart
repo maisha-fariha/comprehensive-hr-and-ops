@@ -170,6 +170,28 @@ class FamilyDailyUpdateTimelineTile extends StatelessWidget {
                               height: 1.4,
                             ),
                           ),
+                          if (entry.hasPhoto) ...[
+                            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.photo_outlined,
+                                  size: 14,
+                                  color: style.accent,
+                                ),
+                                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+                                Text(
+                                  'Photo attached',
+                                  style: TextStyle(
+                                    fontFamily: 'Manrope',
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+                                    color: style.accent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),

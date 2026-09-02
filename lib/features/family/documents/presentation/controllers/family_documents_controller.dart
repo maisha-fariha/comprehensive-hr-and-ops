@@ -1,5 +1,8 @@
+import 'package:flutter/services.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get/get.dart';
 
+import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_documents_overview.dart';
 import '../../domain/repositories/family_documents_repository.dart';
 
@@ -30,4 +33,31 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
 
   @override
   Future<void> refresh() => loadOverview();
+
+  Future<void> download(FamilyDocument document) async {
+    final result = await repository.resolveDownloadUrl(document);
+    result.when(
+      success: (url) async {
+        if (url == null || url.isEmpty) {
+          Get.snackbar(
+            'Download unavailable',
+            'This document does not have a download link yet.',
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          return;
+        }
+        await Clipboard.setData(ClipboardData(text: url));
+        Get.snackbar(
+          'Download link copied',
+          'Paste it in a browser to open the file.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      },
+      failure: (error) => Get.snackbar(
+        'Could not download',
+        error.message,
+        snackPosition: SnackPosition.BOTTOM,
+      ),
+    );
+  }
 }

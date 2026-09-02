@@ -7,7 +7,9 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../appointments/presentation/pages/create_appointment_page.dart';
 import '../../../documents/presentation/pages/family_documents_page.dart';
+import '../../../family_shell.dart';
 import '../../../messages/presentation/pages/compose_message_page.dart';
+import '../../../profile_settings/presentation/pages/family_profile_settings_page.dart';
 import '../controllers/family_dashboard_controller.dart';
 import '../widgets/family_dashboard_header.dart';
 import '../widgets/family_needs_attention_card.dart';
@@ -16,6 +18,8 @@ import '../widgets/family_quick_actions_section.dart';
 import '../widgets/family_recent_update_section.dart';
 import '../widgets/family_today_at_a_glance_section.dart';
 import '../widgets/family_todays_overview_section.dart';
+import 'family_notifications_page.dart';
+import 'family_search_page.dart';
 
 /// The Family Dashboard - "Home" tab of the Family portal.
 ///
@@ -70,7 +74,14 @@ class FamilyDashboardPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                FamilyDashboardHeader(overview: overview),
+                FamilyDashboardHeader(
+                  overview: overview,
+                  onNotificationsTap: () =>
+                      Get.to(() => const FamilyNotificationsPage()),
+                  onAvatarTap: () =>
+                      Get.to(() => const FamilyProfileSettingsPage()),
+                  onSearchTap: () => Get.to(() => const FamilySearchPage()),
+                ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     horizontalPad,
@@ -94,12 +105,18 @@ class FamilyDashboardPage extends StatelessWidget {
                         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                         FamilyNextAppointmentSection(
                           appointment: overview.nextAppointment!,
+                          onTap: () => Get.offAll(
+                            () => const FamilyShell(initialIndex: 2),
+                          ),
                         ),
                       ],
                       if (overview.recentUpdate != null) ...[
                         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                         FamilyRecentUpdateSection(
                           update: overview.recentUpdate!,
+                          onTap: () => Get.offAll(
+                            () => const FamilyShell(initialIndex: 1),
+                          ),
                         ),
                       ],
                       if (overview.glanceItems.isNotEmpty) ...[

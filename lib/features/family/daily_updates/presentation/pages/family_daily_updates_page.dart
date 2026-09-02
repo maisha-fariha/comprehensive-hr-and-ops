@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../domain/entities/family_daily_update_enums.dart';
 import '../controllers/family_daily_updates_controller.dart';
 import '../widgets/family_daily_update_timeline_tile.dart';
 import '../widgets/family_daily_updates_app_bar.dart';
@@ -72,8 +73,54 @@ class FamilyDailyUpdatesPage extends StatelessWidget {
                     ),
                     children: [
                       FamilyDailyUpdatesDateChip(label: overview.dateSectionLabel),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _CategoryChip(
+                              label: 'All',
+                              selected: controller.selectedCategory.value == null,
+                              onTap: () => controller.selectCategory(null),
+                            ),
+                            _CategoryChip(
+                              label: 'Mood',
+                              selected: controller.selectedCategory.value ==
+                                  DailyUpdateCategory.mood,
+                              onTap: () => controller.selectCategory(
+                                DailyUpdateCategory.mood,
+                              ),
+                            ),
+                            _CategoryChip(
+                              label: 'Meals',
+                              selected: controller.selectedCategory.value ==
+                                  DailyUpdateCategory.meals,
+                              onTap: () => controller.selectCategory(
+                                DailyUpdateCategory.meals,
+                              ),
+                            ),
+                            _CategoryChip(
+                              label: 'Activities',
+                              selected: controller.selectedCategory.value ==
+                                  DailyUpdateCategory.activities,
+                              onTap: () => controller.selectCategory(
+                                DailyUpdateCategory.activities,
+                              ),
+                            ),
+                            _CategoryChip(
+                              label: 'Sleep',
+                              selected: controller.selectedCategory.value ==
+                                  DailyUpdateCategory.sleep,
+                              onTap: () => controller.selectCategory(
+                                DailyUpdateCategory.sleep,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                      for (final entry in overview.entries) FamilyDailyUpdateTimelineTile(entry: entry),
+                      for (final entry in controller.visibleEntries)
+                        FamilyDailyUpdateTimelineTile(entry: entry),
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
                       FamilyDailyUpdatesFooterBanner(message: overview.footerNote),
                     ],
@@ -120,6 +167,53 @@ class _FamilyDailyUpdatesError extends StatelessWidget {
               child: const Text('Retry'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _CategoryChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        right: ResponsiveHelper.getResponsiveWidth(context, 8),
+      ),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 12,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.secondaryTeal : Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? AppColors.secondaryTeal : AppColors.cardBorder,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: selected ? Colors.white : AppColors.textHeading,
+            ),
+          ),
         ),
       ),
     );

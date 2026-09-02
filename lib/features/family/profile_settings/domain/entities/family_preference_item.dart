@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 /// drives the icon/tint used in the presentation layer.
 enum FamilyPreferenceType {
   notifications,
+  changePassword,
   helpCenter,
   contactSupport,
   privacySecurity,

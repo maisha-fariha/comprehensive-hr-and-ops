@@ -35,7 +35,12 @@ class FamilyDailyUpdatesRepositoryImpl implements FamilyDailyUpdatesRepository {
     final result = await _api.get(ApiEndpoints.familyDailyUpdates(clientId));
     return result.when(
       success: (body) async =>
-          Result.success(FamilyDailyUpdatesMapper.fromBody(body)),
+          Result.success(
+            FamilyDailyUpdatesMapper.fromBody(
+              body,
+              visibility: _session.familyVisibility,
+            ),
+          ),
       failure: (error) async => Result.failure(error),
     );
   }

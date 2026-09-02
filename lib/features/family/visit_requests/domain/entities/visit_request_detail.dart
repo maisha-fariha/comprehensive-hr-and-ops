@@ -33,5 +33,8 @@ class VisitRequestDetail {
   /// Whether the "Cancel Request" button at the bottom of the details
   /// screen should show - only makes sense while a request hasn't already
   /// been rejected/completed/cancelled.
-  bool get isCancellable => status == VisitRequestStatus.pending || status == VisitRequestStatus.approved;
+  bool get isCancellable =>
+      status == VisitRequestStatus.pending ||
+      status == VisitRequestStatus.approved ||
+      status == VisitRequestStatus.rescheduleRequested;
 }

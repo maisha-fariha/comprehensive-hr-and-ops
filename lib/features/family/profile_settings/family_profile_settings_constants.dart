@@ -35,6 +35,7 @@ abstract final class FamilyProfileSettingsConstants {
   static String preferenceIconAsset(FamilyPreferenceType type) {
     return switch (type) {
       FamilyPreferenceType.notifications => '$_moreIcons/notification.svg',
+      FamilyPreferenceType.changePassword => '$_moreIcons/shield_outlined.svg',
       FamilyPreferenceType.helpCenter => '$_moreIcons/help.svg',
       FamilyPreferenceType.contactSupport => '$_moreIcons/message.svg',
       FamilyPreferenceType.privacySecurity => '$_moreIcons/shield_outlined.svg',

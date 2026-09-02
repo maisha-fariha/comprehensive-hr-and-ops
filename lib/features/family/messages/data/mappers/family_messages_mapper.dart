@@ -1,6 +1,7 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/conversation_preview.dart';
+import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/entities/family_messages_enums.dart';
 
 abstract final class FamilyMessagesMapper {
@@ -37,6 +38,48 @@ abstract final class FamilyMessagesMapper {
         '',
       ),
       unreadCount: JsonCodec.integerOr(json['unreadCount'], 0),
+    );
+  }
+
+  static FamilyConversationThread threadFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final conversation = JsonCodec.mapAt(json, 'conversation') ?? json;
+    final messagesRaw = json['messages'] ?? conversation['messages'] ?? body;
+    final title = JsonCodec.stringOr(
+      conversation['title'] ?? conversation['name'],
+      'Care team',
+    );
+    return FamilyConversationThread(
+      id: JsonCodec.stringOr(conversation['id'] ?? json['id'], 'conversation'),
+      title: title,
+      messages: JsonCodec.unwrapList(messagesRaw)
+          .whereType<Map>()
+          .map((item) => messageFrom(JsonCodec.asMap(item)))
+          .toList(),
+    );
+  }
+
+  static FamilyChatMessage messageFrom(Map<String, dynamic> json) {
+    final sender = JsonCodec.mapAt(json, 'sender') ?? {};
+    final senderName = IsoDateRange.personName(
+      sender.isEmpty ? json['senderName'] : sender,
+    );
+    final role = (JsonCodec.string(
+              sender['role'] ?? json['senderRole'] ?? json['senderType'],
+            ) ??
+            '')
+        .toLowerCase();
+    final mine = JsonCodec.boolean(json['isMine'] ?? json['fromFamily']) ??
+        role.contains('family');
+    final at = JsonCodec.dateTime(json['createdAt'] ?? json['sentAt']);
+    return FamilyChatMessage(
+      id: JsonCodec.stringOr(json['id'], 'message'),
+      text: JsonCodec.stringOr(json['body'] ?? json['text'], ''),
+      direction:
+          mine ? FamilyMessageDirection.outgoing : FamilyMessageDirection.incoming,
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      senderName:
+          mine ? 'You' : (senderName == 'Unknown' ? 'Care team' : senderName),
     );
   }
 

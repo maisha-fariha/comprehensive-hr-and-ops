@@ -59,7 +59,7 @@ class FamilyAppointmentsRepositoryImpl implements FamilyAppointmentsRepository {
     required String appointmentId,
     required DateTime scheduledAt,
   }) async {
-    final result = await _api.post(
+    final result = await _api.patch(
       ApiEndpoints.familyAppointmentReschedule(appointmentId),
       data: {'scheduledAt': scheduledAt.toUtc().toIso8601String()},
     );

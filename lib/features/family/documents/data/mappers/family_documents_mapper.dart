@@ -17,18 +17,36 @@ abstract final class FamilyDocumentsMapper {
             json['title'] ?? json['name'] ?? json['fileName'],
             'Document',
           );
-          final type = (JsonCodec.string(json['mimeType'] ?? json['type'] ?? name) ??
+          final type = (JsonCodec.string(
+                    json['mimeType'] ?? json['fileType'] ?? json['type'] ?? name,
+                  ) ??
                   '')
               .toLowerCase();
+          final upload = JsonCodec.mapAt(json, 'upload') ?? {};
           return FamilyDocument(
             id: JsonCodec.stringOr(json['id'], name),
             title: name,
             dateLabel: at == null
                 ? JsonCodec.stringOr(json['dateLabel'], '')
                 : 'Updated ${IsoDateRange.formatMonthDay(at.toLocal())}',
-            fileType: type.contains('jp') || type.contains('png')
+            fileType: type.contains('jp') ||
+                    type.contains('png') ||
+                    type.contains('image')
                 ? FamilyDocumentFileType.jpg
                 : FamilyDocumentFileType.pdf,
+            uploadId: JsonCodec.string(
+              json['uploadId'] ?? upload['id'] ?? json['fileId'],
+            ),
+            downloadUrl: JsonCodec.string(
+              json['downloadUrl'] ??
+                  json['url'] ??
+                  json['fileUrl'] ??
+                  upload['url'],
+            ),
+            category: JsonCodec.stringOr(
+              json['category'] ?? json['documentType'] ?? json['type'],
+              '',
+            ),
           );
         })
         .toList();

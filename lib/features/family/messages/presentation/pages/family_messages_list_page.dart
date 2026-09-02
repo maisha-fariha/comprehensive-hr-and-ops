@@ -10,6 +10,7 @@ import '../widgets/family_messages_header.dart';
 import '../widgets/family_messages_search_bar.dart';
 import '../widgets/new_message_fab.dart';
 import 'compose_message_page.dart';
+import 'family_conversation_page.dart';
 
 /// The Family "Messages" screen: a search bar over a list of conversations
 /// with care team members and family/group chats.
@@ -121,7 +122,14 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
                           ),
                           itemCount: conversations.length,
                           separatorBuilder: (_, _) => SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                          itemBuilder: (context, index) => ConversationRowTile(conversation: conversations[index]),
+                          itemBuilder: (context, index) => ConversationRowTile(
+                            conversation: conversations[index],
+                            onTap: () => Get.to(
+                              () => FamilyConversationPage(
+                                conversationId: conversations[index].id,
+                              ),
+                            ),
+                          ),
                         ),
                 ),
               ),

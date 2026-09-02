@@ -12,7 +12,6 @@ import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_linked_client.dart';
 import '../../domain/entities/family_preference_item.dart';
 import '../controllers/family_profile_settings_controller.dart';
-import '../widgets/family_add_client_link.dart';
 import '../widgets/family_linked_client_row.dart';
 import '../widgets/family_log_out_row.dart';
 import '../widgets/family_preference_tile.dart';
@@ -55,15 +54,19 @@ class FamilyProfileSettingsPage extends StatelessWidget {
       case FamilyPreferenceType.contactSupport:
         _openSupportDialog(context, controller);
       case FamilyPreferenceType.notifications:
+        _openNotificationPreferences(context, controller);
+      case FamilyPreferenceType.changePassword:
+        _openChangePassword(context, controller);
+      case FamilyPreferenceType.helpCenter:
         Get.snackbar(
-          'Notification preferences',
-          'Use GET/PUT /notification-preferences when the care team shares settings with you.',
+          'Help Center',
+          'Help articles are provided by your care home and are not in this app yet.',
           snackPosition: SnackPosition.BOTTOM,
         );
-      default:
+      case FamilyPreferenceType.privacySecurity:
         Get.snackbar(
-          item.label,
-          'This page is not in the family app yet.',
+          'Privacy & Security',
+          'Your profile is read-only here. Use Change Password to update credentials.',
           snackPosition: SnackPosition.BOTTOM,
         );
     }
@@ -96,6 +99,115 @@ class FamilyProfileSettingsPage extends StatelessWidget {
     if (sent == true && body.isNotEmpty) {
       await controller.submitSupportTicket(body);
     }
+  }
+
+  Future<void> _openChangePassword(
+    BuildContext context,
+    FamilyProfileSettingsController controller,
+  ) async {
+    final current = TextEditingController();
+    final next = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Change Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: current,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Current password'),
+            ),
+            TextField(
+              controller: next,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'New password'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    final currentValue = current.text;
+    final nextValue = next.text;
+    current.dispose();
+    next.dispose();
+    if (confirmed == true && currentValue.isNotEmpty && nextValue.isNotEmpty) {
+      await controller.changePassword(
+        currentPassword: currentValue,
+        newPassword: nextValue,
+      );
+    }
+  }
+
+  Future<void> _openNotificationPreferences(
+    BuildContext context,
+    FamilyProfileSettingsController controller,
+  ) async {
+    final values = Map<String, bool>.from(
+      await controller.loadNotificationPreferences(),
+    );
+    if (values.isEmpty) {
+      Get.snackbar(
+        'Notification preferences',
+        'No notification settings are available for this account yet.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Notification Preferences'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final entry in values.entries)
+                  SwitchListTile(
+                    title: Text(_preferenceLabel(entry.key)),
+                    value: entry.value,
+                    onChanged: (value) => setState(() => values[entry.key] = value),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await controller.saveNotificationPreferences(values);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _preferenceLabel(String key) {
+    final spaced = key.replaceAllMapped(
+      RegExp(r'([A-Z])'),
+      (match) => ' ${match.group(0)}',
+    );
+    return spaced[0].toUpperCase() + spaced.substring(1);
   }
 
   @override
@@ -162,6 +274,7 @@ class FamilyProfileSettingsPage extends StatelessWidget {
                       onSelect: (client) {
                         if (client.id.isEmpty) return;
                         Get.find<UserSession>().selectClient(client.id);
+                        controller.refresh();
                       },
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
@@ -254,14 +367,6 @@ class _LinkedClientsCard extends StatelessWidget {
               onTap: () => onSelect(clients[i]),
             ),
           ],
-          Padding(
-            padding: ResponsiveHelper.getResponsivePadding(
-              context,
-              horizontal: 16,
-            ),
-            child: const Divider(height: 1, thickness: 1, color: _divider),
-          ),
-          const FamilyAddClientLink(),
         ],
       ),
     );

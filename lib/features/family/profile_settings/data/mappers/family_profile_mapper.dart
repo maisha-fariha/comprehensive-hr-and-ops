@@ -50,6 +50,10 @@ abstract final class FamilyProfileMapper {
           label: 'Notification Preferences',
         ),
         FamilyPreferenceItem(
+          type: FamilyPreferenceType.changePassword,
+          label: 'Change Password',
+        ),
+        FamilyPreferenceItem(
           type: FamilyPreferenceType.helpCenter,
           label: 'Help Center & FAQs',
         ),

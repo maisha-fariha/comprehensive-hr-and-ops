@@ -15,6 +15,7 @@ abstract final class FamilyHomeMapper {
     required UserSession session,
     required dynamic homeBody,
     required dynamic updatesBody,
+    int? unreadNotificationCount,
   }) {
     final json = JsonCodec.unwrapMap(homeBody);
     final visibilityJson = JsonCodec.mapAt(json, 'visibility') ?? {};
@@ -72,7 +73,8 @@ abstract final class FamilyHomeMapper {
         "Here's what's happening today.",
       ].where((part) => part.isNotEmpty).join(' | '),
       lastUpdatedLabel: 'Updated ${IsoDateRange.timeLabel(now)}',
-      unreadNotificationCount: JsonCodec.integerOr(json['unreadCount'], 0),
+      unreadNotificationCount:
+          unreadNotificationCount ?? JsonCodec.integerOr(json['unreadCount'], 0),
       attentionAlerts: _alerts(json['alerts'], visibility),
       overviewStats: _totals(totals, visibility),
       nextAppointment: visibility.appointments ? _nextVisit(nextVisit) : null,

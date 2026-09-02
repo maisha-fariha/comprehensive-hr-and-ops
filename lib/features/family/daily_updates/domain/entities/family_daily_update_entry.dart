@@ -11,6 +11,7 @@ class FamilyDailyUpdateEntry {
   final String timeLabel;
   final String title;
   final String description;
+  final bool hasPhoto;
 
   /// Whether the connecting timeline divider should render below this row
   /// (true for every row except the last).
@@ -22,6 +23,7 @@ class FamilyDailyUpdateEntry {
     required this.timeLabel,
     required this.title,
     required this.description,
+    this.hasPhoto = false,
     this.showTimelineDivider = true,
   });
 }

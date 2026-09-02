@@ -91,10 +91,18 @@ class CreateAppointmentPage extends StatelessWidget {
                       ),
                       fieldGap,
                       AppointmentFieldLabel(controller.thirdFieldLabel),
-                      AppointmentDropdownField(value: controller.thirdFieldValue),
+                      AppointmentDropdownField(
+                        value: controller.thirdFieldValue,
+                        onTap: controller.isVisit
+                            ? null
+                            : () => controller.pickAppointmentKind(context),
+                      ),
                       fieldGap,
                       const AppointmentFieldLabel('Location / Mode'),
-                      AppointmentDropdownField(value: controller.locationModeValue),
+                      AppointmentTextField(
+                        controller: controller.locationController,
+                        hint: 'Residence, clinic, or video call',
+                      ),
                       fieldGap,
                       const AppointmentFieldLabel('Add a Note', suffix: '(Optional)'),
                       AppointmentNoteField(

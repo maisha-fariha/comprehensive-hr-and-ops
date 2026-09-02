@@ -70,13 +70,17 @@ class FamilyDocumentRowTile extends StatelessWidget {
     if (document.fileType == FamilyDocumentFileType.jpg) {
       return _jpgOrange;
     }
-
-    return switch (document.id) {
-      'visit-policy-guidelines' => _pdfOrange,
-      'emergency-contacts' => _pdfPurple,
-      'activities-calendar' => _calendarPink,
-      _ => _pdfPink,
-    };
+    final category = document.category.toLowerCase();
+    if (category.contains('calendar') || category.contains('activ')) {
+      return _calendarPink;
+    }
+    if (category.contains('policy') || category.contains('visit')) {
+      return _pdfOrange;
+    }
+    if (category.contains('emergency') || category.contains('contact')) {
+      return _pdfPurple;
+    }
+    return _pdfPink;
   }
 
   @override

@@ -1,9 +1,12 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../entities/conversation_preview.dart';
+import '../entities/family_conversation_thread.dart';
 
 abstract class FamilyMessagesRepository {
   Future<Result<List<ConversationPreview>>> getConversations();
+
+  Future<Result<FamilyConversationThread>> getConversation(String id);
 
   Future<Result<void>> sendInConversation({
     required String conversationId,

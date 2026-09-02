@@ -23,15 +23,29 @@ abstract final class FamilyAppointmentsMapper {
       status: status,
       title: JsonCodec.stringOr(
         json['title'] ?? json['purpose'] ?? json['type'],
-        'Appointment',
+        _titleForType(type),
       ),
       location: JsonCodec.stringOr(json['location'] ?? json['mode'], ''),
-      iconKind: type.contains('visit') || type.contains('family')
-          ? FamilyAppointmentIconKind.familyVisit
-          : _icon(json['title'] ?? type),
-      type: JsonCodec.stringOr(json['type'], ''),
+      iconKind: _icon(type, json['title']),
+      type: type,
       scheduledAt: at,
     );
+  }
+
+  static String _titleForType(String type) {
+    switch (type) {
+      case 'visit':
+      case 'family_visit':
+        return 'Family Visit';
+      case 'therapy':
+        return 'Therapy';
+      case 'activity':
+        return 'Activity';
+      case 'medical':
+        return 'Medical Appointment';
+      default:
+        return 'Appointment';
+    }
   }
 
   static FamilyAppointmentStatus _status(dynamic raw, dynamic scheduledAt) {
@@ -47,6 +61,9 @@ abstract final class FamilyAppointmentsMapper {
       case 'cancelled':
       case 'canceled':
         return FamilyAppointmentStatus.cancelled;
+      case 'reschedule':
+      case 'reschedule_requested':
+        return FamilyAppointmentStatus.rescheduleRequested;
       case 'pending':
         return FamilyAppointmentStatus.pending;
       default:
@@ -58,10 +75,15 @@ abstract final class FamilyAppointmentsMapper {
     }
   }
 
-  static FamilyAppointmentIconKind _icon(dynamic raw) {
-    final text = (raw ?? '').toString().toLowerCase();
+  static FamilyAppointmentIconKind _icon(String type, dynamic title) {
+    final text = '$type ${title ?? ''}'.toLowerCase();
+    if (text.contains('visit') || text.contains('family')) {
+      return FamilyAppointmentIconKind.familyVisit;
+    }
     if (text.contains('dent')) return FamilyAppointmentIconKind.dental;
-    if (text.contains('physio') || text.contains('therapy')) {
+    if (text.contains('physio') ||
+        text.contains('therapy') ||
+        text.contains('activity')) {
       return FamilyAppointmentIconKind.physiotherapy;
     }
     return FamilyAppointmentIconKind.medical;
