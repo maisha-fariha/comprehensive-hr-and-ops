@@ -1,31 +1,90 @@
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
+import '../../features/auth/domain/entities/mobile_profile.dart';
+import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../routing/app_routes.dart';
 import 'user_role.dart';
 
-/// Minimal, app-wide session holder for the signed-in user's active role.
+/// App-wide session for the signed-in user's portal role and profile.
 ///
-/// There is no authentication backend yet — [signIn] is called from the login
-/// screen after the user picks an account type. Every role-gated route and
-/// widget already reads from here, so wiring real auth later only needs to
-/// replace that call site.
+/// Role is never chosen on the login screen — it comes from `GET /mobile/me`.
 class UserSession extends GetxService {
-  final Rx<UserRole> _role = UserRole.hr.obs;
+  final Rxn<UserRole> _role = Rxn<UserRole>();
   final RxString _displayName = ''.obs;
+  final RxString _email = ''.obs;
+  final RxString _avatarInitials = ''.obs;
+  final RxnString _residenceId = RxnString();
+  final RxnString _residenceName = RxnString();
+  final RxnString _organizationName = RxnString();
+  final RxList<String> _permissions = <String>[].obs;
 
-  UserRole get role => _role.value;
+  UserRole get role => _role.value ?? UserRole.hr;
+  bool get isSignedIn => _role.value != null;
   String get displayName => _displayName.value;
+  String get email => _email.value;
+  String get avatarInitials => _avatarInitials.value;
+  String? get residenceId => _residenceId.value;
+  String? get residenceName => _residenceName.value;
+  String? get organizationName => _organizationName.value;
+  List<String> get permissions => List.unmodifiable(_permissions);
 
-  void signIn({required UserRole role, required String displayName}) {
-    _role.value = role;
-    _displayName.value = displayName;
+  String get portalRoute => isSignedIn ? role.portalRoute : AppRoutes.login;
+
+  void applyProfile(MobileProfile profile) {
+    _role.value = profile.role;
+    _displayName.value = profile.displayName;
+    _email.value = profile.email;
+    _avatarInitials.value = profile.avatarInitials;
+    _residenceId.value = profile.residenceId;
+    _residenceName.value = profile.residenceName;
+    _organizationName.value = profile.residenceName ?? profile.tenantName;
+    _permissions.assignAll(profile.permissions);
+  }
+
+  /// Rehydrates tokens → `/mobile/me` on cold start. Returns true when a
+  /// portal can be opened immediately.
+  Future<bool> restore() async {
+    final auth = GetIt.instance<AuthRepository>();
+    if (!auth.hasSession) return false;
+
+    var me = await auth.fetchMe();
+    if (me.isFailure) {
+      final refreshed = await auth.refreshTokens();
+      if (refreshed.isFailure) {
+        await auth.logout();
+        return false;
+      }
+      me = await auth.fetchMe();
+    }
+    final profile = me.value;
+    if (profile == null) {
+      await auth.logout();
+      return false;
+    }
+    applyProfile(profile);
+    return true;
   }
 
   /// Clears the local session and returns to the login screen, dropping the
   /// current portal stack so back cannot restore a signed-in shell.
-  void signOut() {
-    _displayName.value = '';
+  Future<void> signOut() async {
+    try {
+      await GetIt.instance<AuthRepository>().logout();
+    } catch (_) {}
+    _clear();
     Get.offAllNamed(AppRoutes.login);
+  }
+
+  void _clear() {
+    _role.value = null;
+    _displayName.value = '';
+    _email.value = '';
+    _avatarInitials.value = '';
+    _residenceId.value = null;
+    _residenceName.value = null;
+    _organizationName.value = null;
+    _permissions.clear();
   }
 
   bool hasRole(UserRole requiredRole) => _role.value == requiredRole;

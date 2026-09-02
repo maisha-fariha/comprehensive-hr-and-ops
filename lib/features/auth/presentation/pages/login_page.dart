@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/roles/user_role.dart';
-import '../../../../core/roles/user_session.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
+import '../controllers/auth_controller.dart';
 
 /// MediFlow Care Platform login screen — UI matched to the Staff Login
-/// reference. Sign-in seeds [UserSession] and routes to the chosen portal.
+/// reference. Account type is visual only; the portal is chosen from
+/// `GET /mobile/me` after `POST /mobile/auth/login`.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -25,26 +26,45 @@ class _LoginPageState extends State<LoginPage> {
   static const Color _labelColor = Color(0xFF2D3748);
   static const Color _hintColor = Color(0xFFA0AEC0);
 
+  final _workspaceController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  late final AuthController _auth;
   _AccountType _selectedType = _AccountType.staff;
   bool _rememberMe = true;
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    _auth = Get.isRegistered<AuthController>()
+        ? Get.find<AuthController>()
+        : Get.put(GetIt.instance<AuthController>());
+    _workspaceController.text = _auth.savedWorkspaceCode;
+  }
+
+  @override
   void dispose() {
+    _workspaceController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _onSignIn() {
-    Get.find<UserSession>().signIn(
-      role: _selectedType.role,
-      displayName: _selectedType.defaultDisplayName,
+  Future<void> _onSignIn() async {
+    final ok = await _auth.signInWithPassword(
+      workspaceCode: _workspaceController.text,
+      email: _emailController.text,
+      password: _passwordController.text,
     );
-    Get.offAllNamed(_selectedType.route);
+    if (!ok && mounted && _auth.errorMessage.value.isNotEmpty) {
+      Get.snackbar(
+        'Sign in failed',
+        _auth.errorMessage.value,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
   }
 
   @override
@@ -95,6 +115,17 @@ class _LoginPageState extends State<LoginPage> {
                       onChanged: (type) => setState(() => _selectedType = type),
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+                    _FieldLabel(text: 'Workspace code', color: _labelColor),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+                    _LoginTextField(
+                      controller: _workspaceController,
+                      hint: 'e.g. sunrise',
+                      hintColor: _hintColor,
+                      borderColor: _fieldBorder,
+                      focusColor: _primaryTeal,
+                      prefixIcon: 'assets/icons/common/manager.svg',
+                    ),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                     _FieldLabel(text: 'Email address', color: _labelColor),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
                     _LoginTextField(
@@ -144,10 +175,14 @@ class _LoginPageState extends State<LoginPage> {
                       onForgotPassword: () => Get.toNamed(AppRoutes.forgotPassword),
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                    _SignInButton(
-                      label: 'Sign In as ${_selectedType.label}',
-                      accent: _primaryTeal,
-                      onPressed: _onSignIn,
+                    Obx(
+                      () => _SignInButton(
+                        label: _auth.isBusy.value
+                            ? 'Signing in…'
+                            : 'Sign In as ${_selectedType.label}',
+                        accent: _primaryTeal,
+                        onPressed: _auth.isBusy.value ? null : _onSignIn,
+                      ),
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                     const _HipaaNote(accent: _primaryTeal),
@@ -738,7 +773,7 @@ class _RememberForgotRow extends StatelessWidget {
 class _SignInButton extends StatelessWidget {
   final String label;
   final Color accent;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _SignInButton({
     required this.label,
@@ -921,36 +956,13 @@ class _LegalRow extends StatelessWidget {
 // ── Shared bits ─────────────────────────────────────────────────────────────
 
 enum _AccountType {
-  manager(
-    label: 'Manager',
-    role: UserRole.hr,
-    route: AppRoutes.hr,
-    defaultDisplayName: 'Alex',
-  ),
-  staff(
-    label: 'Staff',
-    role: UserRole.staff,
-    route: AppRoutes.staff,
-    defaultDisplayName: 'Jordan',
-  ),
-  family(
-    label: 'Family',
-    role: UserRole.family,
-    route: AppRoutes.family,
-    defaultDisplayName: 'Sam',
-  );
+  manager(label: 'Manager'),
+  staff(label: 'Staff'),
+  family(label: 'Family');
 
   final String label;
-  final UserRole role;
-  final String route;
-  final String defaultDisplayName;
 
-  const _AccountType({
-    required this.label,
-    required this.role,
-    required this.route,
-    required this.defaultDisplayName,
-  });
+  const _AccountType({required this.label});
 }
 
 class _PulseLinePainter extends CustomPainter {

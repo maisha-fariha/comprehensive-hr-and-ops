@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../controllers/auth_controller.dart';
 import '../widgets/auth_curved_header.dart';
 
 /// OTP / "Verify your email" screen matched to the OTP Verification reference.
-/// UI only — Verify is a no-op for now.
+/// Password-reset codes are submitted to `/mobile/auth/password/reset`;
+/// OTP login uses `/mobile/auth/otp/verify`.
 class OtpVerificationPage extends StatefulWidget {
   const OtpVerificationPage({super.key});
 
@@ -23,24 +26,41 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   static const int _resendSeconds = 29;
 
   late final String _email;
+  late final String _purpose;
+  late final AuthController _auth;
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _obscurePassword = true;
 
   Timer? _timer;
   int _secondsLeft = _resendSeconds;
 
+  bool get _isPasswordReset => _purpose == 'passwordReset';
+
   @override
   void initState() {
     super.initState();
+    _auth = Get.isRegistered<AuthController>()
+        ? Get.find<AuthController>()
+        : Get.put(GetIt.instance<AuthController>());
+
     final args = Get.arguments;
     if (args is String && args.trim().isNotEmpty) {
       _email = args.trim();
-    } else if (args is Map && args['email'] is String) {
-      _email = (args['email'] as String).trim().isNotEmpty
-          ? (args['email'] as String).trim()
+      _purpose = 'passwordReset';
+    } else if (args is Map) {
+      final email = args['email'];
+      _email = email is String && email.trim().isNotEmpty
+          ? email.trim()
           : 'alex@sunrisehome.com';
+      _purpose = args['purpose'] is String
+          ? args['purpose'] as String
+          : 'passwordReset';
     } else {
       _email = 'alex@sunrisehome.com';
+      _purpose = 'passwordReset';
     }
 
     _controllers = List.generate(_otpLength, (_) => TextEditingController());
@@ -55,6 +75,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     for (final c in _controllers) {
       c.dispose();
     }
@@ -108,13 +130,52 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     setState(() {});
   }
 
-  void _onResend() {
+  String get _code => _controllers.map((c) => c.text).join();
+
+  Future<void> _onResend() async {
     if (_secondsLeft > 0) return;
     for (final c in _controllers) {
       c.clear();
     }
     _focusNodes.first.requestFocus();
     _startTimer();
+    final ok = await _auth.resendOtp(_email);
+    if (!ok && mounted && _auth.errorMessage.value.isNotEmpty) {
+      Get.snackbar(
+        'Could not resend',
+        _auth.errorMessage.value,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  Future<void> _onVerify() async {
+    final bool ok;
+    if (_isPasswordReset) {
+      final password = _newPasswordController.text;
+      if (password != _confirmPasswordController.text) {
+        Get.snackbar(
+          'Passwords do not match',
+          'Re-enter the same new password in both fields.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+      ok = await _auth.resetPassword(
+        email: _email,
+        code: _code,
+        newPassword: password,
+      );
+    } else {
+      ok = await _auth.verifyOtpLogin(email: _email, code: _code);
+    }
+    if (!ok && mounted && _auth.errorMessage.value.isNotEmpty) {
+      Get.snackbar(
+        'Verification failed',
+        _auth.errorMessage.value,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
   }
 
   @override
@@ -158,8 +219,25 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       timerLabel: _timerLabel,
                       onResend: _onResend,
                     ),
+                    if (_isPasswordReset) ...[
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+                      _ResetPasswordFields(
+                        passwordController: _newPasswordController,
+                        confirmController: _confirmPasswordController,
+                        obscure: _obscurePassword,
+                        accent: _primaryTeal,
+                        onToggleObscure: () =>
+                            setState(() => _obscurePassword = !_obscurePassword),
+                      ),
+                    ],
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
-                    _VerifyButton(accent: _primaryTeal, onPressed: () {}),
+                    Obx(
+                      () => _VerifyButton(
+                        accent: _primaryTeal,
+                        label: _auth.isBusy.value ? 'Verifying…' : 'Verify',
+                        onPressed: _auth.isBusy.value ? () {} : _onVerify,
+                      ),
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                     const _SecurityNote(),
                   ],
@@ -439,10 +517,12 @@ class _ResendRow extends StatelessWidget {
 class _VerifyButton extends StatelessWidget {
   final Color accent;
   final VoidCallback onPressed;
+  final String label;
 
   const _VerifyButton({
     required this.accent,
     required this.onPressed,
+    this.label = 'Verify',
   });
 
   @override
@@ -480,7 +560,7 @@ class _VerifyButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Verify',
+                label,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
@@ -528,6 +608,135 @@ class _SecurityNote extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ResetPasswordFields extends StatelessWidget {
+  final TextEditingController passwordController;
+  final TextEditingController confirmController;
+  final bool obscure;
+  final Color accent;
+  final VoidCallback onToggleObscure;
+
+  const _ResetPasswordFields({
+    required this.passwordController,
+    required this.confirmController,
+    required this.obscure,
+    required this.accent,
+    required this.onToggleObscure,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'New password',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+            color: const Color(0xFF2D3748),
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+        _PasswordField(
+          controller: passwordController,
+          hint: 'Enter a new password',
+          obscure: obscure,
+          accent: accent,
+          onToggleObscure: onToggleObscure,
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+        Text(
+          'Confirm password',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+            color: const Color(0xFF2D3748),
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+        _PasswordField(
+          controller: confirmController,
+          hint: 'Re-enter the new password',
+          obscure: obscure,
+          accent: accent,
+          onToggleObscure: onToggleObscure,
+        ),
+      ],
+    );
+  }
+}
+
+class _PasswordField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final bool obscure;
+  final Color accent;
+  final VoidCallback onToggleObscure;
+
+  const _PasswordField({
+    required this.controller,
+    required this.hint,
+    required this.obscure,
+    required this.accent,
+    required this.onToggleObscure,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 28);
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      style: TextStyle(
+        fontFamily: 'Outfit',
+        fontWeight: FontWeight.w500,
+        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+        color: AppColors.textPrimary,
+      ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w400,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+          color: const Color(0xFFA0AEC0),
+        ),
+        suffixIcon: GestureDetector(
+          onTap: onToggleObscure,
+          behavior: HitTestBehavior.opaque,
+          child: Icon(
+            obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            size: ResponsiveHelper.getResponsiveSize(context, 20),
+            color: const Color(0xFFA0AEC0),
+          ),
+        ),
+        filled: true,
+        fillColor: AppColors.surfaceWhite,
+        isDense: true,
+        contentPadding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 16,
+          vertical: 15,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radius),
+          borderSide: const BorderSide(color: Color(0xFFE4E9EF)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radius),
+          borderSide: const BorderSide(color: Color(0xFFE4E9EF)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radius),
+          borderSide: BorderSide(color: accent, width: 1.4),
+        ),
+      ),
     );
   }
 }

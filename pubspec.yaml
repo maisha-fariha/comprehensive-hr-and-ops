@@ -53,6 +53,9 @@ dependencies:
   # Responsive scaling, required by gems_responsive's ResponsiveHelper
   flutter_screenutil: ^5.9.0
 
+  # HTTP client used by AppApiClient (same major as gems_data_layer)
+  dio: ^5.4.0
+
   # Required transitively by gems_core / gems_data_layer
   shared_preferences: ^2.2.2
   connectivity_plus: ^5.0.2

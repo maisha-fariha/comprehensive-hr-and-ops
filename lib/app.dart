@@ -3,8 +3,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 
+import 'core/roles/user_session.dart';
 import 'core/routing/app_pages.dart';
-import 'core/routing/app_routes.dart';
 import 'core/theme/app_theme.dart';
 
 /// Application root widget: wires up responsive scaling, the Material 3
@@ -22,7 +22,7 @@ class ComprehensiveHrAndOpsApp extends StatelessWidget {
           title: 'Comprehensive HR & Operations Platform',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
-          initialRoute: AppRoutes.login,
+          initialRoute: Get.find<UserSession>().portalRoute,
           getPages: AppPages.routes,
         );
       },

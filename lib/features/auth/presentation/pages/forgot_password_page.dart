@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
+import '../controllers/auth_controller.dart';
 import '../widgets/auth_curved_header.dart';
 
 /// "Reset your password" screen matched to the Forgot Password reference.
@@ -27,6 +29,15 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   static const Color _infoText = Color(0xFF0E5C58);
 
   final _emailController = TextEditingController();
+  late final AuthController _auth;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth = Get.isRegistered<AuthController>()
+        ? Get.find<AuthController>()
+        : Get.put(GetIt.instance<AuthController>());
+  }
 
   @override
   void dispose() {
@@ -36,11 +47,25 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   void _goBack() => Get.back();
 
-  void _onSendResetLink() {
+  Future<void> _onSendResetLink() async {
     final email = _emailController.text.trim();
+    final ok = await _auth.sendPasswordReset(email);
+    if (!ok) {
+      if (mounted && _auth.errorMessage.value.isNotEmpty) {
+        Get.snackbar(
+          'Reset failed',
+          _auth.errorMessage.value,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+      return;
+    }
     Get.toNamed(
       AppRoutes.otpVerification,
-      arguments: email.isEmpty ? 'alex@sunrisehome.com' : email,
+      arguments: {
+        'email': email.isEmpty ? 'alex@sunrisehome.com' : email,
+        'purpose': 'passwordReset',
+      },
     );
   }
 
@@ -98,7 +123,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       accent: _primaryTeal,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
-                    _SendResetButton(accent: _primaryTeal, onPressed: _onSendResetLink),
+                    Obx(
+                      () => _SendResetButton(
+                        accent: _primaryTeal,
+                        onPressed: _auth.isBusy.value ? () {} : _onSendResetLink,
+                        label: _auth.isBusy.value ? 'Sending…' : 'Send Reset Link',
+                      ),
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
                     _BackToSignInRow(accent: _primaryTeal, onTap: _goBack),
                   ],
@@ -342,10 +373,12 @@ class _SecurityInfoBox extends StatelessWidget {
 class _SendResetButton extends StatelessWidget {
   final Color accent;
   final VoidCallback onPressed;
+  final String label;
 
   const _SendResetButton({
     required this.accent,
     required this.onPressed,
+    this.label = 'Send Reset Link',
   });
 
   @override
@@ -392,7 +425,7 @@ class _SendResetButton extends StatelessWidget {
             children: [
               Flexible(
                 child: Text(
-                  'Send Reset Link',
+                  label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
