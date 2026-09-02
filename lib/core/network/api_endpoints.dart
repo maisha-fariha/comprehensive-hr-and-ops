@@ -59,6 +59,33 @@ abstract final class ApiEndpoints {
   static const String incidentCategories = '/incident-categories';
   static const String incidentCirTemplates = '/incidents/cir-templates';
   static const String uploads = '/uploads';
+  static const String tickets = '/tickets';
+  static const String notificationPreferences = '/notification-preferences';
+
+  // ── Family (always `/family/*` — staff paths 403 for this role) ─────────
+  static const String familyHome = '/family/home';
+  static const String familyAppointments = '/family/appointments';
+  static const String familyMessages = '/family/messages';
+  static const String familyDocuments = '/family/documents';
+  static const String familyClients = '/family/clients';
+  static const String familyTickets = '/family/tickets';
+  static const String familySearch = '/family/search';
+
+  static String familyDailyUpdates(String clientId) =>
+      '$familyClients/$clientId/daily-updates';
+  static String familyAppointmentById(String id) => '$familyAppointments/$id';
+  static String familyAppointmentReschedule(String id) =>
+      '$familyAppointments/$id/reschedule';
+  static String familyAppointmentCancel(String id) =>
+      '$familyAppointments/$id/cancel';
+  static String familyConversation(String id) => '$familyMessages/$id';
+  static String familyConversationMessages(String id) =>
+      '$familyMessages/$id/messages';
+  static String familyTicketById(String id) => '$familyTickets/$id';
+  static String familyTicketMessages(String id) =>
+      '$familyTickets/$id/messages';
+  static String ticketMessages(String id) => '$tickets/$id/messages';
+  static String ticketClose(String id) => '$tickets/$id/close';
 
   // ── Medication MAR ──────────────────────────────────────────────────────
   static const String marDue = '/mar/due';

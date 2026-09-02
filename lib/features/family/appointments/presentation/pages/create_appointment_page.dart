@@ -77,10 +77,18 @@ class CreateAppointmentPage extends StatelessWidget {
                       RequestTypeToggle(selected: controller.requestType.value, onSelected: controller.selectRequestType),
                       fieldGap,
                       const AppointmentFieldLabel('Preferred Date'),
-                      AppointmentDropdownField(value: controller.preferredDate, leadingIcon: AppAssets.navCalendar),
+                      AppointmentDropdownField(
+                        value: controller.preferredDate,
+                        leadingIcon: AppAssets.navCalendar,
+                        onTap: () => controller.pickDate(context),
+                      ),
                       fieldGap,
                       const AppointmentFieldLabel('Preferred Time'),
-                      AppointmentDropdownField(value: controller.preferredTime, leadingIcon: AppAssets.clock),
+                      AppointmentDropdownField(
+                        value: controller.preferredTime,
+                        leadingIcon: AppAssets.clock,
+                        onTap: () => controller.pickTime(context),
+                      ),
                       fieldGap,
                       AppointmentFieldLabel(controller.thirdFieldLabel),
                       AppointmentDropdownField(value: controller.thirdFieldValue),
@@ -99,8 +107,10 @@ class CreateAppointmentPage extends StatelessWidget {
                       Padding(
                         padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 0, top: 12, bottom: 12),
                         child: FamilyPrimaryButton(
-                          label: 'Submit Request',
-                          onTap: Get.back,
+                          label: controller.isSubmitting.value
+                              ? 'Submitting…'
+                              : 'Submit Request',
+                          onTap: controller.submit,
                         ),
                       ),
                     ],

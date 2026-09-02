@@ -123,62 +123,24 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
 
   Widget _buildTabContent(BuildContext context, FamilyVisitRequestsTab tab) {
     switch (tab) {
-      case FamilyVisitRequestsTab.all:
-        return _AllRequestsTab(controller: _controller);
       case FamilyVisitRequestsTab.myRequests:
         return _MyRequestsTab(controller: _controller, onViewDetails: _openRequestDetails);
       case FamilyVisitRequestsTab.history:
-        return _HistoryTab(controller: _controller);
+        return _HistoryTab(
+          controller: _controller,
+          onViewDetails: _openRequestDetails,
+        );
     }
-  }
-}
-
-class _AllRequestsTab extends StatelessWidget {
-  final FamilyVisitRequestsController controller;
-
-  static const Color _sectionTitle = Color(0xFF1A2B48);
-
-  const _AllRequestsTab({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    final requests = controller.allRequests;
-
-    return ListView.separated(
-      padding: EdgeInsets.fromLTRB(
-        ResponsiveHelper.getResponsiveWidth(context, 16),
-        ResponsiveHelper.getResponsiveHeight(context, 18),
-        ResponsiveHelper.getResponsiveWidth(context, 16),
-        ResponsiveHelper.getResponsiveHeight(context, 24),
-      ),
-      itemCount: requests.length + 1,
-      separatorBuilder: (context, index) =>
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Text(
-            'All Requests',
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-              color: _sectionTitle,
-              height: 1.2,
-            ),
-          );
-        }
-        return VisitRequestRowCard(request: requests[index - 1]);
-      },
-    );
   }
 }
 
 class _HistoryTab extends StatelessWidget {
   final FamilyVisitRequestsController controller;
+  final ValueChanged<String> onViewDetails;
 
   static const Color _sectionTitle = Color(0xFF1A2B48);
 
-  const _HistoryTab({required this.controller});
+  const _HistoryTab({required this.controller, required this.onViewDetails});
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +169,10 @@ class _HistoryTab extends StatelessWidget {
             ),
           );
         }
-        return VisitRequestRowCard(request: requests[index - 1]);
+        return VisitRequestRowCard(
+          request: requests[index - 1],
+          onTap: () => onViewDetails(requests[index - 1].id),
+        );
       },
     );
   }

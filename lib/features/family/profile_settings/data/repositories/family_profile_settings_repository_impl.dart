@@ -1,60 +1,46 @@
 import 'package:gems_core/gems_core.dart';
 
-import '../../domain/entities/family_linked_client.dart';
-import '../../domain/entities/family_preference_item.dart';
-import '../../domain/entities/family_profile.dart';
+import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/family_profile_settings_overview.dart';
 import '../../domain/repositories/family_profile_settings_repository.dart';
+import '../mappers/family_profile_mapper.dart';
 
-/// Local implementation of [FamilyProfileSettingsRepository].
-///
-/// There is no backend endpoint for the family profile/settings yet, so
-/// this returns the exact static content shown in the reference
-/// screenshot (plus a minimal, plausible completion of the cropped "App
-/// Settings" section — see `FamilyProfileSettingsOverview`). Replace the
-/// body of [getOverview] with a real `ApiService`/`BaseRepository` call
-/// once an API contract exists — the domain layer and every widget above
-/// it will keep working unchanged.
-class FamilyProfileSettingsRepositoryImpl implements FamilyProfileSettingsRepository {
+class FamilyProfileSettingsRepositoryImpl
+    implements FamilyProfileSettingsRepository {
+  final AppApiClient _api;
+  final UserSession _session;
+
+  FamilyProfileSettingsRepositoryImpl({
+    required AppApiClient api,
+    required UserSession session,
+  })  : _api = api,
+        _session = session;
+
   @override
   Future<Result<FamilyProfileSettingsOverview>> getOverview() async {
-    return Result.success(
-      const FamilyProfileSettingsOverview(
-        profile: FamilyProfile(
-          initials: 'EJ',
-          name: 'Emily Johnson',
-          relationship: 'Daughter',
-          email: 'emily.johnson@email.com',
-        ),
-        linkedClients: [
-          FamilyLinkedClient(
-            initials: 'JD',
-            name: 'John Doe',
-            subtitle: 'Sunrise Home · Room 207',
-            statusLabel: 'Active',
-          ),
-        ],
-        preferenceItems: [
-          FamilyPreferenceItem(
-            type: FamilyPreferenceType.notifications,
-            label: 'Notification Preferences',
-          ),
-          FamilyPreferenceItem(
-            type: FamilyPreferenceType.helpCenter,
-            label: 'Help Center & FAQs',
-          ),
-          FamilyPreferenceItem(
-            type: FamilyPreferenceType.contactSupport,
-            label: 'Contact Support',
-          ),
-          FamilyPreferenceItem(
-            type: FamilyPreferenceType.privacySecurity,
-            label: 'Privacy & Security',
-          ),
-        ],
-        pushNotificationsEnabled: true,
-        darkModeEnabled: false,
+    final result = await _api.get(ApiEndpoints.familyClients);
+    return result.when(
+      success: (body) async => Result.success(
+        FamilyProfileMapper.compose(session: _session, clientsBody: body),
       ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> createSupportTicket({
+    required String subject,
+    required String body,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.tickets,
+      data: {'subject': subject, 'body': body},
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
     );
   }
 }

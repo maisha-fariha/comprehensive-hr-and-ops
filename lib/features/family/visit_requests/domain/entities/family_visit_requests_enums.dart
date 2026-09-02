@@ -1,5 +1,5 @@
 /// Which segmented tab of the Family "Visit Requests" list is selected.
-enum FamilyVisitRequestsTab { all, myRequests, history }
+enum FamilyVisitRequestsTab { myRequests, history }
 
 /// Whether a request is for a general "Visit" or a scheduled "Appointment",
 /// driving the small colored tag pill shown on every request card.

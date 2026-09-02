@@ -29,6 +29,10 @@ abstract final class JsonCodec {
         'logs',
         'messages',
         'activity',
+        'alerts',
+        'linkedClients',
+        'documents',
+        'appointments',
       ]) {
         final nested = map[key];
         if (nested is List) return nested;

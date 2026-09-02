@@ -49,7 +49,7 @@ class FamilyDashboardSearchBar extends StatelessWidget {
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
               Expanded(
                 child: Text(
-                  'Search clients, documents, or medical re...',
+                  'Search updates, visits, or messages',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

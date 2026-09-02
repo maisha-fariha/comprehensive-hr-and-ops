@@ -89,6 +89,9 @@ abstract final class AuthMapper {
           JsonCodec.string(json['staffId']) ??
           JsonCodec.string(JsonCodec.mapAt(user, 'staff')?['id']) ??
           JsonCodec.string(JsonCodec.mapAt(json, 'staff')?['id']),
+      relationship: JsonCodec.string(user['relationship']) ??
+          JsonCodec.string(json['relationship']) ??
+          JsonCodec.string(user['relation']),
       avatarInitials: _initials(displayName, email),
     );
   }

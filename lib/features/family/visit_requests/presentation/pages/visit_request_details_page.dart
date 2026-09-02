@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
+import '../../domain/entities/family_visit_requests_enums.dart';
 import '../controllers/visit_request_details_controller.dart';
 import '../widgets/details/patient_family_info_card.dart';
 import '../widgets/details/purpose_notes_card.dart';
@@ -52,6 +53,42 @@ class _VisitRequestDetailsPageState extends State<VisitRequestDetailsPage> {
 
   void _onBottomNavTap(int index) {
     Get.offAll(() => FamilyShell(initialIndex: index));
+  }
+
+  Future<void> _pickReschedule(BuildContext context) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now.add(const Duration(days: 1)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !context.mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 14, minute: 0),
+    );
+    if (time == null) return;
+    await _controller.rescheduleTo(
+      DateTime(date.year, date.month, date.day, time.hour, time.minute),
+    );
+  }
+
+  Future<void> _confirmCancel(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel this request?'),
+        content: const Text(
+          'The care team will be notified that this visit is no longer needed.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Cancel request')),
+        ],
+      ),
+    );
+    if (confirmed == true) await _controller.cancelRequest();
   }
 
   @override
@@ -124,12 +161,15 @@ class _VisitRequestDetailsPageState extends State<VisitRequestDetailsPage> {
                     const SectionHeaderRow(title: 'Purpose & Notes'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
                     PurposeNotesCard(detail: detail),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                    VisitRequestDetailsActions(
-                      onApprove: Get.back,
-                      onReschedule: Get.back,
-                      onReject: Get.back,
-                    ),
+                    if (detail.isCancellable ||
+                        detail.status == VisitRequestStatus.rescheduleRequested) ...[
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                      VisitRequestDetailsActions(
+                        enabled: !_controller.isActing.value,
+                        onReschedule: () => _pickReschedule(context),
+                        onCancel: () => _confirmCancel(context),
+                      ),
+                    ],
                   ],
                 );
               }),

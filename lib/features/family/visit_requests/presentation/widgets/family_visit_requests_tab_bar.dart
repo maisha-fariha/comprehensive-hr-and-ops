@@ -4,7 +4,6 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 
 const Map<FamilyVisitRequestsTab, String> _tabLabels = {
-  FamilyVisitRequestsTab.all: 'All',
   FamilyVisitRequestsTab.myRequests: 'My Requests',
   FamilyVisitRequestsTab.history: 'History',
 };

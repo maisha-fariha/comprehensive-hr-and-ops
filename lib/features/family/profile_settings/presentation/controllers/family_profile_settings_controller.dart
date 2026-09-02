@@ -41,6 +41,25 @@ class FamilyProfileSettingsController extends BaseController<FamilyProfileSettin
 
   void toggleDarkMode(bool value) => darkModeEnabled.value = value;
 
+  Future<void> submitSupportTicket(String message) async {
+    final result = await repository.createSupportTicket(
+      subject: 'Family support',
+      body: message,
+    );
+    result.when(
+      success: (_) => Get.snackbar(
+        'Message sent',
+        'The care team will follow up on your request.',
+        snackPosition: SnackPosition.BOTTOM,
+      ),
+      failure: (error) => Get.snackbar(
+        'Could not send',
+        error.message,
+        snackPosition: SnackPosition.BOTTOM,
+      ),
+    );
+  }
+
   @override
   Future<void> refresh() => loadOverview();
 }

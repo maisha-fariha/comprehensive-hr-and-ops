@@ -1,9 +1,5 @@
-import 'package:flutter/foundation.dart';
-
-/// A resident/client linked to the family member's account, shown in the
-/// "Linked Clients" section.
-@immutable
 class FamilyLinkedClient {
+  final String id;
   final String initials;
   final String name;
 
@@ -12,6 +8,7 @@ class FamilyLinkedClient {
   final String statusLabel;
 
   const FamilyLinkedClient({
+    this.id = '',
     required this.initials,
     required this.name,
     required this.subtitle,

@@ -15,6 +15,7 @@ class MobileProfile {
   final String? residenceId;
   final String? residenceName;
   final String? staffId;
+  final String? relationship;
   final String avatarInitials;
 
   const MobileProfile({
@@ -32,5 +33,6 @@ class MobileProfile {
     this.residenceId,
     this.residenceName,
     this.staffId,
+    this.relationship,
   });
 }

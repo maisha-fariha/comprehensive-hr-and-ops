@@ -52,12 +52,21 @@ class AppointmentFieldLabel extends StatelessWidget {
 class AppointmentDropdownField extends StatelessWidget {
   final String value;
   final String? leadingIcon;
+  final VoidCallback? onTap;
 
-  const AppointmentDropdownField({super.key, required this.value, this.leadingIcon});
+  const AppointmentDropdownField({
+    super.key,
+    required this.value,
+    this.leadingIcon,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       width: double.infinity,
       padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16, vertical: 15),
       decoration: BoxDecoration(
@@ -90,6 +99,7 @@ class AppointmentDropdownField extends StatelessWidget {
           const AppSvgIcon(AppAssets.chevronDown, size: 15, color: AppColors.textFaint),
         ],
       ),
+    ),
     );
   }
 }

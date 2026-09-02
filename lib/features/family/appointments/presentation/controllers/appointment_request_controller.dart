@@ -1,26 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
+import '../../../../../core/network/iso_date_range.dart';
 import '../../domain/entities/family_appointments_enums.dart';
+import '../../domain/repositories/family_appointments_repository.dart';
 import '../../family_appointments_constants.dart';
+import 'family_appointments_controller.dart';
 
-/// GetX controller for the single-page "Create Appointment" form (the
-/// "Request Visit" / "Request Appointment" screen).
-///
-/// This is a mock, front-end-only form: every field below the "Request
-/// Type" toggle is a static display-only value (no real dropdown menus or
-/// persistence exist yet), matching the current scope of the Staff
-/// Incidents feature's analogous "Create Incident" form. Only the note
-/// textarea and the request-type toggle itself carry real, observable state.
 class AppointmentRequestController extends GetxController {
-  final Rx<AppointmentRequestType> requestType = AppointmentRequestType.visit.obs;
+  final FamilyAppointmentsRepository repository;
 
+  AppointmentRequestController({FamilyAppointmentsRepository? repository})
+      : repository = repository ?? GetIt.instance<FamilyAppointmentsRepository>();
+
+  final Rx<AppointmentRequestType> requestType = AppointmentRequestType.visit.obs;
+  final Rx<DateTime> preferredAt = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day + 1,
+    14,
+  ).obs;
   final TextEditingController noteController = TextEditingController(
     text: FamilyAppointmentsConstants.visitPresetNote,
   );
   final RxInt noteLength = FamilyAppointmentsConstants.visitPresetNote.length.obs;
+  final RxBool isSubmitting = false.obs;
 
-  AppointmentRequestController() {
+  @override
+  void onInit() {
+    super.onInit();
     noteController.addListener(() => noteLength.value = noteController.text.length);
   }
 
@@ -29,8 +38,8 @@ class AppointmentRequestController extends GetxController {
 
   bool get isVisit => requestType.value == AppointmentRequestType.visit;
 
-  String get preferredDate => 'May 18, 2025';
-  String get preferredTime => '2:00 PM';
+  String get preferredDate => IsoDateRange.formatMonthDay(preferredAt.value);
+  String get preferredTime => IsoDateRange.timeLabel(preferredAt.value);
 
   String get thirdFieldLabel => isVisit ? 'Purpose' : 'Appointment Type';
   String get thirdFieldValue => isVisit ? 'Family Visit' : 'Physician Visit';
@@ -43,13 +52,75 @@ class AppointmentRequestController extends GetxController {
       ? 'Your request will be reviewed by the care team. You will be notified once a decision has been made.'
       : 'Your appointment request will be reviewed by the care team. You will be notified once a decision has been made.';
 
-  /// Switches the active "Request Type" segment, resetting the note field
-  /// to match the state shown for that segment in the Figma screenshots -
-  /// pre-filled for "Visit", empty for "Appointment".
   void selectRequestType(AppointmentRequestType type) {
     if (requestType.value == type) return;
     requestType.value = type;
-    noteController.text = type == AppointmentRequestType.visit ? FamilyAppointmentsConstants.visitPresetNote : '';
+    noteController.text = type == AppointmentRequestType.visit
+        ? FamilyAppointmentsConstants.visitPresetNote
+        : '';
+  }
+
+  Future<void> pickDate(BuildContext context) async {
+    final now = DateTime.now();
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: preferredAt.value,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (selected == null) return;
+    preferredAt.value = DateTime(
+      selected.year,
+      selected.month,
+      selected.day,
+      preferredAt.value.hour,
+      preferredAt.value.minute,
+    );
+  }
+
+  Future<void> pickTime(BuildContext context) async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(preferredAt.value),
+    );
+    if (selected == null) return;
+    preferredAt.value = DateTime(
+      preferredAt.value.year,
+      preferredAt.value.month,
+      preferredAt.value.day,
+      selected.hour,
+      selected.minute,
+    );
+  }
+
+  Future<void> submit() async {
+    if (isSubmitting.value) return;
+    isSubmitting.value = true;
+    final result = await repository.createAppointment(
+      type: isVisit ? 'family_visit' : 'appointment',
+      scheduledAt: preferredAt.value,
+      location: locationModeValue,
+      notes: noteController.text,
+    );
+    isSubmitting.value = false;
+    result.when(
+      success: (_) {
+        Get.snackbar(
+          'Request submitted',
+          'The care team will review this and notify you.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        if (Get.isRegistered<FamilyAppointmentsController>()) {
+          Get.find<FamilyAppointmentsController>().refresh();
+        }
+        Get.back();
+      },
+      failure: (error) => Get.snackbar(
+        'Could not submit',
+        error.message,
+        snackPosition: SnackPosition.BOTTOM,
+      ),
+    );
   }
 
   @override

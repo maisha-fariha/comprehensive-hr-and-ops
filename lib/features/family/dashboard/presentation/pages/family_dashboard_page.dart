@@ -5,6 +5,9 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../appointments/presentation/pages/create_appointment_page.dart';
+import '../../../documents/presentation/pages/family_documents_page.dart';
+import '../../../messages/presentation/pages/compose_message_page.dart';
 import '../controllers/family_dashboard_controller.dart';
 import '../widgets/family_dashboard_header.dart';
 import '../widgets/family_needs_attention_card.dart';
@@ -58,12 +61,6 @@ class FamilyDashboardPage extends StatelessWidget {
           context,
           AppDimens.screenPaddingHorizontal,
         );
-        // Half the search-bar height so the bar is centered on the teal/body seam.
-        final searchOverlap = ResponsiveHelper.getResponsiveHeight(
-              context,
-              AppDimens.searchBarHeight,
-            ) /
-            2;
 
         return RefreshIndicator(
           color: AppColors.secondaryTeal,
@@ -73,28 +70,26 @@ class FamilyDashboardPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    FamilyDashboardHeader(overview: overview),
-                  ],
-                ),
+                FamilyDashboardHeader(overview: overview),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     horizontalPad,
-                    searchOverlap + ResponsiveHelper.getResponsiveHeight(context, 18),
+                    ResponsiveHelper.getResponsiveHeight(context, 18),
                     horizontalPad,
                     ResponsiveHelper.getResponsiveHeight(context, 42),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      FamilyNeedsAttentionCard(alerts: overview.attentionAlerts),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                      FamilyTodaysOverviewSection(
-                        stats: overview.overviewStats,
-                        lastUpdatedLabel: overview.lastUpdatedLabel,
-                      ),
+                      if (overview.attentionAlerts.isNotEmpty) ...[
+                        FamilyNeedsAttentionCard(alerts: overview.attentionAlerts),
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                      ],
+                      if (overview.overviewStats.isNotEmpty)
+                        FamilyTodaysOverviewSection(
+                          stats: overview.overviewStats,
+                          lastUpdatedLabel: overview.lastUpdatedLabel,
+                        ),
                       if (overview.nextAppointment != null) ...[
                         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                         FamilyNextAppointmentSection(
@@ -117,6 +112,16 @@ class FamilyDashboardPage extends StatelessWidget {
                         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                         FamilyQuickActionsSection(
                           actions: overview.quickActions,
+                          onActionTap: (action) {
+                            switch (action.id) {
+                              case 'request-visit':
+                                Get.to(() => const CreateAppointmentPage());
+                              case 'send-message':
+                                Get.to(() => const ComposeMessagePage());
+                              case 'view-documents':
+                                Get.to(() => const FamilyDocumentsPage());
+                            }
+                          },
                         ),
                       ],
                     ],

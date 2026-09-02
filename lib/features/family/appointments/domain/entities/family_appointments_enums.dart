@@ -3,7 +3,7 @@ enum FamilyAppointmentsTab { all, upcoming, completed }
 
 /// Lifecycle status of an appointment/visit, driving each list card's
 /// trailing status pill color (see `FamilyAppointmentStatusStyle`).
-enum FamilyAppointmentStatus { upcoming, pending, approved, completed }
+enum FamilyAppointmentStatus { upcoming, pending, approved, completed, rejected, cancelled }
 
 /// Which kind of appointment a card represents, driving the leading icon
 /// glyph and (for non-completed cards) the icon box's tint - see

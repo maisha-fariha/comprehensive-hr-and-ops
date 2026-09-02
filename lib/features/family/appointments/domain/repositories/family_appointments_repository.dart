@@ -2,10 +2,20 @@ import 'package:gems_core/gems_core.dart';
 
 import '../entities/family_appointment.dart';
 
-/// Contract for fetching the Family Appointments feature's content. The
-/// presentation layer only ever depends on this interface, so swapping the
-/// mocked [FamilyAppointmentsRepositoryImpl] for a real API-backed
-/// implementation later requires no changes above the data layer.
 abstract class FamilyAppointmentsRepository {
   Future<Result<List<FamilyAppointment>>> getAppointments();
+
+  Future<Result<void>> createAppointment({
+    required String type,
+    required DateTime scheduledAt,
+    required String location,
+    String? notes,
+  });
+
+  Future<Result<void>> reschedule({
+    required String appointmentId,
+    required DateTime scheduledAt,
+  });
+
+  Future<Result<void>> cancel(String appointmentId);
 }

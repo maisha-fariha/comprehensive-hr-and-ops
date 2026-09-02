@@ -134,6 +134,11 @@ abstract final class IsoDateRange {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
+  static String dateTimeLabel(DateTime date) {
+    final local = date.toLocal();
+    return '${formatMonthDay(local)} • ${timeLabel(local)}';
+  }
+
   static String timeLabel(DateTime date) {
     final hour = date.hour;
     final minute = date.minute.toString().padLeft(2, '0');

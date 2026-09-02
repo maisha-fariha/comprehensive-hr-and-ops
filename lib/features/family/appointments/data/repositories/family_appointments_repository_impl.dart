@@ -1,91 +1,83 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/family_appointment.dart';
-import '../../domain/entities/family_appointments_enums.dart';
 import '../../domain/repositories/family_appointments_repository.dart';
+import '../mappers/family_appointments_mapper.dart';
 
-/// Local implementation of [FamilyAppointmentsRepository].
-///
-/// There is no backend endpoint for Family Appointments yet, so this
-/// returns the exact static content shown in the Figma "All - Appointments"
-/// / "Upcoming - Appointments" / "Completed - Appointments" screenshots.
 class FamilyAppointmentsRepositoryImpl implements FamilyAppointmentsRepository {
-  static const List<FamilyAppointment> _appointments = [
-    // "Upcoming" section - shared by the "All" and "Upcoming" tabs.
-    FamilyAppointment(
-      id: 'cardiology-follow-up',
-      dateTimeLabel: 'May 14, 2025 · 10:30 AM',
-      status: FamilyAppointmentStatus.upcoming,
-      title: 'Cardiology Follow-up',
-      location: 'Cityview Medical Center',
-      iconKind: FamilyAppointmentIconKind.medical,
-    ),
-    FamilyAppointment(
-      id: 'dentist-appointment',
-      dateTimeLabel: 'May 20, 2025 · 2:00 PM',
-      status: FamilyAppointmentStatus.pending,
-      title: 'Dentist Appointment',
-      location: 'Bright Smiles Dental',
-      iconKind: FamilyAppointmentIconKind.dental,
-    ),
-    FamilyAppointment(
-      id: 'physiotherapy',
-      dateTimeLabel: 'May 28, 2025 · 11:00 AM',
-      status: FamilyAppointmentStatus.upcoming,
-      title: 'Physiotherapy',
-      location: 'Sunrise Home - Therapy Room',
-      iconKind: FamilyAppointmentIconKind.physiotherapy,
-    ),
-    // "Family Visits" section - shared by the "All" and "Upcoming" tabs.
-    FamilyAppointment(
-      id: 'visit-with-emily-upcoming',
-      dateTimeLabel: 'May 16, 2025 · 3:00 PM',
-      status: FamilyAppointmentStatus.approved,
-      title: 'Visit with Emily',
-      location: 'Sunrise Home',
-      iconKind: FamilyAppointmentIconKind.familyVisit,
-    ),
-    FamilyAppointment(
-      id: 'visit-with-michael',
-      dateTimeLabel: 'May 25, 2025 · 1:00 PM',
-      status: FamilyAppointmentStatus.approved,
-      title: 'Visit with Michael',
-      location: 'Sunrise Home',
-      iconKind: FamilyAppointmentIconKind.familyVisit,
-    ),
-    // "Completed" / Past — also shown as the 3rd Family Visits row on Upcoming.
-    FamilyAppointment(
-      id: 'visit-with-emily-completed',
-      dateTimeLabel: 'Apr 30, 2025 · 4:00 PM',
-      status: FamilyAppointmentStatus.completed,
-      title: 'Visit with Emily',
-      location: 'Sunrise Home',
-      iconKind: FamilyAppointmentIconKind.familyVisit,
-    ),
-    FamilyAppointment(
-      id: 'gp-check-up',
-      dateTimeLabel: 'Apr 22, 2025 · 9:00 AM',
-      status: FamilyAppointmentStatus.completed,
-      title: 'GP Check-up',
-      location: 'Cityview Medical Center',
-      iconKind: FamilyAppointmentIconKind.medical,
-    ),
-    // NOTE: the Figma "Completed - Appointments" screenshot renders this
-    // row's icon identically to the "GP Check-up" row above (a plain
-    // medical-cross glyph), rather than an optometry-specific glyph, so it
-    // is modeled with the same `medical` icon kind for pixel accuracy.
-    FamilyAppointment(
-      id: 'optometry-exam',
-      dateTimeLabel: 'Apr 10, 2025 · 11:30 AM',
-      status: FamilyAppointmentStatus.completed,
-      title: 'Optometry Exam',
-      location: 'Clearview Opticians',
-      iconKind: FamilyAppointmentIconKind.medical,
-    ),
-  ];
+  final AppApiClient _api;
+  final UserSession _session;
+
+  FamilyAppointmentsRepositoryImpl({
+    required AppApiClient api,
+    required UserSession session,
+  })  : _api = api,
+        _session = session;
 
   @override
   Future<Result<List<FamilyAppointment>>> getAppointments() async {
-    return Result.success(_appointments);
+    final result = await _api.get(
+      ApiEndpoints.familyAppointments,
+      query: const {'page': 1, 'limit': 20},
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(FamilyAppointmentsMapper.listFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> createAppointment({
+    required String type,
+    required DateTime scheduledAt,
+    required String location,
+    String? notes,
+  }) async {
+    final clientId = _session.selectedClientId;
+    final result = await _api.post(
+      ApiEndpoints.familyAppointments,
+      data: {
+        'type': type,
+        'scheduledAt': scheduledAt.toUtc().toIso8601String(),
+        'location': location,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
+      },
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> reschedule({
+    required String appointmentId,
+    required DateTime scheduledAt,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.familyAppointmentReschedule(appointmentId),
+      data: {'scheduledAt': scheduledAt.toUtc().toIso8601String()},
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> cancel(String appointmentId) async {
+    final result = await _api.post(
+      ApiEndpoints.familyAppointmentCancel(appointmentId),
+      data: {},
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
   }
 }

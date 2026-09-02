@@ -20,7 +20,8 @@ class FamilyVisitRequestsController extends BaseController<FamilyVisitRequestsOv
     loadOverview();
   }
 
-  final Rx<FamilyVisitRequestsTab> selectedTab = FamilyVisitRequestsTab.all.obs;
+  final Rx<FamilyVisitRequestsTab> selectedTab =
+      FamilyVisitRequestsTab.myRequests.obs;
 
   FamilyVisitRequestsOverview? get overview => state.value.data;
 

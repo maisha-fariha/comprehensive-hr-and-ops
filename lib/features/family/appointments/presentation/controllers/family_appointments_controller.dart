@@ -41,23 +41,22 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
   /// - **Completed**: single "Completed" section with every completed row.
   List<FamilyAppointmentSection> get visibleSections {
     if (selectedTab.value == FamilyAppointmentsTab.completed) {
-      final completed = appointments.where((a) => a.status == FamilyAppointmentStatus.completed).toList();
+      final completed = appointments.where(_isPast).toList();
       if (completed.isEmpty) return const [];
-      return [FamilyAppointmentSection(title: 'Completed', appointments: completed)];
+      return [FamilyAppointmentSection(title: 'Past', appointments: completed)];
     }
 
-    final active = appointments.where((a) => a.status != FamilyAppointmentStatus.completed).toList();
+    final active = appointments.where((a) => !_isPast(a)).toList();
     final upcoming = active.where((a) => a.iconKind != FamilyAppointmentIconKind.familyVisit).toList();
 
     final List<FamilyAppointment> familyVisits;
     if (selectedTab.value == FamilyAppointmentsTab.upcoming) {
-      // Include completed family visits under Family Visits (not a Past section).
       familyVisits = appointments.where((a) => a.iconKind == FamilyAppointmentIconKind.familyVisit).toList();
     } else {
       familyVisits = active.where((a) => a.iconKind == FamilyAppointmentIconKind.familyVisit).toList();
     }
 
-    final past = appointments.where((a) => a.status == FamilyAppointmentStatus.completed).toList();
+    final past = appointments.where(_isPast).toList();
 
     return [
       if (upcoming.isNotEmpty) FamilyAppointmentSection(title: 'Upcoming', appointments: upcoming),
@@ -65,6 +64,19 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
       if (selectedTab.value == FamilyAppointmentsTab.all && past.isNotEmpty)
         FamilyAppointmentSection(title: 'Past', appointments: past),
     ];
+  }
+
+  bool _isPast(FamilyAppointment appointment) {
+    switch (appointment.status) {
+      case FamilyAppointmentStatus.completed:
+      case FamilyAppointmentStatus.rejected:
+      case FamilyAppointmentStatus.cancelled:
+        return true;
+      case FamilyAppointmentStatus.upcoming:
+      case FamilyAppointmentStatus.pending:
+      case FamilyAppointmentStatus.approved:
+        return false;
+    }
   }
 
   void selectTab(FamilyAppointmentsTab tab) => selectedTab.value = tab;

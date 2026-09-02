@@ -3,27 +3,18 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/widgets/app_svg_icon.dart';
 
-/// Review actions under Purpose & Notes: notice banner, Approve, then
-/// Reschedule / Reject.
 class VisitRequestDetailsActions extends StatelessWidget {
-  final VoidCallback? onApprove;
   final VoidCallback? onReschedule;
-  final VoidCallback? onReject;
+  final VoidCallback? onCancel;
+  final bool enabled;
 
-  static const Color _bannerBg = Color(0xFFFFF5E6);
-  static const Color _bannerBorder = Color(0xFFFFE0B8);
-  static const Color _bannerIcon = Color(0xFFD98324);
-  static const Color _approveBg = Color(0xFF0E7C7B);
-  static const Color _approveShadow = Color(0xFF0E4A54);
-  static const Color _rescheduleBg = Color(0xFFF0ECFB);
-  static const Color _rescheduleFg = Color(0xFF6A4BC7);
-  static const Color _rejectBorder = Color(0xFFF5C4C4);
-  static const Color _rejectFg = Color(0xFFD64545);
-
-  static const String _errorIcon =
-      'assets/icons/family_visit_requests/error.svg';
-  static const String _checkIcon =
-      'assets/icons/family_visit_requests/check.svg';
+  static const Color _bannerBg = Color(0xFFE8F5F3);
+  static const Color _bannerBorder = Color(0xFFBFE3DE);
+  static const Color _bannerFg = Color(0xFF0E7C7B);
+  static const Color _rescheduleBg = Color(0xFF0E7C7B);
+  static const Color _rescheduleShadow = Color(0xFF0E4A54);
+  static const Color _cancelBorder = Color(0xFFF5C4C4);
+  static const Color _cancelFg = Color(0xFFD64545);
   static const String _rescheduleIcon =
       'assets/icons/family_visit_requests/reschedule.svg';
   static const String _crossIcon =
@@ -31,9 +22,9 @@ class VisitRequestDetailsActions extends StatelessWidget {
 
   const VisitRequestDetailsActions({
     super.key,
-    this.onApprove,
     this.onReschedule,
-    this.onReject,
+    this.onCancel,
+    this.enabled = true,
   });
 
   @override
@@ -52,48 +43,39 @@ class VisitRequestDetailsActions extends StatelessWidget {
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(color: _bannerBorder),
           ),
-          alignment: Alignment.centerLeft,
-          child: const AppSvgIcon(_errorIcon, size: 20, color: _bannerIcon),
+          child: Text(
+            'The care team reviews this request. You can reschedule or cancel it.',
+            style: TextStyle(
+              fontFamily: 'Manrope',
+              fontWeight: FontWeight.w500,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: _bannerFg,
+              height: 1.35,
+            ),
+          ),
         ),
         gap,
         _ActionButton(
-          label: 'Approve',
-          iconAsset: _checkIcon,
+          label: 'Reschedule',
+          iconAsset: _rescheduleIcon,
           foreground: Colors.white,
-          background: _approveBg,
-          borderColor: _approveBg,
+          background: _rescheduleBg,
+          borderColor: _rescheduleBg,
           shadow: BoxShadow(
-            color: _approveShadow.withValues(alpha: 0.22),
+            color: _rescheduleShadow.withValues(alpha: 0.22),
             offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 4)),
             blurRadius: ResponsiveHelper.getResponsiveHeight(context, 10),
           ),
-          onTap: onApprove,
+          onTap: enabled ? onReschedule : null,
         ),
         gap,
-        Row(
-          children: [
-            Expanded(
-              child: _ActionButton(
-                label: 'Reschedule',
-                iconAsset: _rescheduleIcon,
-                foreground: _rescheduleFg,
-                background: _rescheduleBg,
-                borderColor: _rescheduleBg,
-                onTap: onReschedule,
-              ),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-            Expanded(
-              child: _ActionButton(
-                label: 'Reject',
-                iconAsset: _crossIcon,
-                foreground: _rejectFg,
-                background: Colors.white,
-                borderColor: _rejectBorder,
-                onTap: onReject,
-              ),
-            ),
-          ],
+        _ActionButton(
+          label: 'Cancel request',
+          iconAsset: _crossIcon,
+          foreground: _cancelFg,
+          background: Colors.white,
+          borderColor: _cancelBorder,
+          onTap: enabled ? onCancel : null,
         ),
       ],
     );
@@ -142,7 +124,6 @@ class _ActionButton extends StatelessWidget {
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.max,
             children: [
               AppSvgIcon(iconAsset, size: 16, color: foreground),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),

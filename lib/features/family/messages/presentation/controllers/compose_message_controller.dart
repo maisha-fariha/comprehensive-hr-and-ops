@@ -1,46 +1,26 @@
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/family_messages_enums.dart';
-import '../../domain/entities/message_recipient.dart';
+import '../../domain/repositories/family_messages_repository.dart';
+import 'family_messages_controller.dart';
 
-/// GetX controller for the "New Message" compose screen.
-///
-/// This is a mock, front-end-only form: it owns simple mutable/observable
-/// field state with no real validation or persistence - matching the
-/// current scope of the Family Messages feature (no backend contract exists
-/// yet), following the same convention as
-/// `lib/features/staff/incidents/presentation/controllers/incident_creation_controller.dart`.
 class ComposeMessageController extends GetxController {
-  /// Preloaded with "Sarah M." to match the reference screenshot, which
-  /// shows the compose screen already carrying one recipient chip.
-  final RxList<MessageRecipient> recipients = <MessageRecipient>[
-    const MessageRecipient(id: 'sarah-m', name: 'Sarah M.', initials: 'SM'),
-  ].obs;
+  final FamilyMessagesRepository repository;
+  final UserSession session;
 
-  final TextEditingController recipientInputController = TextEditingController();
+  ComposeMessageController({
+    FamilyMessagesRepository? repository,
+    UserSession? session,
+  })  : repository = repository ?? GetIt.instance<FamilyMessagesRepository>(),
+        session = session ?? Get.find<UserSession>();
+
   final TextEditingController messageController = TextEditingController();
   final RxSet<MessageAttachmentType> selectedAttachments = <MessageAttachmentType>{}.obs;
   final RxBool isPriority = false.obs;
-
-  void removeRecipient(MessageRecipient recipient) => recipients.remove(recipient);
-
-  /// Turns whatever's currently typed in the recipient field into a new
-  /// chip, then clears the field - there is no real contact directory to
-  /// search against yet.
-  void addRecipientFromInput() {
-    final name = recipientInputController.text.trim();
-    if (name.isEmpty) return;
-
-    recipients.add(
-      MessageRecipient(
-        id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-        name: name,
-        initials: _initialsFor(name),
-      ),
-    );
-    recipientInputController.clear();
-  }
+  final RxBool isSending = false.obs;
 
   void toggleAttachment(MessageAttachmentType type) {
     if (selectedAttachments.contains(type)) {
@@ -52,20 +32,43 @@ class ComposeMessageController extends GetxController {
 
   void togglePriority(bool value) => isPriority.value = value;
 
-  /// Mock send action - there is no backend to persist the draft to, so this
-  /// simply returns to the "Messages" list screen.
-  void sendMessage() => Get.back();
+  Future<void> sendMessage() async {
+    final body = messageController.text.trim();
+    if (body.isEmpty || isSending.value) return;
+    final clientId = session.selectedClientId;
+    if (clientId == null || clientId.isEmpty) {
+      Get.snackbar(
+        'Cannot send',
+        'Open Home first so we know which family member this is for.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
 
-  String _initialsFor(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
-    if (parts.isEmpty) return '';
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-    return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
+    isSending.value = true;
+    final result = await repository.startConversation(
+      clientId: clientId,
+      body: body,
+      highPriority: isPriority.value,
+    );
+    isSending.value = false;
+    result.when(
+      success: (_) {
+        if (Get.isRegistered<FamilyMessagesController>()) {
+          Get.find<FamilyMessagesController>().refresh();
+        }
+        Get.back();
+      },
+      failure: (error) => Get.snackbar(
+        'Could not send',
+        error.message,
+        snackPosition: SnackPosition.BOTTOM,
+      ),
+    );
   }
 
   @override
   void onClose() {
-    recipientInputController.dispose();
     messageController.dispose();
     super.onClose();
   }

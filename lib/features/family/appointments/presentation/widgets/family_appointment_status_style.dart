@@ -39,6 +39,18 @@ class FamilyAppointmentStatusStyle {
           background: AppColors.dividerLight,
           foreground: AppColors.textSecondary,
         );
+      case FamilyAppointmentStatus.rejected:
+        return const FamilyAppointmentStatusStyle(
+          label: 'Rejected',
+          background: AppColors.urgentBackground,
+          foreground: AppColors.criticalRed,
+        );
+      case FamilyAppointmentStatus.cancelled:
+        return const FamilyAppointmentStatusStyle(
+          label: 'Cancelled',
+          background: AppColors.dividerLight,
+          foreground: AppColors.textSecondary,
+        );
     }
   }
 }

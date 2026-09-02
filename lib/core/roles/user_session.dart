@@ -6,6 +6,33 @@ import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../routing/app_routes.dart';
 import 'user_role.dart';
 
+/// Tenant-configured family portal visibility from `GET /family/home`.
+class FamilyVisibility {
+  final bool dailyLogs;
+  final bool activities;
+  final bool incidents;
+  final bool medications;
+  final bool documents;
+  final bool appointments;
+  final bool messages;
+  final bool shiftUpdates;
+  final bool medicalConditions;
+
+  const FamilyVisibility({
+    this.dailyLogs = true,
+    this.activities = true,
+    this.incidents = true,
+    this.medications = false,
+    this.documents = false,
+    this.appointments = true,
+    this.messages = true,
+    this.shiftUpdates = false,
+    this.medicalConditions = false,
+  });
+
+  static const FamilyVisibility unknown = FamilyVisibility();
+}
+
 /// App-wide session for the signed-in user's portal role and profile.
 ///
 /// Role is never chosen on the login screen — it comes from `GET /mobile/me`.
@@ -18,7 +45,10 @@ class UserSession extends GetxService {
   final RxnString _residenceName = RxnString();
   final RxnString _organizationName = RxnString();
   final RxnString _staffId = RxnString();
+  final RxnString _relationship = RxnString();
+  final RxnString _selectedClientId = RxnString();
   final RxList<String> _permissions = <String>[].obs;
+  final Rx<FamilyVisibility> _familyVisibility = FamilyVisibility.unknown.obs;
 
   UserRole get role => _role.value ?? UserRole.hr;
   bool get isSignedIn => _role.value != null;
@@ -29,7 +59,10 @@ class UserSession extends GetxService {
   String? get residenceName => _residenceName.value;
   String? get organizationName => _organizationName.value;
   String? get staffId => _staffId.value;
+  String? get relationship => _relationship.value;
+  String? get selectedClientId => _selectedClientId.value;
   List<String> get permissions => List.unmodifiable(_permissions);
+  FamilyVisibility get familyVisibility => _familyVisibility.value;
 
   String get portalRoute => isSignedIn ? role.portalRoute : AppRoutes.login;
 
@@ -84,7 +117,38 @@ class UserSession extends GetxService {
     _residenceName.value = profile.residenceName;
     _organizationName.value = profile.residenceName ?? profile.tenantName;
     _staffId.value = profile.staffId;
+    _relationship.value = profile.relationship;
     _permissions.assignAll(profile.permissions);
+  }
+
+  void applyFamilyHome({
+    FamilyVisibility? visibility,
+    String? clientId,
+    String? residenceName,
+  }) {
+    if (visibility != null) _familyVisibility.value = visibility;
+    if (clientId != null && clientId.isNotEmpty) {
+      _selectedClientId.value = clientId;
+    }
+    if (residenceName != null && residenceName.isNotEmpty) {
+      _residenceName.value = residenceName;
+      _organizationName.value = residenceName;
+    }
+  }
+
+  void selectClient(String clientId) => _selectedClientId.value = clientId;
+
+  /// Test/dev helper to open a portal without going through `/mobile/me`.
+  void signIn({
+    required UserRole role,
+    required String displayName,
+    String email = '',
+    String avatarInitials = 'ME',
+  }) {
+    _role.value = role;
+    _displayName.value = displayName;
+    _email.value = email;
+    _avatarInitials.value = avatarInitials;
   }
 
   /// Rehydrates tokens → `/mobile/me` on cold start. Returns true when a
@@ -130,7 +194,10 @@ class UserSession extends GetxService {
     _residenceName.value = null;
     _organizationName.value = null;
     _staffId.value = null;
+    _relationship.value = null;
+    _selectedClientId.value = null;
     _permissions.clear();
+    _familyVisibility.value = FamilyVisibility.unknown;
   }
 
   bool hasRole(UserRole requiredRole) => _role.value == requiredRole;

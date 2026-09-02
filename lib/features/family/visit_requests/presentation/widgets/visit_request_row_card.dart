@@ -11,6 +11,7 @@ import 'visit_request_type_tag.dart';
 /// A single request card on the "All" and "History" Visit Requests tabs.
 class VisitRequestRowCard extends StatelessWidget {
   final VisitRequest request;
+  final VoidCallback? onTap;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _metaColor = Color(0xFF6B7B8A);
@@ -22,14 +23,17 @@ class VisitRequestRowCard extends StatelessWidget {
   static const String _calendarIcon =
       'assets/icons/family_visit_requests/calendar.svg';
 
-  const VisitRequestRowCard({super.key, required this.request});
+  const VisitRequestRowCard({super.key, required this.request, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final statusStyle = VisitRequestStatusStyle.of(request.status);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       width: double.infinity,
       padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
       decoration: BoxDecoration(
@@ -104,6 +108,7 @@ class VisitRequestRowCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

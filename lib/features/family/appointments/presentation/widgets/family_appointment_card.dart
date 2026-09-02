@@ -105,6 +105,18 @@ class FamilyAppointmentCard extends StatelessWidget {
           background: Color(0xFFEAEDF2),
           foreground: Color(0xFF58687E),
         );
+      case FamilyAppointmentStatus.rejected:
+        return const _StatusVisual(
+          label: 'Rejected',
+          background: Color(0xFFFDECEC),
+          foreground: Color(0xFFE53935),
+        );
+      case FamilyAppointmentStatus.cancelled:
+        return const _StatusVisual(
+          label: 'Cancelled',
+          background: Color(0xFFEAEDF2),
+          foreground: Color(0xFF58687E),
+        );
     }
   }
 

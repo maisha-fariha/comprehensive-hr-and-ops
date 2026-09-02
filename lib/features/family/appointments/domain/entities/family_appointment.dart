@@ -18,6 +18,8 @@ class FamilyAppointment {
   final String title;
   final String location;
   final FamilyAppointmentIconKind iconKind;
+  final String type;
+  final DateTime? scheduledAt;
 
   const FamilyAppointment({
     required this.id,
@@ -26,5 +28,7 @@ class FamilyAppointment {
     required this.title,
     required this.location,
     required this.iconKind,
+    this.type = '',
+    this.scheduledAt,
   });
 }

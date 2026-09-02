@@ -13,17 +13,27 @@ import 'family_initials_avatar.dart';
 /// [FamilyAddClientLink], not as its own elevated card.
 class FamilyLinkedClientRow extends StatelessWidget {
   final FamilyLinkedClient client;
+  final bool isSelected;
+  final VoidCallback? onTap;
 
   static const Color _nameColor = Color(0xFF1A2B48);
   static const Color _subtitleColor = Color(0xFF6B7C93);
   static const Color _activeBg = Color(0xFFEAF6F0);
   static const Color _activeFg = Color(0xFF2E8C58);
 
-  const FamilyLinkedClientRow({super.key, required this.client});
+  const FamilyLinkedClientRow({
+    super.key,
+    required this.client,
+    this.isSelected = false,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
       padding: ResponsiveHelper.getResponsivePadding(
         context,
         horizontal: 16,
@@ -83,12 +93,13 @@ class FamilyLinkedClientRow extends StatelessWidget {
           ),
           SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
           StatusBadge.pill(
-            label: client.statusLabel,
+            label: isSelected ? 'Selected' : client.statusLabel,
             background: _activeBg,
             foreground: _activeFg,
           ),
         ],
       ),
+    ),
     );
   }
 }

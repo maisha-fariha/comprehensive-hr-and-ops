@@ -19,10 +19,11 @@ class FamilyVisitRequestsOverview {
     required this.historyRequests,
   });
 
-  int get pendingCount => _countMyRequests(VisitRequestStatus.pending);
-  int get approvedCount => _countMyRequests(VisitRequestStatus.approved);
-  int get rejectedCount => _countMyRequests(VisitRequestStatus.rejected);
-
-  int _countMyRequests(VisitRequestStatus status) =>
-      myRequests.where((request) => request.status == status).length;
+  int get pendingCount =>
+      myRequests.where((request) => request.status == VisitRequestStatus.pending).length;
+  int get approvedCount =>
+      myRequests.where((request) => request.status == VisitRequestStatus.approved).length;
+  int get rejectedCount => historyRequests
+      .where((request) => request.status == VisitRequestStatus.rejected)
+      .length;
 }

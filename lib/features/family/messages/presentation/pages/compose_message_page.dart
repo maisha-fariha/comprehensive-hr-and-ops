@@ -9,7 +9,6 @@ import '../widgets/compose_field_label.dart';
 import '../widgets/compose_message_field.dart';
 import '../widgets/compose_message_header.dart';
 import '../widgets/priority_toggle_row.dart';
-import '../widgets/recipient_input_field.dart';
 import '../widgets/send_message_button.dart';
 
 /// The "New Message" compose screen, reached from the [NewMessageFab] on
@@ -49,7 +48,7 @@ class ComposeMessagePage extends StatelessWidget {
               color: AppColors.surfaceWhite,
               child: ComposeMessageHeader(
                 title: 'New Message',
-                subtitle: 'Send to a person or care group',
+                subtitle: 'Sent to the care team for your family member',
                 onBack: Get.back,
               ),
             ),
@@ -60,12 +59,28 @@ class ComposeMessagePage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const ComposeFieldLabel('To'),
-                    Obx(
-                      () => RecipientInputField(
-                        recipients: controller.recipients.toList(),
-                        controller: controller.recipientInputController,
-                        onRemoveRecipient: controller.removeRecipient,
-                        onSubmitted: controller.addRecipientFromInput,
+                    Container(
+                      width: double.infinity,
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceWhite,
+                        border: Border.all(color: AppColors.cardBorder),
+                        borderRadius: BorderRadius.circular(
+                          ResponsiveHelper.getResponsiveRadius(context, 14),
+                        ),
+                      ),
+                      child: Text(
+                        'Care team',
+                        style: TextStyle(
+                          fontFamily: 'Manrope',
+                          fontWeight: FontWeight.w600,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                          color: AppColors.textHeading,
+                        ),
                       ),
                     ),
                     fieldGap,
@@ -98,7 +113,11 @@ class ComposeMessagePage extends StatelessWidget {
               ),
               child: Padding(
                 padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 12, bottom: 12),
-                child: SendMessageButton(onTap: controller.sendMessage),
+                child: Obx(
+                  () => SendMessageButton(
+                    onTap: controller.isSending.value ? () {} : controller.sendMessage,
+                  ),
+                ),
               ),
             ),
           ],

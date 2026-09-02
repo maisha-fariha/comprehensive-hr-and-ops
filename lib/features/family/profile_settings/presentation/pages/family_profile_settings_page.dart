@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
@@ -17,7 +18,6 @@ import '../widgets/family_log_out_row.dart';
 import '../widgets/family_preference_tile.dart';
 import '../widgets/family_profile_card.dart';
 import '../widgets/family_profile_settings_header.dart';
-import '../widgets/family_settings_toggle_row.dart';
 
 /// "Profile & Settings" — the Family portal's screen for the signed-in
 /// family member's own profile, linked clients, and app preferences.
@@ -44,6 +44,58 @@ class FamilyProfileSettingsPage extends StatelessWidget {
 
   void _onBottomNavTap(int index) {
     Get.offAll(() => FamilyShell(initialIndex: index));
+  }
+
+  void _onPreferenceTap(
+    BuildContext context,
+    FamilyProfileSettingsController controller,
+    FamilyPreferenceItem item,
+  ) {
+    switch (item.type) {
+      case FamilyPreferenceType.contactSupport:
+        _openSupportDialog(context, controller);
+      case FamilyPreferenceType.notifications:
+        Get.snackbar(
+          'Notification preferences',
+          'Use GET/PUT /notification-preferences when the care team shares settings with you.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      default:
+        Get.snackbar(
+          item.label,
+          'This page is not in the family app yet.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+    }
+  }
+
+  Future<void> _openSupportDialog(
+    BuildContext context,
+    FamilyProfileSettingsController controller,
+  ) async {
+    final message = TextEditingController();
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Contact Support'),
+        content: TextField(
+          controller: message,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'How can the care team help?',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Send')),
+        ],
+      ),
+    );
+    final body = message.text.trim();
+    message.dispose();
+    if (sent == true && body.isNotEmpty) {
+      await controller.submitSupportTicket(body);
+    }
   }
 
   @override
@@ -105,11 +157,20 @@ class FamilyProfileSettingsPage extends StatelessWidget {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
                     const SectionHeaderRow(title: 'Linked Clients'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    _LinkedClientsCard(clients: overview.linkedClients),
+                    _LinkedClientsCard(
+                      clients: overview.linkedClients,
+                      onSelect: (client) {
+                        if (client.id.isEmpty) return;
+                        Get.find<UserSession>().selectClient(client.id);
+                      },
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'Preferences & Support'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    _PreferencesCard(items: overview.preferenceItems),
+                    _PreferencesCard(
+                      items: overview.preferenceItems,
+                      onItemTap: (item) => _onPreferenceTap(context, controller, item),
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'App Settings'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
@@ -144,12 +205,13 @@ class FamilyProfileSettingsPage extends StatelessWidget {
 /// White card wrapping linked-client rows, a divider, and the add/switch link.
 class _LinkedClientsCard extends StatelessWidget {
   final List<FamilyLinkedClient> clients;
+  final ValueChanged<FamilyLinkedClient> onSelect;
 
   static const Color _cardBorder = Color(0xFFEEF1F4);
   static const Color _divider = Color(0xFFEEF1F4);
   static const Color _shadow = Color(0xFF142846);
 
-  const _LinkedClientsCard({required this.clients});
+  const _LinkedClientsCard({required this.clients, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
@@ -186,7 +248,11 @@ class _LinkedClientsCard extends StatelessWidget {
                 ),
                 child: const Divider(height: 1, thickness: 1, color: _divider),
               ),
-            FamilyLinkedClientRow(client: clients[i]),
+            FamilyLinkedClientRow(
+              client: clients[i],
+              isSelected: Get.find<UserSession>().selectedClientId == clients[i].id,
+              onTap: () => onSelect(clients[i]),
+            ),
           ],
           Padding(
             padding: ResponsiveHelper.getResponsivePadding(
@@ -205,12 +271,13 @@ class _LinkedClientsCard extends StatelessWidget {
 /// White card wrapping Preferences & Support rows with inset dividers.
 class _PreferencesCard extends StatelessWidget {
   final List<FamilyPreferenceItem> items;
+  final ValueChanged<FamilyPreferenceItem> onItemTap;
 
   static const Color _cardBorder = Color(0xFFEEF1F4);
   static const Color _divider = Color(0xFFEEF1F4);
   static const Color _shadow = Color(0xFF142846);
 
-  const _PreferencesCard({required this.items});
+  const _PreferencesCard({required this.items, required this.onItemTap});
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +314,7 @@ class _PreferencesCard extends StatelessWidget {
                 ),
                 child: const Divider(height: 1, thickness: 1, color: _divider),
               ),
-            FamilyPreferenceTile(item: items[i]),
+            FamilyPreferenceTile(item: items[i], onTap: () => onItemTap(items[i])),
           ],
         ],
       ),

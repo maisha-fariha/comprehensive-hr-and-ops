@@ -5,58 +5,38 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/roles/user_session.dart';
 import '../../documents/presentation/pages/family_documents_page.dart';
 import '../../profile_settings/presentation/pages/family_profile_settings_page.dart';
 import '../../visit_requests/presentation/pages/family_visit_requests_list_page.dart';
 import '../widgets/family_menu_entry.dart';
 
-/// "More" tab of the Family bottom navigation — a navigation hub for the
-/// feature areas that don't have a dedicated bottom-nav slot in the Figma
-/// bottom bar (Home/Updates/Appointments/Messages/More only has 5 slots).
-///
-/// This menu itself isn't a distinct Figma frame; it's a pragmatic way to
-/// make Visit Requests, Documents and Profile & Settings reachable
-/// end-to-end from a single bottom-nav destination.
 class FamilyMoreMenuPage extends StatelessWidget {
   const FamilyMoreMenuPage({super.key});
 
-  static const _entries = <FamilyMenuEntry>[
-    FamilyMenuEntry(
-      icon: Icons.event_available_outlined,
-      iconBackground: AppColors.activeBackground,
-      iconColor: AppColors.activeGreen,
-      title: 'Visit Requests',
-      subtitle: 'All requests, my requests & history',
-    ),
-    FamilyMenuEntry(
-      icon: Icons.folder_outlined,
-      iconBackground: AppColors.infoBackground,
-      iconColor: AppColors.infoBlue,
-      title: 'Documents',
-      subtitle: 'Approved care documents & downloads',
-    ),
-    FamilyMenuEntry(
-      icon: Icons.person_outline_rounded,
-      iconBackground: AppColors.nightBackground,
-      iconColor: AppColors.nightPurple,
-      title: 'Profile & Settings',
-      subtitle: 'Account, linked clients & preferences',
-    ),
-  ];
+  static const _visitRequests = FamilyMenuEntry(
+    icon: Icons.event_available_outlined,
+    iconBackground: AppColors.activeBackground,
+    iconColor: AppColors.activeGreen,
+    title: 'Visit Requests',
+    subtitle: 'Your pending visits and history',
+  );
 
-  void _open(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        Get.to(() => const FamilyVisitRequestsListPage());
-        break;
-      case 1:
-        Get.to(() => const FamilyDocumentsPage());
-        break;
-      case 2:
-        Get.to(() => const FamilyProfileSettingsPage());
-        break;
-    }
-  }
+  static const _documents = FamilyMenuEntry(
+    icon: Icons.folder_outlined,
+    iconBackground: AppColors.infoBackground,
+    iconColor: AppColors.infoBlue,
+    title: 'Documents',
+    subtitle: 'Approved care documents & downloads',
+  );
+
+  static const _profile = FamilyMenuEntry(
+    icon: Icons.person_outline_rounded,
+    iconBackground: AppColors.nightBackground,
+    iconColor: AppColors.nightPurple,
+    title: 'Profile & Settings',
+    subtitle: 'Account, linked clients & preferences',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -76,24 +56,41 @@ class FamilyMoreMenuPage extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: ListView.separated(
-          padding: ResponsiveHelper.getResponsivePadding(
-            context,
-            horizontal: AppDimens.screenPaddingHorizontal,
-            vertical: 20,
-          ),
-          itemCount: _entries.length,
-          separatorBuilder: (context, index) => SizedBox(
-            height: ResponsiveHelper.getResponsiveHeight(context, 12),
-          ),
-          itemBuilder: (context, index) {
-            final entry = _entries[index];
-            return FamilyMenuTile(
-              entry: entry,
-              onTap: () => _open(context, index),
-            );
-          },
-        ),
+        child: Obx(() {
+          final visibility = Get.find<UserSession>().familyVisibility;
+          final entries = <({FamilyMenuEntry entry, VoidCallback onTap})>[
+            if (visibility.appointments)
+              (
+                entry: _visitRequests,
+                onTap: () => Get.to(() => const FamilyVisitRequestsListPage()),
+              ),
+            if (visibility.documents)
+              (
+                entry: _documents,
+                onTap: () => Get.to(() => const FamilyDocumentsPage()),
+              ),
+            (
+              entry: _profile,
+              onTap: () => Get.to(() => const FamilyProfileSettingsPage()),
+            ),
+          ];
+
+          return ListView.separated(
+            padding: ResponsiveHelper.getResponsivePadding(
+              context,
+              horizontal: AppDimens.screenPaddingHorizontal,
+              vertical: 20,
+            ),
+            itemCount: entries.length,
+            separatorBuilder: (context, index) => SizedBox(
+              height: ResponsiveHelper.getResponsiveHeight(context, 12),
+            ),
+            itemBuilder: (context, index) {
+              final item = entries[index];
+              return FamilyMenuTile(entry: item.entry, onTap: item.onTap);
+            },
+          );
+        }),
       ),
     );
   }
