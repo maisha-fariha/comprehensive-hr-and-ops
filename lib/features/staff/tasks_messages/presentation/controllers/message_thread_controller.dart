@@ -1,16 +1,10 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 
 import '../../domain/entities/chat_message.dart';
 import '../../domain/entities/message_thread.dart';
-import '../../domain/entities/tasks_messages_enums.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
-
-/// Initials used for the tiny sender avatar on newly-sent outgoing bubbles,
-/// matching the placeholder used by the mocked chat history (see
-/// `StaffTasksMessagesRepositoryImpl`).
-const String _currentStaffInitials = 'DL';
 
 /// GetX controller for the Message Details (conversation thread) screen.
 ///
@@ -46,33 +40,29 @@ class MessageThreadController extends BaseController<MessageThread> {
       failure: (error) => setError(error.message),
     );
     setLoading(false);
+    await repository.markConversationRead(conversationId);
   }
 
-  /// Appends a new outgoing bubble built from the current text field value
-  /// to the local mock message list, then clears the input.
-  void sendMessage() {
+  /// Sends the current text field value with `priority: general`.
+  Future<void> sendMessage() async {
     final text = textController.text.trim();
     if (text.isEmpty) return;
 
-    messages.add(
-      ChatMessage(
-        id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-        text: text,
-        direction: MessageDirection.outgoing,
-        timeLabel: _currentTimeLabel(),
-        receiptStatus: 'Delivered',
-        senderInitials: _currentStaffInitials,
-      ),
+    final result = await repository.sendMessage(
+      conversationId: conversationId,
+      body: text,
     );
+    if (result.isFailure) {
+      Get.snackbar(
+        'Could not send message',
+        result.error?.message ?? 'Request failed.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
+    }
     textController.clear();
-  }
-
-  String _currentTimeLabel() {
-    final now = DateTime.now();
-    final hour12 = now.hour % 12 == 0 ? 12 : now.hour % 12;
-    final minute = now.minute.toString().padLeft(2, '0');
-    final period = now.hour >= 12 ? 'PM' : 'AM';
-    return '$hour12:$minute $period';
+    await loadThread();
   }
 
   @override

@@ -10,12 +10,18 @@ class DailyNoteClientInfo {
   final String name;
   final String dobLabel;
   final String roomLabel;
+  final String clientId;
+  final String? residenceId;
+  final String? entryId;
 
   const DailyNoteClientInfo({
     required this.initials,
     required this.name,
     required this.dobLabel,
     required this.roomLabel,
+    this.clientId = '',
+    this.residenceId,
+    this.entryId,
   });
 
   /// First name only, used to fill in the "How is {firstName} today?"

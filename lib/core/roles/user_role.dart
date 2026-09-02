@@ -43,6 +43,10 @@ enum UserRole {
         normalized.contains('kin')) {
       return UserRole.family;
     }
+    if (normalized.contains('housekeeper') ||
+        normalized.contains('house_keeper')) {
+      return UserRole.staff;
+    }
     if (normalized.contains('staff') ||
         normalized.contains('caregiver') ||
         normalized.contains('care_worker') ||

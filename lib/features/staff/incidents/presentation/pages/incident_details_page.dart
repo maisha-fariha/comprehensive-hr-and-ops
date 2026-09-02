@@ -61,6 +61,37 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
     Get.offAll(() => StaffShell(initialIndex: index));
   }
 
+  Future<void> _promptNote(BuildContext context) async {
+    final notes = TextEditingController();
+    final submitted = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Add note'),
+        content: TextField(
+          controller: notes,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Investigation note',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    final text = notes.text;
+    notes.dispose();
+    if (submitted == true) {
+      await _controller.addNote(text);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -129,13 +160,16 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     IncidentPeopleSection(detail: detail),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                    const IncidentDescriptionSection(),
+                    IncidentDescriptionSection(description: detail.description),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const IncidentEvidenceSection(),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                    const IncidentActivityLogSection(),
+                    IncidentActivityLogSection(entries: detail.activity),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                    const IncidentDetailsActions(),
+                    IncidentDetailsActions(
+                      onAcknowledge: _controller.acknowledge,
+                      onAddNote: () => _promptNote(context),
+                    ),
                   ],
                 );
               }),

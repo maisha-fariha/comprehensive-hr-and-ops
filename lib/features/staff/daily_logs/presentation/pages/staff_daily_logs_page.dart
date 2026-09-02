@@ -43,6 +43,9 @@ class StaffDailyLogsPage extends StatelessWidget {
           name: entry.clientName,
           dobLabel: entry.dobLabel,
           roomLabel: entry.roomLabel,
+          clientId: entry.clientId,
+          residenceId: entry.residenceId,
+          entryId: entry.entryId,
         ),
       ),
     );

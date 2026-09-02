@@ -8,4 +8,6 @@ import '../entities/staff_schedule_overview.dart';
 /// requires no changes above the data layer.
 abstract class StaffScheduleRepository {
   Future<Result<StaffScheduleOverview>> getOverview();
+
+  Future<Result<void>> bidOnShift(String shiftId);
 }

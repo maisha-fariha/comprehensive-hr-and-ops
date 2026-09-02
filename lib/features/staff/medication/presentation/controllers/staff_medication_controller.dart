@@ -1,19 +1,14 @@
+import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/due_dose.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/entities/staff_medication_overview.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
 
 /// GetX controller for the Staff "Medication MAR" screen.
-///
-/// Extends the project's [BaseController] (from `gems_data_layer`) so
-/// loading/error state is handled the same way as every other feature
-/// controller in the app. All 4 Figma screens ("Due", "Administered",
-/// "Missed", "Refused") are implemented as tabs of a single page sharing
-/// one header, so tab selection lives here as a simple `Rx` instead of 4
-/// separate controllers/pages.
 class StaffMedicationController extends BaseController<StaffMedicationOverview> {
   final StaffMedicationRepository repository;
 
@@ -37,33 +32,54 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
 
   void selectTab(StaffMedicationTab tab) => selectedTab.value = tab;
 
-  /// Marks the given "Due" tab dose as administered. This only updates the
-  /// in-memory mock state held by this controller — there is no backend for
-  /// dose actions yet.
-  void markAdministered(String doseId) => _updateDueDoseStatus(doseId, DueDoseStatus.administered);
+  Future<void> markAdministered(String doseId) =>
+      _record(doseId, status: 'administered');
 
-  /// Marks the given "Due" tab dose as not given. This only updates the
-  /// in-memory mock state held by this controller — there is no backend for
-  /// dose actions yet.
-  void markNotGiven(String doseId) => _updateDueDoseStatus(doseId, DueDoseStatus.notGiven);
+  Future<void> markNotGiven(String doseId) => _record(doseId, status: 'refused');
 
-  void _updateDueDoseStatus(String doseId, DueDoseStatus status) {
-    final current = overview;
-    if (current == null) return;
-
-    List<DueDose> apply(List<DueDose> doses) {
-      return [
-        for (final dose in doses)
-          if (dose.id == doseId) dose.copyWith(status: status) else dose,
-      ];
+  Future<void> _record(String doseId, {required String status}) async {
+    final dose = _findDose(doseId);
+    if (dose == null) return;
+    final residenceId = dose.residenceId.isNotEmpty
+        ? dose.residenceId
+        : (Get.find<UserSession>().residenceId ?? '');
+    if (dose.clientId.isEmpty || dose.medicationId.isEmpty || residenceId.isEmpty) {
+      Get.snackbar(
+        'Could not record dose',
+        'This dose is missing client or medication details.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
     }
 
-    setSuccess(
-      current.copyWith(
-        dueNowDoses: apply(current.dueNowDoses),
-        laterTodayDoses: apply(current.laterTodayDoses),
-      ),
+    setLoading(true);
+    final result = await repository.recordAdministration(
+      clientId: dose.clientId,
+      residenceId: residenceId,
+      medicationId: dose.medicationId,
+      status: status,
     );
+    setLoading(false);
+    if (result.isFailure) {
+      Get.snackbar(
+        'Could not record dose',
+        result.error?.message ?? 'Request failed.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
+    }
+    await loadOverview();
+  }
+
+  DueDose? _findDose(String doseId) {
+    final current = overview;
+    if (current == null) return null;
+    for (final dose in [...current.dueNowDoses, ...current.laterTodayDoses]) {
+      if (dose.id == doseId) return dose;
+    }
+    return null;
   }
 
   @override

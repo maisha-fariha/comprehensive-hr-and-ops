@@ -10,11 +10,13 @@ class StaffScheduleOverview {
   final List<WeekDay> weekDays;
   final String shiftsThisWeekLabel;
   final List<StaffShift> shifts;
+  final List<StaffShift> openShiftRequests;
 
   const StaffScheduleOverview({
     required this.weekRangeLabel,
     required this.weekDays,
     required this.shiftsThisWeekLabel,
     required this.shifts,
+    this.openShiftRequests = const [],
   });
 }

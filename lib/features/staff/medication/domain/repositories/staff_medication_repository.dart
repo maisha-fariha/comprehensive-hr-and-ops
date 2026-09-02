@@ -9,4 +9,11 @@ import '../entities/staff_medication_overview.dart';
 /// later requires no changes above the data layer.
 abstract class StaffMedicationRepository {
   Future<Result<StaffMedicationOverview>> getOverview();
+
+  Future<Result<void>> recordAdministration({
+    required String clientId,
+    required String residenceId,
+    required String medicationId,
+    required String status,
+  });
 }

@@ -13,4 +13,12 @@ abstract class StaffTasksMessagesRepository {
   Future<Result<TasksMessagesOverview>> getOverview();
 
   Future<Result<MessageThread>> getThread(String conversationId);
+
+  Future<Result<void>> sendMessage({
+    required String conversationId,
+    required String body,
+    String priority = 'general',
+  });
+
+  Future<Result<void>> markConversationRead(String conversationId);
 }

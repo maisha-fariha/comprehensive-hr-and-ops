@@ -90,7 +90,11 @@ class StaffSchedulePage extends StatelessWidget {
                         shifts: overview.shifts,
                       ),
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                      const OpenShiftRequestsSection(),
+                      OpenShiftRequestsSection(
+                        shifts: overview.openShiftRequests,
+                        onRequestTap: (shift) =>
+                            controller.requestOpenShift(shift.id),
+                      ),
                     ],
                   ),
                 ),

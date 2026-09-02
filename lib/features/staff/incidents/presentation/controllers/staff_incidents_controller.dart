@@ -33,13 +33,18 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
     return incidents.where((incident) => incident.title.toLowerCase().contains(query)).toList();
   }
 
-  void selectTab(StaffIncidentsTab tab) => selectedTab.value = tab;
+  void selectTab(StaffIncidentsTab tab) {
+    selectedTab.value = tab;
+    loadIncidents();
+  }
 
   void updateSearchQuery(String query) => searchQuery.value = query;
 
   Future<void> loadIncidents() async {
     setLoading(true);
-    final result = await repository.getIncidents();
+    final result = await repository.getIncidents(
+      mine: selectedTab.value == StaffIncidentsTab.myIncidents,
+    );
     result.when(
       success: setSuccess,
       failure: (error) => setError(error.message),

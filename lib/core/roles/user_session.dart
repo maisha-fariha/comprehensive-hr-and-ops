@@ -17,6 +17,7 @@ class UserSession extends GetxService {
   final RxnString _residenceId = RxnString();
   final RxnString _residenceName = RxnString();
   final RxnString _organizationName = RxnString();
+  final RxnString _staffId = RxnString();
   final RxList<String> _permissions = <String>[].obs;
 
   UserRole get role => _role.value ?? UserRole.hr;
@@ -27,9 +28,52 @@ class UserSession extends GetxService {
   String? get residenceId => _residenceId.value;
   String? get residenceName => _residenceName.value;
   String? get organizationName => _organizationName.value;
+  String? get staffId => _staffId.value;
   List<String> get permissions => List.unmodifiable(_permissions);
 
   String get portalRoute => isSignedIn ? role.portalRoute : AppRoutes.login;
+
+  /// When `/mobile/me` (or `/mobile/home`) has not returned permissions yet,
+  /// screens stay visible so a first paint does not hide the whole shell.
+  bool can(String permission) {
+    if (_permissions.isEmpty) return true;
+    final needed = permission.toLowerCase();
+    for (final raw in _permissions) {
+      final perm = raw.toLowerCase();
+      if (perm == needed) return true;
+      if (perm.startsWith('$needed:')) return true;
+      if (needed.contains(':') && perm == needed.split(':').first) return true;
+    }
+    return false;
+  }
+
+  bool get canAccessClients => can('clients');
+  bool get canAccessDailyLogs => can('daily-logs') || can('daily_logs');
+  bool get canAccessMar => can('mar');
+  bool get canAccessIncidents => can('incidents');
+  bool get canAccessTasks => can('tasks');
+  bool get canAccessAppointments => can('appointments');
+  bool get canAccessHandovers => can('shift-handovers') || can('handovers');
+
+  void applyPermissions(Iterable<String> values) {
+    if (values.isEmpty) return;
+    _permissions.assignAll(values);
+  }
+
+  void applyStaffContext({
+    String? staffId,
+    String? residenceId,
+    String? residenceName,
+  }) {
+    if (staffId != null && staffId.isNotEmpty) _staffId.value = staffId;
+    if (residenceId != null && residenceId.isNotEmpty) {
+      _residenceId.value = residenceId;
+    }
+    if (residenceName != null && residenceName.isNotEmpty) {
+      _residenceName.value = residenceName;
+      _organizationName.value = residenceName;
+    }
+  }
 
   void applyProfile(MobileProfile profile) {
     _role.value = profile.role;
@@ -39,6 +83,7 @@ class UserSession extends GetxService {
     _residenceId.value = profile.residenceId;
     _residenceName.value = profile.residenceName;
     _organizationName.value = profile.residenceName ?? profile.tenantName;
+    _staffId.value = profile.staffId;
     _permissions.assignAll(profile.permissions);
   }
 
@@ -84,6 +129,7 @@ class UserSession extends GetxService {
     _residenceId.value = null;
     _residenceName.value = null;
     _organizationName.value = null;
+    _staffId.value = null;
     _permissions.clear();
   }
 

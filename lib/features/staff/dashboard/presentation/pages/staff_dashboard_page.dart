@@ -5,6 +5,10 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../attendance/presentation/pages/staff_attendance_page.dart';
+import '../../../medication/presentation/pages/staff_medication_page.dart';
+import '../../../staff_shell.dart';
+import '../../../tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
 import '../controllers/staff_dashboard_controller.dart';
 import '../widgets/staff_alerts_banner.dart';
 import '../widgets/staff_dashboard_header.dart';
@@ -90,13 +94,29 @@ class StaffDashboardPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       StaffOverviewSection(stats: overview.overviewStats),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                      StaffAlertsBanner(
-                        count: overview.alertCount,
-                        label: overview.alertLabel,
-                      ),
+                      if (overview.alertCount > 0) ...[
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+                        StaffAlertsBanner(
+                          count: overview.alertCount,
+                          label: overview.alertLabel,
+                        ),
+                      ],
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                      StaffQuickActionsSection(actions: overview.quickActions),
+                      StaffQuickActionsSection(
+                        actions: overview.quickActions,
+                        onActionTap: (action) {
+                          switch (action.id) {
+                            case 'clock-in-out':
+                              Get.to(() => const StaffAttendancePage());
+                            case 'daily-logs':
+                              Get.offAll(() => const StaffShell(initialIndex: 2));
+                            case 'medication-mar':
+                              Get.to(() => const StaffMedicationPage());
+                            case 'my-tasks':
+                              Get.to(() => const StaffTasksMessagesPage());
+                          }
+                        },
+                      ),
                     ],
                   ),
                 ),

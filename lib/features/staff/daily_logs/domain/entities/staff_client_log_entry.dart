@@ -25,6 +25,9 @@ class StaffClientLogEntry {
   /// when this row is tapped.
   final String dobLabel;
   final String roomLabel;
+  final String clientId;
+  final String? residenceId;
+  final String? entryId;
 
   const StaffClientLogEntry({
     required this.id,
@@ -35,5 +38,8 @@ class StaffClientLogEntry {
     required this.status,
     required this.dobLabel,
     required this.roomLabel,
+    this.clientId = '',
+    this.residenceId,
+    this.entryId,
   });
 }

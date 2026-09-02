@@ -22,6 +22,9 @@ class DueDose {
   final String timeLabel;
   final DueDoseSection section;
   final DueDoseStatus status;
+  final String clientId;
+  final String residenceId;
+  final String medicationId;
 
   const DueDose({
     required this.id,
@@ -34,6 +37,9 @@ class DueDose {
     required this.timeLabel,
     required this.section,
     this.status = DueDoseStatus.pending,
+    this.clientId = '',
+    this.residenceId = '',
+    this.medicationId = '',
   });
 
   DueDose copyWith({DueDoseStatus? status}) {
@@ -48,6 +54,9 @@ class DueDose {
       timeLabel: timeLabel,
       section: section,
       status: status ?? this.status,
+      clientId: clientId,
+      residenceId: residenceId,
+      medicationId: medicationId,
     );
   }
 }

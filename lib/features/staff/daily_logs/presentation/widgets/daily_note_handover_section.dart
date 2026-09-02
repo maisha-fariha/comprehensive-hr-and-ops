@@ -4,39 +4,22 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 
-/// "Handover Note" block + teal "Submit Note" CTA shown beneath Attachments
-/// on the Daily Note screen (UI-hardcoded sample text per the reference).
-class DailyNoteHandoverSection extends StatefulWidget {
+/// "Handover Note" block + teal "Submit Note" CTA. Submitting posts the
+/// daily-log entry and a separate shift handover.
+class DailyNoteHandoverSection extends StatelessWidget {
   final VoidCallback? onSubmit;
+  final TextEditingController controller;
 
-  const DailyNoteHandoverSection({super.key, this.onSubmit});
+  const DailyNoteHandoverSection({
+    super.key,
+    required this.controller,
+    this.onSubmit,
+  });
 
-  @override
-  State<DailyNoteHandoverSection> createState() => _DailyNoteHandoverSectionState();
-}
-
-class _DailyNoteHandoverSectionState extends State<DailyNoteHandoverSection> {
   static const int _maxChars = 250;
-  static const String _sample =
-      'Continue encouraging fluids throughout the afternoon.';
-
   static const Color _ink = Color(0xFF1A2533);
   static const Color _muted = Color(0xFF94A3B8);
   static const Color _submit = Color(0xFF16807D);
-
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: _sample);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,12 +83,11 @@ class _DailyNoteHandoverSectionState extends State<DailyNoteHandoverSection> {
             children: [
               Expanded(
                 child: TextField(
-                  controller: _controller,
+                  controller: controller,
                   maxLength: _maxChars,
                   maxLines: null,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
-                  onChanged: (_) => setState(() {}),
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w500,
@@ -123,15 +105,21 @@ class _DailyNoteHandoverSectionState extends State<DailyNoteHandoverSection> {
               ),
               Align(
                 alignment: Alignment.centerRight,
-                child: Text(
-                  '${_controller.text.length}/$_maxChars',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-                    color: _muted,
-                    height: 1.2,
-                  ),
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: controller,
+                  builder: (context, value, _) {
+                    return Text(
+                      '${value.text.length}/$_maxChars',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w400,
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                        color: _muted,
+                        height: 1.2,
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -139,7 +127,7 @@ class _DailyNoteHandoverSectionState extends State<DailyNoteHandoverSection> {
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
         GestureDetector(
-          onTap: widget.onSubmit ?? Get.back,
+          onTap: onSubmit ?? Get.back,
           behavior: HitTestBehavior.opaque,
           child: Container(
             width: double.infinity,

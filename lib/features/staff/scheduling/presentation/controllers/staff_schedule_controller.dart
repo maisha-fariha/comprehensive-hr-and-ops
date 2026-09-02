@@ -1,13 +1,11 @@
+import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get/get.dart';
 
 import '../../domain/entities/staff_schedule_overview.dart';
 import '../../domain/repositories/staff_schedule_repository.dart';
 
 /// GetX controller for the "My Schedule" screen.
-///
-/// Extends the project's [BaseController] (from `gems_data_layer`) so
-/// loading/error state is handled the same way as every other feature
-/// controller in the app.
 class StaffScheduleController extends BaseController<StaffScheduleOverview> {
   final StaffScheduleRepository repository;
 
@@ -25,6 +23,28 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
       failure: (error) => setError(error.message),
     );
     setLoading(false);
+  }
+
+  Future<void> requestOpenShift(String shiftId) async {
+    setLoading(true);
+    final result = await repository.bidOnShift(shiftId);
+    setLoading(false);
+    if (result.isFailure) {
+      Get.snackbar(
+        'Could not request shift',
+        result.error?.message ?? 'Request failed.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
+    }
+    Get.snackbar(
+      'Shift request sent',
+      'Your bid was submitted.',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.white,
+    );
+    await loadOverview();
   }
 
   @override

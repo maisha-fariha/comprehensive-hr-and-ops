@@ -2,45 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../domain/entities/staff_attendance_history_item.dart';
 
-class _HistoryItem {
-  final String dateLabel;
-  final String timeRange;
-  final String durationLabel;
-
-  const _HistoryItem({
-    required this.dateLabel,
-    required this.timeRange,
-    required this.durationLabel,
-  });
-}
-
-/// UI-hardcoded rows from the Attendance History reference.
-const List<_HistoryItem> _historyItems = [
-  _HistoryItem(
-    dateLabel: 'Mon, May 12',
-    timeRange: '7:01 AM – 3:02 PM',
-    durationLabel: '8h 01m',
-  ),
-  _HistoryItem(
-    dateLabel: 'Sun, May 11',
-    timeRange: '3:00 PM – 11:04 PM',
-    durationLabel: '8h 04m',
-  ),
-  _HistoryItem(
-    dateLabel: 'Fri, May 9',
-    timeRange: '7:00 AM – 3:00 PM',
-    durationLabel: '8h 00m',
-  ),
-  _HistoryItem(
-    dateLabel: 'Thu, May 8',
-    timeRange: '7:03 AM – 2:58 PM',
-    durationLabel: '7h 55m',
-  ),
-];
 /// "Attendance History" heading + white card listing past shifts.
 class AttendanceHistorySection extends StatelessWidget {
-  const AttendanceHistorySection({super.key});
+  final List<StaffAttendanceHistoryItem> items;
+
+  const AttendanceHistorySection({super.key, this.items = const []});
 
   static const Color _primary = Color(0xFF1A202C);
   static const Color _secondary = Color(0xFF718096);
@@ -82,15 +50,32 @@ class AttendanceHistorySection extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
-            children: [
-              for (var i = 0; i < _historyItems.length; i++) ...[
-                if (i > 0)
-                  const Divider(height: 1, thickness: 1, color: _divider),
-                _HistoryRow(item: _historyItems[i]),
-              ],
-            ],
-          ),
+          child: items.isEmpty
+              ? Padding(
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    vertical: 18,
+                    horizontal: 16,
+                  ),
+                  child: Text(
+                    'No attendance records yet.',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w400,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                      color: _secondary,
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (var i = 0; i < items.length; i++) ...[
+                      if (i > 0)
+                        const Divider(height: 1, thickness: 1, color: _divider),
+                      _HistoryRow(item: items[i]),
+                    ],
+                  ],
+                ),
         ),
       ],
     );
@@ -98,7 +83,7 @@ class AttendanceHistorySection extends StatelessWidget {
 }
 
 class _HistoryRow extends StatelessWidget {
-  final _HistoryItem item;
+  final StaffAttendanceHistoryItem item;
 
   const _HistoryRow({required this.item});
 

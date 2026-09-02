@@ -1,193 +1,177 @@
 import 'package:gems_core/gems_core.dart';
 
-import '../../domain/entities/daily_note_field.dart';
+import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/daily_note_overview.dart';
-import '../../domain/entities/staff_client_log_entry.dart';
-import '../../domain/entities/staff_daily_log_summary_stat.dart';
-import '../../domain/entities/staff_daily_logs_enums.dart';
 import '../../domain/entities/staff_daily_logs_overview.dart';
 import '../../domain/repositories/staff_daily_logs_repository.dart';
+import '../mappers/staff_daily_logs_mapper.dart';
 
-/// Local implementation of [StaffDailyLogsRepository].
-///
-/// There is no backend endpoint for Staff Daily Logs yet, so this returns
-/// static content matching the reference screenshots ("My Clients - Daily
-/// Logs", "In Progress - Daily Logs", "Submitted - Daily Logs" and "Daily
-/// Note"). Replace the body of each method with a real
-/// `ApiService`/`BaseRepository` call once an API contract exists - the
-/// domain layer and every widget above it will keep working unchanged.
 class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
+  final AppApiClient _api;
+  final UserSession _session;
+
+  StaffDailyLogsRepositoryImpl({
+    required AppApiClient api,
+    required UserSession session,
+  })  : _api = api,
+        _session = session;
+
   @override
   Future<Result<StaffDailyLogsOverview>> getOverview() async {
+    final clients = await _api.get(
+      ApiEndpoints.clients,
+      query: {
+        'assignedToMe': true,
+        'page': 1,
+        'limit': 20,
+        'residenceId': ?_session.residenceId,
+      },
+    );
+    if (clients.isFailure) {
+      return Result.failure(
+        clients.error ??
+            const ApiError(message: 'Could not load assigned clients.'),
+      );
+    }
+
+    final clientMaps = JsonCodec.unwrapList(clients.value).whereType<Map>();
+    String? residenceId = _session.residenceId;
+    if (residenceId == null || residenceId.isEmpty) {
+      for (final raw in clientMaps) {
+        final json = JsonCodec.asMap(raw);
+        residenceId = JsonCodec.string(
+          json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
+        );
+        if (residenceId != null) break;
+      }
+    }
+
+    final logResults = await Future.wait(
+      clientMaps.take(20).map((raw) {
+        final json = JsonCodec.asMap(raw);
+        final clientId = JsonCodec.string(json['id']);
+        final rid = JsonCodec.string(
+              json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
+            ) ??
+            residenceId;
+        return _api.get(
+          ApiEndpoints.dailyLogs,
+          query: {
+            'clientId': clientId,
+            'residenceId': rid,
+            'logDate': IsoDateRange.todayDate,
+          },
+        );
+      }),
+    );
+
+    final flags = await _api.get(
+      ApiEndpoints.careFlags,
+      query: {
+        'page': 1,
+        'limit': 20,
+        'state': 'open',
+        'residenceId': ?residenceId,
+      },
+    );
+
     return Result.success(
-      const StaffDailyLogsOverview(
-        stats: [
-          StaffDailyLogSummaryStat(
-            tag: StaffDailyLogStatTag.submittedToday,
-            value: '12',
-            label: 'Submitted Today',
-          ),
-          StaffDailyLogSummaryStat(
-            tag: StaffDailyLogStatTag.pendingReview,
-            value: '5',
-            label: 'Pending Review',
-          ),
-          StaffDailyLogSummaryStat(
-            tag: StaffDailyLogStatTag.flaggedNotes,
-            value: '2',
-            label: 'Flagged Notes',
-          ),
-        ],
-        myClientsTotalCount: 8,
-        myClients: [
-          StaffClientLogEntry(
-            id: 'james-d',
-            initials: 'JD',
-            shiftLabel: 'Morning Shift',
-            clientName: 'James D.',
-            subtitleLabel: '7:00 AM',
-            status: ClientLogStatus.pending,
-            dobLabel: 'DOB 05/12/1965',
-            roomLabel: 'Room 101',
-          ),
-          StaffClientLogEntry(
-            id: 'maria-s',
-            initials: 'MS',
-            shiftLabel: 'Morning Shift',
-            clientName: 'Maria S.',
-            subtitleLabel: '7:05 AM',
-            status: ClientLogStatus.inProgress,
-            dobLabel: 'DOB 09/23/1958',
-            roomLabel: 'Room 104',
-          ),
-          StaffClientLogEntry(
-            id: 'robert-h',
-            initials: 'RH',
-            shiftLabel: 'Morning Shift',
-            clientName: 'Robert H.',
-            subtitleLabel: '7:10 AM',
-            status: ClientLogStatus.pending,
-            dobLabel: 'DOB 02/17/1949',
-            roomLabel: 'Room 106',
-          ),
-          StaffClientLogEntry(
-            id: 'linda-k',
-            initials: 'LK',
-            shiftLabel: 'Morning Shift',
-            clientName: 'Linda K.',
-            subtitleLabel: 'Submitted 7:15 AM',
-            status: ClientLogStatus.submitted,
-            dobLabel: 'DOB 11/30/1961',
-            roomLabel: 'Room 108',
-          ),
-          StaffClientLogEntry(
-            id: 'michael-t',
-            initials: 'MT',
-            shiftLabel: 'Morning Shift',
-            clientName: 'Michael T.',
-            subtitleLabel: '7:20 AM',
-            status: ClientLogStatus.pending,
-            dobLabel: 'DOB 04/08/1972',
-            roomLabel: 'Room 110',
-          ),
-        ],
-        inProgressClients: [
-          StaffClientLogEntry(
-            id: 'maria-s',
-            initials: 'MS',
-            shiftLabel: 'Morning Shift',
-            clientName: 'Maria S.',
-            subtitleLabel: 'Updated 8:42 AM',
-            status: ClientLogStatus.inProgress,
-            dobLabel: 'DOB 09/23/1958',
-            roomLabel: 'Room 104',
-          ),
-          StaffClientLogEntry(
-            id: 'david-l',
-            initials: 'DL',
-            shiftLabel: 'Morning Shift',
-            clientName: 'David L.',
-            subtitleLabel: 'Updated 9:05 AM',
-            status: ClientLogStatus.inProgress,
-            dobLabel: 'DOB 06/14/1966',
-            roomLabel: 'Room 112',
-          ),
-        ],
-        submittedTotalCount: 5,
-        submittedClients: [
-          StaffClientLogEntry(
-            id: 'linda-k',
-            initials: 'LK',
-            shiftLabel: 'Morning Shift',
-            clientName: 'Linda K.',
-            subtitleLabel: 'Submitted 7:15 AM',
-            status: ClientLogStatus.submitted,
-            dobLabel: 'DOB 11/30/1961',
-            roomLabel: 'Room 108',
-          ),
-          StaffClientLogEntry(
-            id: 'patricia-b',
-            initials: 'PB',
-            shiftLabel: 'Morning Shift',
-            clientName: 'Patricia B.',
-            subtitleLabel: 'Submitted 7:25 AM',
-            status: ClientLogStatus.submitted,
-            dobLabel: 'DOB 01/05/1953',
-            roomLabel: 'Room 114',
-          ),
-          StaffClientLogEntry(
-            id: 'george-a',
-            initials: 'GA',
-            shiftLabel: 'Early Shift',
-            clientName: 'George A.',
-            subtitleLabel: 'Submitted 6:55 AM',
-            status: ClientLogStatus.submitted,
-            dobLabel: 'DOB 08/19/1957',
-            roomLabel: 'Room 116',
-          ),
-          StaffClientLogEntry(
-            id: 'nancy-p',
-            initials: 'NP',
-            shiftLabel: 'Early Shift',
-            clientName: 'Nancy P.',
-            subtitleLabel: 'Submitted 6:40 AM',
-            status: ClientLogStatus.submitted,
-            dobLabel: 'DOB 03/27/1964',
-            roomLabel: 'Room 118',
-          ),
-          StaffClientLogEntry(
-            id: 'kevin-r',
-            initials: 'KR',
-            shiftLabel: 'Early Shift',
-            clientName: 'Kevin R.',
-            subtitleLabel: 'Submitted 6:15 AM',
-            status: ClientLogStatus.submitted,
-            dobLabel: 'DOB 12/02/1969',
-            roomLabel: 'Room 120',
-          ),
-        ],
+      StaffDailyLogsMapper.compose(
+        clientsBody: clients.value,
+        logBodies: [for (final result in logResults) result.value],
+        flagsBody: flags.value,
       ),
     );
   }
 
   @override
   Future<Result<DailyNoteOverview>> getDailyNoteOverview() async {
-    return Result.success(
-      const DailyNoteOverview(
-        fields: [
-          DailyNoteField(key: DailyNoteFieldKey.mood, label: 'Mood', value: 'Happy'),
-          DailyNoteField(key: DailyNoteFieldKey.meals, label: 'Meals', value: 'Ate well'),
-          DailyNoteField(key: DailyNoteFieldKey.sleep, label: 'Sleep', value: 'Slept well'),
-          DailyNoteField(key: DailyNoteFieldKey.hygiene, label: 'Hygiene', value: 'Showered'),
-          DailyNoteField(key: DailyNoteFieldKey.activities, label: 'Activities', value: 'Group exercise'),
-          DailyNoteField(
-            key: DailyNoteFieldKey.behavior,
-            label: 'Behavior',
-            value: 'Cooperative & engaged',
-          ),
-          DailyNoteField(key: DailyNoteFieldKey.wellness, label: 'Wellness', value: 'No concerns'),
-        ],
-      ),
+    return Result.success(StaffDailyLogsMapper.emptyNote());
+  }
+
+  @override
+  Future<Result<String>> saveEntry({
+    required String clientId,
+    required String residenceId,
+    required String body,
+    String? entryId,
+    required bool submit,
+    Map<String, String>? observations,
+    bool flagForAttention = false,
+  }) async {
+    final payload = <String, dynamic>{
+      'clientId': clientId,
+      'residenceId': residenceId,
+      'logDate': IsoDateRange.todayDate,
+      'body': body,
+      'status': submit ? 'submitted' : 'draft',
+      'flagForAttention': flagForAttention,
+      'shift': _shiftForNow(),
+      if (observations != null && observations.isNotEmpty)
+        'observations': {
+          'mood': ?observations['mood'],
+          'meals': ?observations['meals'],
+          'sleep': ?observations['sleep'],
+          'hygiene': ?observations['hygiene'],
+          'activities': ?observations['activities'],
+          'behaviorNotes': ?observations['behavior'],
+          'wellness': ?observations['wellness'],
+        },
+    };
+
+    final result = entryId == null || entryId.isEmpty
+        ? await _api.post(ApiEndpoints.dailyLogEntries, data: payload)
+        : await _api.patch(
+            ApiEndpoints.dailyLogEntryById(entryId),
+            data: {
+              'body': body,
+              'status': submit ? 'submitted' : 'draft',
+              'flagForAttention': flagForAttention,
+              if (observations != null && observations.isNotEmpty)
+                'observations': payload['observations'],
+            },
+          );
+
+    return result.when(
+      success: (value) async {
+        final json = JsonCodec.unwrapMap(value);
+        return Result.success(
+          JsonCodec.stringOr(json['id'] ?? json['entryId'] ?? entryId, ''),
+        );
+      },
+      failure: (error) async => Result.failure(error),
     );
+  }
+
+  @override
+  Future<Result<void>> createHandover({
+    required String residenceId,
+    required String notes,
+    String? clientId,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftHandovers,
+      data: {
+        'residenceId': residenceId,
+        'notes': notes,
+        'body': notes,
+        if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
+      },
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  static String _shiftForNow() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'night';
   }
 }

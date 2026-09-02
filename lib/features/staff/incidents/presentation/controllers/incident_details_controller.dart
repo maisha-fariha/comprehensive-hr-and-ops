@@ -1,15 +1,11 @@
+import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get/get.dart';
 
 import '../../domain/entities/incident_detail.dart';
 import '../../domain/repositories/staff_incidents_repository.dart';
 
 /// GetX controller for the read-only Incident Details screen.
-///
-/// Unlike [StaffIncidentsController] this is shared across every incident
-/// (registered once via DI, same as the reference HR feature's
-/// app-lifetime controllers), and simply reloads its [state] whenever
-/// [loadDetail] is called with a different incident id - avoiding the need
-/// to thread a constructor argument through `get_it`'s zero-arg factories.
 class IncidentDetailsController extends BaseController<IncidentDetail> {
   final StaffIncidentsRepository repository;
 
@@ -28,6 +24,51 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
       failure: (error) => setError(error.message),
     );
     setLoading(false);
+  }
+
+  Future<void> acknowledge() async {
+    final id = _loadedIncidentId;
+    if (id == null) return;
+    final result = await repository.acknowledge(id);
+    if (result.isFailure) {
+      Get.snackbar(
+        'Could not acknowledge',
+        result.error?.message ?? 'Request failed.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
+    }
+    Get.snackbar(
+      'Acknowledged',
+      'This incident is marked as seen.',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.white,
+    );
+    _loadedIncidentId = null;
+    await loadDetail(id);
+  }
+
+  Future<void> addNote(String notes) async {
+    final id = _loadedIncidentId;
+    if (id == null) return;
+    final text = notes.trim();
+    if (text.isEmpty) return;
+    final result = await repository.addInvestigationNote(
+      incidentId: id,
+      notes: text,
+    );
+    if (result.isFailure) {
+      Get.snackbar(
+        'Could not add note',
+        result.error?.message ?? 'Request failed.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
+    }
+    _loadedIncidentId = null;
+    await loadDetail(id);
   }
 
   @override

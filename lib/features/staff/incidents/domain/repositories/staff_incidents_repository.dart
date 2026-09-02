@@ -8,7 +8,17 @@ import '../entities/staff_incident.dart';
 /// mocked [StaffIncidentsRepositoryImpl] for a real API-backed
 /// implementation later requires no changes above the data layer.
 abstract class StaffIncidentsRepository {
-  Future<Result<List<StaffIncident>>> getIncidents();
+  Future<Result<List<StaffIncident>>> getIncidents({
+    bool mine = false,
+    String? search,
+  });
 
   Future<Result<IncidentDetail>> getIncidentDetail(String incidentId);
+
+  Future<Result<void>> acknowledge(String incidentId);
+
+  Future<Result<void>> addInvestigationNote({
+    required String incidentId,
+    required String notes,
+  });
 }

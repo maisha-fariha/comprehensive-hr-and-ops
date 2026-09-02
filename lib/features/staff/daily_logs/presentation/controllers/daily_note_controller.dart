@@ -1,19 +1,16 @@
+import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get/get.dart';
 
+import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/daily_note_client_info.dart';
 import '../../domain/entities/daily_note_overview.dart';
 import '../../domain/repositories/staff_daily_logs_repository.dart';
 
 /// GetX controller for the "Daily Note" screen.
-///
-/// The care-note form fields (Mood / Meals / Sleep / ...) are the same
-/// default set for every client per the reference screenshot, so this
-/// controller only fetches that list; the tapped client's identity
-/// (name/DOB/room) is passed directly into [DailyNotePage] via its
-/// constructor rather than routed through this controller, since it comes
-/// from whichever Daily Logs row/card the user tapped rather than from a
-/// server fetch.
 class DailyNoteController extends BaseController<DailyNoteOverview> {
   final StaffDailyLogsRepository repository;
+  final TextEditingController handoverController = TextEditingController();
 
   DailyNoteController({required this.repository}) {
     loadFields();
@@ -31,6 +28,76 @@ class DailyNoteController extends BaseController<DailyNoteOverview> {
     setLoading(false);
   }
 
+  Future<void> saveNote(
+    DailyNoteClientInfo client, {
+    required bool submit,
+  }) async {
+    final body = handoverController.text.trim();
+    if (body.isEmpty) {
+      Get.snackbar(
+        'Note required',
+        'Write how the client is doing before saving.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
+    }
+    final residenceId =
+        client.residenceId ?? Get.find<UserSession>().residenceId ?? '';
+    if (client.clientId.isEmpty || residenceId.isEmpty) {
+      Get.snackbar(
+        'Could not save note',
+        'This client is missing an id or residence.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
+    }
+
+    setLoading(true);
+    final result = await repository.saveEntry(
+      clientId: client.clientId,
+      residenceId: residenceId,
+      body: body,
+      entryId: client.entryId,
+      submit: submit,
+    );
+    if (result.isFailure) {
+      setLoading(false);
+      Get.snackbar(
+        'Could not save note',
+        result.error?.message ?? 'Request failed.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
+      );
+      return;
+    }
+
+    if (submit && Get.find<UserSession>().canAccessHandovers) {
+      await repository.createHandover(
+        residenceId: residenceId,
+        notes: body,
+        clientId: client.clientId,
+      );
+    }
+    setLoading(false);
+    Get.snackbar(
+      submit ? 'Note submitted' : 'Draft saved',
+      submit
+          ? 'The care note is now part of the record.'
+          : 'Only you can see this draft until you submit.',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.white,
+    );
+    if (submit) Get.back();
+  }
+
   @override
   Future<void> refresh() => loadFields();
+
+  @override
+  void onClose() {
+    handoverController.dispose();
+    super.onClose();
+  }
 }

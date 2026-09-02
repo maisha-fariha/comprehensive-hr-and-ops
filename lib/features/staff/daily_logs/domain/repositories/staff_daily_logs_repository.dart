@@ -12,4 +12,20 @@ abstract class StaffDailyLogsRepository {
   Future<Result<StaffDailyLogsOverview>> getOverview();
 
   Future<Result<DailyNoteOverview>> getDailyNoteOverview();
+
+  Future<Result<String>> saveEntry({
+    required String clientId,
+    required String residenceId,
+    required String body,
+    String? entryId,
+    required bool submit,
+    Map<String, String>? observations,
+    bool flagForAttention = false,
+  });
+
+  Future<Result<void>> createHandover({
+    required String residenceId,
+    required String notes,
+    String? clientId,
+  });
 }

@@ -108,11 +108,20 @@ class StaffAttendancePage extends StatelessWidget {
                       verifiedLabel: overview.selfieVerifiedLabel,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    BreakRow(isOnBreak: overview.isOnBreak, statusLabel: overview.breakStatusLabel),
+                    BreakRow(
+                      isOnBreak: overview.isOnBreak,
+                      statusLabel: overview.breakStatusLabel,
+                      onToggleBreak: controller.toggleBreak,
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
-                    const ClockOutButton(),
+                    ClockOutButton(
+                      label: overview.isOnShift ? 'Clock Out' : 'Clock In',
+                      onTap: overview.isOnShift
+                          ? controller.clockOut
+                          : controller.clockIn,
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
-                    const AttendanceHistorySection(),
+                    AttendanceHistorySection(items: overview.history),
                   ],
                 ),
               ),

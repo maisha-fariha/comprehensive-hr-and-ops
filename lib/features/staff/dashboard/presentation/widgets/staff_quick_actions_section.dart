@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/staff_quick_action.dart';
 
@@ -86,6 +88,12 @@ class StaffQuickActionsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final session = Get.find<UserSession>();
+    final visible = _referenceActions.where((item) {
+      if (item.id == 'daily-logs') return session.canAccessClients;
+      if (item.id == 'medication-mar') return session.canAccessMar;
+      return true;
+    }).toList();
     final gap = ResponsiveHelper.getResponsiveHeight(context, 10);
 
     return Column(
@@ -101,17 +109,17 @@ class StaffQuickActionsSection extends StatelessWidget {
           ),
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-        for (var i = 0; i < _referenceActions.length; i++) ...[
+        for (var i = 0; i < visible.length; i++) ...[
           if (i > 0) SizedBox(height: gap),
           _QuickActionCard(
-            item: _referenceActions[i],
+            item: visible[i],
             onTap: onActionTap == null
                 ? null
                 : () => onActionTap!(
                       StaffQuickAction(
-                        id: _referenceActions[i].id,
-                        asset: _referenceActions[i].asset,
-                        label: _referenceActions[i].title,
+                        id: visible[i].id,
+                        asset: visible[i].asset,
+                        label: visible[i].title,
                       ),
                     ),
           ),

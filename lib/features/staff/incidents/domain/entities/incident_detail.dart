@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'incident_activity_entry.dart';
 import 'staff_incidents_enums.dart';
 
 /// Full read-only content for the Incident Details screen, reached by
@@ -30,6 +31,8 @@ class IncidentDetail {
   final String reportedByName;
   final String reportedBySubLabel;
   final String reportedByInitials;
+  final String description;
+  final List<IncidentActivityEntry> activity;
 
   const IncidentDetail({
     required this.id,
@@ -48,9 +51,37 @@ class IncidentDetail {
     required this.reportedByName,
     required this.reportedBySubLabel,
     required this.reportedByInitials,
+    this.description = '',
+    this.activity = const [],
   });
 
   /// Whether the red "supervisor review required" alert banner should show.
   bool get requiresUrgentReview =>
       severity == IncidentSeverity.high || severity == IncidentSeverity.critical;
+
+  IncidentDetail copyWith({
+    String? description,
+    List<IncidentActivityEntry>? activity,
+  }) {
+    return IncidentDetail(
+      id: id,
+      incidentCode: incidentCode,
+      categoryLabel: categoryLabel,
+      title: title,
+      iconKind: iconKind,
+      dateTimeLabel: dateTimeLabel,
+      severity: severity,
+      statusLabel: statusLabel,
+      detectedDuring: detectedDuring,
+      location: location,
+      residentName: residentName,
+      residentSubLabel: residentSubLabel,
+      residentInitials: residentInitials,
+      reportedByName: reportedByName,
+      reportedBySubLabel: reportedBySubLabel,
+      reportedByInitials: reportedByInitials,
+      description: description ?? this.description,
+      activity: activity ?? this.activity,
+    );
+  }
 }

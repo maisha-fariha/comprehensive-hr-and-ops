@@ -2,35 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
+import '../../../domain/entities/incident_activity_entry.dart';
 import 'section_label.dart';
 
 /// "ACTIVITY LOG" section on Incident Details.
-///
-/// Entries match the Figma details reference (not yet on [IncidentDetail]).
 class IncidentActivityLogSection extends StatelessWidget {
+  final List<IncidentActivityEntry> entries;
+
   static const Color _titleColor = Color(0xFF1E293B);
   static const Color _metaColor = Color(0xFF6B7280);
   static const Color _inactiveRing = Color(0xFFD1D5DB);
 
-  static const List<_ActivityEntry> _entries = [
-    _ActivityEntry(
-      title: 'Marked Under Investigation',
-      meta: 'Susan N.  •  May 10, 5:10 PM',
-      isActive: true,
-    ),
-    _ActivityEntry(
-      title: 'Supervisor notified',
-      meta: 'System  •  May 10, 4:52 PM',
-      isActive: false,
-    ),
-    _ActivityEntry(
-      title: 'Incident reported',
-      meta: 'David L.  •  May 10, 4:48 PM',
-      isActive: false,
-    ),
-  ];
-
-  const IncidentActivityLogSection({super.key});
+  const IncidentActivityLogSection({super.key, this.entries = const []});
 
   @override
   Widget build(BuildContext context) {
@@ -56,34 +39,35 @@ class IncidentActivityLogSection extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
-            children: [
-              for (var i = 0; i < _entries.length; i++) ...[
-                if (i > 0) SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                _ActivityRow(entry: _entries[i]),
-              ],
-            ],
-          ),
+          child: entries.isEmpty
+              ? Text(
+                  'No activity yet.',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w400,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    color: _metaColor,
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (var i = 0; i < entries.length; i++) ...[
+                      if (i > 0)
+                        SizedBox(
+                          height: ResponsiveHelper.getResponsiveHeight(context, 18),
+                        ),
+                      _ActivityRow(entry: entries[i]),
+                    ],
+                  ],
+                ),
         ),
       ],
     );
   }
 }
 
-class _ActivityEntry {
-  final String title;
-  final String meta;
-  final bool isActive;
-
-  const _ActivityEntry({
-    required this.title,
-    required this.meta,
-    required this.isActive,
-  });
-}
-
 class _ActivityRow extends StatelessWidget {
-  final _ActivityEntry entry;
+  final IncidentActivityEntry entry;
 
   const _ActivityRow({required this.entry});
 

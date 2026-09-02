@@ -61,7 +61,7 @@ class DailyNotePage extends StatelessWidget {
         bottom: false,
         child: Column(
           children: [
-            DailyNoteAppBar(onSave: () => Get.back()),
+            DailyNoteAppBar(onSave: () => controller.saveNote(client, submit: false)),
             Expanded(
               child: Obx(() {
                 final response = controller.state.value;
@@ -110,7 +110,11 @@ class DailyNotePage extends StatelessWidget {
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                       const DailyNoteAttachmentsSection(),
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                      DailyNoteHandoverSection(onSubmit: () => Get.back()),
+                      DailyNoteHandoverSection(
+                        controller: controller.handoverController,
+                        onSubmit: () =>
+                            controller.saveNote(client, submit: true),
+                      ),
                     ],
                   ),
                 );

@@ -6,8 +6,13 @@ import '../../../../../core/constants/app_colors.dart';
 /// Full-width outlined red Clock Out button.
 class ClockOutButton extends StatelessWidget {
   final VoidCallback? onTap;
+  final String label;
 
-  const ClockOutButton({super.key, this.onTap});
+  const ClockOutButton({
+    super.key,
+    this.onTap,
+    this.label = 'Clock Out',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +39,7 @@ class ClockOutButton extends StatelessWidget {
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
             Text(
-              'Clock Out',
+              label,
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w700,
