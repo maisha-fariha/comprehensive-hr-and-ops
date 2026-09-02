@@ -32,6 +32,9 @@ class AttendanceOverview {
   final List<AttendanceStat> otStats;
   final List<OvertimeEntry> overtimeEntries;
 
+  final String? geofenceResidenceName;
+  final String? geofenceRadiusLabel;
+
   const AttendanceOverview({
     required this.lateCount,
     required this.missedCount,
@@ -45,5 +48,7 @@ class AttendanceOverview {
     required this.missedClockIns,
     required this.otStats,
     required this.overtimeEntries,
+    this.geofenceResidenceName,
+    this.geofenceRadiusLabel,
   });
 }

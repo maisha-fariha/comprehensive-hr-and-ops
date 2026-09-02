@@ -11,7 +11,6 @@ import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../domain/entities/staff_linked_item.dart';
 import '../../domain/entities/staff_preference_item.dart';
 import '../controllers/staff_profile_settings_controller.dart';
-import '../widgets/staff_add_linked_item_link.dart';
 import '../widgets/staff_linked_item_row.dart';
 import '../widgets/staff_log_out_row.dart';
 import '../widgets/staff_preference_tile.dart';
@@ -34,6 +33,152 @@ class StaffProfileSettingsPage extends StatelessWidget {
 
   void _onBottomNavTap(int index) {
     Get.offAll(() => StaffShell(initialIndex: index));
+  }
+
+  void _onPreferenceTap(
+    BuildContext context,
+    StaffProfileSettingsController controller,
+    StaffPreferenceItem item,
+  ) {
+    switch (item.type) {
+      case StaffPreferenceType.contactSupport:
+        _openSupportDialog(context, controller);
+      case StaffPreferenceType.notifications:
+        _openNotificationPreferences(context, controller);
+      case StaffPreferenceType.changePassword:
+        _openChangePassword(context, controller);
+      case StaffPreferenceType.helpCenter:
+        Get.snackbar(
+          'Help Center',
+          'Help articles are provided by your care home and are not in this app yet.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      case StaffPreferenceType.privacySecurity:
+        Get.snackbar(
+          'Privacy & Security',
+          'Your profile comes from your account. Use Change Password to update credentials.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+    }
+  }
+
+  Future<void> _openSupportDialog(
+    BuildContext context,
+    StaffProfileSettingsController controller,
+  ) async {
+    final message = TextEditingController();
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Contact Support'),
+        content: TextField(
+          controller: message,
+          maxLines: 4,
+          decoration: const InputDecoration(hintText: 'How can we help?'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Send')),
+        ],
+      ),
+    );
+    final body = message.text.trim();
+    message.dispose();
+    if (sent == true && body.isNotEmpty) {
+      await controller.submitSupportTicket(body);
+    }
+  }
+
+  Future<void> _openChangePassword(
+    BuildContext context,
+    StaffProfileSettingsController controller,
+  ) async {
+    final current = TextEditingController();
+    final next = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Change Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: current,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Current password'),
+            ),
+            TextField(
+              controller: next,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'New password'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    final currentValue = current.text;
+    final nextValue = next.text;
+    current.dispose();
+    next.dispose();
+    if (confirmed == true && currentValue.isNotEmpty && nextValue.isNotEmpty) {
+      await controller.changePassword(
+        currentPassword: currentValue,
+        newPassword: nextValue,
+      );
+    }
+  }
+
+  Future<void> _openNotificationPreferences(
+    BuildContext context,
+    StaffProfileSettingsController controller,
+  ) async {
+    final values = Map<String, bool>.from(
+      await controller.loadNotificationPreferences(),
+    );
+    if (values.isEmpty) {
+      Get.snackbar(
+        'Notification preferences',
+        'No notification settings are available for this account yet.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('Notification Preferences'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final entry in values.entries)
+                  SwitchListTile(
+                    title: Text(entry.key),
+                    value: entry.value,
+                    onChanged: (value) => setState(() => values[entry.key] = value),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await controller.saveNotificationPreferences(values);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -97,7 +242,10 @@ class StaffProfileSettingsPage extends StatelessWidget {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'Preferences & Support'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    _StaffPreferencesCard(items: overview.preferenceItems),
+                    _StaffPreferencesCard(
+                      items: overview.preferenceItems,
+                      onItemTap: (item) => _onPreferenceTap(context, controller, item),
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'App Settings'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
@@ -145,36 +293,37 @@ class _StaffLinkedItemsCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < items.length; i++) ...[
-            if (i > 0)
-              Padding(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
-                child: const Divider(height: 1, thickness: 1, color: _divider),
-              ),
-            StaffLinkedItemRow(item: items[i]),
-          ],
-          Padding(
-            padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
-            child: const Divider(height: 1, thickness: 1, color: _divider),
-          ),
-          const StaffAddLinkedItemLink(),
-        ],
-      ),
+      child: items.isEmpty
+          ? Padding(
+              padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
+              child: const Text('No assigned clients for this account.'),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0)
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
+                      child: const Divider(height: 1, thickness: 1, color: _divider),
+                    ),
+                  StaffLinkedItemRow(item: items[i]),
+                ],
+              ],
+            ),
     );
   }
 }
 
 class _StaffPreferencesCard extends StatelessWidget {
   final List<StaffPreferenceItem> items;
+  final ValueChanged<StaffPreferenceItem> onItemTap;
 
   static const Color _cardBorder = Color(0xFFEEF1F4);
   static const Color _divider = Color(0xFFEEF1F4);
   static const Color _shadow = Color(0xFF142846);
 
-  const _StaffPreferencesCard({required this.items});
+  const _StaffPreferencesCard({required this.items, required this.onItemTap});
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +357,7 @@ class _StaffPreferencesCard extends StatelessWidget {
                 padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
                 child: const Divider(height: 1, thickness: 1, color: _divider),
               ),
-            StaffPreferenceTile(item: items[i]),
+            StaffPreferenceTile(item: items[i], onTap: () => onItemTap(items[i])),
           ],
         ],
       ),

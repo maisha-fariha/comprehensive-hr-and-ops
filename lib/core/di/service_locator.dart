@@ -1,6 +1,7 @@
 import 'package:gems_data_layer/gems_data_layer.dart';
 
 import '../../features/auth/di/auth_di.dart';
+import '../../features/common/inbox/di/portal_inbox_di.dart';
 import '../../features/hr/attendance/di/attendance_di.dart';
 import '../../features/hr/daily_logs/di/daily_logs_di.dart';
 import '../../features/hr/dashboard/di/dashboard_di.dart';
@@ -32,6 +33,7 @@ import '../../features/staff/tasks_messages/di/staff_tasks_messages_di.dart';
 Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupDataLayerServices(apiConfig: apiConfig);
   await setupAuthDependencies();
+  await setupPortalInboxDependencies();
 
   await setupHrDashboardDependencies();
   await setupHrSchedulingDependencies();

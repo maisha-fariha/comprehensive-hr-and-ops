@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 enum HrPreferenceType {
   notifications,
+  changePassword,
   helpCenter,
   contactSupport,
   privacySecurity,

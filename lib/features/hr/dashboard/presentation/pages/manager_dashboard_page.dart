@@ -7,6 +7,15 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../common/inbox/domain/entities/portal_search_hit.dart';
+import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
+import '../../../../common/inbox/presentation/pages/portal_search_page.dart';
+import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../../../hr_shell.dart';
+import '../../../medication/presentation/pages/medication_page.dart';
+import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
+import '../../../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
+import '../../../team_reports/presentation/pages/team_reports_page.dart';
 import '../../domain/entities/attention_alert.dart';
 import '../../domain/entities/dashboard_enums.dart';
 import '../../domain/entities/dashboard_overview.dart';
@@ -72,12 +81,20 @@ class ManagerDashboardPage extends StatelessWidget {
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    _DashboardHeader(overview: overview),
+                    _DashboardHeader(
+                      overview: overview,
+                      onNotificationsTap: () =>
+                          Get.to(() => const PortalNotificationsPage()),
+                      onAvatarTap: () =>
+                          Get.to(() => const HrProfileSettingsPage()),
+                    ),
                     Positioned(
                       left: horizontalPad,
                       right: horizontalPad,
                       bottom: -searchOverlap,
-                      child: const _DashboardSearchBar(),
+                      child: _DashboardSearchBar(
+                        onTap: () => _openManagerSearch(),
+                      ),
                     ),
                   ],
                 ),
@@ -91,8 +108,10 @@ class ManagerDashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _NeedsAttentionSection(alerts: overview.attentionAlerts),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                      if (overview.attentionAlerts.isNotEmpty) ...[
+                        _NeedsAttentionSection(alerts: overview.attentionAlerts),
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                      ],
                       _TodaysOverviewSection(
                         stats: overview.overviewStats.take(4).toList(),
                         lastUpdatedLabel: overview.lastUpdatedLabel,
@@ -109,14 +128,52 @@ class ManagerDashboardPage extends StatelessWidget {
   }
 }
 
+void _openManagerSearch() {
+  Get.to(
+    () => PortalSearchPage(
+      hint: 'Search staff, shifts, or incidents',
+      emptyPrompt: 'Search the residence directory and records.',
+      onHit: (hit) {
+        Get.back();
+        switch (hit.type) {
+          case PortalSearchHitType.shift:
+            Get.offAll(() => const HrShell(initialIndex: 1));
+          case PortalSearchHitType.attendance:
+          case PortalSearchHitType.staff:
+            Get.offAll(() => const HrShell(initialIndex: 2));
+          case PortalSearchHitType.incident:
+            Get.offAll(() => const HrShell(initialIndex: 3));
+          case PortalSearchHitType.task:
+            Get.to(() => const TasksCompliancePage());
+          case PortalSearchHitType.medication:
+            Get.to(() => const MedicationPage());
+          case PortalSearchHitType.client:
+            Get.to(() => const DailyLogsPage());
+          case PortalSearchHitType.message:
+          case PortalSearchHitType.document:
+            Get.to(() => const TeamReportsPage());
+          case PortalSearchHitType.unknown:
+            break;
+        }
+      },
+    ),
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Header
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _DashboardHeader extends StatelessWidget {
   final DashboardOverview overview;
+  final VoidCallback? onNotificationsTap;
+  final VoidCallback? onAvatarTap;
 
-  const _DashboardHeader({required this.overview});
+  const _DashboardHeader({
+    required this.overview,
+    this.onNotificationsTap,
+    this.onAvatarTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -165,9 +222,15 @@ class _DashboardHeader extends StatelessWidget {
                     children: [
                       _OrganizationSwitcher(name: overview.organizationName),
                       Spacer(),
-                      _NotificationButton(count: overview.unreadNotificationCount),
+                      _NotificationButton(
+                        count: overview.unreadNotificationCount,
+                        onTap: onNotificationsTap,
+                      ),
                       SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-                      _AvatarButton(initials: overview.avatarInitials),
+                      _AvatarButton(
+                        initials: overview.avatarInitials,
+                        onTap: onAvatarTap,
+                      ),
                     ],
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
@@ -295,14 +358,18 @@ class _OrganizationSwitcher extends StatelessWidget {
 
 class _NotificationButton extends StatelessWidget {
   final int count;
+  final VoidCallback? onTap;
 
-  const _NotificationButton({required this.count});
+  const _NotificationButton({required this.count, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final size = ResponsiveHelper.getResponsiveSize(context, 42);
 
-    return SizedBox(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
       width: size,
       height: size,
       child: Stack(
@@ -354,20 +421,25 @@ class _NotificationButton extends StatelessWidget {
             ),
         ],
       ),
+      ),
     );
   }
 }
 
 class _AvatarButton extends StatelessWidget {
   final String initials;
+  final VoidCallback? onTap;
 
-  const _AvatarButton({required this.initials});
+  const _AvatarButton({required this.initials, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final size = ResponsiveHelper.getResponsiveSize(context, 42);
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
@@ -391,6 +463,7 @@ class _AvatarButton extends StatelessWidget {
           color: AppColors.secondaryTeal,
         ),
       ),
+      ),
     );
   }
 }
@@ -400,14 +473,19 @@ class _AvatarButton extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _DashboardSearchBar extends StatelessWidget {
-  const _DashboardSearchBar();
+  final VoidCallback? onTap;
+
+  const _DashboardSearchBar({this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final height = ResponsiveHelper.getResponsiveHeight(context, AppDimens.searchBarHeight);
     final filterSize = ResponsiveHelper.getResponsiveSize(context, 34);
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       height: height,
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -466,6 +544,7 @@ class _DashboardSearchBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

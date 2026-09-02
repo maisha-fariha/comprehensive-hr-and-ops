@@ -116,6 +116,61 @@ abstract final class IsoDateRange {
     return '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}';
   }
 
+  static String formatMonthYear(DateTime date) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
+  static String formatWeekdayDate(DateTime date) {
+    const weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${weekdays[date.weekday - 1]}, ${months[date.month - 1]} ${date.day}';
+  }
+
+  static String timeAgo(DateTime date) {
+    final delta = DateTime.now().difference(date.toLocal());
+    if (delta.inMinutes < 1) return 'Just now';
+    if (delta.inMinutes < 60) return '${delta.inMinutes}m ago';
+    if (delta.inHours < 24) return '${delta.inHours}h ago';
+    if (delta.inDays == 1) return 'Yesterday';
+    if (delta.inDays < 7) return '${delta.inDays}d ago';
+    return formatShortDate(date.toLocal());
+  }
+
   static String formatMonthDay(DateTime date) {
     const months = [
       'January',

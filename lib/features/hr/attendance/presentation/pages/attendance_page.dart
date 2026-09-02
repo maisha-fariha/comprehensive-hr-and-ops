@@ -122,7 +122,11 @@ class AttendancePage extends StatelessWidget {
             entries: overview.staffStatus,
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 35)),
-          const _GeofenceCard(),
+          if (overview.geofenceResidenceName != null)
+            _GeofenceCard(
+              residenceName: overview.geofenceResidenceName!,
+              radiusLabel: overview.geofenceRadiusLabel,
+            ),
         ];
       case AttendanceTab.late:
         return [
@@ -789,7 +793,10 @@ class _GeofenceCard extends StatelessWidget {
   static const Color _mintSoft = Color(0xFFEAF6F0);
   static const Color _mintAccent = Color(0xFF2E8C58);
 
-  const _GeofenceCard();
+  final String residenceName;
+  final String? radiusLabel;
+
+  const _GeofenceCard({required this.residenceName, this.radiusLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -832,7 +839,7 @@ class _GeofenceCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Geofence: Sunrise Home',
+                  'Geofence: $residenceName',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -845,7 +852,7 @@ class _GeofenceCard extends StatelessWidget {
                 ),
                 SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
                 Text(
-                  'Verification radius · 500 ft',
+                  radiusLabel ?? 'Verification radius',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

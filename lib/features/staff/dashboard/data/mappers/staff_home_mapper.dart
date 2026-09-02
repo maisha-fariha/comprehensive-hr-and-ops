@@ -12,6 +12,7 @@ abstract final class StaffHomeMapper {
   static StaffDashboardOverview compose({
     required UserSession session,
     required dynamic body,
+    int? unreadNotificationCount,
   }) {
     final json = JsonCodec.unwrapMap(body);
     final tiles = JsonCodec.mapAt(json, 'tiles') ?? {};
@@ -41,7 +42,8 @@ abstract final class StaffHomeMapper {
       dateLabel: IsoDateRange.formatDisplayDate(now),
       greetingLine: '${IsoDateRange.greetingPrefix(now)}, $firstName 👋',
       greetingSubtitle: "Here's what's happening on your shift.",
-      unreadNotificationCount: JsonCodec.integerOr(json['unreadCount'], 0),
+      unreadNotificationCount: unreadNotificationCount ??
+          JsonCodec.integerOr(json['unreadCount'], 0),
       todayShift: TodayShiftSummary(
         statusLabel: onBreak
             ? 'On Break'

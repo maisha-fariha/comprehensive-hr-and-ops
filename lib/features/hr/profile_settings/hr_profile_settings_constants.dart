@@ -18,6 +18,7 @@ abstract final class HrProfileSettingsConstants {
   static String preferenceIconAsset(HrPreferenceType type) {
     return switch (type) {
       HrPreferenceType.notifications => '$_moreIcons/notification.svg',
+      HrPreferenceType.changePassword => '$_moreIcons/shield_outlined.svg',
       HrPreferenceType.helpCenter => '$_moreIcons/help.svg',
       HrPreferenceType.contactSupport => '$_moreIcons/message.svg',
       HrPreferenceType.privacySecurity => '$_moreIcons/shield_outlined.svg',

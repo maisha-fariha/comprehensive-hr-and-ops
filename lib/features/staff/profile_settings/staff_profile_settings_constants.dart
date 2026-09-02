@@ -18,6 +18,7 @@ abstract final class StaffProfileSettingsConstants {
   static String preferenceIconAsset(StaffPreferenceType type) {
     return switch (type) {
       StaffPreferenceType.notifications => '$_moreIcons/notification.svg',
+      StaffPreferenceType.changePassword => '$_moreIcons/shield_outlined.svg',
       StaffPreferenceType.helpCenter => '$_moreIcons/help.svg',
       StaffPreferenceType.contactSupport => '$_moreIcons/message.svg',
       StaffPreferenceType.privacySecurity => '$_moreIcons/shield_outlined.svg',

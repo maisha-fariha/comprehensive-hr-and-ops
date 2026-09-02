@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 enum StaffPreferenceType {
   notifications,
+  changePassword,
   helpCenter,
   contactSupport,
   privacySecurity,
