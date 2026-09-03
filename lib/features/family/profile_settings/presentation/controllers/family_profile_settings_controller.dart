@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
+
 import '../../domain/entities/family_profile_settings_overview.dart';
 import '../../domain/repositories/family_profile_settings_repository.dart';
 
@@ -52,10 +54,9 @@ class FamilyProfileSettingsController extends BaseController<FamilyProfileSettin
         'The care team will follow up on your request.',
         snackPosition: SnackPosition.BOTTOM,
       ),
-      failure: (error) => Get.snackbar(
-        'Could not send',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not send',
       ),
     );
   }
@@ -74,10 +75,9 @@ class FamilyProfileSettingsController extends BaseController<FamilyProfileSettin
         'Use your new password the next time you sign in.',
         snackPosition: SnackPosition.BOTTOM,
       ),
-      failure: (error) => Get.snackbar(
-        'Could not update password',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not update password',
       ),
     );
   }
@@ -98,10 +98,9 @@ class FamilyProfileSettingsController extends BaseController<FamilyProfileSettin
         'Notification settings were updated.',
         snackPosition: SnackPosition.BOTTOM,
       ),
-      failure: (error) => Get.snackbar(
-        'Could not save',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not save',
       ),
     );
   }

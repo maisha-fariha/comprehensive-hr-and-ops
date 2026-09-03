@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/errors/app_error_dialog.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
 import '../controllers/auth_controller.dart';
@@ -52,10 +53,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     final ok = await _auth.sendPasswordReset(email);
     if (!ok) {
       if (mounted && _auth.errorMessage.value.isNotEmpty) {
-        Get.snackbar(
-          'Reset failed',
-          _auth.errorMessage.value,
-          snackPosition: SnackPosition.BOTTOM,
+        await AppErrorDialog.showPageError(
+          title: 'Reset failed',
+          message: _auth.errorMessage.value,
         );
       }
       return;

@@ -11,7 +11,7 @@ abstract class AuthRepository {
     required String password,
   });
 
-  Future<Result<MobileProfile>> fetchMe();
+  Future<Result<MobileProfile>> fetchMe({bool silent = false});
 
   Future<Result<void>> requestPasswordReset(String email);
 
@@ -28,7 +28,7 @@ abstract class AuthRepository {
     required String code,
   });
 
-  Future<Result<void>> refreshTokens();
+  Future<Result<void>> refreshTokens({bool silent = false});
 
   Future<Result<void>> logout();
 
@@ -38,4 +38,7 @@ abstract class AuthRepository {
   });
 
   bool get hasSession;
+
+  /// Last successful `/mobile/me` payload, used to open a portal offline.
+  MobileProfile? get lastKnownProfile;
 }

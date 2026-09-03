@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_documents_overview.dart';
 import '../../domain/repositories/family_documents_repository.dart';
@@ -39,10 +40,9 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
     result.when(
       success: (url) async {
         if (url == null || url.isEmpty) {
-          Get.snackbar(
-            'Download unavailable',
-            'This document does not have a download link yet.',
-            snackPosition: SnackPosition.BOTTOM,
+          AppErrorDialog.showPageError(
+            title: 'Download unavailable',
+            message: 'This document does not have a download link yet.',
           );
           return;
         }
@@ -53,10 +53,9 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
           snackPosition: SnackPosition.BOTTOM,
         );
       },
-      failure: (error) => Get.snackbar(
-        'Could not download',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not download',
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/family_appointment.dart';
 import '../../domain/entities/family_appointments_enums.dart';
 import '../../domain/repositories/family_appointments_repository.dart';
@@ -154,10 +155,9 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
     );
     result.when(
       success: (_) => loadAppointments(),
-      failure: (error) => Get.snackbar(
-        'Could not reschedule',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not reschedule',
       ),
     );
   }
@@ -166,10 +166,9 @@ class FamilyAppointmentsController extends BaseController<List<FamilyAppointment
     final result = await repository.cancel(id);
     result.when(
       success: (_) => loadAppointments(),
-      failure: (error) => Get.snackbar(
-        'Could not cancel',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not cancel',
       ),
     );
   }

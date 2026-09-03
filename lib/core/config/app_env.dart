@@ -2,13 +2,13 @@
 ///
 /// Override at build/run time:
 /// ```
-/// flutter run --dart-define=API_BASE_URL=http://localhost:4000/api/v1
+/// flutter run --dart-define=API_BASE_URL=https://hr.encoder-test-vpn.space/api/v1
 /// flutter run --dart-define=TENANT_SUBDOMAIN=sunrise
 /// ```
 abstract final class AppEnv {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:4000/api/v1',
+    defaultValue: 'https://hr.encoder-test-vpn.space/api/v1',
   );
 
   /// Optional workspace/tenant code prefilled on the login screen.

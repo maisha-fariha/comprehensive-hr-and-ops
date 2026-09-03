@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/repositories/family_messages_repository.dart';
 
@@ -47,10 +48,9 @@ class FamilyConversationController
         textController.clear();
         await load();
       },
-      failure: (error) => Get.snackbar(
-        'Could not send',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not send',
       ),
     );
   }

@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/due_dose.dart';
 import '../../domain/entities/staff_medication_enums.dart';
@@ -44,11 +44,9 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
         ? dose.residenceId
         : (Get.find<UserSession>().residenceId ?? '');
     if (dose.clientId.isEmpty || dose.medicationId.isEmpty || residenceId.isEmpty) {
-      Get.snackbar(
-        'Could not record dose',
-        'This dose is missing client or medication details.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showPageError(
+        title: 'Could not record dose',
+        message: 'This dose is missing client or medication details.',
       );
       return;
     }
@@ -62,11 +60,9 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     );
     setLoading(false);
     if (result.isFailure) {
-      Get.snackbar(
-        'Could not record dose',
-        result.error?.message ?? 'Request failed.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not record dose',
       );
       return;
     }

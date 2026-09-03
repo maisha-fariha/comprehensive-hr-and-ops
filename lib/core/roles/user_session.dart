@@ -1,8 +1,10 @@
+import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../features/auth/domain/entities/mobile_profile.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../errors/app_error_mapper.dart';
 import '../routing/app_routes.dart';
 import 'user_role.dart';
 
@@ -157,17 +159,18 @@ class UserSession extends GetxService {
     final auth = GetIt.instance<AuthRepository>();
     if (!auth.hasSession) return false;
 
-    var me = await auth.fetchMe();
+    var me = await auth.fetchMe(silent: true);
     if (me.isFailure) {
-      final refreshed = await auth.refreshTokens();
-      if (refreshed.isFailure) {
-        await auth.logout();
-        return false;
+      final refreshed = await auth.refreshTokens(silent: true);
+      if (refreshed.isSuccess) {
+        me = await auth.fetchMe(silent: true);
+      } else if (_keepSessionOn(me.error) || _keepSessionOn(refreshed.error)) {
+        return _applyCachedProfile(auth);
       }
-      me = await auth.fetchMe();
     }
     final profile = me.value;
     if (profile == null) {
+      if (_keepSessionOn(me.error)) return _applyCachedProfile(auth);
       await auth.logout();
       return false;
     }
@@ -201,4 +204,21 @@ class UserSession extends GetxService {
   }
 
   bool hasRole(UserRole requiredRole) => _role.value == requiredRole;
+
+  bool _applyCachedProfile(AuthRepository auth) {
+    final cached = auth.lastKnownProfile;
+    if (cached == null) return false;
+    applyProfile(cached);
+    return true;
+  }
+
+  bool _keepSessionOn(AppError? error) {
+    if (error == null) return false;
+    if (error is AuthError || error is PermissionError) return false;
+    if (error is ApiError &&
+        (error.statusCode == 401 || error.statusCode == 403)) {
+      return false;
+    }
+    return AppErrorMapper.from(error).isOffline;
+  }
 }

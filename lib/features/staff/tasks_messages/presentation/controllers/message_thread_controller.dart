@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/chat_message.dart';
 import '../../domain/entities/message_thread.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
@@ -53,11 +54,9 @@ class MessageThreadController extends BaseController<MessageThread> {
       body: text,
     );
     if (result.isFailure) {
-      Get.snackbar(
-        'Could not send message',
-        result.error?.message ?? 'Request failed.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not send message',
       );
       return;
     }

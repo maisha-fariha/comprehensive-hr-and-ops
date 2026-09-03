@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/family_messages_enums.dart';
 import '../../domain/repositories/family_messages_repository.dart';
@@ -37,10 +38,9 @@ class ComposeMessageController extends GetxController {
     if (body.isEmpty || isSending.value) return;
     final clientId = session.selectedClientId;
     if (clientId == null || clientId.isEmpty) {
-      Get.snackbar(
-        'Cannot send',
-        'Open Home first so we know which family member this is for.',
-        snackPosition: SnackPosition.BOTTOM,
+      AppErrorDialog.showPageError(
+        title: 'Cannot send',
+        message: 'Open Home first so we know which family member this is for.',
       );
       return;
     }
@@ -59,10 +59,9 @@ class ComposeMessageController extends GetxController {
         }
         Get.back();
       },
-      failure: (error) => Get.snackbar(
-        'Could not send',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not send',
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/incident_detail.dart';
 import '../../domain/repositories/staff_incidents_repository.dart';
 
@@ -31,11 +32,9 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
     if (id == null) return;
     final result = await repository.acknowledge(id);
     if (result.isFailure) {
-      Get.snackbar(
-        'Could not acknowledge',
-        result.error?.message ?? 'Request failed.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not acknowledge',
       );
       return;
     }
@@ -59,11 +58,9 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
       notes: text,
     );
     if (result.isFailure) {
-      Get.snackbar(
-        'Could not add note',
-        result.error?.message ?? 'Request failed.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not add note',
       );
       return;
     }

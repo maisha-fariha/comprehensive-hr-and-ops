@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/errors/app_error_dialog.dart';
 import '../controllers/auth_controller.dart';
 import '../widgets/auth_curved_header.dart';
 
@@ -141,10 +142,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     _startTimer();
     final ok = await _auth.resendOtp(_email);
     if (!ok && mounted && _auth.errorMessage.value.isNotEmpty) {
-      Get.snackbar(
-        'Could not resend',
-        _auth.errorMessage.value,
-        snackPosition: SnackPosition.BOTTOM,
+      await AppErrorDialog.showPageError(
+        title: 'Could not resend',
+        message: _auth.errorMessage.value,
       );
     }
   }
@@ -154,10 +154,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     if (_isPasswordReset) {
       final password = _newPasswordController.text;
       if (password != _confirmPasswordController.text) {
-        Get.snackbar(
-          'Passwords do not match',
-          'Re-enter the same new password in both fields.',
-          snackPosition: SnackPosition.BOTTOM,
+        await AppErrorDialog.showPageError(
+          title: 'Passwords do not match',
+          message: 'Re-enter the same new password in both fields.',
         );
         return;
       }
@@ -170,10 +169,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       ok = await _auth.verifyOtpLogin(email: _email, code: _code);
     }
     if (!ok && mounted && _auth.errorMessage.value.isNotEmpty) {
-      Get.snackbar(
-        'Verification failed',
-        _auth.errorMessage.value,
-        snackPosition: SnackPosition.BOTTOM,
+      await AppErrorDialog.showPageError(
+        title: 'Verification failed',
+        message: _auth.errorMessage.value,
       );
     }
   }

@@ -1,6 +1,7 @@
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/visit_request_detail.dart';
 import '../../domain/repositories/visit_requests_repository.dart';
 import 'family_visit_requests_controller.dart';
@@ -40,10 +41,9 @@ class VisitRequestDetailsController extends BaseController<VisitRequestDetail> {
         Get.snackbar('Request updated', 'A new time was sent to the care team.');
         refresh();
       },
-      failure: (error) => Get.snackbar(
-        'Could not reschedule',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not reschedule',
       ),
     );
   }
@@ -62,10 +62,9 @@ class VisitRequestDetailsController extends BaseController<VisitRequestDetail> {
         }
         Get.back();
       },
-      failure: (error) => Get.snackbar(
-        'Could not cancel',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not cancel',
       ),
     );
   }

@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/app_api_client.dart';
+import '../../../../core/network/response_cache.dart';
 import '../../../../core/network/token_store.dart';
 import '../../../../core/network/tenant_store.dart';
 import '../../domain/entities/auth_tokens.dart';
@@ -14,17 +17,31 @@ class AuthRepositoryImpl implements AuthRepository {
   final AppApiClient _api;
   final TokenStore _tokens;
   final TenantStore _tenant;
+  final ResponseCache? _cache;
 
   AuthRepositoryImpl({
     required AppApiClient api,
     required TokenStore tokens,
     required TenantStore tenant,
+    ResponseCache? cache,
   })  : _api = api,
         _tokens = tokens,
-        _tenant = tenant;
+        _tenant = tenant,
+        _cache = cache;
 
   @override
   bool get hasSession => _tokens.hasAccessToken;
+
+  @override
+  MobileProfile? get lastKnownProfile {
+    final raw = _tokens.lastMeJson;
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return AuthMapper.profileFromJson(jsonDecode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<Result<TenantInfo>> lookupTenant(String code) async {
@@ -75,8 +92,8 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Result<MobileProfile>> fetchMe() async {
-    final result = await _api.get(ApiEndpoints.mobileMe);
+  Future<Result<MobileProfile>> fetchMe({bool silent = false}) async {
+    final result = await _api.get(ApiEndpoints.mobileMe, silent: silent);
     return result.when(
       success: (body) async {
         final profile = AuthMapper.profileFromJson(body);
@@ -88,6 +105,7 @@ class AuthRepositoryImpl implements AuthRepository {
             ),
           );
         }
+        await _tokens.saveLastMe(body);
         if (profile.tenantSubdomain != null &&
             profile.tenantSubdomain!.isNotEmpty) {
           await _tenant.setSubdomain(profile.tenantSubdomain);
@@ -150,7 +168,7 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Result<void>> refreshTokens() async {
+  Future<Result<void>> refreshTokens({bool silent = false}) async {
     final refreshToken = _tokens.refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) {
       return Result.failure(
@@ -160,6 +178,7 @@ class AuthRepositoryImpl implements AuthRepository {
     final result = await _api.post(
       ApiEndpoints.mobileTokenRefresh,
       data: {'refreshToken': refreshToken},
+      silent: silent,
     );
     return result.when(
       success: (body) => _saveTokens(body),
@@ -174,9 +193,11 @@ class AuthRepositoryImpl implements AuthRepository {
       await _api.post(
         ApiEndpoints.mobileLogout,
         data: {'refreshToken': refreshToken},
+        silent: true,
       );
     }
     await _tokens.clear();
+    await _cache?.clear();
     return Result.success(null);
   }
 

@@ -3,6 +3,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 
@@ -65,11 +66,9 @@ class StaffAttendanceController extends BaseController<StaffAttendanceOverview> 
     final result = await action();
     setLoading(false);
     if (result.isFailure) {
-      Get.snackbar(
-        'Could not update attendance',
-        result.error?.message ?? 'Request failed.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not update attendance',
       );
       return;
     }

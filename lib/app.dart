@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 
+import 'core/network/offline_banner.dart';
 import 'core/roles/user_session.dart';
 import 'core/routing/app_pages.dart';
 import 'core/theme/app_theme.dart';
@@ -24,6 +25,9 @@ class ComprehensiveHrAndOpsApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           initialRoute: Get.find<UserSession>().portalRoute,
           getPages: AppPages.routes,
+          builder: (context, child) {
+            return OfflineAwareApp(child: child ?? const SizedBox.shrink());
+          },
         );
       },
     );

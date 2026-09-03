@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../domain/entities/family_appointments_enums.dart';
 import '../../domain/repositories/family_appointments_repository.dart';
@@ -158,10 +159,9 @@ class AppointmentRequestController extends GetxController {
         }
         Get.back();
       },
-      failure: (error) => Get.snackbar(
-        'Could not submit',
-        error.message,
-        snackPosition: SnackPosition.BOTTOM,
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not submit',
       ),
     );
   }

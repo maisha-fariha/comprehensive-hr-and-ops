@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/daily_note_client_info.dart';
 import '../../domain/entities/daily_note_overview.dart';
@@ -34,22 +35,18 @@ class DailyNoteController extends BaseController<DailyNoteOverview> {
   }) async {
     final body = handoverController.text.trim();
     if (body.isEmpty) {
-      Get.snackbar(
-        'Note required',
-        'Write how the client is doing before saving.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showPageError(
+        title: 'Note required',
+        message: 'Write how the client is doing before saving.',
       );
       return;
     }
     final residenceId =
         client.residenceId ?? Get.find<UserSession>().residenceId ?? '';
     if (client.clientId.isEmpty || residenceId.isEmpty) {
-      Get.snackbar(
-        'Could not save note',
-        'This client is missing an id or residence.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showPageError(
+        title: 'Could not save note',
+        message: 'This client is missing an id or residence.',
       );
       return;
     }
@@ -64,11 +61,9 @@ class DailyNoteController extends BaseController<DailyNoteOverview> {
     );
     if (result.isFailure) {
       setLoading(false);
-      Get.snackbar(
-        'Could not save note',
-        result.error?.message ?? 'Request failed.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not save note',
       );
       return;
     }

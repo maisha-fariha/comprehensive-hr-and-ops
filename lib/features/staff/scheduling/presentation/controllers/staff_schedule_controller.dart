@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/staff_schedule_overview.dart';
 import '../../domain/repositories/staff_schedule_repository.dart';
 
@@ -30,11 +31,9 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
     final result = await repository.bidOnShift(shiftId);
     setLoading(false);
     if (result.isFailure) {
-      Get.snackbar(
-        'Could not request shift',
-        result.error?.message ?? 'Request failed.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.white,
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not request shift',
       );
       return;
     }
