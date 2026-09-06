@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../hr_shell.dart';
+import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../domain/entities/daily_logs_enums.dart';
 import '../controllers/daily_logs_controller.dart';
@@ -157,21 +158,25 @@ class _DailyLogsHeader extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            width: buttonSize,
-            height: buttonSize,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceWhite,
-              border: Border.all(color: AppColors.cardBorder),
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 12),
+          GestureDetector(
+            onTap: openManagerPortalSearch,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: buttonSize,
+              height: buttonSize,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceWhite,
+                border: Border.all(color: AppColors.cardBorder),
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 12),
+                ),
               ),
-            ),
-            alignment: Alignment.center,
-            child: const AppSvgIcon(
-              AppAssets.search,
-              size: 18,
-              color: AppColors.textHeading,
+              alignment: Alignment.center,
+              child: const AppSvgIcon(
+                AppAssets.search,
+                size: 18,
+                color: AppColors.textHeading,
+              ),
             ),
           ),
         ],

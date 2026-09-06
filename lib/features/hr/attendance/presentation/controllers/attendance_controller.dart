@@ -1,6 +1,7 @@
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/attendance_enums.dart';
 import '../../domain/entities/attendance_overview.dart';
 import '../../domain/repositories/attendance_repository.dart';
@@ -46,10 +47,9 @@ class AttendanceController extends BaseController<AttendanceOverview> {
     result.when(
       success: (_) => loadOverview(),
       failure: (error) {
-        Get.snackbar(
+        AppSnackbar.show(
           'Could not review',
           error.message,
-          snackPosition: SnackPosition.BOTTOM,
         );
       },
     );

@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../presentation/open_manager_portal_search.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../controllers/incidents_controller.dart';
@@ -244,21 +245,25 @@ class _IncidentsHeader extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            width: buttonSize,
-            height: buttonSize,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceWhite,
-              border: Border.all(color: AppColors.cardBorder),
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 12),
+          GestureDetector(
+            onTap: openManagerPortalSearch,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: buttonSize,
+              height: buttonSize,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceWhite,
+                border: Border.all(color: AppColors.cardBorder),
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 12),
+                ),
               ),
-            ),
-            alignment: Alignment.center,
-            child: const AppSvgIcon(
-              AppAssets.search,
-              size: 18,
-              color: AppColors.textHeading,
+              alignment: Alignment.center,
+              child: const AppSvgIcon(
+                AppAssets.search,
+                size: 18,
+                color: AppColors.textHeading,
+              ),
             ),
           ),
         ],

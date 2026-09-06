@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../hr_shell.dart';
+import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../domain/entities/tasks_compliance_enums.dart';
 import '../controllers/tasks_compliance_controller.dart';
@@ -75,7 +76,10 @@ class TasksCompliancePage extends StatelessWidget {
               color: AppColors.surfaceWhite,
               child: Column(
                 children: [
-                  TasksComplianceHeader(subtitle: overview.headerSubtitle),
+                  TasksComplianceHeader(
+                    subtitle: overview.headerSubtitle,
+                    onSearchTap: openManagerPortalSearch,
+                  ),
                   Padding(
                     padding: ResponsiveHelper.getResponsivePadding(
                       context,

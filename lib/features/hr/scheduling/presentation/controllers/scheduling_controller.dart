@@ -1,6 +1,7 @@
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../data/mappers/scheduling_mapper.dart';
 import '../../domain/entities/scheduling_enums.dart';
@@ -202,10 +203,9 @@ class SchedulingController extends BaseController<SchedulingOverview> {
     result.when(
       success: (_) => loadOverview(),
       failure: (error) {
-        Get.snackbar(
+        AppSnackbar.show(
           approve ? 'Could not approve' : 'Could not decline',
           error.message,
-          snackPosition: SnackPosition.BOTTOM,
         );
       },
     );

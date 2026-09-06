@@ -19,6 +19,7 @@ import '../../domain/entities/overtime_entry.dart';
 import '../../domain/entities/staff_status_entry.dart';
 import '../controllers/attendance_controller.dart';
 import '../widgets/attendance_avatar.dart';
+import '../widgets/attendance_header.dart';
 
 /// The "Attendance" screen — "Attendance" tab of the HR portal.
 ///
@@ -73,7 +74,7 @@ class AttendancePage extends StatelessWidget {
                 bottom: false,
                 child: Column(
                   children: [
-                    const _AttendanceHeader(),
+                    const AttendanceHeader(),
                     _AttendanceTabBar(
                       selected: selectedTab,
                       lateCount: overview.lateCount,
@@ -156,70 +157,6 @@ class AttendancePage extends StatelessWidget {
           _OvertimeTrackingSection(entries: overview.overtimeEntries),
         ];
     }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Header
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _AttendanceHeader extends StatelessWidget {
-  const _AttendanceHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final buttonSize = ResponsiveHelper.getResponsiveSize(
-      context,
-      AttendanceDimens.headerIconButtonSize,
-    );
-
-    return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 20,
-        top: 8,
-        bottom: 12,
-      ),
-      child: Row(
-        children: [
-          Icon(
-            AttendanceMaterialIconFallback.menu,
-            size: ResponsiveHelper.getResponsiveSize(context, 24),
-            color: AppColors.textHeading,
-          ),
-          Expanded(
-            child: Text(
-              'Attendance',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
-                color: AppColors.textHeading,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ),
-          Container(
-            width: buttonSize,
-            height: buttonSize,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceWhite,
-              border: Border.all(color: AppColors.cardBorder),
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 12),
-              ),
-            ),
-            alignment: Alignment.center,
-            child: const AppSvgIcon(
-              AppAssets.navCalendar,
-              size: 18,
-              color: AppColors.textHeading,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

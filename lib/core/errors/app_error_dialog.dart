@@ -74,74 +74,98 @@ abstract final class AppErrorDialog {
     if (Get.isDialogOpen == true) return;
 
     await Get.dialog<void>(
-      AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-        contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        title: Row(
-          children: [
-            Icon(
-              isOffline
-                  ? Icons.wifi_off_rounded
-                  : Icons.error_outline_rounded,
-              color: isOffline ? AppColors.urgentAmber : AppColors.criticalRed,
+      Builder(
+        builder: (dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: AppColors.textHeading,
+            titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            title: Row(
+              children: [
+                Icon(
+                  isOffline
+                      ? Icons.wifi_off_rounded
+                      : Icons.error_outline_rounded,
+                  color: isOffline
+                      ? AppColors.urgentAmber
+                      : AppColors.criticalRed,
                 ),
-              ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w400,
-            fontSize: 14.5,
-            height: 1.4,
-            color: AppColors.textBody,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back<void>(),
-            child: Text(
-              onRetry == null ? 'OK' : 'Close',
+            content: Text(
+              message,
               style: const TextStyle(
                 fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w400,
+                fontSize: 14.5,
+                height: 1.4,
+                color: AppColors.textBody,
               ),
             ),
-          ),
-          if (onRetry != null)
-            ElevatedButton(
-              onPressed: () {
-                Get.back<void>();
-                onRetry();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.secondaryTeal,
-                foregroundColor: Colors.white,
+            actions: [
+              TextButton(
+                onPressed: () => _popDialog(dialogContext),
+                child: Text(
+                  onRetry == null ? 'OK' : 'Close',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ),
-              child: const Text(
-                'Try again',
-                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w600),
-              ),
-            ),
-        ],
+              if (onRetry != null)
+                ElevatedButton(
+                  onPressed: () {
+                    _popDialog(dialogContext);
+                    onRetry();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.secondaryTeal,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text(
+                    'Try again',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
       barrierDismissible: true,
     );
+  }
+
+  /// Prefer [Navigator.pop] over [Get.back].
+  ///
+  /// [Get.back] closes an open GetX snackbar first. If that snackbar is still
+  /// queued / half-initialized (common when an API error dialog and a
+  /// controller snackbar race), GetX throws
+  /// `LateInitializationError: Field '_controller' has not been initialized`.
+  static void _popDialog(BuildContext dialogContext) {
+    final navigator = Navigator.of(dialogContext);
+    if (navigator.canPop()) {
+      navigator.pop();
+    }
   }
 
   /// Informational (teal) dialog — used when a write is queued offline.

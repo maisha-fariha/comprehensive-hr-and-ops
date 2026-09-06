@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../hr_shell.dart';
+import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../domain/entities/medication_enums.dart';
 import '../controllers/medication_controller.dart';
@@ -80,6 +81,7 @@ class MedicationPage extends StatelessWidget {
                   MedicationHeader(
                     title: overview.screenTitle,
                     subtitle: overview.screenSubtitle,
+                    onSearchTap: openManagerPortalSearch,
                   ),
                   Padding(
                     padding: ResponsiveHelper.getResponsivePadding(

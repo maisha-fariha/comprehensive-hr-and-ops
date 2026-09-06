@@ -678,10 +678,11 @@ class _ShiftCard extends StatelessWidget {
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _AvatarStack(avatars: shift.avatars),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              Flexible(
+              Expanded(
                 child: Text(
                   shift.namesSummary,
                   maxLines: 1,
@@ -689,7 +690,8 @@ class _ShiftCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 12.5),
                     color: AppColors.textMuted,
                   ),
                 ),

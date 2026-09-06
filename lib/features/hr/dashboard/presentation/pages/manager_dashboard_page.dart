@@ -7,15 +7,9 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../../common/inbox/domain/entities/portal_search_hit.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
-import '../../../../common/inbox/presentation/pages/portal_search_page.dart';
-import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
-import '../../../hr_shell.dart';
-import '../../../medication/presentation/pages/medication_page.dart';
+import '../../../presentation/open_manager_portal_search.dart';
 import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
-import '../../../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
-import '../../../team_reports/presentation/pages/team_reports_page.dart';
 import '../../domain/entities/attention_alert.dart';
 import '../../domain/entities/dashboard_enums.dart';
 import '../../domain/entities/dashboard_overview.dart';
@@ -93,7 +87,7 @@ class ManagerDashboardPage extends StatelessWidget {
                       right: horizontalPad,
                       bottom: -searchOverlap,
                       child: _DashboardSearchBar(
-                        onTap: () => _openManagerSearch(),
+                        onTap: openManagerPortalSearch,
                       ),
                     ),
                   ],
@@ -128,38 +122,6 @@ class ManagerDashboardPage extends StatelessWidget {
   }
 }
 
-void _openManagerSearch() {
-  Get.to(
-    () => PortalSearchPage(
-      hint: 'Search staff, shifts, or incidents',
-      emptyPrompt: 'Search the residence directory and records.',
-      onHit: (hit) {
-        // Pop search first, then route into the matching Manager area.
-        Get.back();
-        switch (hit.type) {
-          case PortalSearchHitType.shift:
-            Get.offAll(() => const HrShell(initialIndex: 1));
-          case PortalSearchHitType.attendance:
-          case PortalSearchHitType.staff:
-            Get.offAll(() => const HrShell(initialIndex: 2));
-          case PortalSearchHitType.incident:
-            Get.offAll(() => const HrShell(initialIndex: 3));
-          case PortalSearchHitType.task:
-            Get.to(() => const TasksCompliancePage());
-          case PortalSearchHitType.medication:
-            Get.to(() => const MedicationPage());
-          case PortalSearchHitType.client:
-            Get.to(() => const DailyLogsPage());
-          case PortalSearchHitType.message:
-          case PortalSearchHitType.document:
-            Get.to(() => const TeamReportsPage());
-          case PortalSearchHitType.unknown:
-            break;
-        }
-      },
-    ),
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Header

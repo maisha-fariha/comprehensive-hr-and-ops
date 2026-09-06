@@ -363,36 +363,63 @@ abstract final class SchedulingMapper {
   }
 
   static List<StaffAvatar> _avatars(Map<String, dynamic> json) {
-    final assignments = JsonCodec.listAt(json, 'assignments');
-    if (assignments.isNotEmpty) {
-      return assignments.map((item) {
-        final person = item is Map
-            ? (JsonCodec.asMap(item)['staff'] ??
-                JsonCodec.asMap(item)['user'] ??
-                item)
-            : item;
-        return StaffAvatar(IsoDateRange.initials(IsoDateRange.personName(person)));
-      }).toList();
-    }
-    return JsonCodec.listAt(json, 'staff')
-        .map((item) => StaffAvatar(IsoDateRange.initials(IsoDateRange.personName(item))))
+    return _assignedPeople(json)
+        .map(
+          (person) =>
+              StaffAvatar(IsoDateRange.initials(IsoDateRange.personName(person))),
+        )
         .toList();
   }
 
-  static String _namesSummary(Map<String, dynamic> json, List<StaffAvatar> avatars) {
-    final names = JsonCodec.listAt(json, 'assignments').map((item) {
-      final person = item is Map
-          ? (JsonCodec.asMap(item)['staff'] ??
-              JsonCodec.asMap(item)['user'] ??
-              item)
-          : item;
-      return IsoDateRange.personName(person);
-    }).where((name) => name != 'Unknown').toList();
+  /// "Sarah, Mike +6" — first names of assignees, matching the Calendar card.
+  static String _namesSummary(
+    Map<String, dynamic> json,
+    List<StaffAvatar> avatars,
+  ) {
+    final names = _assignedPeople(json)
+        .map(_firstName)
+        .where((name) => name.isNotEmpty)
+        .toList();
     if (names.isEmpty) {
       return avatars.isEmpty ? 'Unassigned' : '${avatars.length} assigned';
     }
     if (names.length <= 2) return names.join(', ');
     return '${names.take(2).join(', ')} +${names.length - 2}';
+  }
+
+  static List<dynamic> _assignedPeople(Map<String, dynamic> json) {
+    final assignments = JsonCodec.listAt(json, 'assignments');
+    if (assignments.isNotEmpty) {
+      return assignments.map((item) {
+        if (item is! Map) return item;
+        final map = JsonCodec.asMap(item);
+        return map['staff'] ??
+            map['user'] ??
+            map['employee'] ??
+            map['assignee'] ??
+            item;
+      }).toList();
+    }
+    final staff = JsonCodec.listAt(json, 'staff');
+    if (staff.isNotEmpty) return staff;
+    return JsonCodec.listAt(json, 'assignees');
+  }
+
+  static String _firstName(dynamic person) {
+    if (person is Map) {
+      final map = JsonCodec.asMap(person);
+      final explicit = JsonCodec.string(
+        map['firstName'] ?? map['givenName'] ?? map['preferredName'],
+      );
+      if (explicit != null && explicit.isNotEmpty) return explicit;
+
+      final full = IsoDateRange.personName(person);
+      if (full == 'Unknown') return '';
+      return full.split(RegExp(r'\s+')).first;
+    }
+    final raw = IsoDateRange.stringOr(person, '');
+    if (raw.isEmpty || raw == 'Unknown') return '';
+    return raw.split(RegExp(r'\s+')).first;
   }
 
   static List<String> _roles(Map<String, dynamic> json) {
