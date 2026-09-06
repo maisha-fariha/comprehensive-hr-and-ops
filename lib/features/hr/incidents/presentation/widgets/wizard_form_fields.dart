@@ -125,8 +125,18 @@ class WizardTextField extends StatelessWidget {
 class WizardSearchField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
+  final ValueChanged<String>? onChanged;
+  final VoidCallback? onTap;
+  final bool readOnly;
 
-  const WizardSearchField({super.key, required this.controller, required this.hint});
+  const WizardSearchField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    this.onChanged,
+    this.onTap,
+    this.readOnly = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +144,9 @@ class WizardSearchField extends StatelessWidget {
       trailing: const AppSvgIcon(AppAssets.search, size: 17, color: AppColors.textFaint),
       child: TextField(
         controller: controller,
+        readOnly: readOnly,
+        onTap: onTap,
+        onChanged: onChanged,
         style: _fieldTextStyle(context, isPlaceholder: false),
         decoration: InputDecoration(
           isDense: true,

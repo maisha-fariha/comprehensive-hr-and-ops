@@ -1,6 +1,9 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/closed_incident.dart';
+import '../../domain/entities/incident_category_option.dart';
+import '../../domain/entities/incident_client_option.dart';
+import '../../domain/entities/incident_residence_option.dart';
 import '../../domain/entities/incident_stat.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
@@ -8,6 +11,120 @@ import '../../domain/entities/investigation_incident.dart';
 import '../../domain/entities/open_incident.dart';
 
 abstract final class IncidentsMapper {
+  /// Parse `GET /residences` into dropdown options.
+  static List<IncidentResidenceOption> residencesFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final options = <IncidentResidenceOption>[];
+
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final name = JsonCodec.string(
+            json['name'] ??
+                json['label'] ??
+                json['title'] ??
+                json['residenceName'] ??
+                json['displayName'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      options.add(
+        IncidentResidenceOption(
+          id: JsonCodec.stringOr(
+            json['id'] ?? json['residenceId'] ?? name,
+            name,
+          ),
+          name: name,
+        ),
+      );
+    }
+    return options;
+  }
+
+  /// Parse `GET /clients?search=` into typeahead options.
+  static List<IncidentClientOption> clientsFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final options = <IncidentClientOption>[];
+
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final name = JsonCodec.string(
+            json['preferredName'] ??
+                json['fullName'] ??
+                json['name'] ??
+                json['displayName'] ??
+                json['clientName'] ??
+                json['residentName'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+
+      final room = JsonCodec.string(
+        json['room'] ?? json['roomNumber'] ?? json['location'],
+      );
+      final residenceName = JsonCodec.string(
+        json['residenceName'] ?? residence['name'],
+      );
+      final subtitle = [
+        if (room != null && room.isNotEmpty) room,
+        if (residenceName != null && residenceName.isNotEmpty) residenceName,
+      ].join(' · ');
+
+      options.add(
+        IncidentClientOption(
+          id: JsonCodec.stringOr(json['id'] ?? json['clientId'], name),
+          name: name,
+          residenceId: JsonCodec.string(
+            json['residenceId'] ?? residence['id'],
+          ),
+          residenceName: residenceName,
+          subtitle: subtitle.isEmpty ? null : subtitle,
+        ),
+      );
+    }
+    return options;
+  }
+
+  /// Parse `GET /incident-categories` into dropdown options.
+  static List<IncidentCategoryOption> categoriesFrom(dynamic body) {
+    var source = JsonCodec.unwrapList(body);
+    if (source.isEmpty) {
+      final map = JsonCodec.unwrapMap(body);
+      final nested = map['categories'] ?? map['items'] ?? map['results'];
+      if (nested is List) source = nested;
+      if (body is List) source = body;
+    }
+
+    final options = <IncidentCategoryOption>[];
+    for (final item in source) {
+      if (item is String) {
+        final name = item.trim();
+        if (name.isEmpty) continue;
+        options.add(IncidentCategoryOption(id: name, name: name));
+        continue;
+      }
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final name = JsonCodec.string(
+            json['name'] ??
+                json['label'] ??
+                json['title'] ??
+                json['category'] ??
+                json['value'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      final id = JsonCodec.stringOr(
+        json['id'] ?? json['categoryId'] ?? json['code'] ?? name,
+        name,
+      );
+      options.add(IncidentCategoryOption(id: id, name: name));
+    }
+    return options;
+  }
+
   /// Compose from a single mixed incidents list (legacy path).
   static IncidentsBoard compose({
     required dynamic listBody,

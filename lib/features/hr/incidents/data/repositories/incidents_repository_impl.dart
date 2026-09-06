@@ -3,6 +3,9 @@ import 'package:gems_core/gems_core.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/incident_category_option.dart';
+import '../../domain/entities/incident_client_option.dart';
+import '../../domain/entities/incident_residence_option.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/repositories/incidents_repository.dart';
 import '../mappers/incidents_mapper.dart';
@@ -71,6 +74,56 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
         closedBody: closed.isSuccess ? closed.value : null,
         summaryBody: summary.value,
       ),
+    );
+  }
+
+  @override
+  Future<Result<List<IncidentCategoryOption>>> getCategories() async {
+    final result = await _api.get(
+      ApiEndpoints.incidentCategories,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(IncidentsMapper.categoriesFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<IncidentResidenceOption>>> getResidences() async {
+    final result = await _api.get(
+      ApiEndpoints.residences,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(IncidentsMapper.residencesFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<IncidentClientOption>>> searchClients(String search) async {
+    final trimmed = search.trim();
+    if (trimmed.isEmpty) {
+      return Result.success(<IncidentClientOption>[]);
+    }
+
+    final result = await _api.get(
+      ApiEndpoints.clients,
+      query: {
+        'search': trimmed,
+        'page': 1,
+        'limit': 20,
+        'residenceId': ?_session.residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(IncidentsMapper.clientsFrom(body)),
+      failure: (error) async => Result.failure(error),
     );
   }
 
