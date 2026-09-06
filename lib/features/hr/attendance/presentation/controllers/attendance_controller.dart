@@ -19,6 +19,7 @@ class AttendanceController extends BaseController<AttendanceOverview> {
   final AttendanceRepository repository;
 
   final Rx<AttendanceTab> selectedTab = AttendanceTab.today.obs;
+  int _loadGeneration = 0;
 
   AttendanceController({required this.repository}) {
     loadOverview();
@@ -29,13 +30,29 @@ class AttendanceController extends BaseController<AttendanceOverview> {
   void selectTab(AttendanceTab tab) => selectedTab.value = tab;
 
   Future<void> loadOverview() async {
+    final generation = ++_loadGeneration;
     setLoading(true);
     final result = await repository.getOverview();
+    if (generation != _loadGeneration) return;
     result.when(
       success: setSuccess,
       failure: (error) => setError(error.message),
     );
     setLoading(false);
+  }
+
+  Future<void> reviewMissedClockIn(String attendanceId) async {
+    final result = await repository.approveAttendance(attendanceId);
+    result.when(
+      success: (_) => loadOverview(),
+      failure: (error) {
+        Get.snackbar(
+          'Could not review',
+          error.message,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      },
+    );
   }
 
   @override

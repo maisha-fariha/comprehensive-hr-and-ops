@@ -28,8 +28,4 @@ enum MedicationStatTag {
 /// Medication tab.
 enum AvatarPalette { blue, green, purple }
 
-/// Which time-of-day chip is selected in the "Due" tab's secondary filter
-/// row (Today/Morning/Afternoon/Evening). Only "Today" has source data in
-/// the design; the others remain selectable for visual parity but do not
-/// change the underlying list.
 enum SchedulePeriod { today, morning, afternoon, evening }

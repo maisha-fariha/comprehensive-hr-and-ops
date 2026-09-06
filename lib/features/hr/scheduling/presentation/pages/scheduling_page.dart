@@ -11,6 +11,7 @@ import '../widgets/calendar_tab_view.dart';
 import '../widgets/requests_tab_view.dart';
 import '../widgets/scheduling_segmented_tabs.dart';
 import '../widgets/scheduling_top_bar.dart';
+import 'create_shift_page.dart';
 
 /// The Manager/HR Scheduling screen — the "Schedule" tab of the HR portal.
 ///
@@ -61,7 +62,10 @@ class SchedulingPage extends StatelessWidget {
                 color: AppColors.surfaceWhite,
                 child: Column(
                   children: [
-                    SchedulingTopBar(onCreateShiftTap: () {}),
+                    SchedulingTopBar(
+                      onCreateShiftTap: () =>
+                          Get.to(() => const CreateShiftPage()),
+                    ),
                     SchedulingSegmentedTabs(
                       selectedTab: controller.selectedTab.value,
                       requestsBadgeCount: overview.requests.pendingRequests.length,
@@ -75,9 +79,21 @@ class SchedulingPage extends StatelessWidget {
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: switch (controller.selectedTab.value) {
-                    SchedulingTab.calendar => CalendarTabView(data: overview.calendar),
+                    SchedulingTab.calendar => CalendarTabView(
+                      data: overview.calendar,
+                      onPreviousWeek: controller.goToPreviousWeek,
+                      onNextWeek: controller.goToNextWeek,
+                      onDaySelected: (day) =>
+                          controller.selectCalendarDay(day.date),
+                    ),
                     SchedulingTab.board => BoardTabView(data: overview.board),
-                    SchedulingTab.requests => RequestsTabView(data: overview.requests),
+                    SchedulingTab.requests => RequestsTabView(
+                      data: overview.requests,
+                      onApprove: (request) =>
+                          controller.approveRequest(request.id),
+                      onDecline: (request) =>
+                          controller.declineRequest(request.id),
+                    ),
                   },
                 ),
               ),

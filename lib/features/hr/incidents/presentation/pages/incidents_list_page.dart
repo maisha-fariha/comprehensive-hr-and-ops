@@ -30,8 +30,11 @@ class IncidentsListPage extends StatelessWidget {
     }
   }
 
-  void _openCreationWizard() {
-    Get.to(() => const IncidentCreationPage());
+  Future<void> _openCreationWizard(IncidentsController controller) async {
+    final created = await Get.to<bool>(() => const IncidentCreationPage());
+    if (created == true) {
+      await controller.refresh();
+    }
   }
 
   @override
@@ -108,7 +111,9 @@ class IncidentsListPage extends StatelessWidget {
                   horizontalPad,
                   ResponsiveHelper.getResponsiveHeight(context, 10),
                 ),
-                child: CreateIncidentButton(onTap: _openCreationWizard),
+                child: CreateIncidentButton(
+                  onTap: () => _openCreationWizard(controller),
+                ),
               ),
             ),
           ],

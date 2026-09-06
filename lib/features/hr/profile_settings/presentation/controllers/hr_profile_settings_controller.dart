@@ -19,8 +19,10 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
   HrProfileSettingsOverview? get overview => state.value.data;
 
   Future<void> loadOverview() async {
+    final generation = ++_loadGeneration;
     setLoading(true);
     final result = await repository.getOverview();
+    if (generation != _loadGeneration) return;
     result.when(
       success: (overview) {
         pushNotificationsEnabled.value = overview.pushNotificationsEnabled;
@@ -31,6 +33,8 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
     );
     setLoading(false);
   }
+
+  int _loadGeneration = 0;
 
   void togglePushNotifications(bool value) => pushNotificationsEnabled.value = value;
 
@@ -79,7 +83,13 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
     final result = await repository.getNotificationPreferences();
     return result.when(
       success: (values) => values,
-      failure: (_) => const <String, bool>{},
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not load preferences',
+        );
+        return const <String, bool>{};
+      },
     );
   }
 

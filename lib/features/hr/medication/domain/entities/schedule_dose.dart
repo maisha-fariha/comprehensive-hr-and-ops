@@ -13,6 +13,8 @@ class ScheduleDose {
   final String medicationName;
   final String dose;
   final String scheduledTime;
+  /// Local hour of day (0–23) when known — used by Due-tab period chips.
+  final int? scheduledHour;
   final String assigneeName;
   final String assigneeInitials;
   final AvatarPalette assigneeAvatarColor;
@@ -26,6 +28,7 @@ class ScheduleDose {
     required this.medicationName,
     required this.dose,
     required this.scheduledTime,
+    this.scheduledHour,
     required this.assigneeName,
     required this.assigneeInitials,
     required this.assigneeAvatarColor,

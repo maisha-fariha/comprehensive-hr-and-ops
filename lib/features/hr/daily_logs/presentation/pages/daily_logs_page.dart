@@ -108,9 +108,12 @@ class DailyLogsPage extends StatelessWidget {
           ],
         );
       }),
-      bottomNavigationBar: HrBottomNavBar(
-        currentIndex: _moreTabIndex,
-        onTap: _onBottomNavTap,
+      bottomNavigationBar: Obx(
+        () => HrBottomNavBar(
+          currentIndex: _moreTabIndex,
+          onTap: _onBottomNavTap,
+          alertsBadgeCount: hrAlertsBadgeCount(),
+        ),
       ),
     );
   }

@@ -59,6 +59,12 @@ Future<void> setupAuthDependencies() async {
     ),
   );
 
+  // When any API call gets HTTP 401, refresh the access token once and retry.
+  getIt<AppApiClient>().tokenRefresher = () async {
+    final result = await getIt<AuthRepository>().refreshTokens(silent: true);
+    return result.isSuccess;
+  };
+
   DIHelper.registerController<AuthController>(
     factory: () => AuthController(repository: getIt<AuthRepository>()),
   );

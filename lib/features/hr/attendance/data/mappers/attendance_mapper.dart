@@ -81,7 +81,8 @@ abstract final class AttendanceMapper {
       ],
       staffOnDutyLabel: '$onDuty on duty',
       staffStatus: [
-        for (var i = 0; i < rows.length; i++) _statusEntry(rows[i], i),
+        for (var i = 0; i < rows.length; i++)
+          if (_status(rows[i]) != null) _statusEntry(rows[i], i),
       ],
       lateStats: [
         AttendanceStat(
@@ -151,7 +152,7 @@ abstract final class AttendanceMapper {
 
   static StaffStatusEntry _statusEntry(Map<String, dynamic> json, int index) {
     final name = _staffName(json);
-    final status = _status(json);
+    final status = _status(json) ?? StaffAttendanceStatus.onTime;
     final checkIn = JsonCodec.dateTime(
       json['checkInAt'] ?? json['clockInAt'] ?? json['arrivedAt'],
     );
@@ -265,9 +266,11 @@ abstract final class AttendanceMapper {
     );
   }
 
-  static StaffAttendanceStatus _status(Map<String, dynamic> json) {
+  static StaffAttendanceStatus? _status(Map<String, dynamic> json) {
     switch ((JsonCodec.string(json['status'] ?? json['state']) ?? '')
-        .toLowerCase()) {
+        .toLowerCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_')) {
       case 'late':
         return StaffAttendanceStatus.late;
       case 'missed':
@@ -275,8 +278,17 @@ abstract final class AttendanceMapper {
       case 'no_show':
       case 'noshow':
         return StaffAttendanceStatus.missed;
-      default:
+      case 'present':
+      case 'on_time':
+      case 'ontime':
+      case 'checked_in':
+      case 'clocked_in':
+      case 'on_duty':
+      case 'on_site':
         return StaffAttendanceStatus.onTime;
+      default:
+        // Unknown statuses must not inflate "On Time" / "On Duty".
+        return null;
     }
   }
 

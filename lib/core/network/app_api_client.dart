@@ -11,13 +11,21 @@ import 'tenant_store.dart';
 
 /// Thin wrapper over [ApiService] that attaches `X-Tenant-Subdomain`,
 /// maps failures to readable errors, caches GET bodies for offline reads,
-/// and queues writes when the device is offline.
+/// queues writes when the device is offline, and refreshes the access
+/// token once on HTTP 401 before retrying the original request.
 class AppApiClient {
   final ApiService _api;
   final TenantStore _tenant;
   final ResponseCache? _cache;
   final SyncService? _sync;
   final ConnectivityMonitor? _connectivity;
+
+  /// Optional hook that exchanges the refresh token for a new access token.
+  /// Wired from auth DI after [AuthRepository] is registered.
+  Future<bool> Function()? tokenRefresher;
+
+  /// Shared in-flight refresh so concurrent 401s only refresh once.
+  Future<bool>? _refreshInFlight;
 
   AppApiClient(
     this._api,
@@ -43,12 +51,14 @@ class AppApiClient {
     Map<String, dynamic>? query,
     bool includeTenant = true,
     bool silent = false,
+    bool allowTokenRefresh = true,
   }) {
     return _send(
       method: 'GET',
       path: path,
       query: query,
       silent: silent,
+      allowTokenRefresh: allowTokenRefresh,
       request: () => _api.get<dynamic>(
         path,
         queryParameters: query,
@@ -64,6 +74,7 @@ class AppApiClient {
     bool includeTenant = true,
     bool silent = false,
     bool allowQueue = true,
+    bool allowTokenRefresh = true,
   }) {
     return _send(
       method: 'POST',
@@ -72,6 +83,7 @@ class AppApiClient {
       data: data,
       silent: silent,
       allowQueue: allowQueue,
+      allowTokenRefresh: allowTokenRefresh,
       request: () => _api.post<dynamic>(
         path,
         data: data,
@@ -87,6 +99,7 @@ class AppApiClient {
     Map<String, dynamic>? query,
     bool silent = false,
     bool allowQueue = true,
+    bool allowTokenRefresh = true,
   }) {
     return _send(
       method: 'PUT',
@@ -95,6 +108,7 @@ class AppApiClient {
       data: data,
       silent: silent,
       allowQueue: allowQueue,
+      allowTokenRefresh: allowTokenRefresh,
       request: () => _api.put<dynamic>(
         path,
         data: data,
@@ -110,6 +124,7 @@ class AppApiClient {
     Map<String, dynamic>? query,
     bool silent = false,
     bool allowQueue = true,
+    bool allowTokenRefresh = true,
   }) {
     return _send(
       method: 'PATCH',
@@ -118,6 +133,7 @@ class AppApiClient {
       data: data,
       silent: silent,
       allowQueue: allowQueue,
+      allowTokenRefresh: allowTokenRefresh,
       request: () => _api.patch<dynamic>(
         path,
         data: data,
@@ -133,6 +149,7 @@ class AppApiClient {
     Map<String, dynamic>? query,
     bool silent = false,
     bool allowQueue = true,
+    bool allowTokenRefresh = true,
   }) {
     return _send(
       method: 'DELETE',
@@ -141,6 +158,7 @@ class AppApiClient {
       data: data,
       silent: silent,
       allowQueue: allowQueue,
+      allowTokenRefresh: allowTokenRefresh,
       request: () => _api.delete<dynamic>(
         path,
         data: data,
@@ -190,6 +208,8 @@ class AppApiClient {
     dynamic data,
     bool silent = false,
     bool allowQueue = true,
+    bool allowTokenRefresh = true,
+    bool alreadyRetriedAfterRefresh = false,
   }) async {
     final online = _isOnline;
     final canCache = _cacheable(method, path);
@@ -224,9 +244,30 @@ class AppApiClient {
     try {
       final response = await request();
       if (!response.success) {
-        final error = AppErrorMapper.toFriendly(
-          _errorFromResponse(response),
-        );
+        final rawError = _errorFromResponse(response);
+
+        // Expired / invalid access token → refresh once, then retry.
+        if (allowTokenRefresh &&
+            !alreadyRetriedAfterRefresh &&
+            _isUnauthorized(rawError, response.statusCode) &&
+            !_isAuthPath(path)) {
+          final refreshed = await _tryRefreshToken();
+          if (refreshed) {
+            return _send(
+              method: method,
+              path: path,
+              request: request,
+              query: query,
+              data: data,
+              silent: silent,
+              allowQueue: allowQueue,
+              allowTokenRefresh: false,
+              alreadyRetriedAfterRefresh: true,
+            );
+          }
+        }
+
+        final error = AppErrorMapper.toFriendly(rawError);
         if (method == 'GET' && canCache && _isOfflineError(error)) {
           final cached = _cache?.get(method: method, path: path, query: query);
           if (cached != null) return Result.success(cached);
@@ -273,6 +314,37 @@ class AppApiClient {
       if (!silent) await AppErrorDialog.showError(mapped);
       return Result.failure(mapped);
     }
+  }
+
+  Future<bool> _tryRefreshToken() async {
+    final refresher = tokenRefresher;
+    if (refresher == null) return false;
+
+    final existing = _refreshInFlight;
+    if (existing != null) return existing;
+
+    final future = () async {
+      try {
+        return await refresher();
+      } catch (_) {
+        return false;
+      }
+    }();
+    _refreshInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_refreshInFlight, future)) {
+        _refreshInFlight = null;
+      }
+    }
+  }
+
+  bool _isUnauthorized(AppError error, int? statusCode) {
+    if (statusCode == 401) return true;
+    if (error is AuthError && error.code == '401') return true;
+    if (error is ApiError && error.statusCode == 401) return true;
+    return false;
   }
 
   AppError _errorFromResponse(ApiResponse<dynamic> response) {

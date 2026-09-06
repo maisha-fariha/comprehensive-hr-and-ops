@@ -8,6 +8,9 @@ import 'staff_avatar.dart';
 @immutable
 class CalendarShift {
   final String id;
+
+  /// Local start instant when known — used to filter the week strip selection.
+  final DateTime? occursOn;
   final String startTime;
   final String startPeriod;
   final String name;
@@ -28,6 +31,7 @@ class CalendarShift {
 
   const CalendarShift({
     required this.id,
+    this.occursOn,
     required this.startTime,
     required this.startPeriod,
     required this.name,

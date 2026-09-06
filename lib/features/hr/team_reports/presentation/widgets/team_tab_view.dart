@@ -57,15 +57,6 @@ class TeamTabView extends StatelessWidget {
   final VoidCallback? onViewAllReports;
   final VoidCallback? onViewAllMessages;
 
-  /// UI-only second preview message from the reference (not in domain model).
-  static const ConversationPreview _mikePreview = ConversationPreview(
-    id: 'mike-t-recent',
-    senderName: 'Mike T.',
-    initials: 'MT',
-    timeLabel: 'Yesterday',
-    previewText: 'Requesting coverage for Friday evening...',
-  );
-
   const TeamTabView({
     super.key,
     required this.overview,
@@ -78,7 +69,10 @@ class TeamTabView extends StatelessWidget {
   Widget build(BuildContext context) {
     final sectionGap = ResponsiveHelper.getResponsiveHeight(context, 18);
     final cardGap = ResponsiveHelper.getResponsiveHeight(context, 10);
-    final messages = [overview.recentMessage, _mikePreview];
+    final messages = overview.recentMessage.previewText.isEmpty &&
+            overview.recentMessage.senderName.isEmpty
+        ? const <ConversationPreview>[]
+        : [overview.recentMessage];
 
     return LayoutBuilder(
       builder: (context, constraints) {

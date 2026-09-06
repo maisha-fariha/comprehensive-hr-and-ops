@@ -34,14 +34,26 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       _api.get(ApiEndpoints.complianceChecks, query: query),
       _api.get(ApiEndpoints.complianceCorrectiveActions, query: query),
     ]);
+
+    // Compliance tabs need score/overview/checks — fail if all compliance calls fail.
+    final complianceFailed = extras[1].isFailure &&
+        extras[2].isFailure &&
+        extras[3].isFailure;
+    if (complianceFailed) {
+      return Result.failure(
+        extras[1].error ??
+            const ApiError(message: 'Could not load compliance data.'),
+      );
+    }
+
     return Result.success(
       TasksComplianceMapper.compose(
-        statsBody: extras[0].value,
+        statsBody: extras[0].isSuccess ? extras[0].value : null,
         tasksBody: tasks.value,
-        scoreBody: extras[1].value,
-        overviewBody: extras[2].value,
-        checksBody: extras[3].value,
-        actionsBody: extras[4].value,
+        scoreBody: extras[1].isSuccess ? extras[1].value : null,
+        overviewBody: extras[2].isSuccess ? extras[2].value : null,
+        checksBody: extras[3].isSuccess ? extras[3].value : null,
+        actionsBody: extras[4].isSuccess ? extras[4].value : null,
         residenceName: _session.residenceName,
       ),
     );

@@ -15,4 +15,20 @@ class PortalNotification {
     required this.timeLabel,
     this.isRead = false,
   });
+
+  PortalNotification copyWith({
+    String? id,
+    String? title,
+    String? body,
+    String? timeLabel,
+    bool? isRead,
+  }) {
+    return PortalNotification(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      timeLabel: timeLabel ?? this.timeLabel,
+      isRead: isRead ?? this.isRead,
+    );
+  }
 }

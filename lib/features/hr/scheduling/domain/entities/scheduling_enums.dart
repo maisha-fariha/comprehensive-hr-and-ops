@@ -12,4 +12,4 @@ enum CoverageStatus { almostFull, needsAttention }
 enum OpenPositionUrgency { urgent, open }
 
 /// Lifecycle state of a shift-swap request on the Requests tab.
-enum RequestStatus { pending, approved }
+enum RequestStatus { pending, approved, declined }

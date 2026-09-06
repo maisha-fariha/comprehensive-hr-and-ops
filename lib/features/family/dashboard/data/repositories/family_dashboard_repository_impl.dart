@@ -87,8 +87,22 @@ class FamilyDashboardRepositoryImpl implements FamilyDashboardRepository {
 
   @override
   Future<Result<void>> markNotificationRead(String id) async {
-    final result = await _api.patch(ApiEndpoints.notificationRead(id));
-    return result.when(
+    // Same action style as /notifications/read-all and /conversations/:id/read.
+    final post = await _api.post(
+      ApiEndpoints.notificationRead(id),
+      data: const <String, dynamic>{},
+      silent: true,
+      allowQueue: false,
+    );
+    if (post.isSuccess) return Result.success(null);
+
+    final patch = await _api.patch(
+      ApiEndpoints.notificationRead(id),
+      data: const <String, dynamic>{},
+      silent: true,
+      allowQueue: false,
+    );
+    return patch.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
@@ -96,7 +110,12 @@ class FamilyDashboardRepositoryImpl implements FamilyDashboardRepository {
 
   @override
   Future<Result<void>> markAllNotificationsRead() async {
-    final result = await _api.post(ApiEndpoints.notificationsReadAll);
+    final result = await _api.post(
+      ApiEndpoints.notificationsReadAll,
+      data: const <String, dynamic>{},
+      silent: true,
+      allowQueue: false,
+    );
     return result.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),

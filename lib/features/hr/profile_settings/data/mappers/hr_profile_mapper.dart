@@ -10,6 +10,7 @@ abstract final class HrProfileMapper {
   static HrProfileSettingsOverview compose({
     required UserSession session,
     required dynamic residencesBody,
+    bool pushNotificationsEnabled = true,
   }) {
     final residences = JsonCodec.unwrapList(residencesBody)
         .whereType<Map>()
@@ -66,7 +67,7 @@ abstract final class HrProfileMapper {
           label: 'Privacy & Security',
         ),
       ],
-      pushNotificationsEnabled: true,
+      pushNotificationsEnabled: pushNotificationsEnabled,
       darkModeEnabled: false,
     );
   }

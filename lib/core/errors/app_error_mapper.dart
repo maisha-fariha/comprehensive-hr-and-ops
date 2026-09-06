@@ -179,10 +179,14 @@ abstract final class AppErrorMapper {
   static String _clean(String message, {String? fallback}) {
     final text = message.trim();
     if (text.isEmpty) return fallback ?? 'Please try again in a moment.';
+    final lower = text.toLowerCase();
     if (text.startsWith('DioException') ||
         text.startsWith('Exception:') ||
         text.contains('SocketException') ||
-        text.contains('HttpException')) {
+        text.contains('HttpException') ||
+        lower.contains('validateStatus') ||
+        lower.contains('status code of 401') ||
+        lower.contains('this exception was thrown because')) {
       return fallback ??
           'We could not complete this request. Check your connection and try again.';
     }
@@ -205,6 +209,31 @@ abstract final class AppErrorMapper {
       return NetworkError(
         message: info.message,
         code: error.code ?? 'offline',
+        originalError: error.originalError,
+        stackTrace: error.stackTrace,
+      );
+    }
+    if (error is AuthError) {
+      return AuthError(
+        message: info.message,
+        code: error.code ?? 'auth',
+        originalError: error.originalError,
+        stackTrace: error.stackTrace,
+      );
+    }
+    if (error is PermissionError) {
+      return PermissionError(
+        message: info.message,
+        code: error.code ?? 'permission',
+        originalError: error.originalError,
+        stackTrace: error.stackTrace,
+      );
+    }
+    if (error is ValidationError) {
+      return ValidationError(
+        message: info.message,
+        fieldErrors: error.fieldErrors,
+        code: error.code,
         originalError: error.originalError,
         stackTrace: error.stackTrace,
       );

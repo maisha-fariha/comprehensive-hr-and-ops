@@ -26,7 +26,7 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
       'from': IsoDateRange.todayStartIso,
       'to': IsoDateRange.todayEndIso,
       'page': 1,
-      'limit': 50,
+      'limit': 100,
       'residenceId': ?residenceId,
     };
 
@@ -41,7 +41,13 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
     }
 
     final extras = await Future.wait([
-      _api.get(ApiEndpoints.careFlags, query: const {'state': 'open'}),
+      _api.get(
+        ApiEndpoints.careFlags,
+        query: {
+          'state': 'open',
+          'residenceId': ?residenceId,
+        },
+      ),
       _api.get(
         ApiEndpoints.dailyLogs,
         query: {...base, 'status': 'missing'},
@@ -49,7 +55,14 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
       _api.get(ApiEndpoints.shiftHandovers, query: base),
     ]);
 
-    var missingBody = extras[1].value;
+    if (extras[1].isFailure && extras[2].isFailure) {
+      return Result.failure(
+        extras[1].error ??
+            const ApiError(message: 'Could not load daily log details.'),
+      );
+    }
+
+    var missingBody = extras[1].isSuccess ? extras[1].value : null;
     if (JsonCodec.unwrapList(missingBody).isEmpty) {
       final overdue = await _api.get(
         ApiEndpoints.dailyLogs,
@@ -61,9 +74,9 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
     return Result.success(
       DailyLogsMapper.compose(
         reviewBody: review.value,
-        flagsBody: extras[0].value,
+        flagsBody: extras[0].isSuccess ? extras[0].value : null,
         missingBody: missingBody,
-        handoversBody: extras[2].value,
+        handoversBody: extras[2].isSuccess ? extras[2].value : null,
       ),
     );
   }

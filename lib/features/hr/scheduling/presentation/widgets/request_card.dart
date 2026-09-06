@@ -57,6 +57,7 @@ class RequestCard extends StatelessWidget {
     return switch (request.status) {
       RequestStatus.pending => RequestCardStatus.pending,
       RequestStatus.approved => RequestCardStatus.approved,
+      RequestStatus.declined => RequestCardStatus.declined,
     };
   }
 

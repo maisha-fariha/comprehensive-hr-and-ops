@@ -10,7 +10,7 @@ enum TaskStatTag { dueToday, thisWeek, upcoming, completed }
 enum TaskCategory { safety, facilities, medication, audit }
 
 /// Trailing status pill shown on a task list tile.
-enum TaskStatus { overdue, due, upcoming }
+enum TaskStatus { overdue, due, upcoming, completed }
 
 /// Semantic tag for a tile in the "Compliance" tab's 3-column stat row.
 enum ComplianceStatTag { completed, pendingReview, needsAttention }

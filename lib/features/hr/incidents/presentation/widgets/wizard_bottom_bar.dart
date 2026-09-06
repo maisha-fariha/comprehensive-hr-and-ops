@@ -14,8 +14,8 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 /// stays as-is.
 class WizardBottomBar extends StatelessWidget {
   final bool isLastStep;
-  final VoidCallback onSaveDraft;
-  final VoidCallback onPrimary;
+  final VoidCallback? onSaveDraft;
+  final VoidCallback? onPrimary;
 
   const WizardBottomBar({
     super.key,
@@ -73,7 +73,7 @@ class _BottomButton extends StatelessWidget {
   final bool iconTrailing;
   final Color background;
   final Color foreground;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _BottomButton({
     required this.label,
@@ -114,7 +114,7 @@ class _BottomButton extends StatelessWidget {
     ];
 
     return Material(
-      color: background,
+      color: onTap == null ? background.withValues(alpha: 0.55) : background,
       borderRadius: BorderRadius.circular(
         ResponsiveHelper.getResponsiveRadius(context, 13),
       ),

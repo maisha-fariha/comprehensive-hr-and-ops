@@ -3,78 +3,37 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../domain/entities/open_position.dart';
 import '../../domain/entities/requests_overview.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/shift_request.dart';
-import '../../scheduling_constants.dart';
 import 'request_card.dart';
 
-/// UI-only Declined card from the reference (not in domain/repository).
-const ShiftRequest _declinedPreview = ShiftRequest(
-  id: 'req-chris-declined',
-  staffName: 'Chris B.',
-  staffInitials: 'CB',
-  status: RequestStatus.approved,
-  timingLabel: 'Declined · conflict',
-  givingLabel: 'Sat May 17 · Morning',
-  receivingLabel: 'Sun May 18 · Morning',
-);
-
-class _OpenShiftPreview {
-  final String title;
-  final String subtitle;
-  final String badgeLabel;
-  final bool isUrgent;
-  final String asset;
-  final Color iconColor;
-  final Color iconBackground;
-
-  const _OpenShiftPreview({
-    required this.title,
-    required this.subtitle,
-    required this.badgeLabel,
-    required this.isUrgent,
-    required this.asset,
-    required this.iconColor,
-    required this.iconBackground,
-  });
-}
-
-const List<_OpenShiftPreview> _openShiftPreviews = [
-  _OpenShiftPreview(
-    title: 'Night Shift',
-    subtitle: 'Pinecrest Manor · Need 1 RN',
-    badgeLabel: 'Urgent',
-    isUrgent: true,
-    asset: 'assets/icons/dashboard/moon.svg',
-    iconColor: Color(0xFF6A4BC7),
-    iconBackground: Color(0xFFF0ECFB),
-  ),
-  _OpenShiftPreview(
-    title: 'Evening Shift',
-    subtitle: 'Sunrise Home · Need 1 CNA',
-    badgeLabel: 'Open',
-    isUrgent: false,
-    asset: 'assets/icons/dashboard/clock.svg',
-    iconColor: Color(0xFFB4791C),
-    iconBackground: Color(0xFFFCF5ED),
-  ),
-];
-
 /// The Requests tab content: Pending, Approved, Declined, and Open Shift
-/// Requests sections.
+/// Requests sections — all driven by API data.
 class RequestsTabView extends StatelessWidget {
   final RequestsOverview data;
+  final void Function(ShiftRequest request)? onApprove;
+  final void Function(ShiftRequest request)? onDecline;
 
-  const RequestsTabView({super.key, required this.data});
+  const RequestsTabView({
+    super.key,
+    required this.data,
+    this.onApprove,
+    this.onDecline,
+  });
 
   @override
   Widget build(BuildContext context) {
     final horizontalPadding = ResponsiveHelper.getResponsiveWidth(
       context,
-      SchedulingDimens.screenPaddingHorizontal,
+      20,
     );
     final sectionGap = ResponsiveHelper.getResponsiveHeight(context, 16);
+    final hasAny = data.pendingRequests.isNotEmpty ||
+        data.approvedRequests.isNotEmpty ||
+        data.declinedRequests.isNotEmpty ||
+        data.openShiftRequests.isNotEmpty;
 
     return ColoredBox(
       color: AppColors.scaffoldBackground,
@@ -86,6 +45,22 @@ class RequestsTabView extends StatelessWidget {
           ResponsiveHelper.getResponsiveHeight(context, 24),
         ),
         children: [
+          if (!hasAny)
+            Padding(
+              padding: EdgeInsets.only(
+                top: ResponsiveHelper.getResponsiveHeight(context, 48),
+              ),
+              child: Text(
+                'No shift requests right now.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w500,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
           if (data.pendingRequests.isNotEmpty) ...[
             _RequestsSectionHeader(
               title: 'Pending',
@@ -94,7 +69,12 @@ class RequestsTabView extends StatelessWidget {
               badgeBackground: const Color(0xFFFCF5ED),
             ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            for (final request in data.pendingRequests) RequestCard(request: request),
+            for (final request in data.pendingRequests)
+              RequestCard(
+                request: request,
+                onApprove: onApprove == null ? null : () => onApprove!(request),
+                onDecline: onDecline == null ? null : () => onDecline!(request),
+              ),
             SizedBox(height: sectionGap),
           ],
           if (data.approvedRequests.isNotEmpty) ...[
@@ -105,34 +85,41 @@ class RequestsTabView extends StatelessWidget {
               badgeBackground: const Color(0xFFEAF6F0),
             ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            for (final request in data.approvedRequests) RequestCard(request: request),
+            for (final request in data.approvedRequests)
+              RequestCard(request: request),
             SizedBox(height: sectionGap),
           ],
-          _RequestsSectionHeader(
-            title: 'Declined',
-            count: 1,
-            badgeColor: AppColors.textSecondary,
-            badgeBackground: const Color(0xFFF1F5F9),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          const RequestCard(
-            request: _declinedPreview,
-            visualStatus: RequestCardStatus.declined,
-          ),
-          SizedBox(height: sectionGap),
-          Text(
-            'Open Shift Requests',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
-              color: AppColors.textHeading,
+          if (data.declinedRequests.isNotEmpty) ...[
+            _RequestsSectionHeader(
+              title: 'Declined',
+              count: data.declinedRequests.length,
+              badgeColor: AppColors.textSecondary,
+              badgeBackground: const Color(0xFFF1F5F9),
             ),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          for (var i = 0; i < _openShiftPreviews.length; i++) ...[
-            if (i > 0) SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            _OpenShiftRequestCard(item: _openShiftPreviews[i]),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            for (final request in data.declinedRequests)
+              RequestCard(
+                request: request,
+                visualStatus: RequestCardStatus.declined,
+              ),
+            SizedBox(height: sectionGap),
+          ],
+          if (data.openShiftRequests.isNotEmpty) ...[
+            Text(
+              'Open Shift Requests',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
+                color: AppColors.textHeading,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            for (var i = 0; i < data.openShiftRequests.length; i++) ...[
+              if (i > 0)
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+              _OpenShiftRequestCard(item: data.openShiftRequests[i]),
+            ],
           ],
         ],
       ),
@@ -199,7 +186,7 @@ class _RequestsSectionHeader extends StatelessWidget {
 }
 
 class _OpenShiftRequestCard extends StatelessWidget {
-  final _OpenShiftPreview item;
+  final OpenPosition item;
 
   const _OpenShiftRequestCard({required this.item});
 
@@ -207,9 +194,16 @@ class _OpenShiftRequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
     final boxSize = ResponsiveHelper.getResponsiveSize(context, 42);
-    final badgeColor = item.isUrgent ? const Color(0xFFD64545) : const Color(0xFFB4791C);
+    final isUrgent = item.urgency == OpenPositionUrgency.urgent;
+    final badgeColor = isUrgent ? const Color(0xFFD64545) : const Color(0xFFB4791C);
     final badgeBackground =
-        item.isUrgent ? const Color(0xFFFBEDED) : const Color(0xFFFCF5ED);
+        isUrgent ? const Color(0xFFFBEDED) : const Color(0xFFFCF5ED);
+    final iconColor = isUrgent ? const Color(0xFF6A4BC7) : const Color(0xFFB4791C);
+    final iconBackground =
+        isUrgent ? const Color(0xFFF0ECFB) : const Color(0xFFFCF5ED);
+    final asset = isUrgent
+        ? 'assets/icons/dashboard/moon.svg'
+        : 'assets/icons/dashboard/clock.svg';
 
     return Container(
       width: double.infinity,
@@ -229,13 +223,13 @@ class _OpenShiftRequestCard extends StatelessWidget {
             width: boxSize,
             height: boxSize,
             decoration: BoxDecoration(
-              color: item.iconBackground,
+              color: iconBackground,
               borderRadius: BorderRadius.circular(
                 ResponsiveHelper.getResponsiveRadius(context, 12),
               ),
             ),
             alignment: Alignment.center,
-            child: AppSvgIcon(item.asset, size: 18, color: item.iconColor),
+            child: AppSvgIcon(asset, size: 18, color: iconColor),
           ),
           SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
           Expanded(
@@ -247,7 +241,7 @@ class _OpenShiftRequestCard extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        item.title,
+                        item.roleTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -271,7 +265,7 @@ class _OpenShiftRequestCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        item.badgeLabel,
+                        isUrgent ? 'Urgent' : 'Open',
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w700,
@@ -296,30 +290,6 @@ class _OpenShiftRequestCard extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          Container(
-            padding: ResponsiveHelper.getResponsivePadding(
-              context,
-              horizontal: 12,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE3F3F1),
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 10),
-              ),
-            ),
-            child: Text(
-              'Assign',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                color: AppColors.secondaryTeal,
-                height: 1.1,
-              ),
             ),
           ),
         ],

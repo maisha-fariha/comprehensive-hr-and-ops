@@ -75,6 +75,11 @@ const Map<TaskStatus, _StatusStyle> _statusStyles = {
     background: Color(0xFFEAF0F9),
     label: 'Upcoming',
   ),
+  TaskStatus.completed: _StatusStyle(
+    color: Color(0xFF2E8C58),
+    background: Color(0xFFEAF6F0),
+    label: 'Completed',
+  ),
 };
 
 /// A single "Tasks Due" card — matched to the Tasks tab reference.

@@ -35,4 +35,35 @@ class DashboardOverview {
     required this.scheduleShifts,
     required this.quickActions,
   });
+
+  DashboardOverview copyWith({
+    String? organizationName,
+    String? dateLabel,
+    String? greetingLine,
+    String? greetingSubtitle,
+    String? lastUpdatedLabel,
+    int? unreadNotificationCount,
+    int? unresolvedAlertCount,
+    String? avatarInitials,
+    List<AttentionAlert>? attentionAlerts,
+    List<OverviewStat>? overviewStats,
+    List<ScheduleShift>? scheduleShifts,
+    List<QuickAction>? quickActions,
+  }) {
+    return DashboardOverview(
+      organizationName: organizationName ?? this.organizationName,
+      dateLabel: dateLabel ?? this.dateLabel,
+      greetingLine: greetingLine ?? this.greetingLine,
+      greetingSubtitle: greetingSubtitle ?? this.greetingSubtitle,
+      lastUpdatedLabel: lastUpdatedLabel ?? this.lastUpdatedLabel,
+      unreadNotificationCount:
+          unreadNotificationCount ?? this.unreadNotificationCount,
+      unresolvedAlertCount: unresolvedAlertCount ?? this.unresolvedAlertCount,
+      avatarInitials: avatarInitials ?? this.avatarInitials,
+      attentionAlerts: attentionAlerts ?? this.attentionAlerts,
+      overviewStats: overviewStats ?? this.overviewStats,
+      scheduleShifts: scheduleShifts ?? this.scheduleShifts,
+      quickActions: quickActions ?? this.quickActions,
+    );
+  }
 }

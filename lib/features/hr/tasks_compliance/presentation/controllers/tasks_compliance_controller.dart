@@ -26,9 +26,13 @@ class TasksComplianceController extends BaseController<TasksComplianceOverview> 
 
   void selectTab(TasksComplianceTab tab) => selectedTab.value = tab;
 
+  int _loadGeneration = 0;
+
   Future<void> loadOverview() async {
+    final generation = ++_loadGeneration;
     setLoading(true);
     final result = await repository.getOverview();
+    if (generation != _loadGeneration) return;
     result.when(
       success: setSuccess,
       failure: (error) => setError(error.message),

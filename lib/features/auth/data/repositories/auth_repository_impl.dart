@@ -175,10 +175,13 @@ class AuthRepositoryImpl implements AuthRepository {
         const AuthError(message: 'No refresh token available.'),
       );
     }
+    // Do not attempt another refresh if this call itself returns 401.
     final result = await _api.post(
       ApiEndpoints.mobileTokenRefresh,
       data: {'refreshToken': refreshToken},
       silent: silent,
+      allowTokenRefresh: false,
+      allowQueue: false,
     );
     return result.when(
       success: (body) => _saveTokens(body),

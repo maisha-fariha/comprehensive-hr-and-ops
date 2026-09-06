@@ -11,7 +11,13 @@ class CalendarSchedule {
   final String selectedDateLabel;
   final String shiftsSummaryLabel;
   final String openShiftsLabel;
+
+  /// Shifts for the currently selected day (timeline below the week strip).
   final List<CalendarShift> shifts;
+
+  /// All mapped shifts in the loaded week — used to rematerialize the
+  /// calendar when the user taps another day without refetching.
+  final List<CalendarShift> weekShifts;
 
   const CalendarSchedule({
     required this.monthLabel,
@@ -20,5 +26,26 @@ class CalendarSchedule {
     required this.shiftsSummaryLabel,
     required this.openShiftsLabel,
     required this.shifts,
+    this.weekShifts = const [],
   });
+
+  CalendarSchedule copyWith({
+    String? monthLabel,
+    List<CalendarDay>? days,
+    String? selectedDateLabel,
+    String? shiftsSummaryLabel,
+    String? openShiftsLabel,
+    List<CalendarShift>? shifts,
+    List<CalendarShift>? weekShifts,
+  }) {
+    return CalendarSchedule(
+      monthLabel: monthLabel ?? this.monthLabel,
+      days: days ?? this.days,
+      selectedDateLabel: selectedDateLabel ?? this.selectedDateLabel,
+      shiftsSummaryLabel: shiftsSummaryLabel ?? this.shiftsSummaryLabel,
+      openShiftsLabel: openShiftsLabel ?? this.openShiftsLabel,
+      shifts: shifts ?? this.shifts,
+      weekShifts: weekShifts ?? this.weekShifts,
+    );
+  }
 }

@@ -43,9 +43,12 @@ class TasksCompliancePage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      bottomNavigationBar: HrBottomNavBar(
-        currentIndex: _moreTabIndex,
-        onTap: _onBottomNavTap,
+      bottomNavigationBar: Obx(
+        () => HrBottomNavBar(
+          currentIndex: _moreTabIndex,
+          onTap: _onBottomNavTap,
+          alertsBadgeCount: hrAlertsBadgeCount(),
+        ),
       ),
       body: Obx(() {
         final response = controller.state.value;

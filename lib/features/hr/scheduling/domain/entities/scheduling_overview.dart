@@ -17,4 +17,16 @@ class SchedulingOverview {
     required this.board,
     required this.requests,
   });
+
+  SchedulingOverview copyWith({
+    CalendarSchedule? calendar,
+    BoardOverview? board,
+    RequestsOverview? requests,
+  }) {
+    return SchedulingOverview(
+      calendar: calendar ?? this.calendar,
+      board: board ?? this.board,
+      requests: requests ?? this.requests,
+    );
+  }
 }

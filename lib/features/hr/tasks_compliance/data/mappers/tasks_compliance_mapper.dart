@@ -47,7 +47,7 @@ abstract final class TasksComplianceMapper {
     );
     final completed = JsonCodec.integerOr(
       stats['completed'],
-      tasks.where((item) => item.status == TaskStatus.due && !item.isToday).length,
+      tasks.where((item) => item.status == TaskStatus.completed).length,
     );
     final percent = JsonCodec.integer(
           scoreJson['percent'] ??
@@ -149,6 +149,9 @@ abstract final class TasksComplianceMapper {
     final status = switch (statusRaw) {
       'overdue' || 'late' => TaskStatus.overdue,
       'upcoming' || 'scheduled' => TaskStatus.upcoming,
+      'completed' || 'done' || 'complete' || 'closed' => TaskStatus.completed,
+      'due' || 'in_progress' || 'pending' =>
+        isToday ? TaskStatus.due : TaskStatus.upcoming,
       _ => isToday ? TaskStatus.due : TaskStatus.upcoming,
     };
     return TaskItem(

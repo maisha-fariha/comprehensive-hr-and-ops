@@ -25,12 +25,19 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
       ApiEndpoints.staffDirectory,
       query: {'residenceId': ?residenceId},
     );
-    final staffBody = staff.isSuccess
-        ? staff.value
-        : (await _api.get(
-            ApiEndpoints.staff,
-            query: {'residenceId': ?residenceId},
-          )).value;
+    Result<dynamic> staffResult = staff;
+    if (staff.isFailure) {
+      staffResult = await _api.get(
+        ApiEndpoints.staff,
+        query: {'residenceId': ?residenceId},
+      );
+    }
+    if (staffResult.isFailure) {
+      return Result.failure(
+        staffResult.error ??
+            const ApiError(message: 'Could not load the team directory.'),
+      );
+    }
 
     final extras = await Future.wait([
       _api.get(
@@ -53,17 +60,26 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
       ),
       _api.get(ApiEndpoints.reportsSummary),
       _api.get(ApiEndpoints.reportsKpis),
-      _api.get(ApiEndpoints.conversations, query: const {'page': 1, 'limit': 20}),
+      _api.get(ApiEndpoints.conversations, query: const {'page': 1, 'limit': 50}),
     ]);
+
+    // Reports tab depends on summary/kpis — fail rather than empty success.
+    if (extras[2].isFailure && extras[3].isFailure) {
+      return Result.failure(
+        extras[2].error ??
+            extras[3].error ??
+            const ApiError(message: 'Could not load team reports.'),
+      );
+    }
 
     return Result.success(
       TeamReportsMapper.compose(
-        staffBody: staffBody,
-        onDutyBody: extras[0].value,
-        openShiftsBody: extras[1].value,
-        summaryBody: extras[2].value,
-        kpisBody: extras[3].value,
-        conversationsBody: extras[4].value,
+        staffBody: staffResult.value,
+        onDutyBody: extras[0].isSuccess ? extras[0].value : null,
+        openShiftsBody: extras[1].isSuccess ? extras[1].value : null,
+        summaryBody: extras[2].isSuccess ? extras[2].value : null,
+        kpisBody: extras[3].isSuccess ? extras[3].value : null,
+        conversationsBody: extras[4].isSuccess ? extras[4].value : null,
       ),
     );
   }

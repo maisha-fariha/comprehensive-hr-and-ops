@@ -8,4 +8,9 @@ import '../entities/attendance_overview.dart';
 /// requires no changes above the data layer.
 abstract class AttendanceRepository {
   Future<Result<AttendanceOverview>> getOverview();
+
+  /// Manager review of a missed / exceptional attendance record.
+  Future<Result<void>> approveAttendance(String attendanceId);
+
+  Future<Result<void>> rejectAttendance(String attendanceId);
 }

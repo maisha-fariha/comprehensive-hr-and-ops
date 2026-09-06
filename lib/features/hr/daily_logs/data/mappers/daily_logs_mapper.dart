@@ -237,16 +237,25 @@ abstract final class DailyLogsMapper {
   }
 
   static LogReviewStatus _reviewStatus(dynamic raw) {
-    switch ((raw ?? '').toString().toLowerCase()) {
+    switch ((raw ?? '').toString().toLowerCase().replaceAll('-', '_')) {
       case 'flagged':
       case 'open':
+      case 'attention':
         return LogReviewStatus.flagged;
       case 'review':
       case 'in_review':
       case 'pending':
+      case 'submitted':
+      case 'needs_review':
         return LogReviewStatus.inReview;
-      default:
+      case 'complete':
+      case 'completed':
+      case 'approved':
+      case 'closed':
         return LogReviewStatus.complete;
+      default:
+        // Unknown statuses stay in review — never treat as complete by default.
+        return LogReviewStatus.inReview;
     }
   }
 

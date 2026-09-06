@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
+import '../../incidents/presentation/controllers/incidents_controller.dart';
 
 class HrBottomNavItemData {
   final String asset;
@@ -17,30 +20,56 @@ class HrBottomNavItemData {
   });
 }
 
+/// Live open-incident count for the Alerts tab badge (null hides the badge).
+int? hrAlertsBadgeCount() {
+  try {
+    if (!Get.isRegistered<IncidentsController>()) {
+      Get.put(GetIt.instance<IncidentsController>(), permanent: true);
+    }
+    final count = Get.find<IncidentsController>().board?.open.activeCount ?? 0;
+    return count > 0 ? count : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Pixel-accurate reproduction of the Manager dashboard's bottom navigation
 /// bar: white surface, subtle top shadow, teal active state and a red
 /// counter badge on "Alerts". Lives in the HR role shell so every HR tab
 /// shares the same bar.
 class HrBottomNavBar extends StatelessWidget {
-  static const List<HrBottomNavItemData> items = [
-    HrBottomNavItemData(asset: AppAssets.navHome, label: 'Home'),
-    HrBottomNavItemData(asset: AppAssets.navCalendar, label: 'Schedule'),
-    HrBottomNavItemData(asset: AppAssets.navChecklist, label: 'Attendance'),
-    HrBottomNavItemData(asset: AppAssets.navBell, label: 'Alerts', badgeCount: 3),
-    HrBottomNavItemData(asset: AppAssets.navMore, label: 'More'),
-  ];
-
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final int? alertsBadgeCount;
 
   const HrBottomNavBar({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.alertsBadgeCount,
   });
+
+  List<HrBottomNavItemData> get _items => [
+        const HrBottomNavItemData(asset: AppAssets.navHome, label: 'Home'),
+        const HrBottomNavItemData(
+          asset: AppAssets.navCalendar,
+          label: 'Schedule',
+        ),
+        const HrBottomNavItemData(
+          asset: AppAssets.navChecklist,
+          label: 'Attendance',
+        ),
+        HrBottomNavItemData(
+          asset: AppAssets.navBell,
+          label: 'Alerts',
+          badgeCount: alertsBadgeCount,
+        ),
+        const HrBottomNavItemData(asset: AppAssets.navMore, label: 'More'),
+      ];
 
   @override
   Widget build(BuildContext context) {
+    final items = _items;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -55,7 +84,9 @@ class HrBottomNavBar extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        minimum: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 10)),
+        minimum: EdgeInsets.only(
+          bottom: ResponsiveHelper.getResponsiveHeight(context, 10),
+        ),
         child: Padding(
           padding: ResponsiveHelper.getResponsivePadding(
             context,
@@ -94,40 +125,40 @@ class _HrBottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? AppColors.secondaryTeal : AppColors.navInactive;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    final color = isActive ? AppColors.secondaryTeal : AppColors.textFaint;
+    return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AppSvgIcon(data.asset, size: 22, color: color),
-                if (data.badgeCount != null && data.badgeCount! > 0)
-                  Positioned(
-                    right: -8,
-                    top: -4,
-                    child: _AlertsBadge(count: data.badgeCount!),
-                  ),
-              ],
+      borderRadius: BorderRadius.circular(
+        ResponsiveHelper.getResponsiveRadius(context, 12),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AppSvgIcon(data.asset, size: 22, color: color),
+              if (data.badgeCount != null && data.badgeCount! > 0)
+                Positioned(
+                  right: -ResponsiveHelper.getResponsiveWidth(context, 10),
+                  top: -ResponsiveHelper.getResponsiveHeight(context, 6),
+                  child: _AlertsBadge(count: data.badgeCount!),
+                ),
+            ],
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+          Text(
+            data.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+              color: color,
             ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
-            Text(
-              data.label,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: data.label == 'Attendance' ? FontWeight.w600 : FontWeight.w500,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
-                color: color,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -141,22 +172,24 @@ class _AlertsBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      constraints: BoxConstraints(
+        minWidth: ResponsiveHelper.getResponsiveSize(context, 16),
+      ),
+      height: ResponsiveHelper.getResponsiveSize(context, 16),
+      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 4),
       decoration: BoxDecoration(
         color: AppColors.criticalRed,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.surfaceWhite, width: 1),
       ),
       alignment: Alignment.center,
       child: Text(
-        '$count',
-        style: const TextStyle(
+        count > 99 ? '99+' : '$count',
+        style: TextStyle(
           fontFamily: 'Outfit',
           fontWeight: FontWeight.w700,
-          fontSize: 9.5,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9),
           color: Colors.white,
-          height: 1.2,
+          height: 1,
         ),
       ),
     );

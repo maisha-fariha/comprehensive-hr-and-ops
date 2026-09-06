@@ -38,6 +38,9 @@ class _PortalSearchPageState extends State<PortalSearchPage> {
   @override
   void dispose() {
     _query.dispose();
+    if (Get.isRegistered<PortalSearchController>()) {
+      Get.delete<PortalSearchController>(force: true);
+    }
     super.dispose();
   }
 
@@ -52,8 +55,8 @@ class _PortalSearchPageState extends State<PortalSearchPage> {
           controller: _query,
           autofocus: true,
           textInputAction: TextInputAction.search,
-          onChanged: _controller.search,
-          onSubmitted: _controller.search,
+          onChanged: _controller.onQueryChanged,
+          onSubmitted: _controller.searchNow,
           decoration: InputDecoration(
             hintText: widget.hint,
             border: InputBorder.none,
@@ -61,16 +64,44 @@ class _PortalSearchPageState extends State<PortalSearchPage> {
         ),
       ),
       body: Obx(() {
+        final query = _controller.query.value.trim();
+
         if (_controller.isLoading.value) {
           return const Center(
             child: CircularProgressIndicator(color: AppColors.secondaryTeal),
           );
         }
-        if (_controller.errorMessage.value.isNotEmpty &&
-            _controller.hits.isEmpty) {
-          return Center(child: Text(_controller.errorMessage.value));
+        if (_controller.errorMessage.value.isNotEmpty) {
+          return Center(
+            child: Padding(
+              padding: ResponsiveHelper.getResponsivePadding(context, all: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _controller.errorMessage.value,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  if (query.isNotEmpty) ...[
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                    ),
+                    TextButton(
+                      onPressed: () => _controller.searchNow(query),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
         }
-        if (_query.text.trim().isEmpty) {
+        if (query.isEmpty) {
           return Center(child: Text(widget.emptyPrompt));
         }
         if (_controller.hits.isEmpty) {

@@ -28,10 +28,21 @@ abstract final class MedicationMapper {
           .toLowerCase();
       if (state == 'upcoming' || state == 'scheduled') {
         later.add(_schedule(row, DoseStatus.upcoming));
-      } else if (state == 'given' || state == 'administered' || state == 'late') {
+      } else if (state == 'given' ||
+          state == 'administered' ||
+          state == 'completed' ||
+          state == 'taken') {
         later.add(_schedule(row, DoseStatus.completed));
-      } else {
+      } else if (state == 'late' || state == 'overdue' || state == 'due_soon') {
+        dueNow.add(_schedule(row, DoseStatus.dueSoon));
+      } else if (state == 'missed' || state == 'refused' || state == 'skipped') {
+        // Not part of the due schedule — ignore here; missed/refused lists cover them.
+        continue;
+      } else if (state == 'due' || state == 'pending' || state.isEmpty) {
         dueNow.add(_schedule(row, DoseStatus.due));
+      } else {
+        // Unknown states stay out of "due now" to avoid false urgency.
+        later.add(_schedule(row, DoseStatus.upcoming));
       }
     }
     final uniqueDue = dueNow.isNotEmpty ? dueNow.length : dueRows.length;
@@ -161,6 +172,7 @@ abstract final class MedicationMapper {
       scheduledTime: scheduled == null
           ? JsonCodec.stringOr(json['timeLabel'], '')
           : IsoDateRange.timeLabel(scheduled.toLocal()),
+      scheduledHour: scheduled?.toLocal().hour,
       assigneeName: assigneeName,
       assigneeInitials: IsoDateRange.initials(assigneeName, fallback: '--'),
       assigneeAvatarColor: AvatarPalette.green,

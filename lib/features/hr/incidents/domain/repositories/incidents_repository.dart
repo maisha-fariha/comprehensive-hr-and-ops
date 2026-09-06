@@ -2,10 +2,10 @@ import 'package:gems_core/gems_core.dart';
 
 import '../entities/incidents_board.dart';
 
-/// Contract for fetching the Incidents list content (all 3 tabs). The
-/// presentation layer only ever depends on this interface, so swapping the
-/// mocked [IncidentsRepositoryImpl] for a real API-backed implementation
-/// later requires no changes above the data layer.
+/// Contract for the Incidents list board and create-incident flow.
 abstract class IncidentsRepository {
   Future<Result<IncidentsBoard>> getBoard();
+
+  /// Creates an incident. Returns the new incident id when the API provides one.
+  Future<Result<String>> createIncident(Map<String, dynamic> payload);
 }

@@ -21,10 +21,30 @@ class HrProfileSettingsRepositoryImpl implements HrProfileSettingsRepository {
   @override
   Future<Result<HrProfileSettingsOverview>> getOverview() async {
     final residences = await _api.get(ApiEndpoints.residences);
+    if (residences.isFailure) {
+      return Result.failure(
+        residences.error ??
+            const ApiError(message: 'Could not load managed residences.'),
+      );
+    }
+
+    final prefs = await _api.get(ApiEndpoints.notificationPreferences);
+    final prefsMap = prefs.isSuccess
+        ? JsonCodec.unwrapMap(prefs.value)
+        : <String, dynamic>{};
+    final push = JsonCodec.boolean(
+          prefsMap['push'] ??
+              prefsMap['pushEnabled'] ??
+              prefsMap['pushNotifications'] ??
+              prefsMap['pushNotificationsEnabled'],
+        ) ??
+        true;
+
     return Result.success(
       HrProfileMapper.compose(
         session: _session,
         residencesBody: residences.value,
+        pushNotificationsEnabled: push,
       ),
     );
   }

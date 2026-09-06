@@ -116,7 +116,7 @@ abstract final class TeamReportsMapper {
           StatTileData(
             id: 'urgent',
             tag: MessageStatTag.urgent,
-            value: '${conversations.where((item) => item.unreadCount > 2).length}',
+            value: '${conversations.where((item) => item.isUrgent).length}',
             label: 'Urgent',
           ),
         ],
@@ -217,7 +217,21 @@ abstract final class TeamReportsMapper {
       ),
       unreadCount: JsonCodec.integerOr(json['unreadCount'], 0),
       isGroup: JsonCodec.boolean(json['isGroup'] ?? json['group']) ?? false,
+      isUrgent: _isUrgentConversation(json, last),
     );
+  }
+
+  static bool _isUrgentConversation(
+    Map<String, dynamic> json,
+    Map<String, dynamic> last,
+  ) {
+    if (JsonCodec.boolean(json['urgent'] ?? json['isUrgent'] ?? last['urgent']) ==
+        true) {
+      return true;
+    }
+    final priority = (JsonCodec.string(json['priority'] ?? last['priority']) ?? '')
+        .toLowerCase();
+    return priority == 'urgent' || priority == 'high' || priority == 'critical';
   }
 
   static ReportTypeTag _reportTag(dynamic raw) {

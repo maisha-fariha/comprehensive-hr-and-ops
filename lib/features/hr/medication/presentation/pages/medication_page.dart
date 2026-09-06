@@ -47,9 +47,12 @@ class MedicationPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      bottomNavigationBar: HrBottomNavBar(
-        currentIndex: _moreTabIndex,
-        onTap: _onBottomNavTap,
+      bottomNavigationBar: Obx(
+        () => HrBottomNavBar(
+          currentIndex: _moreTabIndex,
+          onTap: _onBottomNavTap,
+          alertsBadgeCount: hrAlertsBadgeCount(),
+        ),
       ),
       body: Obx(() {
         final response = controller.state.value;
@@ -121,8 +124,12 @@ class MedicationPage extends StatelessWidget {
                           subtitle: overview.scheduleSubtitle,
                           selectedPeriod: controller.selectedSchedulePeriod.value,
                           onPeriodSelected: controller.selectSchedulePeriod,
-                          priorityDoses: overview.priorityDoses,
-                          laterTodayDoses: overview.laterTodayDoses,
+                          priorityDoses: controller.dosesForPeriod(
+                            overview.priorityDoses,
+                          ),
+                          laterTodayDoses: controller.dosesForPeriod(
+                            overview.laterTodayDoses,
+                          ),
                         ),
                       MedicationTab.missed => MissedTabView(
                           stats: overview.missedStats,

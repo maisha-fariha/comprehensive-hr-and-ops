@@ -17,8 +17,17 @@ import '../../scheduling_constants.dart';
 /// agenda of timeline shift cards — matched to the Figma reference.
 class CalendarTabView extends StatelessWidget {
   final CalendarSchedule data;
+  final VoidCallback? onPreviousWeek;
+  final VoidCallback? onNextWeek;
+  final ValueChanged<CalendarDay>? onDaySelected;
 
-  const CalendarTabView({super.key, required this.data});
+  const CalendarTabView({
+    super.key,
+    required this.data,
+    this.onPreviousWeek,
+    this.onNextWeek,
+    this.onDaySelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -52,9 +61,16 @@ class CalendarTabView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _MonthHeader(monthLabel: data.monthLabel),
+                  _MonthHeader(
+                    monthLabel: data.monthLabel,
+                    onPrevious: onPreviousWeek,
+                    onNext: onNextWeek,
+                  ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                  _WeekStrip(days: data.days),
+                  _WeekStrip(
+                    days: data.days,
+                    onDaySelected: onDaySelected,
+                  ),
                 ],
               ),
             ),
@@ -95,8 +111,14 @@ class CalendarTabView extends StatelessWidget {
 
 class _MonthHeader extends StatelessWidget {
   final String monthLabel;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
 
-  const _MonthHeader({required this.monthLabel});
+  const _MonthHeader({
+    required this.monthLabel,
+    this.onPrevious,
+    this.onNext,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -122,9 +144,17 @@ class _MonthHeader extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _MonthNavButton(size: buttonSize, rotated: true),
+            _MonthNavButton(
+              size: buttonSize,
+              rotated: true,
+              onTap: onPrevious,
+            ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-            _MonthNavButton(size: buttonSize, rotated: false),
+            _MonthNavButton(
+              size: buttonSize,
+              rotated: false,
+              onTap: onNext,
+            ),
           ],
         ),
       ],
@@ -135,28 +165,37 @@ class _MonthHeader extends StatelessWidget {
 class _MonthNavButton extends StatelessWidget {
   final double size;
   final bool rotated;
+  final VoidCallback? onTap;
 
-  const _MonthNavButton({required this.size, required this.rotated});
+  const _MonthNavButton({
+    required this.size,
+    required this.rotated,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 12),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(
+            ResponsiveHelper.getResponsiveRadius(context, 12),
+          ),
+          border: Border.all(color: AppColors.cardBorder, width: 1),
         ),
-        border: Border.all(color: AppColors.cardBorder, width: 1),
-      ),
-      alignment: Alignment.center,
-      child: Transform.rotate(
-        angle: rotated ? math.pi : 0,
-        child: const AppSvgIcon(
-          AppAssets.chevronRight,
-          size: 15,
-          color: AppColors.textHeading,
+        alignment: Alignment.center,
+        child: Transform.rotate(
+          angle: rotated ? math.pi : 0,
+          child: const AppSvgIcon(
+            AppAssets.chevronRight,
+            size: 15,
+            color: AppColors.textHeading,
+          ),
         ),
       ),
     );
@@ -169,15 +208,40 @@ class _MonthNavButton extends StatelessWidget {
 
 class _WeekStrip extends StatelessWidget {
   final List<CalendarDay> days;
+  final ValueChanged<CalendarDay>? onDaySelected;
 
-  const _WeekStrip({required this.days});
+  const _WeekStrip({required this.days, this.onDaySelected});
 
   @override
   Widget build(BuildContext context) {
+    if (days.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: ResponsiveHelper.getResponsiveHeight(context, 12),
+        ),
+        child: Text(
+          'No days available for this week.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w500,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+            color: AppColors.textMuted,
+          ),
+        ),
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final day in days) Expanded(child: _DayCell(day: day)),
+        for (final day in days)
+          Expanded(
+            child: _DayCell(
+              day: day,
+              onTap: onDaySelected == null ? null : () => onDaySelected!(day),
+            ),
+          ),
       ],
     );
   }
@@ -185,8 +249,9 @@ class _WeekStrip extends StatelessWidget {
 
 class _DayCell extends StatelessWidget {
   final CalendarDay day;
+  final VoidCallback? onTap;
 
-  const _DayCell({required this.day});
+  const _DayCell({required this.day, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -208,67 +273,71 @@ class _DayCell extends StatelessWidget {
     final horizontalPad = ResponsiveHelper.getResponsiveWidth(context, 8);
     final indicatorSlot = ResponsiveHelper.getResponsiveSize(context, 5);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: EdgeInsets.symmetric(
-            vertical: verticalPad,
-            horizontal: horizontalPad,
-          ),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryNavy : Colors.transparent,
-            borderRadius: BorderRadius.circular(
-              ResponsiveHelper.getResponsiveRadius(context, 14),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: EdgeInsets.symmetric(
+              vertical: verticalPad,
+              horizontal: horizontalPad,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.primaryNavy : Colors.transparent,
+              borderRadius: BorderRadius.circular(
+                ResponsiveHelper.getResponsiveRadius(context, 14),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  day.dayLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: dayLabelColor,
+                    height: 1.1,
+                  ),
+                ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+                Text(
+                  day.dayNumber,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+                    color: dayNumberColor,
+                    height: 1,
+                  ),
+                ),
+              ],
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                day.dayLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w500,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                  color: dayLabelColor,
-                  height: 1.1,
-                ),
-              ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
-              Text(
-                day.dayNumber,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-                  color: dayNumberColor,
-                  height: 1,
-                ),
-              ),
-            ],
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+          SizedBox(
+            height: indicatorSlot,
+            width: indicatorSlot,
+            child: isIndicator
+                ? const DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.secondaryTeal,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                : null,
           ),
-        ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
-        SizedBox(
-          height: indicatorSlot,
-          width: indicatorSlot,
-          child: isIndicator
-              ? const DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.secondaryTeal,
-                    shape: BoxShape.circle,
-                  ),
-                )
-              : null,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

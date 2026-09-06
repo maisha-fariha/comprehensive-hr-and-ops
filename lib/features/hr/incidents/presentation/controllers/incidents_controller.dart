@@ -24,9 +24,13 @@ class IncidentsController extends BaseController<IncidentsBoard> {
 
   void selectTab(IncidentsTab tab) => selectedTab.value = tab;
 
+  int _loadGeneration = 0;
+
   Future<void> loadBoard() async {
+    final generation = ++_loadGeneration;
     setLoading(true);
     final result = await repository.getBoard();
+    if (generation != _loadGeneration) return;
     result.when(
       success: setSuccess,
       failure: (error) => setError(error.message),

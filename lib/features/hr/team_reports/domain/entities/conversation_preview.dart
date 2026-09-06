@@ -12,6 +12,7 @@ class ConversationPreview {
   final String previewText;
   final int unreadCount;
   final bool isOnline;
+  final bool isUrgent;
 
   /// True for a team/group thread (e.g. "Supervisor Team"), which renders a
   /// group icon avatar instead of initials.
@@ -25,6 +26,7 @@ class ConversationPreview {
     required this.previewText,
     this.unreadCount = 0,
     this.isOnline = false,
+    this.isUrgent = false,
     this.isGroup = false,
   });
 }

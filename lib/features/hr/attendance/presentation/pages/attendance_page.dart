@@ -97,7 +97,12 @@ class AttendancePage extends StatelessWidget {
                     horizontalPad,
                     ResponsiveHelper.getResponsiveHeight(context, 24),
                   ),
-                  children: _buildTabContent(context, selectedTab, overview),
+                  children: _buildTabContent(
+                    context,
+                    selectedTab,
+                    overview,
+                    onReviewMissed: controller.reviewMissedClockIn,
+                  ),
                 ),
               ),
             ),
@@ -110,8 +115,9 @@ class AttendancePage extends StatelessWidget {
   List<Widget> _buildTabContent(
     BuildContext context,
     AttendanceTab tab,
-    AttendanceOverview overview,
-  ) {
+    AttendanceOverview overview, {
+    required void Function(String attendanceId) onReviewMissed,
+  }) {
     switch (tab) {
       case AttendanceTab.today:
         return [
@@ -138,7 +144,10 @@ class AttendancePage extends StatelessWidget {
         return [
           _MissedStatRow(stats: overview.missedStats),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-          _MissedClockInsSection(entries: overview.missedClockIns),
+          _MissedClockInsSection(
+            entries: overview.missedClockIns,
+            onReview: onReviewMissed,
+          ),
         ];
       case AttendanceTab.ot:
         return [
@@ -1264,8 +1273,12 @@ class _MissedStatRow extends StatelessWidget {
 
 class _MissedClockInsSection extends StatelessWidget {
   final List<MissedClockInEntry> entries;
+  final void Function(String attendanceId)? onReview;
 
-  const _MissedClockInsSection({required this.entries});
+  const _MissedClockInsSection({
+    required this.entries,
+    this.onReview,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1302,7 +1315,10 @@ class _MissedClockInsSection extends StatelessWidget {
         for (var i = 0; i < entries.length; i++) ...[
           if (i != 0)
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          _MissedClockInCard(entry: entries[i]),
+          _MissedClockInCard(
+            entry: entries[i],
+            onReview: onReview == null ? null : () => onReview!(entries[i].id),
+          ),
         ],
       ],
     );
@@ -1311,8 +1327,12 @@ class _MissedClockInsSection extends StatelessWidget {
 
 class _MissedClockInCard extends StatelessWidget {
   final MissedClockInEntry entry;
+  final VoidCallback? onReview;
 
-  const _MissedClockInCard({required this.entry});
+  const _MissedClockInCard({
+    required this.entry,
+    this.onReview,
+  });
 
   static const _avatarByInitials = <String, (Color, Color)>{
     'JL': (Color(0xFFFBEAEA), Color(0xFFC45C5C)),
@@ -1537,25 +1557,32 @@ class _MissedClockInCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Container(
-                  height: buttonHeight,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryNavy,
+                child: Material(
+                  color: AppColors.primaryNavy,
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(context, 12),
+                  ),
+                  child: InkWell(
+                    onTap: onReview,
                     borderRadius: BorderRadius.circular(
                       ResponsiveHelper.getResponsiveRadius(context, 12),
                     ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'Review',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(
-                        context,
-                        14,
+                    child: SizedBox(
+                      height: buttonHeight,
+                      child: Center(
+                        child: Text(
+                          'Review',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              14,
+                            ),
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                      color: Colors.white,
                     ),
                   ),
                 ),

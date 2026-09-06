@@ -19,63 +19,165 @@ abstract final class SchedulingMapper {
     required dynamic openBody,
     required dynamic pendingSwapsBody,
     required dynamic approvedSwapsBody,
+    required dynamic declinedSwapsBody,
+    DateTime? weekOf,
+    DateTime? selectedDay,
   }) {
-    final weekStart = IsoDateRange.startOfWeek();
+    final weekStart = IsoDateRange.startOfWeek(weekOf);
     final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final weekShifts = _shifts(weekBody);
+    final weekShiftsRaw = _shifts(weekBody);
     final openShifts = _shifts(openBody);
+
+    final preferredSelected = selectedDay == null
+        ? null
+        : DateTime(selectedDay.year, selectedDay.month, selectedDay.day);
+    final selected = _resolveSelectedDay(
+      weekStart: weekStart,
+      today: todayDate,
+      preferred: preferredSelected,
+    );
+
     final days = List<CalendarDay>.generate(7, (index) {
       final day = weekStart.add(Duration(days: index));
-      final hasShift = weekShifts.any((shift) {
+      final dayDate = DateTime(day.year, day.month, day.day);
+      final hasShift = weekShiftsRaw.any((shift) {
         final start = _startOf(shift);
-        return start != null &&
-            start.year == day.year &&
-            start.month == day.month &&
-            start.day == day.day;
+        return start != null && _isSameDay(start, dayDate);
       });
       return CalendarDay(
+        date: dayDate,
         dayLabel: labels[index],
-        dayNumber: '${day.day}',
-        isSelected: day.year == today.year &&
-            day.month == today.month &&
-            day.day == today.day,
+        dayNumber: '${dayDate.day}',
+        isSelected: _isSameDay(dayDate, selected),
         hasShiftIndicator: hasShift,
       );
     });
 
-    final todayShifts = weekShifts.where((shift) {
-      final start = _startOf(shift);
-      return start != null &&
-          start.year == today.year &&
-          start.month == today.month &&
-          start.day == today.day;
-    }).toList();
-    final source = todayShifts.isNotEmpty ? todayShifts : weekShifts;
+    final weekShifts = [
+      for (final raw in weekShiftsRaw) _calendarShift(raw, showDivider: true),
+    ];
+
+    final dayShifts = weekShifts
+        .where((shift) {
+          final occurs = shift.occursOn;
+          return occurs != null && _isSameDay(occurs, selected);
+        })
+        .toList();
+    final timeline = [
+      for (var i = 0; i < dayShifts.length; i++)
+        CalendarShift(
+          id: dayShifts[i].id,
+          occursOn: dayShifts[i].occursOn,
+          startTime: dayShifts[i].startTime,
+          startPeriod: dayShifts[i].startPeriod,
+          name: dayShifts[i].name,
+          timeRange: dayShifts[i].timeRange,
+          filled: dayShifts[i].filled,
+          total: dayShifts[i].total,
+          status: dayShifts[i].status,
+          avatars: dayShifts[i].avatars,
+          namesSummary: dayShifts[i].namesSummary,
+          openPositionsLabel: dayShifts[i].openPositionsLabel,
+          showTimelineDivider: i != dayShifts.length - 1,
+        ),
+    ];
 
     return SchedulingOverview(
       calendar: CalendarSchedule(
-        monthLabel: IsoDateRange.formatMonthYear(today),
+        monthLabel: IsoDateRange.formatMonthYear(selected),
         days: days,
-        selectedDateLabel: IsoDateRange.formatWeekdayDate(today),
-        shiftsSummaryLabel: '${source.length} shifts scheduled',
+        selectedDateLabel: IsoDateRange.formatWeekdayDate(selected),
+        shiftsSummaryLabel: '${timeline.length} shifts scheduled',
         openShiftsLabel: '${openShifts.length} open',
-        shifts: [
-          for (var i = 0; i < source.length; i++)
-            _calendarShift(source[i], showDivider: i != source.length - 1),
-        ],
+        shifts: timeline,
+        weekShifts: weekShifts,
       ),
+      // Board keeps the full week so calendar day taps do not alter Board tab.
       board: BoardOverview(
-        coverageSummaries: source.map(_coverage).toList(),
-        shifts: source.map(_boardShift).toList(),
+        coverageSummaries: weekShiftsRaw.map(_coverage).toList(),
+        shifts: weekShiftsRaw.map(_boardShift).toList(),
         openPositions: openShifts.map(_openPosition).toList(),
       ),
       requests: RequestsOverview(
         pendingRequests: _requests(pendingSwapsBody, RequestStatus.pending),
         approvedRequests: _requests(approvedSwapsBody, RequestStatus.approved),
+        declinedRequests: _requests(declinedSwapsBody, RequestStatus.declined),
+        openShiftRequests: openShifts.map(_openPosition).toList(),
       ),
     );
   }
+
+  /// Rebuilds only the calendar strip/timeline for a newly selected day using
+  /// shifts already loaded for the week (no API call).
+  static CalendarSchedule calendarForSelectedDay({
+    required CalendarSchedule current,
+    required DateTime selectedDay,
+  }) {
+    final selected = DateTime(
+      selectedDay.year,
+      selectedDay.month,
+      selectedDay.day,
+    );
+    final pool =
+        current.weekShifts.isNotEmpty ? current.weekShifts : current.shifts;
+    final dayShifts = pool
+        .where((shift) {
+          final occurs = shift.occursOn;
+          return occurs != null && _isSameDay(occurs, selected);
+        })
+        .toList();
+    final timeline = [
+      for (var i = 0; i < dayShifts.length; i++)
+        CalendarShift(
+          id: dayShifts[i].id,
+          occursOn: dayShifts[i].occursOn,
+          startTime: dayShifts[i].startTime,
+          startPeriod: dayShifts[i].startPeriod,
+          name: dayShifts[i].name,
+          timeRange: dayShifts[i].timeRange,
+          filled: dayShifts[i].filled,
+          total: dayShifts[i].total,
+          status: dayShifts[i].status,
+          avatars: dayShifts[i].avatars,
+          namesSummary: dayShifts[i].namesSummary,
+          openPositionsLabel: dayShifts[i].openPositionsLabel,
+          showTimelineDivider: i != dayShifts.length - 1,
+        ),
+    ];
+
+    return current.copyWith(
+      monthLabel: IsoDateRange.formatMonthYear(selected),
+      days: [
+        for (final day in current.days)
+          day.copyWith(isSelected: _isSameDay(day.date, selected)),
+      ],
+      selectedDateLabel: IsoDateRange.formatWeekdayDate(selected),
+      shiftsSummaryLabel: '${timeline.length} shifts scheduled',
+      shifts: timeline,
+    );
+  }
+
+  static DateTime _resolveSelectedDay({
+    required DateTime weekStart,
+    required DateTime today,
+    required DateTime? preferred,
+  }) {
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    if (preferred != null &&
+        !preferred.isBefore(weekStart) &&
+        !preferred.isAfter(weekEnd)) {
+      return preferred;
+    }
+    if (!today.isBefore(weekStart) && !today.isAfter(weekEnd)) {
+      return today;
+    }
+    return weekStart;
+  }
+
+  static bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   static List<Map<String, dynamic>> _shifts(dynamic body) {
     return JsonCodec.unwrapList(body)
@@ -112,6 +214,9 @@ abstract final class SchedulingMapper {
     final avatars = _avatars(json);
     return CalendarShift(
       id: JsonCodec.stringOr(json['id'], 'shift'),
+      occursOn: start == null
+          ? null
+          : DateTime(start.year, start.month, start.day),
       startTime: start == null ? '--' : '$hour12:$minute',
       startPeriod: period,
       name: JsonCodec.stringOr(
@@ -187,7 +292,9 @@ abstract final class SchedulingMapper {
         json['role'] ?? json['title'] ?? json['name'],
         'Open shift',
       ),
-      urgency: OpenPositionUrgency.open,
+      urgency: JsonCodec.boolean(json['urgent'] ?? json['isUrgent']) == true
+          ? OpenPositionUrgency.urgent
+          : OpenPositionUrgency.open,
       subtitle: [
         _periodName(start),
         if (residence.isNotEmpty) residence,

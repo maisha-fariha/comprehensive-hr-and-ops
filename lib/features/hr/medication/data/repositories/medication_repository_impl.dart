@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/medication_overview.dart';
 import '../../domain/repositories/medication_repository.dart';
@@ -23,23 +24,40 @@ class MedicationRepositoryImpl implements MedicationRepository {
     final query = <String, dynamic>{
       'residenceId': ?residenceId,
     };
+    final dayScoped = <String, dynamic>{
+      'from': IsoDateRange.todayStartIso,
+      'to': IsoDateRange.todayEndIso,
+      'residenceId': ?residenceId,
+    };
+
     final due = await _api.get(ApiEndpoints.marDue, query: query);
     if (due.isFailure) {
       return Result.failure(
         due.error ?? const ApiError(message: 'Could not load medications.'),
       );
     }
+
     final extras = await Future.wait([
       _api.get(ApiEndpoints.marRound, query: query),
       _api.get(
         ApiEndpoints.marAdministrations,
-        query: {'status': 'missed', 'residenceId': ?residenceId},
+        query: {'status': 'missed', ...dayScoped},
       ),
       _api.get(
         ApiEndpoints.marAdministrations,
-        query: {'status': 'refused', 'residenceId': ?residenceId},
+        query: {'status': 'refused', ...dayScoped},
       ),
     ]);
+
+    for (final extra in extras) {
+      if (extra.isFailure) {
+        return Result.failure(
+          extra.error ??
+              const ApiError(message: 'Could not load medication details.'),
+        );
+      }
+    }
+
     return Result.success(
       MedicationMapper.compose(
         dueBody: due.value,

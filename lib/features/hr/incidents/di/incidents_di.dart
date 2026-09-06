@@ -28,6 +28,9 @@ Future<void> setupHrIncidentsDependencies() async {
   );
 
   DIHelper.registerController<IncidentCreationController>(
-    factory: () => IncidentCreationController(),
+    factory: () => IncidentCreationController(
+      repository: getIt<IncidentsRepository>(),
+      session: Get.find<UserSession>(),
+    ),
   );
 }

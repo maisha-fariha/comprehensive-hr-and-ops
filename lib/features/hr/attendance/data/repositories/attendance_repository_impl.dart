@@ -25,7 +25,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       'from': IsoDateRange.todayStartIso,
       'to': IsoDateRange.todayEndIso,
       'page': 1,
-      'limit': 100,
+      'limit': 200,
       'residenceId': ?residenceId,
     };
 
@@ -52,13 +52,39 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
         Future.value(Result<dynamic>.success(null)),
     ]);
 
+    final overtime = extras[0];
+    if (overtime.isFailure) {
+      return Result.failure(
+        overtime.error ??
+            const ApiError(message: 'Could not load overtime records.'),
+      );
+    }
+
     return Result.success(
       AttendanceMapper.compose(
         attendanceBody: attendance.value,
-        overtimeBody: extras[0].value,
-        residenceBody: extras[1].value,
+        overtimeBody: overtime.value,
+        residenceBody: extras[1].isSuccess ? extras[1].value : null,
         fallbackResidenceName: _session.residenceName,
       ),
+    );
+  }
+
+  @override
+  Future<Result<void>> approveAttendance(String attendanceId) {
+    return _voidPost(ApiEndpoints.attendanceApprove(attendanceId));
+  }
+
+  @override
+  Future<Result<void>> rejectAttendance(String attendanceId) {
+    return _voidPost(ApiEndpoints.attendanceReject(attendanceId));
+  }
+
+  Future<Result<void>> _voidPost(String path) async {
+    final result = await _api.post(path, data: const <String, dynamic>{});
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
     );
   }
 }

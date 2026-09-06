@@ -134,6 +134,7 @@ void _openManagerSearch() {
       hint: 'Search staff, shifts, or incidents',
       emptyPrompt: 'Search the residence directory and records.',
       onHit: (hit) {
+        // Pop search first, then route into the matching Manager area.
         Get.back();
         switch (hit.type) {
           case PortalSearchHitType.shift:

@@ -25,9 +25,13 @@ class TeamReportsController extends BaseController<TeamReportsPageData> {
 
   void selectTab(TeamReportsTab tab) => selectedTab.value = tab;
 
+  int _loadGeneration = 0;
+
   Future<void> loadPageData() async {
+    final generation = ++_loadGeneration;
     setLoading(true);
     final result = await repository.getPageData();
+    if (generation != _loadGeneration) return;
     result.when(
       success: setSuccess,
       failure: (error) => setError(error.message),

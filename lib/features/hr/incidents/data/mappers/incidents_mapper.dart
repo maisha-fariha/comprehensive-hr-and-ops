@@ -8,6 +8,7 @@ import '../../domain/entities/investigation_incident.dart';
 import '../../domain/entities/open_incident.dart';
 
 abstract final class IncidentsMapper {
+  /// Compose from a single mixed incidents list (legacy path).
   static IncidentsBoard compose({
     required dynamic listBody,
     required dynamic summaryBody,
@@ -16,12 +17,25 @@ abstract final class IncidentsMapper {
         .whereType<Map>()
         .map(JsonCodec.asMap)
         .toList();
+    return composeSections(
+      openBody: rows.where((row) => _bucket(row) == _Bucket.open).toList(),
+      reviewBody: rows.where((row) => _bucket(row) == _Bucket.review).toList(),
+      closedBody: rows.where((row) => _bucket(row) == _Bucket.closed).toList(),
+      summaryBody: summaryBody,
+    );
+  }
+
+  /// Compose from status-scoped list responses.
+  static IncidentsBoard composeSections({
+    required dynamic openBody,
+    required dynamic reviewBody,
+    required dynamic closedBody,
+    required dynamic summaryBody,
+  }) {
+    final openRows = _rows(openBody);
+    final reviewRows = _rows(reviewBody);
+    final closedRows = _rows(closedBody);
     final summary = JsonCodec.unwrapMap(summaryBody);
-    final openRows = rows.where((row) => _bucket(row) == _Bucket.open).toList();
-    final reviewRows =
-        rows.where((row) => _bucket(row) == _Bucket.review).toList();
-    final closedRows =
-        rows.where((row) => _bucket(row) == _Bucket.closed).toList();
     final critical = openRows
         .where((row) => _severity(row['severity']) == IncidentSeverity.critical)
         .length;
@@ -80,8 +94,8 @@ abstract final class IncidentsMapper {
           IncidentStat(
             id: 'resolved-today',
             tag: IncidentStatTag.resolvedToday,
-            value: '${closedRows.length}',
-            label: 'Resolved',
+            value: '${_resolvedTodayCount(closedRows)}',
+            label: 'Resolved Today',
           ),
           IncidentStat(
             id: 'archived',
@@ -93,6 +107,29 @@ abstract final class IncidentsMapper {
         incidents: closedRows.map(_closed).toList(),
       ),
     );
+  }
+
+  static List<Map<String, dynamic>> _rows(dynamic body) {
+    if (body is List) {
+      return body.whereType<Map>().map(JsonCodec.asMap).toList();
+    }
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map(JsonCodec.asMap)
+        .toList();
+  }
+
+  static int _resolvedTodayCount(List<Map<String, dynamic>> closedRows) {
+    final now = DateTime.now();
+    return closedRows.where((row) {
+      final closedAt = JsonCodec.dateTime(
+        row['closedAt'] ?? row['resolvedAt'] ?? row['updatedAt'],
+      )?.toLocal();
+      if (closedAt == null) return false;
+      return closedAt.year == now.year &&
+          closedAt.month == now.month &&
+          closedAt.day == now.day;
+    }).length;
   }
 
   static OpenIncident _open(Map<String, dynamic> json) {
@@ -219,18 +256,40 @@ abstract final class IncidentsMapper {
 
   static _Bucket _bucket(Map<String, dynamic> json) {
     final status = (JsonCodec.string(json['status'] ?? json['state']) ?? '')
-        .toLowerCase();
-    if (status.contains('close') ||
-        status.contains('resolv') ||
-        status.contains('archive')) {
-      return _Bucket.closed;
+        .toLowerCase()
+        .replaceAll('-', '_');
+    switch (status) {
+      case 'closed':
+      case 'resolved':
+      case 'archived':
+      case 'complete':
+      case 'completed':
+        return _Bucket.closed;
+      case 'under_review':
+      case 'in_review':
+      case 'investigating':
+      case 'investigation':
+      case 'assigned':
+      case 'pending_review':
+        return _Bucket.review;
+      case 'open':
+      case 'new':
+      case 'reported':
+      case 'active':
+        return _Bucket.open;
+      default:
+        if (status.contains('close') ||
+            status.contains('resolv') ||
+            status.contains('archive')) {
+          return _Bucket.closed;
+        }
+        if (status.contains('review') ||
+            status.contains('investigat') ||
+            status.contains('assigned')) {
+          return _Bucket.review;
+        }
+        return _Bucket.open;
     }
-    if (status.contains('review') ||
-        status.contains('investigat') ||
-        status.contains('assigned')) {
-      return _Bucket.review;
-    }
-    return _Bucket.open;
   }
 
   const IncidentsMapper._();
