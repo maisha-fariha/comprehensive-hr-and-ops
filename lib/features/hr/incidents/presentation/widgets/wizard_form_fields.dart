@@ -189,22 +189,46 @@ class WizardDropdownField extends StatelessWidget {
 /// Icon note: no existing SVG matches a plain calendar glyph
 /// (`calendar_check.svg`/`calendar_plus.svg` both bundle an extra symbol),
 /// so this uses Material `Icons.calendar_today_outlined` as a stand-in.
+///
+/// When [onTap] is provided, the field is read-only and both the field and
+/// calendar icon open the picker.
 class WizardDateField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
+  final VoidCallback? onTap;
 
-  const WizardDateField({super.key, required this.controller, this.hint = 'MM/DD/YYYY'});
+  const WizardDateField({
+    super.key,
+    required this.controller,
+    this.hint = 'MM/DD/YYYY',
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final icon = Icon(
+      Icons.calendar_today_outlined,
+      size: ResponsiveHelper.getResponsiveSize(context, 16),
+      color: AppColors.textFaint,
+    );
+
     return _WizardFieldShell(
-      trailing: Icon(
-        Icons.calendar_today_outlined,
-        size: ResponsiveHelper.getResponsiveSize(context, 16),
-        color: AppColors.textFaint,
-      ),
+      trailing: onTap == null
+          ? icon
+          : GestureDetector(
+              onTap: onTap,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: EdgeInsets.all(
+                  ResponsiveHelper.getResponsiveSize(context, 2),
+                ),
+                child: icon,
+              ),
+            ),
       child: TextField(
         controller: controller,
+        readOnly: onTap != null,
+        onTap: onTap,
         style: _fieldTextStyle(context, isPlaceholder: false),
         decoration: InputDecoration(
           isDense: true,
@@ -219,18 +243,42 @@ class WizardDateField extends StatelessWidget {
 
 /// An outlined time field, e.g. "HH:MM", with a trailing clock icon (reuses
 /// the existing `clock.svg` asset - an exact visual match).
+///
+/// When [onTap] is provided, the field is read-only and both the field and
+/// clock icon open the picker.
 class WizardTimeField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
+  final VoidCallback? onTap;
 
-  const WizardTimeField({super.key, required this.controller, this.hint = 'HH:MM'});
+  const WizardTimeField({
+    super.key,
+    required this.controller,
+    this.hint = 'HH:MM',
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    const icon = AppSvgIcon(AppAssets.clock, size: 16, color: AppColors.textFaint);
+
     return _WizardFieldShell(
-      trailing: const AppSvgIcon(AppAssets.clock, size: 16, color: AppColors.textFaint),
+      trailing: onTap == null
+          ? icon
+          : GestureDetector(
+              onTap: onTap,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: EdgeInsets.all(
+                  ResponsiveHelper.getResponsiveSize(context, 2),
+                ),
+                child: icon,
+              ),
+            ),
       child: TextField(
         controller: controller,
+        readOnly: onTap != null,
+        onTap: onTap,
         style: _fieldTextStyle(context, isPlaceholder: false),
         decoration: InputDecoration(
           isDense: true,

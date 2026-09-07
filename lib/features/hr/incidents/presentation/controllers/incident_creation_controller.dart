@@ -402,6 +402,91 @@ class IncidentCreationController extends GetxController {
     if (selected != null) selectCategory(selected);
   }
 
+  Future<void> pickIncidentDate(BuildContext context) async {
+    final now = DateTime.now();
+    final initial = _parseIncidentDate(incidentDateController.text) ?? now;
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: initial.isBefore(DateTime(now.year - 10))
+          ? now
+          : (initial.isAfter(now) ? now : initial),
+      firstDate: DateTime(now.year - 10),
+      lastDate: now,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: AppColors.secondaryTeal,
+                ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (selected == null) return;
+    incidentDateController.text = _formatIncidentDate(selected);
+  }
+
+  Future<void> pickIncidentTime(BuildContext context) async {
+    final initial = _parseIncidentTime(incidentTimeController.text) ??
+        TimeOfDay.now();
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: AppColors.secondaryTeal,
+                ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (selected == null) return;
+    incidentTimeController.text = _formatIncidentTime(selected);
+  }
+
+  DateTime? _parseIncidentDate(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final parts = text.split(RegExp(r'[/-]'));
+    if (parts.length == 3) {
+      final month = int.tryParse(parts[0]);
+      final day = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      if (month != null && day != null && year != null) {
+        return DateTime(year, month, day);
+      }
+    }
+    return DateTime.tryParse(text);
+  }
+
+  TimeOfDay? _parseIncidentTime(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final parts = text.split(':');
+    if (parts.length < 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return TimeOfDay(hour: hour, minute: minute);
+  }
+
+  String _formatIncidentDate(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '$month/$day/${date.year}';
+  }
+
+  String _formatIncidentTime(TimeOfDay time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   void goToStep(IncidentCreationStep step) => currentStep.value = step;
 
   void nextStep() {

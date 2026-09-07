@@ -76,7 +76,10 @@ class Step1DetailsForm extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const WizardFieldLabel('Incident Date', required: true),
-                  WizardDateField(controller: controller.incidentDateController),
+                  WizardDateField(
+                    controller: controller.incidentDateController,
+                    onTap: () => controller.pickIncidentDate(context),
+                  ),
                 ],
               ),
             ),
@@ -87,7 +90,10 @@ class Step1DetailsForm extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const WizardFieldLabel('Time', required: true),
-                  WizardTimeField(controller: controller.incidentTimeController),
+                  WizardTimeField(
+                    controller: controller.incidentTimeController,
+                    onTap: () => controller.pickIncidentTime(context),
+                  ),
                 ],
               ),
             ),
