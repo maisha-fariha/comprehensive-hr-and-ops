@@ -21,6 +21,7 @@ class CreateShiftInfoForm extends StatelessWidget {
   final String endTimeValue;
   final VoidCallback? onEndTimeTap;
   final String? qualificationValue;
+  final bool isLoadingQualifications;
   final VoidCallback? onQualificationTap;
   final String? breakDurationValue;
   final VoidCallback? onBreakDurationTap;
@@ -43,6 +44,7 @@ class CreateShiftInfoForm extends StatelessWidget {
     required this.endTimeValue,
     this.onEndTimeTap,
     this.qualificationValue,
+    this.isLoadingQualifications = false,
     this.onQualificationTap,
     this.breakDurationValue,
     this.onBreakDurationTap,
@@ -129,7 +131,9 @@ class CreateShiftInfoForm extends StatelessWidget {
                 const CreateShiftFieldLabel('Required Qualification'),
                 CreateShiftDropdownField(
                   value: qualificationValue,
-                  placeholder: 'Select qualification',
+                  placeholder: isLoadingQualifications
+                      ? 'Loading qualifications…'
+                      : 'Select qualification',
                   onTap: onQualificationTap,
                 ),
                 const CreateShiftHelperText(
@@ -277,16 +281,20 @@ class CreateShiftPlaceholderSection extends StatelessWidget {
 class CreateShiftFooter extends StatelessWidget {
   final VoidCallback? onCancel;
   final VoidCallback? onCreate;
+  final bool isSubmitting;
 
   const CreateShiftFooter({
     super.key,
     this.onCancel,
     this.onCreate,
+    this.isSubmitting = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final narrow = MediaQuery.sizeOf(context).width < 420;
+    final createEnabled = onCreate != null && !isSubmitting;
+    final cancelEnabled = onCancel != null && !isSubmitting;
     final requiredHint = RichText(
       text: TextSpan(
         style: TextStyle(
@@ -311,13 +319,14 @@ class CreateShiftFooter extends StatelessWidget {
         _FooterButton(
           label: 'Cancel',
           filled: false,
-          onTap: onCancel,
+          onTap: cancelEnabled ? onCancel : null,
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
         _FooterButton(
-          label: 'Create shift',
+          label: isSubmitting ? 'Creating…' : 'Create shift',
           filled: true,
-          onTap: onCreate,
+          isLoading: isSubmitting,
+          onTap: createEnabled ? onCreate : null,
         ),
       ],
     );
@@ -350,7 +359,7 @@ class CreateShiftFooter extends StatelessWidget {
                           child: _FooterButton(
                             label: 'Cancel',
                             filled: false,
-                            onTap: onCancel,
+                            onTap: cancelEnabled ? onCancel : null,
                             expanded: true,
                           ),
                         ),
@@ -359,9 +368,10 @@ class CreateShiftFooter extends StatelessWidget {
                         ),
                         Expanded(
                           child: _FooterButton(
-                            label: 'Create shift',
+                            label: isSubmitting ? 'Creating…' : 'Create shift',
                             filled: true,
-                            onTap: onCreate,
+                            isLoading: isSubmitting,
+                            onTap: createEnabled ? onCreate : null,
                             expanded: true,
                           ),
                         ),
@@ -386,6 +396,7 @@ class _FooterButton extends StatelessWidget {
   final String label;
   final bool filled;
   final bool expanded;
+  final bool isLoading;
   final VoidCallback? onTap;
 
   const _FooterButton({
@@ -393,12 +404,25 @@ class _FooterButton extends StatelessWidget {
     required this.filled,
     this.onTap,
     this.expanded = false,
+    this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final background = filled
+        ? (enabled
+            ? AppColors.primaryNavy
+            : AppColors.primaryNavy.withValues(alpha: 0.55))
+        : AppColors.surfaceWhite;
+    final foreground = filled
+        ? Colors.white
+        : (enabled
+            ? AppColors.textHeading
+            : AppColors.textHeading.withValues(alpha: 0.45));
+
     return Material(
-      color: filled ? AppColors.primaryNavy : AppColors.surfaceWhite,
+      color: background,
       borderRadius: BorderRadius.circular(
         ResponsiveHelper.getResponsiveRadius(context, 12),
       ),
@@ -421,14 +445,36 @@ class _FooterButton extends StatelessWidget {
             ),
             border: filled ? null : Border.all(color: AppColors.searchBorder),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-              color: filled ? Colors.white : AppColors.textHeading,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLoading) ...[
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveSize(context, 16),
+                  height: ResponsiveHelper.getResponsiveSize(context, 16),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: foreground,
+                  ),
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    color: foreground,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

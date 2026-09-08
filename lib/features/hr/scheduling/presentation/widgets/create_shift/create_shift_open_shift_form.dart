@@ -3,17 +3,16 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 
-/// Open Shift tab body — toggle to leave the shift open for bidding (UI-only).
-class CreateShiftOpenShiftForm extends StatefulWidget {
-  const CreateShiftOpenShiftForm({super.key});
+/// Open Shift tab body — toggle to leave the shift open for bidding.
+class CreateShiftOpenShiftForm extends StatelessWidget {
+  final bool isOpenShift;
+  final ValueChanged<bool> onChanged;
 
-  @override
-  State<CreateShiftOpenShiftForm> createState() =>
-      _CreateShiftOpenShiftFormState();
-}
-
-class _CreateShiftOpenShiftFormState extends State<CreateShiftOpenShiftForm> {
-  bool _isOpenShift = false;
+  const CreateShiftOpenShiftForm({
+    super.key,
+    required this.isOpenShift,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -49,8 +48,8 @@ class _CreateShiftOpenShiftFormState extends State<CreateShiftOpenShiftForm> {
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           _OpenShiftToggleCard(
-            value: _isOpenShift,
-            onChanged: (value) => setState(() => _isOpenShift = value),
+            value: isOpenShift,
+            onChanged: onChanged,
           ),
         ],
       ),

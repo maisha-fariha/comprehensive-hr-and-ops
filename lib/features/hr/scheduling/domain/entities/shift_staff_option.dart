@@ -8,6 +8,7 @@ class ShiftStaffOption {
   final String detail;
   final String initials;
   final String? role;
+  final String? categoryId;
 
   const ShiftStaffOption({
     required this.id,
@@ -15,5 +16,6 @@ class ShiftStaffOption {
     required this.detail,
     required this.initials,
     this.role,
+    this.categoryId,
   });
 }

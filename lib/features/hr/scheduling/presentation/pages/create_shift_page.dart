@@ -10,6 +10,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/shift_break_duration_option.dart';
 import '../../domain/entities/shift_coverage_level_option.dart';
 import '../../domain/entities/shift_qualification_option.dart';
+import '../../domain/entities/shift_reminder_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/shift_type_option.dart';
@@ -34,9 +35,11 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   late final TextEditingController _peopleNeededController;
   late final TextEditingController _titleController;
   late final TextEditingController _staffSearchController;
+  late final TextEditingController _notificationMessageController;
 
   late final SchedulingRepository _repository;
   late final UserSession _session;
+  bool _isSubmitting = false;
 
   final List<ShiftResidenceOption> _residences = [];
   ShiftResidenceOption? _selectedResidence;
@@ -45,9 +48,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   static const List<ShiftTypeOption> _shiftTypes = ShiftTypeOption.predefined;
   ShiftTypeOption? _selectedShiftType = ShiftTypeOption.predefined.first;
 
-  static const List<ShiftQualificationOption> _qualifications =
-      ShiftQualificationOption.predefined;
+  final List<ShiftQualificationOption> _qualifications = [];
   ShiftQualificationOption? _selectedQualification;
+  bool _isLoadingQualifications = false;
 
   static const List<ShiftBreakDurationOption> _breakDurations =
       ShiftBreakDurationOption.predefined;
@@ -72,12 +75,20 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   TimeOfDay _startTime = const TimeOfDay(hour: 7, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 15, minute: 0);
 
+  bool _isOpenShift = false;
+  bool _isRecurring = false;
+  bool _notifyAssignedStaff = true;
+  ShiftReminderOption _selectedReminder = ShiftReminderOption.defaultOption;
+  static const List<ShiftReminderOption> _reminders =
+      ShiftReminderOption.predefined;
+
   @override
   void initState() {
     super.initState();
     _peopleNeededController = TextEditingController(text: '1');
     _titleController = TextEditingController();
     _staffSearchController = TextEditingController();
+    _notificationMessageController = TextEditingController();
     _repository = GetIt.instance<SchedulingRepository>();
     _session = Get.find<UserSession>();
     final now = DateTime.now();
@@ -85,6 +96,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     _applyShiftTypeTimes(_selectedShiftType);
     _seedResidenceFromSession();
     _loadResidences();
+    _loadQualifications();
     _loadStaff();
   }
 
@@ -232,9 +244,48 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     );
 
     if (selected != null && mounted) {
-      setState(() => _selectedResidence = selected);
+      setState(() {
+        _selectedResidence = selected;
+        _selectedQualification = null;
+        _qualifications.clear();
+      });
+      _loadQualifications();
       _loadStaff();
     }
+  }
+
+  Future<void> _loadQualifications() async {
+    if (_isLoadingQualifications) return;
+    setState(() => _isLoadingQualifications = true);
+    final result = await _repository.getQualifications(
+      residenceId: _selectedResidence?.id,
+    );
+    if (!mounted) return;
+    setState(() => _isLoadingQualifications = false);
+
+    result.when(
+      success: (data) {
+        setState(() {
+          _qualifications
+            ..clear()
+            ..addAll(data);
+          final currentId = _selectedQualification?.id;
+          if (currentId != null) {
+            ShiftQualificationOption? matched;
+            for (final option in data) {
+              if (option.id == currentId) {
+                matched = option;
+                break;
+              }
+            }
+            _selectedQualification = matched;
+          }
+        });
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not load qualifications', error.message);
+      },
+    );
   }
 
   Future<void> _pickShiftType() async {
@@ -294,6 +345,11 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   }
 
   Future<void> _pickQualification() async {
+    if (_qualifications.isEmpty && !_isLoadingQualifications) {
+      await _loadQualifications();
+    }
+    if (!mounted) return;
+
     final selected = await showModalBottomSheet<ShiftQualificationOption>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
@@ -302,40 +358,78 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       ),
       builder: (sheetContext) {
         return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  'Select qualification',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              for (final option in _qualifications)
-                ListTile(
-                  title: Text(
-                    option.label,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textHeading,
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              if (_isLoadingQualifications && _qualifications.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.secondaryTeal,
                     ),
                   ),
-                  trailing: _selectedQualification?.id == option.id
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.secondaryTeal,
-                        )
-                      : null,
-                  onTap: () => Navigator.of(sheetContext).pop(option),
-                ),
-            ],
+                );
+              }
+              if (_qualifications.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'No qualifications available.',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          await _loadQualifications();
+                          if (context.mounted) setSheetState(() {});
+                        },
+                        child: const Text('Try again'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView(
+                shrinkWrap: true,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Text(
+                      'Select qualification',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                  ),
+                  for (final option in _qualifications)
+                    ListTile(
+                      title: Text(
+                        option.label,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      trailing: _selectedQualification?.id == option.id
+                          ? const Icon(
+                              Icons.check_rounded,
+                              color: AppColors.secondaryTeal,
+                            )
+                          : null,
+                      onTap: () => Navigator.of(sheetContext).pop(option),
+                    ),
+                ],
+              );
+            },
           ),
         );
       },
@@ -471,25 +565,17 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     final result = await _repository.searchStaff(
       search: query ?? _staffSearchController.text,
       residenceId: _selectedResidence?.id,
+      categoryId: _selectedQualification?.id,
     );
     if (!mounted || requestId != _staffSearchRequestId) return;
 
     setState(() => _isLoadingStaff = false);
     result.when(
       success: (data) {
-        final qualification = _selectedQualification?.label.trim().toLowerCase();
-        final filtered = (qualification == null || qualification.isEmpty)
-            ? data
-            : data.where((staff) {
-                final role = staff.role?.toLowerCase() ?? '';
-                final detail = staff.detail.toLowerCase();
-                return role.contains(qualification) ||
-                    detail.contains(qualification);
-              }).toList();
         setState(() {
           _staff
             ..clear()
-            ..addAll(filtered);
+            ..addAll(data);
           _staffSearchError = '';
         });
       },
@@ -613,12 +699,205 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     return '${hour12.toString().padLeft(2, '0')}:$minute $period';
   }
 
+  Future<void> _pickReminder() async {
+    final selected = await showModalBottomSheet<ShiftReminderOption>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Select reminder',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              for (final option in _reminders)
+                ListTile(
+                  title: Text(
+                    option.label,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  trailing: _selectedReminder.id == option.id
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: AppColors.secondaryTeal,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(option),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selected != null && mounted) {
+      setState(() => _selectedReminder = selected);
+    }
+  }
+
+  DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  Map<String, dynamic> _buildCreatePayload() {
+    final startsAt = _combineDateAndTime(_shiftDate, _startTime);
+    var endsAt = _combineDateAndTime(_shiftDate, _endTime);
+    if (!endsAt.isAfter(startsAt)) {
+      endsAt = endsAt.add(const Duration(days: 1));
+    }
+
+    final requiredStaffCount =
+        int.tryParse(_peopleNeededController.text.trim()) ?? 1;
+    final title = _titleController.text.trim().isNotEmpty
+        ? _titleController.text.trim()
+        : '${_selectedShiftType?.name ?? 'Shift'} Care Shift';
+    final notificationMessage = _notificationMessageController.text.trim();
+    final reminderMinutes = _selectedReminder.minutesBefore;
+    final categoryId = _selectedQualification?.id;
+
+    final payload = <String, dynamic>{
+      'residenceId': _selectedResidence!.id,
+      'startsAt': startsAt.toUtc().toIso8601String(),
+      'endsAt': endsAt.toUtc().toIso8601String(),
+      'title': title,
+      'shiftType': _selectedShiftType?.id ?? 'custom',
+      'coverageLevel': _selectedCoverageLevel?.id ?? 'standard',
+      'breakMinutes': _selectedBreakDuration?.minutes ?? 0,
+      'requiredStaffCount': requiredStaffCount,
+      if (categoryId != null && categoryId.isNotEmpty)
+        'requiredCategoryId': categoryId,
+      'staffIds': _selectedStaffIds.toList(),
+      'notifyAssignedStaff': _notifyAssignedStaff,
+      'reminderMinutesBefore': ?reminderMinutes,
+      if (notificationMessage.isNotEmpty)
+        'notificationMessage': notificationMessage,
+    };
+
+    if (_isOpenShift) {
+      final closesAt = DateTime(
+        _shiftDate.year,
+        _shiftDate.month,
+        _shiftDate.day,
+      ).subtract(const Duration(minutes: 1));
+      payload['biddingConfig'] = {
+        'eligibleCategoryIds': [
+          if (categoryId != null && categoryId.isNotEmpty) categoryId,
+        ],
+        'biddingClosesAt': closesAt.toUtc().toIso8601String(),
+        'maxBids': 5,
+        'priority': 'medium',
+        'awardMethod': 'manual',
+        'noteToBidders': 'Open to all qualified care workers.',
+      };
+    }
+
+    if (_isRecurring) {
+      payload['recurrence'] = {
+        'occurrences': 4,
+        'intervalDays': 7,
+        'weekdays': [_shiftDate.weekday],
+      };
+    }
+
+    return payload;
+  }
+
+  Future<void> _createShift() async {
+    if (_isSubmitting) return;
+
+    final residenceId = _selectedResidence?.id.trim() ?? '';
+    if (residenceId.isEmpty) {
+      AppSnackbar.show('Missing details', 'Please select a residence.');
+      setState(() => _tab = CreateShiftTab.shiftInformation);
+      return;
+    }
+
+    if (_selectedShiftType == null) {
+      AppSnackbar.show('Missing details', 'Please select a shift type.');
+      setState(() => _tab = CreateShiftTab.shiftInformation);
+      return;
+    }
+
+    final requiredStaffCount =
+        int.tryParse(_peopleNeededController.text.trim());
+    if (requiredStaffCount == null || requiredStaffCount < 1) {
+      AppSnackbar.show(
+        'Missing details',
+        'People needed must be at least 1.',
+      );
+      setState(() => _tab = CreateShiftTab.shiftInformation);
+      return;
+    }
+
+    final startsAt = _combineDateAndTime(_shiftDate, _startTime);
+    var endsAt = _combineDateAndTime(_shiftDate, _endTime);
+    if (!endsAt.isAfter(startsAt)) {
+      endsAt = endsAt.add(const Duration(days: 1));
+    }
+    if (!endsAt.isAfter(startsAt)) {
+      AppSnackbar.show('Invalid times', 'End time must be after start time.');
+      setState(() => _tab = CreateShiftTab.shiftInformation);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final result = await _repository.createShift(_buildCreatePayload());
+      if (!mounted) return;
+
+      final created = result.when(
+        success: (_) => true,
+        failure: (error) {
+          AppSnackbar.show('Could not create shift', error.message);
+          return false;
+        },
+      );
+      if (created && mounted) {
+        Navigator.of(context).pop(true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          AppSnackbar.show(
+            'Shift created',
+            'The shift was created successfully.',
+          );
+        });
+      }
+    } catch (error) {
+      if (!mounted) return;
+      AppSnackbar.show(
+        'Could not create shift',
+        error.toString(),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _staffSearchDebounce?.cancel();
     _peopleNeededController.dispose();
     _titleController.dispose();
     _staffSearchController.dispose();
+    _notificationMessageController.dispose();
     super.dispose();
   }
 
@@ -635,19 +914,29 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                 color: AppColors.surfaceWhite,
                 child: Column(
                   children: [
-                    CreateShiftHeader(onClose: Get.back),
+                    CreateShiftHeader(
+                      onClose: _isSubmitting ? null : () => Navigator.of(context).pop(),
+                    ),
                     CreateShiftStepTabs(
                       selected: _tab,
-                      onSelected: (tab) {
-                        setState(() => _tab = tab);
-                        if (tab == CreateShiftTab.staffAssignment &&
-                            _staff.isEmpty &&
-                            !_isLoadingStaff) {
-                          _loadStaff();
-                        }
-                      },
+                      onSelected: _isSubmitting
+                          ? null
+                          : (tab) {
+                              setState(() => _tab = tab);
+                              if (tab == CreateShiftTab.staffAssignment &&
+                                  _staff.isEmpty &&
+                                  !_isLoadingStaff) {
+                                _loadStaff();
+                              }
+                            },
                     ),
-                    const CreateShiftCompletionBar(),
+                    CreateShiftCompletionBar(
+                      currentStep: _tab.index + 1,
+                      totalSteps: CreateShiftTab.values.length,
+                      percent: ((_tab.index + 1) /
+                              CreateShiftTab.values.length) *
+                          100,
+                    ),
                     Expanded(
                       child: SingleChildScrollView(
                         child: _bodyForTab(),
@@ -658,10 +947,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
               ),
             ),
             CreateShiftFooter(
-              onCancel: Get.back,
-              onCreate: () {
-                // Create action not wired yet.
-              },
+              isSubmitting: _isSubmitting,
+              onCancel:
+                  _isSubmitting ? null : () => Navigator.of(context).pop(),
+              onCreate: _isSubmitting ? null : () => _createShift(),
             ),
           ],
         ),
@@ -687,6 +976,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           endTimeValue: _formatShiftTime(_endTime),
           onEndTimeTap: _pickEndTime,
           qualificationValue: _selectedQualification?.label,
+          isLoadingQualifications: _isLoadingQualifications,
           onQualificationTap: _pickQualification,
           breakDurationValue: _selectedBreakDuration?.label,
           onBreakDurationTap: _pickBreakDuration,
@@ -705,11 +995,24 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           onRetry: _loadStaff,
         );
       case CreateShiftTab.openShift:
-        return const CreateShiftOpenShiftForm();
+        return CreateShiftOpenShiftForm(
+          isOpenShift: _isOpenShift,
+          onChanged: (value) => setState(() => _isOpenShift = value),
+        );
       case CreateShiftTab.recurring:
-        return const CreateShiftRecurringForm();
+        return CreateShiftRecurringForm(
+          isRecurring: _isRecurring,
+          onChanged: (value) => setState(() => _isRecurring = value),
+        );
       case CreateShiftTab.notifications:
-        return const CreateShiftNotificationsForm();
+        return CreateShiftNotificationsForm(
+          notifyAssignedStaff: _notifyAssignedStaff,
+          onNotifyAssignedStaffChanged: (value) =>
+              setState(() => _notifyAssignedStaff = value),
+          selectedReminder: _selectedReminder,
+          onReminderTap: _pickReminder,
+          messageController: _notificationMessageController,
+        );
     }
   }
 }

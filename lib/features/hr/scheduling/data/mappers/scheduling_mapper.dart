@@ -10,12 +10,57 @@ import '../../domain/entities/open_position.dart';
 import '../../domain/entities/requests_overview.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
+import '../../domain/entities/shift_qualification_option.dart';
 import '../../domain/entities/shift_request.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/staff_avatar.dart';
 
 abstract final class SchedulingMapper {
+  /// Unique qualification options from `GET /staff` (`categoryId` + name).
+  static List<ShiftQualificationOption> qualificationsFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final seen = <String>{};
+    final options = <ShiftQualificationOption>[];
+
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final category = JsonCodec.mapAt(json, 'category') ??
+          JsonCodec.mapAt(json, 'staffCategory') ??
+          JsonCodec.mapAt(json, 'qualificationCategory') ??
+          const {};
+      final label = JsonCodec.string(
+            category['name'] ??
+                category['label'] ??
+                category['title'] ??
+                json['categoryName'] ??
+                json['qualification'] ??
+                json['qualificationName'] ??
+                json['role'] ??
+                json['jobTitle'] ??
+                json['title'],
+          ) ??
+          '';
+      if (label.isEmpty) continue;
+
+      final id = JsonCodec.stringOr(
+        json['categoryId'] ??
+            category['id'] ??
+            json['qualificationId'] ??
+            json['staffCategoryId'] ??
+            label,
+        label,
+      );
+      if (!seen.add(id.toLowerCase())) continue;
+
+      options.add(ShiftQualificationOption(id: id, label: label));
+    }
+
+    options.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+    return options;
+  }
+
   /// Parse `GET /staff` into Create Shift assign-staff options.
   static List<ShiftStaffOption> staffFrom(dynamic body) {
     final source = JsonCodec.unwrapList(body);
@@ -27,6 +72,10 @@ abstract final class SchedulingMapper {
       final user = JsonCodec.mapAt(json, 'user') ??
           JsonCodec.mapAt(json, 'profile') ??
           json;
+      final category = JsonCodec.mapAt(json, 'category') ??
+          JsonCodec.mapAt(json, 'staffCategory') ??
+          JsonCodec.mapAt(user, 'category') ??
+          const {};
       final name = JsonCodec.string(
             user['preferredName'] ??
                 user['fullName'] ??
@@ -41,12 +90,20 @@ abstract final class SchedulingMapper {
       if (name.isEmpty) continue;
 
       final role = JsonCodec.string(
-        json['role'] ??
+        category['name'] ??
+            json['categoryName'] ??
+            json['role'] ??
             json['jobTitle'] ??
             json['title'] ??
             json['qualification'] ??
             user['role'] ??
             user['jobTitle'],
+      );
+      final categoryId = JsonCodec.string(
+        json['categoryId'] ??
+            category['id'] ??
+            json['qualificationId'] ??
+            json['staffCategoryId'],
       );
       final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
       final location = JsonCodec.string(
@@ -71,6 +128,7 @@ abstract final class SchedulingMapper {
           detail: detail.isEmpty ? 'Staff' : detail,
           initials: IsoDateRange.initials(name),
           role: role,
+          categoryId: categoryId,
         ),
       );
     }

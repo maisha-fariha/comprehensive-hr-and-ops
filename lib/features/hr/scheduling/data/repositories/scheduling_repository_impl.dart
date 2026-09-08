@@ -6,6 +6,7 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/scheduling_overview.dart';
+import '../../domain/entities/shift_qualification_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
@@ -156,12 +157,35 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
+  Future<Result<List<ShiftQualificationOption>>> getQualifications({
+    String? residenceId,
+  }) async {
+    final scopedResidenceId = residenceId ?? _session.residenceId;
+    final result = await _api.get(
+      ApiEndpoints.staff,
+      query: {
+        'page': 1,
+        'limit': _pageSize,
+        'residenceId': ?scopedResidenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.qualificationsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<List<ShiftStaffOption>>> searchStaff({
     String? search,
     String? residenceId,
+    String? categoryId,
   }) async {
     final trimmed = search?.trim() ?? '';
     final scopedResidenceId = residenceId ?? _session.residenceId;
+    final scopedCategoryId = categoryId?.trim();
 
     final result = await _api.get(
       ApiEndpoints.staff,
@@ -170,12 +194,30 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
         'limit': _pageSize,
         if (trimmed.isNotEmpty) 'search': trimmed,
         'residenceId': ?scopedResidenceId,
+        if (scopedCategoryId != null && scopedCategoryId.isNotEmpty)
+          'categoryId': scopedCategoryId,
       },
       silent: true,
     );
     return result.when(
       success: (body) async =>
           Result.success(SchedulingMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<String>> createShift(Map<String, dynamic> payload) async {
+    final result = await _api.post(
+      ApiEndpoints.shifts,
+      data: payload,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final id = _extractId(body);
+        return Result.success(id ?? '');
+      },
       failure: (error) async => Result.failure(error),
     );
   }
@@ -196,5 +238,17 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  String? _extractId(dynamic body) {
+    if (body is Map) {
+      final map = Map<String, dynamic>.from(body);
+      final data = map['data'];
+      if (data is Map) {
+        return data['id']?.toString() ?? data['shiftId']?.toString();
+      }
+      return map['id']?.toString() ?? map['shiftId']?.toString();
+    }
+    return null;
   }
 }

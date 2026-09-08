@@ -2,33 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
+import '../../../domain/entities/shift_reminder_option.dart';
 import 'create_shift_fields.dart';
 
 /// Notifications tab body — assignee notify toggle, reminder, custom message.
-class CreateShiftNotificationsForm extends StatefulWidget {
-  const CreateShiftNotificationsForm({super.key});
+class CreateShiftNotificationsForm extends StatelessWidget {
+  final bool notifyAssignedStaff;
+  final ValueChanged<bool> onNotifyAssignedStaffChanged;
+  final ShiftReminderOption selectedReminder;
+  final VoidCallback onReminderTap;
+  final TextEditingController messageController;
 
-  @override
-  State<CreateShiftNotificationsForm> createState() =>
-      _CreateShiftNotificationsFormState();
-}
-
-class _CreateShiftNotificationsFormState
-    extends State<CreateShiftNotificationsForm> {
-  bool _notifyAssignedStaff = true;
-  late final TextEditingController _messageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _messageController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
-  }
+  const CreateShiftNotificationsForm({
+    super.key,
+    required this.notifyAssignedStaff,
+    required this.onNotifyAssignedStaffChanged,
+    required this.selectedReminder,
+    required this.onReminderTap,
+    required this.messageController,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -66,19 +58,23 @@ class _CreateShiftNotificationsFormState
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           _NotifyToggleCard(
-            value: _notifyAssignedStaff,
-            onChanged: (value) => setState(() => _notifyAssignedStaff = value),
+            value: notifyAssignedStaff,
+            onChanged: onNotifyAssignedStaffChanged,
           ),
           gap,
           const CreateShiftFieldLabel('Reminder'),
-          const CreateShiftDropdownField(placeholder: 'Select an option'),
+          CreateShiftDropdownField(
+            value: selectedReminder.label,
+            placeholder: 'Select an option',
+            onTap: onReminderTap,
+          ),
           const CreateShiftHelperText(
             'A second notification this long before the shift starts.',
           ),
           gap,
           const CreateShiftFieldLabel('Custom Message'),
           CreateShiftTextField(
-            controller: _messageController,
+            controller: messageController,
             hint:
                 'Add a note included in the notification instead of the shift time...',
             maxLines: 4,

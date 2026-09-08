@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 
 /// A selectable required qualification for Create Shift.
+///
+/// Built from unique `categoryId` + category name values on `GET /staff`.
 @immutable
 class ShiftQualificationOption {
   final String id;
@@ -10,28 +12,4 @@ class ShiftQualificationOption {
     required this.id,
     required this.label,
   });
-
-  /// Fixed options from the Create Shift design reference.
-  static const List<ShiftQualificationOption> predefined = [
-    ShiftQualificationOption(
-      id: 'behavioral-support-specialist',
-      label: 'Behavioral Support Specialist',
-    ),
-    ShiftQualificationOption(
-      id: 'child-and-youth-caregiver',
-      label: 'Child and Youth Caregiver',
-    ),
-    ShiftQualificationOption(
-      id: 'night-awake-staff',
-      label: 'Night Awake Staff',
-    ),
-    ShiftQualificationOption(
-      id: 'personal-support-worker',
-      label: 'Personal Support Worker',
-    ),
-    ShiftQualificationOption(
-      id: 'residential-support-worker',
-      label: 'Residential Support Worker',
-    ),
-  ];
 }

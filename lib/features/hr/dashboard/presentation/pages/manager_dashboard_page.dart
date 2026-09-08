@@ -12,6 +12,7 @@ import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../../../hr_shell.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
+import '../../../scheduling/presentation/controllers/scheduling_controller.dart';
 import '../../../scheduling/presentation/pages/create_shift_page.dart';
 import '../../domain/entities/attention_alert.dart';
 import '../../domain/entities/dashboard_enums.dart';
@@ -141,13 +142,23 @@ class ManagerDashboardPage extends StatelessWidget {
   void _onQuickActionTap(QuickAction action) {
     switch (action.type) {
       case QuickActionType.createShift:
-        Get.to(() => const CreateShiftPage());
+        _openCreateShift();
       case QuickActionType.approve:
         Get.offAll(() => const HrShell(initialIndex: 1));
       case QuickActionType.logNote:
         Get.to(() => const DailyLogsPage());
       case QuickActionType.message:
         Get.to(() => const PortalNotificationsPage());
+    }
+  }
+
+  Future<void> _openCreateShift() async {
+    final created = await Get.to<bool>(() => const CreateShiftPage());
+    if (created != true) return;
+    try {
+      await Get.find<SchedulingController>().refresh();
+    } catch (_) {
+      // Scheduling screen may not be loaded yet.
     }
   }
 }

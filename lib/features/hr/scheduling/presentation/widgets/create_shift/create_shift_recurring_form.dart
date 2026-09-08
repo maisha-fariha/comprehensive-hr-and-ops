@@ -3,17 +3,16 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 
-/// Recurring tab body — toggle to repeat the shift on a schedule (UI-only).
-class CreateShiftRecurringForm extends StatefulWidget {
-  const CreateShiftRecurringForm({super.key});
+/// Recurring tab body — toggle to repeat the shift on a schedule.
+class CreateShiftRecurringForm extends StatelessWidget {
+  final bool isRecurring;
+  final ValueChanged<bool> onChanged;
 
-  @override
-  State<CreateShiftRecurringForm> createState() =>
-      _CreateShiftRecurringFormState();
-}
-
-class _CreateShiftRecurringFormState extends State<CreateShiftRecurringForm> {
-  bool _isRecurring = false;
+  const CreateShiftRecurringForm({
+    super.key,
+    required this.isRecurring,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -49,8 +48,8 @@ class _CreateShiftRecurringFormState extends State<CreateShiftRecurringForm> {
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           _RecurringToggleCard(
-            value: _isRecurring,
-            onChanged: (value) => setState(() => _isRecurring = value),
+            value: isRecurring,
+            onChanged: onChanged,
           ),
         ],
       ),

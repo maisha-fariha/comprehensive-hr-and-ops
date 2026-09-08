@@ -31,6 +31,13 @@ class SchedulingPage extends StatelessWidget {
     }
   }
 
+  Future<void> _openCreateShift(SchedulingController controller) async {
+    final created = await Get.to<bool>(() => const CreateShiftPage());
+    if (created == true) {
+      await controller.refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
@@ -63,8 +70,7 @@ class SchedulingPage extends StatelessWidget {
                 child: Column(
                   children: [
                     SchedulingTopBar(
-                      onCreateShiftTap: () =>
-                          Get.to(() => const CreateShiftPage()),
+                      onCreateShiftTap: () => _openCreateShift(controller),
                     ),
                     SchedulingSegmentedTabs(
                       selectedTab: controller.selectedTab.value,
