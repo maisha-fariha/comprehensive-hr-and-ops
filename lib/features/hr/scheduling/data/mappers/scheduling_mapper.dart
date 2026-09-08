@@ -11,9 +11,102 @@ import '../../domain/entities/requests_overview.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/entities/shift_request.dart';
+import '../../domain/entities/shift_residence_option.dart';
+import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/staff_avatar.dart';
 
 abstract final class SchedulingMapper {
+  /// Parse `GET /staff` into Create Shift assign-staff options.
+  static List<ShiftStaffOption> staffFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final options = <ShiftStaffOption>[];
+
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final user = JsonCodec.mapAt(json, 'user') ??
+          JsonCodec.mapAt(json, 'profile') ??
+          json;
+      final name = JsonCodec.string(
+            user['preferredName'] ??
+                user['fullName'] ??
+                user['displayName'] ??
+                user['name'] ??
+                [
+                  user['firstName'] ?? json['firstName'],
+                  user['lastName'] ?? json['lastName'],
+                ].where((p) => p != null && p.toString().trim().isNotEmpty).join(' '),
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+
+      final role = JsonCodec.string(
+        json['role'] ??
+            json['jobTitle'] ??
+            json['title'] ??
+            json['qualification'] ??
+            user['role'] ??
+            user['jobTitle'],
+      );
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final location = JsonCodec.string(
+        json['residenceName'] ??
+            residence['name'] ??
+            json['location'] ??
+            json['city'] ??
+            json['site'],
+      );
+      final detail = [
+        if (role != null && role.isNotEmpty) role,
+        if (location != null && location.isNotEmpty) location,
+      ].join(' · ');
+
+      options.add(
+        ShiftStaffOption(
+          id: JsonCodec.stringOr(
+            json['id'] ?? json['staffId'] ?? user['id'] ?? name,
+            name,
+          ),
+          name: name,
+          detail: detail.isEmpty ? 'Staff' : detail,
+          initials: IsoDateRange.initials(name),
+          role: role,
+        ),
+      );
+    }
+    return options;
+  }
+
+  /// Parse `GET /residences` into Create Shift dropdown options.
+  static List<ShiftResidenceOption> residencesFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final options = <ShiftResidenceOption>[];
+
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final name = JsonCodec.string(
+            json['name'] ??
+                json['label'] ??
+                json['title'] ??
+                json['residenceName'] ??
+                json['displayName'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      options.add(
+        ShiftResidenceOption(
+          id: JsonCodec.stringOr(
+            json['id'] ?? json['residenceId'] ?? name,
+            name,
+          ),
+          name: name,
+        ),
+      );
+    }
+    return options;
+  }
+
   static SchedulingOverview compose({
     required dynamic weekBody,
     required dynamic openBody,

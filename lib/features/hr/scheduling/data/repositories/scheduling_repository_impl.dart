@@ -6,6 +6,8 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/scheduling_overview.dart';
+import '../../domain/entities/shift_residence_option.dart';
+import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
 import '../mappers/scheduling_mapper.dart';
 
@@ -138,6 +140,44 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       if (rows.length < _pageSize) break;
     }
     return Result.success(all);
+  }
+
+  @override
+  Future<Result<List<ShiftResidenceOption>>> getResidences() async {
+    final result = await _api.get(
+      ApiEndpoints.residences,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.residencesFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> searchStaff({
+    String? search,
+    String? residenceId,
+  }) async {
+    final trimmed = search?.trim() ?? '';
+    final scopedResidenceId = residenceId ?? _session.residenceId;
+
+    final result = await _api.get(
+      ApiEndpoints.staff,
+      query: {
+        'page': 1,
+        'limit': _pageSize,
+        if (trimmed.isNotEmpty) 'search': trimmed,
+        'residenceId': ?scopedResidenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
   }
 
   @override

@@ -6,6 +6,7 @@ import '../../domain/entities/attention_alert.dart';
 import '../../domain/entities/dashboard_enums.dart';
 import '../../domain/entities/dashboard_overview.dart';
 import '../../domain/entities/overview_stat.dart';
+import '../../domain/entities/quick_action.dart';
 
 abstract final class DashboardOverviewMapper {
   static DashboardOverview compose({
@@ -40,9 +41,16 @@ abstract final class DashboardOverviewMapper {
       attentionAlerts: _alerts(alertsBody),
       overviewStats: _stats(kpis),
       scheduleShifts: const [],
-      quickActions: const [],
+      quickActions: _defaultQuickActions,
     );
   }
+
+  static const List<QuickAction> _defaultQuickActions = [
+    QuickAction(type: QuickActionType.createShift, label: 'Create Shift'),
+    QuickAction(type: QuickActionType.approve, label: 'Approve'),
+    QuickAction(type: QuickActionType.logNote, label: 'Log Note'),
+    QuickAction(type: QuickActionType.message, label: 'Message'),
+  ];
 
   static List<AttentionAlert> _alerts(dynamic body) {
     return JsonCodec.unwrapList(body)

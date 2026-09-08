@@ -9,11 +9,45 @@ import 'create_shift_fields.dart';
 class CreateShiftInfoForm extends StatelessWidget {
   final TextEditingController peopleNeededController;
   final TextEditingController titleController;
+  final String? residenceValue;
+  final bool isLoadingResidences;
+  final VoidCallback? onResidenceTap;
+  final String? shiftTypeValue;
+  final VoidCallback? onShiftTypeTap;
+  final String shiftDateValue;
+  final VoidCallback? onShiftDateTap;
+  final String startTimeValue;
+  final VoidCallback? onStartTimeTap;
+  final String endTimeValue;
+  final VoidCallback? onEndTimeTap;
+  final String? qualificationValue;
+  final VoidCallback? onQualificationTap;
+  final String? breakDurationValue;
+  final VoidCallback? onBreakDurationTap;
+  final String? coverageLevelValue;
+  final VoidCallback? onCoverageLevelTap;
 
   const CreateShiftInfoForm({
     super.key,
     required this.peopleNeededController,
     required this.titleController,
+    this.residenceValue,
+    this.isLoadingResidences = false,
+    this.onResidenceTap,
+    this.shiftTypeValue,
+    this.onShiftTypeTap,
+    required this.shiftDateValue,
+    this.onShiftDateTap,
+    required this.startTimeValue,
+    this.onStartTimeTap,
+    required this.endTimeValue,
+    this.onEndTimeTap,
+    this.qualificationValue,
+    this.onQualificationTap,
+    this.breakDurationValue,
+    this.onBreakDurationTap,
+    this.coverageLevelValue,
+    this.onCoverageLevelTap,
   });
 
   @override
@@ -52,42 +86,53 @@ class CreateShiftInfoForm extends StatelessWidget {
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           CreateShiftFieldRow(
-            left: const Column(
+            left: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CreateShiftFieldLabel('Residence', required: true),
-                CreateShiftDropdownField(placeholder: 'Select residence'),
+                const CreateShiftFieldLabel('Residence', required: true),
+                CreateShiftDropdownField(
+                  value: residenceValue,
+                  placeholder: isLoadingResidences
+                      ? 'Loading residences…'
+                      : 'Select residence',
+                  onTap: onResidenceTap,
+                ),
               ],
             ),
-            right: const Column(
+            right: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CreateShiftFieldLabel('Shift Type', required: true),
+                const CreateShiftFieldLabel('Shift Type', required: true),
                 CreateShiftDropdownField(
-                  value: 'Morning (07:00 – 15:00)',
+                  value: shiftTypeValue,
                   placeholder: 'Select shift type',
+                  onTap: onShiftTypeTap,
                 ),
               ],
             ),
           ),
           gap,
           CreateShiftFieldRow(
-            left: const Column(
+            left: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CreateShiftFieldLabel('Shift Date', required: true),
-                CreateShiftDateField(value: 'Aug 31, 2026'),
+                const CreateShiftFieldLabel('Shift Date', required: true),
+                CreateShiftDateField(
+                  value: shiftDateValue,
+                  onTap: onShiftDateTap,
+                ),
               ],
             ),
-            right: const Column(
+            right: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CreateShiftFieldLabel('Required Qualification'),
+                const CreateShiftFieldLabel('Required Qualification'),
                 CreateShiftDropdownField(
-                  value: 'Anyone can cover this',
+                  value: qualificationValue,
                   placeholder: 'Select qualification',
+                  onTap: onQualificationTap,
                 ),
-                CreateShiftHelperText(
+                const CreateShiftHelperText(
                   'Only staff in this category can be assigned or bid.',
                 ),
               ],
@@ -95,43 +140,51 @@ class CreateShiftInfoForm extends StatelessWidget {
           ),
           gap,
           CreateShiftFieldRow(
-            left: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CreateShiftFieldLabel('Start Time', required: true),
-                CreateShiftTimeField(value: '07:00 AM'),
-              ],
-            ),
-            right: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CreateShiftFieldLabel('End Time', required: true),
-                CreateShiftTimeField(value: '03:00 PM'),
-                CreateShiftHelperText(
-                  'Earlier than the start means it runs overnight.',
-                ),
-              ],
-            ),
-          ),
-          gap,
-          const CreateShiftFieldRow(
             left: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CreateShiftFieldLabel('Break Duration'),
-                CreateShiftDropdownField(
-                  value: '30 minutes',
-                  placeholder: 'Select break',
+                const CreateShiftFieldLabel('Start Time', required: true),
+                CreateShiftTimeField(
+                  value: startTimeValue,
+                  onTap: onStartTimeTap,
                 ),
               ],
             ),
             right: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CreateShiftFieldLabel('Coverage Level'),
+                const CreateShiftFieldLabel('End Time', required: true),
+                CreateShiftTimeField(
+                  value: endTimeValue,
+                  onTap: onEndTimeTap,
+                ),
+                const CreateShiftHelperText(
+                  'Earlier than the start means it runs overnight.',
+                ),
+              ],
+            ),
+          ),
+          gap,
+          CreateShiftFieldRow(
+            left: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CreateShiftFieldLabel('Break Duration'),
                 CreateShiftDropdownField(
-                  value: 'Standard',
+                  value: breakDurationValue,
+                  placeholder: 'Select break',
+                  onTap: onBreakDurationTap,
+                ),
+              ],
+            ),
+            right: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const CreateShiftFieldLabel('Coverage Level'),
+                CreateShiftDropdownField(
+                  value: coverageLevelValue,
                   placeholder: 'Select coverage',
+                  onTap: onCoverageLevelTap,
                 ),
               ],
             ),

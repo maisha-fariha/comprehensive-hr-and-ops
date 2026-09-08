@@ -8,13 +8,18 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
+import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../../../hr_shell.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
+import '../../../scheduling/presentation/pages/create_shift_page.dart';
 import '../../domain/entities/attention_alert.dart';
 import '../../domain/entities/dashboard_enums.dart';
 import '../../domain/entities/dashboard_overview.dart';
 import '../../domain/entities/overview_stat.dart';
+import '../../domain/entities/quick_action.dart';
 import '../controllers/dashboard_controller.dart';
+import '../widgets/quick_action_button.dart';
 
 /// The Manager/HR Dashboard - "Home" tab of the HR portal.
 ///
@@ -110,6 +115,18 @@ class ManagerDashboardPage extends StatelessWidget {
                         stats: overview.overviewStats.take(4).toList(),
                         lastUpdatedLabel: overview.lastUpdatedLabel,
                       ),
+                      if (overview.quickActions.isNotEmpty) ...[
+                        SizedBox(
+                          height: ResponsiveHelper.getResponsiveHeight(
+                            context,
+                            18,
+                          ),
+                        ),
+                        _QuickActionsSection(
+                          actions: overview.quickActions,
+                          onActionTap: _onQuickActionTap,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -120,8 +137,20 @@ class ManagerDashboardPage extends StatelessWidget {
       }),
     );
   }
-}
 
+  void _onQuickActionTap(QuickAction action) {
+    switch (action.type) {
+      case QuickActionType.createShift:
+        Get.to(() => const CreateShiftPage());
+      case QuickActionType.approve:
+        Get.offAll(() => const HrShell(initialIndex: 1));
+      case QuickActionType.logNote:
+        Get.to(() => const DailyLogsPage());
+      case QuickActionType.message:
+        Get.to(() => const PortalNotificationsPage());
+    }
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Header
@@ -724,6 +753,58 @@ class _AttentionAlertTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quick Actions
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _QuickActionsSection extends StatelessWidget {
+  final List<QuickAction> actions;
+  final ValueChanged<QuickAction>? onActionTap;
+
+  const _QuickActionsSection({
+    required this.actions,
+    this.onActionTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Quick Actions',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w700,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
+            color: AppColors.textPrimary,
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        Row(
+          children: [
+            for (var i = 0; i < actions.length; i++) ...[
+              if (i != 0)
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+              Expanded(
+                child: QuickActionButton(
+                  action: actions[i],
+                  onTap: onActionTap == null
+                      ? null
+                      : () => onActionTap!(actions[i]),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
     );
   }
 }

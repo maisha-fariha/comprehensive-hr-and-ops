@@ -4,127 +4,38 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../../core/constants/app_assets.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/widgets/app_svg_icon.dart';
+import '../../../domain/entities/shift_staff_option.dart';
 import 'create_shift_fields.dart';
-
-/// Mock staff row for the UI-only Staff Assignment tab.
-class CreateShiftStaffOption {
-  final String id;
-  final String name;
-  final String detail;
-  final String initials;
-
-  const CreateShiftStaffOption({
-    required this.id,
-    required this.name,
-    required this.detail,
-    required this.initials,
-  });
-}
-
-/// Sample roster matching the Staff Assignment reference layout.
-const kCreateShiftStaffPreview = <CreateShiftStaffOption>[
-  CreateShiftStaffOption(
-    id: '1',
-    name: 'bilai Manager',
-    detail: 'new test',
-    initials: 'BM',
-  ),
-  CreateShiftStaffOption(
-    id: '2',
-    name: 'Sarah Kuk',
-    detail: 'Mala Box',
-    initials: 'SK',
-  ),
-  CreateShiftStaffOption(
-    id: '3',
-    name: 'notun bilai',
-    detail: 'Dhaka',
-    initials: 'NB',
-  ),
-  CreateShiftStaffOption(
-    id: '4',
-    name: 'notun bilai',
-    detail: 'Child and Youth Caregiver · Dhaka',
-    initials: 'NB',
-  ),
-  CreateShiftStaffOption(
-    id: '5',
-    name: 'billkiss Preston',
-    detail: 'Dhaka',
-    initials: 'BP',
-  ),
-  CreateShiftStaffOption(
-    id: '6',
-    name: 'Lallu mama',
-    detail: 'Child and Youth Caregiver · Dhaka',
-    initials: 'LM',
-  ),
-  CreateShiftStaffOption(
-    id: '7',
-    name: 'Amina Rahman',
-    detail: 'Support Worker · Dhaka',
-    initials: 'AR',
-  ),
-  CreateShiftStaffOption(
-    id: '8',
-    name: 'James Okonkwo',
-    detail: 'Night Care · Mala Box',
-    initials: 'JO',
-  ),
-];
 
 /// Soft lavender used for staff initials avatars in the reference.
 const Color _avatarFill = Color(0xFFE8E4F5);
 const Color _avatarText = Color(0xFF5B4B8A);
 
-/// Staff Assignment tab body — search + selectable staff list (UI-only).
-class CreateShiftStaffAssignmentForm extends StatefulWidget {
-  final List<CreateShiftStaffOption> staff;
+/// Staff Assignment tab body — search + selectable staff list from `GET /staff`.
+class CreateShiftStaffAssignmentForm extends StatelessWidget {
+  final TextEditingController searchController;
+  final List<ShiftStaffOption> staff;
+  final Set<String> selectedIds;
+  final bool isLoading;
+  final String? errorMessage;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String> onToggleStaff;
+  final VoidCallback? onRetry;
 
   const CreateShiftStaffAssignmentForm({
     super.key,
-    this.staff = kCreateShiftStaffPreview,
+    required this.searchController,
+    required this.staff,
+    required this.selectedIds,
+    required this.isLoading,
+    required this.onSearchChanged,
+    required this.onToggleStaff,
+    this.errorMessage,
+    this.onRetry,
   });
 
   @override
-  State<CreateShiftStaffAssignmentForm> createState() =>
-      _CreateShiftStaffAssignmentFormState();
-}
-
-class _CreateShiftStaffAssignmentFormState
-    extends State<CreateShiftStaffAssignmentForm> {
-  late final TextEditingController _searchController;
-  final Set<String> _selectedIds = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController = TextEditingController();
-    _searchController.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  List<CreateShiftStaffOption> get _filtered {
-    final q = _searchController.text.trim().toLowerCase();
-    if (q.isEmpty) return widget.staff;
-    return widget.staff
-        .where(
-          (s) =>
-              s.name.toLowerCase().contains(q) ||
-              s.detail.toLowerCase().contains(q),
-        )
-        .toList();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final filtered = _filtered;
-
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
         context,
@@ -157,23 +68,21 @@ class _CreateShiftStaffAssignmentFormState
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           const CreateShiftFieldLabel('Assign Staff'),
-          _StaffSearchField(controller: _searchController),
+          _StaffSearchField(
+            controller: searchController,
+            onChanged: onSearchChanged,
+          ),
           const CreateShiftHelperText(
             'Set a required qualification on the previous step to narrow this list.',
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
           _StaffListCard(
-            staff: filtered,
-            selectedIds: _selectedIds,
-            onToggle: (id) {
-              setState(() {
-                if (_selectedIds.contains(id)) {
-                  _selectedIds.remove(id);
-                } else {
-                  _selectedIds.add(id);
-                }
-              });
-            },
+            staff: staff,
+            selectedIds: selectedIds,
+            isLoading: isLoading,
+            errorMessage: errorMessage,
+            onToggle: onToggleStaff,
+            onRetry: onRetry,
           ),
         ],
       ),
@@ -183,8 +92,12 @@ class _CreateShiftStaffAssignmentFormState
 
 class _StaffSearchField extends StatelessWidget {
   final TextEditingController controller;
+  final ValueChanged<String> onChanged;
 
-  const _StaffSearchField({required this.controller});
+  const _StaffSearchField({
+    required this.controller,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -213,6 +126,7 @@ class _StaffSearchField extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              onChanged: onChanged,
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w500,
@@ -244,20 +158,29 @@ class _StaffSearchField extends StatelessWidget {
 }
 
 class _StaffListCard extends StatelessWidget {
-  final List<CreateShiftStaffOption> staff;
+  final List<ShiftStaffOption> staff;
   final Set<String> selectedIds;
+  final bool isLoading;
+  final String? errorMessage;
   final ValueChanged<String> onToggle;
+  final VoidCallback? onRetry;
 
   const _StaffListCard({
     required this.staff,
     required this.selectedIds,
+    required this.isLoading,
     required this.onToggle,
+    this.errorMessage,
+    this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
+      constraints: BoxConstraints(
+        minHeight: ResponsiveHelper.getResponsiveHeight(context, 120),
+      ),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
         border: Border.all(color: AppColors.searchBorder),
@@ -266,44 +189,91 @@ class _StaffListCard extends StatelessWidget {
         ),
       ),
       clipBehavior: Clip.antiAlias,
-      child: staff.isEmpty
-          ? Padding(
-              padding: ResponsiveHelper.getResponsivePadding(context, all: 24),
-              child: Text(
-                'No staff match your search.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w500,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            )
-          : Column(
-              children: [
-                for (var i = 0; i < staff.length; i++) ...[
-                  _StaffListTile(
-                    option: staff[i],
-                    selected: selectedIds.contains(staff[i].id),
-                    onTap: () => onToggle(staff[i].id),
-                  ),
-                  if (i < staff.length - 1)
-                    const Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: AppColors.dividerLight,
-                    ),
-                ],
-              ],
+      child: _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (isLoading && staff.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(28),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.2,
+              color: AppColors.secondaryTeal,
             ),
+          ),
+        ),
+      );
+    }
+
+    final error = errorMessage?.trim() ?? '';
+    if (error.isNotEmpty && staff.isEmpty) {
+      return Padding(
+        padding: ResponsiveHelper.getResponsivePadding(context, all: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                color: AppColors.textSecondary,
+              ),
+            ),
+            if (onRetry != null) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+              TextButton(onPressed: onRetry, child: const Text('Try again')),
+            ],
+          ],
+        ),
+      );
+    }
+
+    if (staff.isEmpty) {
+      return Padding(
+        padding: ResponsiveHelper.getResponsivePadding(context, all: 24),
+        child: Text(
+          'No staff match your search.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w500,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+            color: AppColors.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        for (var i = 0; i < staff.length; i++) ...[
+          _StaffListTile(
+            option: staff[i],
+            selected: selectedIds.contains(staff[i].id),
+            onTap: () => onToggle(staff[i].id),
+          ),
+          if (i < staff.length - 1)
+            const Divider(
+              height: 1,
+              thickness: 1,
+              color: AppColors.dividerLight,
+            ),
+        ],
+      ],
     );
   }
 }
 
 class _StaffListTile extends StatelessWidget {
-  final CreateShiftStaffOption option;
+  final ShiftStaffOption option;
   final bool selected;
   final VoidCallback onTap;
 

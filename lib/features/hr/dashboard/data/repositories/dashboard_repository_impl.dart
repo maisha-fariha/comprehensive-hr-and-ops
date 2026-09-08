@@ -10,8 +10,8 @@ import '../mappers/dashboard_overview_mapper.dart';
 /// Manager dashboard: composes session data with
 /// `/dashboard`, `/dashboard/alerts`, and `/notifications`.
 ///
-/// Today's schedule / quick actions are not rendered on the current Home
-/// screen, so `/shifts` is not fetched here.
+/// Quick Actions are static shortcuts (not API-driven). Today's Schedule /
+/// `/shifts` is not fetched for the current Home layout.
 class DashboardRepositoryImpl implements DashboardRepository {
   final AppApiClient _api;
   final UserSession _session;

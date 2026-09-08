@@ -99,21 +99,21 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Select your account type',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                        color: _labelColor,
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    _AccountTypeRow(
-                      selected: _selectedType,
-                      accent: _primaryTeal,
-                      onChanged: (type) => setState(() => _selectedType = type),
-                    ),
+                    // Text(
+                    //   'Select your account type',
+                    //   style: TextStyle(
+                    //     fontFamily: 'Outfit',
+                    //     fontWeight: FontWeight.w600,
+                    //     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                    //     color: _labelColor,
+                    //   ),
+                    // ),
+                    // SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                    // _AccountTypeRow(
+                    //   selected: _selectedType,
+                    //   accent: _primaryTeal,
+                    //   onChanged: (type) => setState(() => _selectedType = type),
+                    // ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
                     _FieldLabel(text: 'Workspace code', color: _labelColor),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
