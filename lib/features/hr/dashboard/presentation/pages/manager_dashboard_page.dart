@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
+import '../../../communication/presentation/pages/communication_page.dart';
 import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../../../hr_shell.dart';
 import '../../../presentation/open_manager_portal_search.dart';
@@ -148,7 +149,7 @@ class ManagerDashboardPage extends StatelessWidget {
       case QuickActionType.logNote:
         Get.to(() => const DailyLogsPage());
       case QuickActionType.message:
-        Get.to(() => const PortalNotificationsPage());
+        Get.to(() => const CommunicationPage());
     }
   }
 
