@@ -39,7 +39,7 @@ abstract final class DailyLogsMapper {
         .where((item) => item.overdueLabel.toLowerCase().contains('overdue'))
         .length;
     final pendingAck = handovers
-        .where((item) => item.acknowledgementCaption != null)
+        .where((item) => !item.isAcknowledged)
         .length;
     final urgent = handovers.where((item) => item.isUrgent).length;
 
@@ -193,9 +193,14 @@ abstract final class DailyLogsMapper {
           description: JsonCodec.stringOr(row['body'] ?? row['text'] ?? row['note'], ''),
         );
       }).toList(),
+      isAcknowledged: acknowledged,
       acknowledgementCaption: acknowledged
-          ? JsonCodec.string(json['acknowledgedByName'] ?? json['acknowledgedLabel'])
-          : JsonCodec.string(json['acknowledgementCaption']) ?? 'Awaiting acknowledgement',
+          ? JsonCodec.string(
+                json['acknowledgedByName'] ?? json['acknowledgedLabel'],
+              ) ??
+              'Acknowledged'
+          : JsonCodec.string(json['acknowledgementCaption']) ??
+              'Awaiting acknowledgement',
     );
   }
 

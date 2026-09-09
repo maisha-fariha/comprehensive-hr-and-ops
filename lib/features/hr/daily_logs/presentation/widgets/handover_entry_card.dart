@@ -14,8 +14,14 @@ import '../../domain/entities/handover_note.dart';
 class HandoverEntryCard extends StatelessWidget {
   final HandoverEntry entry;
   final VoidCallback? onAcknowledge;
+  final bool isAcknowledging;
 
-  const HandoverEntryCard({super.key, required this.entry, this.onAcknowledge});
+  const HandoverEntryCard({
+    super.key,
+    required this.entry,
+    this.onAcknowledge,
+    this.isAcknowledging = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -110,7 +116,11 @@ class HandoverEntryCard extends StatelessWidget {
                       ),
                       _AcknowledgementRow(
                         caption: entry.acknowledgementCaption!,
-                        onAcknowledge: onAcknowledge,
+                        isAcknowledged: entry.isAcknowledged,
+                        isAcknowledging: isAcknowledging,
+                        onAcknowledge: entry.isAcknowledged
+                            ? null
+                            : onAcknowledge,
                       ),
                     ],
                   ],
@@ -478,19 +488,29 @@ class _NoteRow extends StatelessWidget {
 
 class _AcknowledgementRow extends StatelessWidget {
   final String caption;
+  final bool isAcknowledged;
+  final bool isAcknowledging;
   final VoidCallback? onAcknowledge;
 
-  const _AcknowledgementRow({required this.caption, this.onAcknowledge});
+  const _AcknowledgementRow({
+    required this.caption,
+    this.isAcknowledged = false,
+    this.isAcknowledging = false,
+    this.onAcknowledge,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final captionColor =
+        isAcknowledged ? AppColors.secondaryTeal : AppColors.urgentAmber;
+
     return Row(
       children: [
         Container(
           width: ResponsiveHelper.getResponsiveSize(context, 7),
           height: ResponsiveHelper.getResponsiveSize(context, 7),
-          decoration: const BoxDecoration(
-            color: AppColors.urgentAmber,
+          decoration: BoxDecoration(
+            color: captionColor,
             shape: BoxShape.circle,
           ),
         ),
@@ -504,53 +524,68 @@ class _AcknowledgementRow extends StatelessWidget {
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w500,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-              color: AppColors.urgentAmber,
+              color: captionColor,
             ),
           ),
         ),
-        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-        GestureDetector(
-          onTap: onAcknowledge,
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            padding: ResponsiveHelper.getResponsivePadding(
-              context,
-              horizontal: 14,
-              vertical: 10,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.secondaryTeal,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 12),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const AppSvgIcon(
-                  AppAssets.checkCircle,
-                  size: 15,
-                  color: Colors.white,
+        if (!isAcknowledged) ...[
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+          GestureDetector(
+            onTap: isAcknowledging ? null : onAcknowledge,
+            behavior: HitTestBehavior.opaque,
+            child: Opacity(
+              opacity: isAcknowledging || onAcknowledge == null ? 0.6 : 1,
+              child: Container(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 14,
+                  vertical: 10,
                 ),
-                SizedBox(
-                  width: ResponsiveHelper.getResponsiveWidth(context, 5),
-                ),
-                Text(
-                  'Acknowledge',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(
-                      context,
-                      12.5,
-                    ),
-                    color: Colors.white,
+                decoration: BoxDecoration(
+                  color: AppColors.secondaryTeal,
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(context, 12),
                   ),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isAcknowledging)
+                      SizedBox(
+                        width: ResponsiveHelper.getResponsiveSize(context, 15),
+                        height: ResponsiveHelper.getResponsiveSize(context, 15),
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    else
+                      const AppSvgIcon(
+                        AppAssets.checkCircle,
+                        size: 15,
+                        color: Colors.white,
+                      ),
+                    SizedBox(
+                      width: ResponsiveHelper.getResponsiveWidth(context, 5),
+                    ),
+                    Text(
+                      isAcknowledging ? 'Saving…' : 'Acknowledge',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12.5,
+                        ),
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }

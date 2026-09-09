@@ -102,6 +102,9 @@ class DailyLogsPage extends StatelessWidget {
                   DailyLogsTab.handover => HandoverTabView(
                       stats: overview.handoverStats,
                       handoverEntries: overview.handoverEntries,
+                      acknowledgingHandoverId:
+                          controller.acknowledgingHandoverId.value,
+                      onAcknowledge: controller.acknowledgeHandover,
                     ),
                 },
               ),

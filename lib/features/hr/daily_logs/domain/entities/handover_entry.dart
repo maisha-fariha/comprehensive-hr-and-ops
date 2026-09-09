@@ -27,6 +27,7 @@ class HandoverEntry {
 
   final List<HandoverNote> notes;
   final String? acknowledgementCaption;
+  final bool isAcknowledged;
 
   const HandoverEntry({
     required this.id,
@@ -40,8 +41,30 @@ class HandoverEntry {
     this.toStaffInitials,
     this.notes = const [],
     this.acknowledgementCaption,
+    this.isAcknowledged = false,
   });
 
   /// A compact entry has no staff avatars/notes to render - just the header.
   bool get isCompact => fromStaffName == null && notes.isEmpty;
+
+  HandoverEntry copyWith({
+    String? acknowledgementCaption,
+    bool? isAcknowledged,
+  }) {
+    return HandoverEntry(
+      id: id,
+      fromShiftLabel: fromShiftLabel,
+      toShiftLabel: toShiftLabel,
+      isUrgent: isUrgent,
+      tagLabel: tagLabel,
+      fromStaffName: fromStaffName,
+      fromStaffInitials: fromStaffInitials,
+      toStaffName: toStaffName,
+      toStaffInitials: toStaffInitials,
+      notes: notes,
+      acknowledgementCaption:
+          acknowledgementCaption ?? this.acknowledgementCaption,
+      isAcknowledged: isAcknowledged ?? this.isAcknowledged,
+    );
+  }
 }

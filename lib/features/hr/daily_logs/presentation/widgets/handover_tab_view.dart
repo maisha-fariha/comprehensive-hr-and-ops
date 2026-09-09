@@ -16,11 +16,15 @@ import 'handover_entry_card.dart';
 class HandoverTabView extends StatelessWidget {
   final List<DailyLogSummaryStat> stats;
   final List<HandoverEntry> handoverEntries;
+  final String? acknowledgingHandoverId;
+  final ValueChanged<String>? onAcknowledge;
 
   const HandoverTabView({
     super.key,
     required this.stats,
     required this.handoverEntries,
+    this.acknowledgingHandoverId,
+    this.onAcknowledge,
   });
 
   @override
@@ -41,7 +45,11 @@ class HandoverTabView extends StatelessWidget {
       children: [
         _HandoverStatsRow(stats: stats),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-        _HandoverTimelineSection(entries: handoverEntries),
+        _HandoverTimelineSection(
+          entries: handoverEntries,
+          acknowledgingHandoverId: acknowledgingHandoverId,
+          onAcknowledge: onAcknowledge,
+        ),
       ],
     );
   }
@@ -185,8 +193,14 @@ class _HandoverStatCard extends StatelessWidget {
 
 class _HandoverTimelineSection extends StatelessWidget {
   final List<HandoverEntry> entries;
+  final String? acknowledgingHandoverId;
+  final ValueChanged<String>? onAcknowledge;
 
-  const _HandoverTimelineSection({required this.entries});
+  const _HandoverTimelineSection({
+    required this.entries,
+    this.acknowledgingHandoverId,
+    this.onAcknowledge,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -223,7 +237,13 @@ class _HandoverTimelineSection extends StatelessWidget {
         for (var i = 0; i < entries.length; i++) ...[
           if (i != 0)
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          HandoverEntryCard(entry: entries[i]),
+          HandoverEntryCard(
+            entry: entries[i],
+            isAcknowledging: acknowledgingHandoverId == entries[i].id,
+            onAcknowledge: entries[i].isAcknowledged || onAcknowledge == null
+                ? null
+                : () => onAcknowledge!(entries[i].id),
+          ),
         ],
       ],
     );
