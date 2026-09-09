@@ -14,6 +14,7 @@ class HrConversation {
   final int unreadCount;
   final bool isActive;
   final bool isGroup;
+  final bool isMonitored;
 
   const HrConversation({
     required this.id,
@@ -26,7 +27,29 @@ class HrConversation {
     this.unreadCount = 0,
     this.isActive = true,
     this.isGroup = true,
+    this.isMonitored = false,
   });
+
+  HrConversation copyWith({
+    String? preview,
+    String? dateLabel,
+    int? unreadCount,
+    bool? isActive,
+  }) {
+    return HrConversation(
+      id: id,
+      title: title,
+      preview: preview ?? this.preview,
+      dateLabel: dateLabel ?? this.dateLabel,
+      subtitle: subtitle,
+      kind: kind,
+      memberCount: memberCount,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isActive: isActive ?? this.isActive,
+      isGroup: isGroup,
+      isMonitored: isMonitored,
+    );
+  }
 }
 
 @immutable
@@ -37,6 +60,7 @@ class HrChatMessage {
   final String text;
   final String timeLabel;
   final ChatMessageDirection direction;
+  final int sortKey;
 
   const HrChatMessage({
     required this.id,
@@ -45,5 +69,6 @@ class HrChatMessage {
     required this.text,
     required this.timeLabel,
     required this.direction,
+    this.sortKey = 0,
   });
 }

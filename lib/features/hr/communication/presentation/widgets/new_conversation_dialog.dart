@@ -3,32 +3,37 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/communication_enums.dart';
+import '../../domain/entities/hr_message_contact.dart';
 
 class NewConversationResult {
   final ConversationFilter type;
-  final String recipientQuery;
+  final String title;
+  final List<String> memberUserIds;
   final String firstMessage;
 
   const NewConversationResult({
     required this.type,
-    required this.recipientQuery,
+    required this.title,
+    required this.memberUserIds,
     required this.firstMessage,
   });
 }
 
-/// Modal matching the "New Conversation" reference.
 Future<NewConversationResult?> showNewConversationDialog(
-  BuildContext context,
-) {
+  BuildContext context, {
+  required List<HrMessageContact> contacts,
+}) {
   return showDialog<NewConversationResult>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.45),
-    builder: (context) => const NewConversationDialog(),
+    builder: (context) => NewConversationDialog(contacts: contacts),
   );
 }
 
 class NewConversationDialog extends StatefulWidget {
-  const NewConversationDialog({super.key});
+  final List<HrMessageContact> contacts;
+
+  const NewConversationDialog({super.key, required this.contacts});
 
   @override
   State<NewConversationDialog> createState() => _NewConversationDialogState();
@@ -38,6 +43,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
   ConversationFilter _type = ConversationFilter.direct;
   late final TextEditingController _recipientController;
   late final TextEditingController _messageController;
+  final Set<String> _selectedIds = {};
 
   @override
   void initState() {
@@ -61,28 +67,70 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
     super.dispose();
   }
 
-  bool get _canStart => _recipientController.text.trim().isNotEmpty;
+  List<HrMessageContact> get _filteredContacts {
+    final query = _recipientController.text.trim().toLowerCase();
+    return widget.contacts.where((contact) {
+      if (query.isEmpty) return true;
+      return contact.name.toLowerCase().contains(query) ||
+          contact.roleLabel.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  bool get _canStart => _selectedIds.isNotEmpty;
 
   String get _recipientLabel => switch (_type) {
         ConversationFilter.direct => 'Staff member',
-        ConversationFilter.group => 'Residence',
-        ConversationFilter.family => 'Family contact',
+        ConversationFilter.group => 'Team members',
+        ConversationFilter.family => 'Contacts',
         ConversationFilter.all => 'Recipient',
       };
 
   String get _recipientHint => switch (_type) {
         ConversationFilter.direct => 'Search by name or role...',
-        ConversationFilter.group => 'Search residences...',
-        ConversationFilter.family => 'Search family contacts...',
+        ConversationFilter.group => 'Search team members...',
+        ConversationFilter.family => 'Search contacts...',
         ConversationFilter.all => 'Search...',
       };
 
+  void _toggleContact(HrMessageContact contact) {
+    setState(() {
+      if (_type == ConversationFilter.direct) {
+        _selectedIds
+          ..clear()
+          ..add(contact.id);
+        _recipientController.text = contact.name;
+        return;
+      }
+      if (_selectedIds.contains(contact.id)) {
+        _selectedIds.remove(contact.id);
+      } else {
+        _selectedIds.add(contact.id);
+      }
+    });
+  }
+
   void _submit() {
     if (!_canStart) return;
+    final selected = widget.contacts
+        .where((contact) => _selectedIds.contains(contact.id))
+        .toList();
+    final title = switch (_type) {
+      ConversationFilter.direct => selected.first.name,
+      ConversationFilter.group ||
+      ConversationFilter.family ||
+      ConversationFilter.all =>
+        _recipientController.text.trim().isEmpty
+            ? (selected.length == 1
+                ? selected.first.name
+                : 'Team conversation')
+            : _recipientController.text.trim(),
+    };
+
     Navigator.of(context).pop(
       NewConversationResult(
         type: _type,
-        recipientQuery: _recipientController.text.trim(),
+        title: title,
+        memberUserIds: selected.map((contact) => contact.id).toList(),
         firstMessage: _messageController.text.trim(),
       ),
     );
@@ -91,6 +139,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
   @override
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
+    final filtered = _filteredContacts;
 
     return Dialog(
       insetPadding: ResponsiveHelper.getResponsivePadding(
@@ -143,6 +192,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
                       selected: _type == ConversationFilter.direct,
                       onTap: () => setState(() {
                         _type = ConversationFilter.direct;
+                        _selectedIds.clear();
                         _recipientController.clear();
                       }),
                     ),
@@ -156,6 +206,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
                       selected: _type == ConversationFilter.group,
                       onTap: () => setState(() {
                         _type = ConversationFilter.group;
+                        _selectedIds.clear();
                         _recipientController.clear();
                       }),
                     ),
@@ -169,8 +220,23 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
                       selected: _type == ConversationFilter.family,
                       onTap: () => setState(() {
                         _type = ConversationFilter.family;
+                        _selectedIds.clear();
                         _recipientController.clear();
                       }),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 8),
+                    ),
+                    Text(
+                      'New threads are created as residence groups (API contract).',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          11.5,
+                        ),
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 18),
@@ -195,6 +261,121 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
                       hint: _recipientHint,
                       prefixIcon: Icons.search_rounded,
                     ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 10),
+                    ),
+                    if (widget.contacts.isEmpty)
+                      Text(
+                        'No contacts available yet.',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            12.5,
+                          ),
+                          color: AppColors.textSecondary,
+                        ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: ResponsiveHelper.getResponsiveHeight(
+                            context,
+                            180,
+                          ),
+                        ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: filtered.length,
+                              separatorBuilder: (_, _) => SizedBox(
+                            height: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              6,
+                            ),
+                          ),
+                          itemBuilder: (context, index) {
+                            final contact = filtered[index];
+                            final selected =
+                                _selectedIds.contains(contact.id);
+                            return Material(
+                              color: selected
+                                  ? const Color(0xFFE8F4F3)
+                                  : AppColors.filterButtonBackground,
+                              borderRadius: BorderRadius.circular(
+                                ResponsiveHelper.getResponsiveRadius(
+                                  context,
+                                  10,
+                                ),
+                              ),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(
+                                  ResponsiveHelper.getResponsiveRadius(
+                                    context,
+                                    10,
+                                  ),
+                                ),
+                                onTap: () => _toggleContact(contact),
+                                child: Padding(
+                                  padding:
+                                      ResponsiveHelper.getResponsivePadding(
+                                    context,
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              contact.name,
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: ResponsiveHelper
+                                                    .getResponsiveFontSize(
+                                                  context,
+                                                  13,
+                                                ),
+                                                color: AppColors.textHeading,
+                                              ),
+                                            ),
+                                            Text(
+                                              contact.roleLabel,
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: ResponsiveHelper
+                                                    .getResponsiveFontSize(
+                                                  context,
+                                                  11.5,
+                                                ),
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (selected)
+                                        Icon(
+                                          Icons.check_circle,
+                                          size:
+                                              ResponsiveHelper
+                                                  .getResponsiveSize(
+                                            context,
+                                            18,
+                                          ),
+                                          color: AppColors.secondaryTeal,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 16),
                     ),
@@ -315,7 +496,7 @@ class _Header extends StatelessWidget {
                   height: ResponsiveHelper.getResponsiveHeight(context, 4),
                 ),
                 Text(
-                  'Start a direct message, a residence group, or a family thread.',
+                  'Pick contacts from messaging directory, then start the thread.',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w400,

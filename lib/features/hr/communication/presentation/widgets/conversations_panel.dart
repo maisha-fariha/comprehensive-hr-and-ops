@@ -16,6 +16,7 @@ class ConversationsPanel extends StatelessWidget {
   final ValueChanged<ConversationFilter> onFilterSelected;
   final ValueChanged<String> onConversationTap;
   final VoidCallback? onComposeTap;
+  final VoidCallback? onMarkAllRead;
 
   const ConversationsPanel({
     super.key,
@@ -29,6 +30,7 @@ class ConversationsPanel extends StatelessWidget {
     required this.onFilterSelected,
     required this.onConversationTap,
     this.onComposeTap,
+    this.onMarkAllRead,
   });
 
   @override
@@ -91,12 +93,24 @@ class ConversationsPanel extends StatelessWidget {
                 IconButton(
                   onPressed: onComposeTap,
                   visualDensity: VisualDensity.compact,
+                  tooltip: 'New conversation',
                   icon: Icon(
                     Icons.edit_square,
                     size: ResponsiveHelper.getResponsiveSize(context, 20),
                     color: AppColors.textMuted,
                   ),
                 ),
+                if (onMarkAllRead != null)
+                  IconButton(
+                    onPressed: onMarkAllRead,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Mark all read',
+                    icon: Icon(
+                      Icons.done_all_rounded,
+                      size: ResponsiveHelper.getResponsiveSize(context, 20),
+                      color: AppColors.textMuted,
+                    ),
+                  ),
               ],
             ),
           ),

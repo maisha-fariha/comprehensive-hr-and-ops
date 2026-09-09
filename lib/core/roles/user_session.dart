@@ -40,6 +40,7 @@ class FamilyVisibility {
 /// Role is never chosen on the login screen — it comes from `GET /mobile/me`.
 class UserSession extends GetxService {
   final Rxn<UserRole> _role = Rxn<UserRole>();
+  final RxnString _userId = RxnString();
   final RxString _displayName = ''.obs;
   final RxString _email = ''.obs;
   final RxString _avatarInitials = ''.obs;
@@ -54,6 +55,7 @@ class UserSession extends GetxService {
 
   UserRole get role => _role.value ?? UserRole.hr;
   bool get isSignedIn => _role.value != null;
+  String? get userId => _userId.value;
   String get displayName => _displayName.value;
   String get email => _email.value;
   String get avatarInitials => _avatarInitials.value;
@@ -112,6 +114,7 @@ class UserSession extends GetxService {
 
   void applyProfile(MobileProfile profile) {
     _role.value = profile.role;
+    _userId.value = profile.id.isEmpty ? null : profile.id;
     _displayName.value = profile.displayName;
     _email.value = profile.email;
     _avatarInitials.value = profile.avatarInitials;
@@ -190,6 +193,7 @@ class UserSession extends GetxService {
 
   void _clear() {
     _role.value = null;
+    _userId.value = null;
     _displayName.value = '';
     _email.value = '';
     _avatarInitials.value = '';

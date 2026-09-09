@@ -60,13 +60,19 @@ class Step3InvestigateForm extends StatelessWidget {
               ),
               gap,
               const WizardFieldLabel('Follow-up Date'),
-              WizardDateField(controller: controller.followUpDateController),
+              WizardDateField(
+                controller: controller.followUpDateController,
+                onTap: () => controller.pickFollowUpDate(context),
+              ),
               gap,
               const WizardFieldLabel('Supervisor Review Assignment'),
               Obx(
                 () => WizardDropdownField(
                   value: controller.supervisorAssignment.value,
-                  placeholder: 'Assign supervisor...',
+                  placeholder: controller.isLoadingStaff.value
+                      ? 'Loading staff…'
+                      : 'Assign supervisor...',
+                  onTap: () => controller.pickSupervisor(context),
                 ),
               ),
             ],

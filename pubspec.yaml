@@ -66,6 +66,7 @@ dependencies:
 
   # Renders the exact vector icons exported from Figma pixel-for-pixel
   flutter_svg: ^2.0.10+1
+  file_picker: ^8.0.0+1
 
 dev_dependencies:
   flutter_test:

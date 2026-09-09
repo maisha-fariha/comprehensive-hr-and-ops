@@ -143,13 +143,13 @@ class _DashedRectPainter extends CustomPainter {
 class EvidenceFileChip extends StatelessWidget {
   final String fileName;
   final String subtitle;
-  final VoidCallback onRemove;
+  final VoidCallback? onRemove;
 
   const EvidenceFileChip({
     super.key,
     required this.fileName,
     required this.subtitle,
-    required this.onRemove,
+    this.onRemove,
   });
 
   @override
@@ -221,19 +221,21 @@ class EvidenceFileChip extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          GestureDetector(
-            onTap: onRemove,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
-              child: Icon(
-                Icons.close_rounded,
-                size: ResponsiveHelper.getResponsiveSize(context, 18),
-                color: AppColors.textFaint,
+          if (onRemove != null) ...[
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            GestureDetector(
+              onTap: onRemove,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: ResponsiveHelper.getResponsiveSize(context, 18),
+                  color: AppColors.textFaint,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

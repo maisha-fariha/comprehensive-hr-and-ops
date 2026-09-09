@@ -2,8 +2,10 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/closed_incident.dart';
 import '../../domain/entities/incident_category_option.dart';
+import '../../domain/entities/incident_cir_template_option.dart';
 import '../../domain/entities/incident_client_option.dart';
 import '../../domain/entities/incident_residence_option.dart';
+import '../../domain/entities/incident_staff_option.dart';
 import '../../domain/entities/incident_stat.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
@@ -121,6 +123,56 @@ abstract final class IncidentsMapper {
         name,
       );
       options.add(IncidentCategoryOption(id: id, name: name));
+    }
+    return options;
+  }
+
+  /// Parse `GET /incidents/cir-templates`.
+  static List<IncidentCirTemplateOption> cirTemplatesFrom(dynamic body) {
+    final options = <IncidentCirTemplateOption>[];
+    for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
+      final json = JsonCodec.asMap(item);
+      final name = JsonCodec.string(json['name'] ?? json['title']) ?? '';
+      if (name.isEmpty) continue;
+      options.add(
+        IncidentCirTemplateOption(
+          id: JsonCodec.stringOr(json['id'], name),
+          name: name,
+          provinceOrState: JsonCodec.string(json['provinceOrState']),
+          version: JsonCodec.integer(json['version']),
+        ),
+      );
+    }
+    return options;
+  }
+
+  /// Parse `GET /staff` into people-picker options.
+  static List<IncidentStaffOption> staffFrom(dynamic body) {
+    final options = <IncidentStaffOption>[];
+    for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
+      final json = JsonCodec.asMap(item);
+      final first = JsonCodec.string(json['firstName']) ?? '';
+      final last = JsonCodec.string(json['lastName']) ?? '';
+      final combined = '$first $last'.trim();
+      final name = JsonCodec.string(
+            json['name'] ??
+                json['displayName'] ??
+                json['fullName'] ??
+                (combined.isEmpty ? null : combined),
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      final category = JsonCodec.mapAt(json, 'category') ?? const {};
+      options.add(
+        IncidentStaffOption(
+          id: JsonCodec.stringOr(json['id'] ?? json['staffId'], name),
+          name: name,
+          email: JsonCodec.string(json['email']),
+          roleLabel: JsonCodec.string(
+            category['name'] ?? json['role'] ?? json['jobTitle'],
+          ),
+        ),
+      );
     }
     return options;
   }

@@ -3,6 +3,7 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 import '../../features/auth/di/auth_di.dart';
 import '../../features/common/inbox/di/portal_inbox_di.dart';
 import '../../features/hr/attendance/di/attendance_di.dart';
+import '../../features/hr/communication/di/communication_di.dart';
 import '../../features/hr/daily_logs/di/daily_logs_di.dart';
 import '../../features/hr/dashboard/di/dashboard_di.dart';
 import '../../features/hr/incidents/di/incidents_di.dart';
@@ -39,6 +40,7 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupHrSchedulingDependencies();
   await setupHrAttendanceDependencies();
   await setupHrDailyLogsDependencies();
+  await setupHrCommunicationDependencies();
   await setupHrIncidentsDependencies();
   await setupHrMedicationDependencies();
   await setupHrTasksComplianceDependencies();

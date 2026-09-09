@@ -14,22 +14,36 @@ import '../widgets/wizard_header.dart';
 
 /// The 4-step "Create Incident" wizard, reached from the "+ Create
 /// Incident" button on the Incidents list screen.
-class IncidentCreationPage extends StatelessWidget {
+class IncidentCreationPage extends StatefulWidget {
   const IncidentCreationPage({super.key});
 
-  /// Always starts a fresh controller instance for a new draft rather than
-  /// resolving the `get_it`-registered one.
-  IncidentCreationController _resolveController() {
+  @override
+  State<IncidentCreationPage> createState() => _IncidentCreationPageState();
+}
+
+class _IncidentCreationPageState extends State<IncidentCreationPage> {
+  late final IncidentCreationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // One controller for this page visit — never recreate inside build().
     if (Get.isRegistered<IncidentCreationController>()) {
       Get.delete<IncidentCreationController>(force: true);
     }
-    return Get.put(IncidentCreationController());
+    _controller = Get.put(IncidentCreationController());
+  }
+
+  @override
+  void dispose() {
+    if (Get.isRegistered<IncidentCreationController>()) {
+      Get.delete<IncidentCreationController>(force: true);
+    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
-
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       body: SafeArea(
@@ -39,17 +53,17 @@ class IncidentCreationPage extends StatelessWidget {
               Container(
                 color: AppColors.surfaceWhite,
                 child: WizardHeader(
-                  currentStep: controller.currentStep.value,
-                  draftId: controller.draftId.value,
+                  currentStep: _controller.currentStep.value,
+                  draftId: _controller.draftId.value,
                   onBack: () {
-                    if (controller.currentStepIndex > 0) {
-                      controller.previousStep();
+                    if (_controller.currentStepIndex > 0) {
+                      _controller.previousStep();
                     } else {
                       Get.back();
                     }
                   },
                   onClose: Get.back,
-                  onStepTap: controller.goToStep,
+                  onStepTap: _controller.goToStep,
                 ),
               ),
               Expanded(
@@ -61,27 +75,27 @@ class IncidentCreationPage extends StatelessWidget {
                       horizontal: 20,
                       vertical: 18,
                     ),
-                    child: _StepBody(controller: controller),
+                    child: _StepBody(controller: _controller),
                   ),
                 ),
               ),
               WizardBottomBar(
-                isLastStep: controller.isLastStep,
-                onSaveDraft: controller.isSubmitting.value
+                isLastStep: _controller.isLastStep,
+                onSaveDraft: _controller.isSubmitting.value
                     ? null
                     : () async {
-                        final ok = await controller.submit(asDraft: true);
-                        if (ok) Get.back(result: true);
+                        final ok = await _controller.submit(asDraft: true);
+                        if (ok && mounted) Get.back(result: true);
                       },
-                onPrimary: controller.isSubmitting.value
+                onPrimary: _controller.isSubmitting.value
                     ? null
                     : () async {
-                        if (!controller.isLastStep) {
-                          controller.nextStep();
+                        if (!_controller.isLastStep) {
+                          _controller.nextStep();
                           return;
                         }
-                        final ok = await controller.submit();
-                        if (ok) Get.back(result: true);
+                        final ok = await _controller.submit();
+                        if (ok && mounted) Get.back(result: true);
                       },
               ),
             ],

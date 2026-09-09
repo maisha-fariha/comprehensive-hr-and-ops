@@ -11,6 +11,8 @@ class ChatPanel extends StatelessWidget {
   final List<HrChatMessage> messages;
   final TextEditingController messageController;
   final VoidCallback onSend;
+  final bool isLoading;
+  final bool isSending;
 
   const ChatPanel({
     super.key,
@@ -18,6 +20,8 @@ class ChatPanel extends StatelessWidget {
     required this.messages,
     required this.messageController,
     required this.onSend,
+    this.isLoading = false,
+    this.isSending = false,
   });
 
   @override
@@ -55,29 +59,49 @@ class ChatPanel extends StatelessWidget {
         children: [
           _ChatHeader(conversation: conversation!),
           const Divider(height: 1, color: AppColors.cardBorder),
-          const _MonitoredBanner(),
+          if (conversation!.isMonitored) const _MonitoredBanner(),
           Expanded(
-            child: ListView.builder(
-              padding: ResponsiveHelper.getResponsivePadding(
-                context,
-                horizontal: 16,
-                vertical: 12,
-              ),
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: ResponsiveHelper.getResponsiveHeight(context, 14),
-                  ),
-                  child: _MessageBubble(message: messages[index]),
-                );
-              },
-            ),
+            child: isLoading && messages.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : messages.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No messages yet. Say hello.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            color: AppColors.textSecondary,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              13.5,
+                            ),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              bottom: ResponsiveHelper.getResponsiveHeight(
+                                context,
+                                14,
+                              ),
+                            ),
+                            child: _MessageBubble(message: messages[index]),
+                          );
+                        },
+                      ),
           ),
           const Divider(height: 1, color: AppColors.cardBorder),
           _Composer(
             controller: messageController,
-            onSend: onSend,
+            onSend: isSending ? null : onSend,
+            isSending: isSending,
           ),
         ],
       ),
@@ -345,11 +369,13 @@ class _MessageBubble extends StatelessWidget {
 
 class _Composer extends StatelessWidget {
   final TextEditingController controller;
-  final VoidCallback onSend;
+  final VoidCallback? onSend;
+  final bool isSending;
 
   const _Composer({
     required this.controller,
     required this.onSend,
+    this.isSending = false,
   });
 
   @override
@@ -383,8 +409,9 @@ class _Composer extends StatelessWidget {
                     controller: controller,
                     minLines: 1,
                     maxLines: 4,
+                    enabled: !isSending,
                     textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSend(),
+                    onSubmitted: (_) => onSend?.call(),
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: ResponsiveHelper.getResponsiveFontSize(
@@ -425,12 +452,27 @@ class _Composer extends StatelessWidget {
                   child: SizedBox(
                     width: ResponsiveHelper.getResponsiveSize(context, 44),
                     height: ResponsiveHelper.getResponsiveSize(context, 44),
-                    child: const Center(
-                      child: AppSvgIcon(
-                        'assets/icons/staff_tasks_messages/send.svg',
-                        size: 18,
-                        color: Colors.white,
-                      ),
+                    child: Center(
+                      child: isSending
+                          ? SizedBox(
+                              width: ResponsiveHelper.getResponsiveSize(
+                                context,
+                                18,
+                              ),
+                              height: ResponsiveHelper.getResponsiveSize(
+                                context,
+                                18,
+                              ),
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const AppSvgIcon(
+                              'assets/icons/staff_tasks_messages/send.svg',
+                              size: 18,
+                              color: Colors.white,
+                            ),
                     ),
                   ),
                 ),

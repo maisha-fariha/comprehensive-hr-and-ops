@@ -1,121 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_conversation.dart';
+import '../../domain/entities/hr_message_contact.dart';
+import '../../domain/repositories/communication_repository.dart';
 
-/// Local UI state for the HR Communication screen (Messages tab).
-class CommunicationController extends GetxController {
+/// GetX controller for Manager Communication (A11 Messaging).
+class CommunicationController
+    extends BaseController<List<HrConversation>> {
+  final CommunicationRepository repository;
+
+  CommunicationController({
+    required this.repository,
+  }) {
+    loadConversations();
+    loadContacts();
+  }
+
   final selectedTab = CommunicationTab.messages.obs;
   final selectedFilter = ConversationFilter.all.obs;
   final searchQuery = ''.obs;
   final selectedConversationId = RxnString();
   final draftText = ''.obs;
+  final isSending = false.obs;
+  final isStarting = false.obs;
+  final isLoadingMessages = false.obs;
+  final isLoadingContacts = false.obs;
+  final contacts = <HrMessageContact>[].obs;
+  final activeMessages = <HrChatMessage>[].obs;
 
   late final TextEditingController searchController;
   late final TextEditingController messageController;
 
-  final List<HrConversation> _conversations = [
-    const HrConversation(
-      id: 'elm-day',
-      title: 'Elm House — day shift',
-      preview: 'hi',
-      dateLabel: '28/08/2026',
-      subtitle: 'Residence group · 3 people',
-      kind: ConversationFilter.group,
-      memberCount: 3,
-      unreadCount: 0,
-      isActive: true,
-      isGroup: true,
-    ),
-    const HrConversation(
-      id: 'maya-direct',
-      title: 'Maya Rahman',
-      preview: 'Can you cover tomorrow morning?',
-      dateLabel: '27/08/2026',
-      subtitle: 'Direct message',
-      kind: ConversationFilter.direct,
-      memberCount: 2,
-      unreadCount: 1,
-      isActive: true,
-      isGroup: false,
-    ),
-    const HrConversation(
-      id: 'family-ayaan',
-      title: 'Ayaan — family',
-      preview: 'Thank you for the update.',
-      dateLabel: '26/08/2026',
-      subtitle: 'Family channel · 4 people',
-      kind: ConversationFilter.family,
-      memberCount: 4,
-      unreadCount: 0,
-      isActive: false,
-      isGroup: true,
-    ),
-  ];
-
-  /// Bumps when the conversation list changes so Obx rebuilds.
-  final listVersion = 0.obs;
-
-  final Map<String, List<HrChatMessage>> _threads = {
-    'elm-day': const [
-      HrChatMessage(
-        id: 'm1',
-        senderName: 'Maya Rahman',
-        senderInitials: 'MR',
-        text:
-            'Handover at 14:00 today — the district nurse is visiting Ayaan first.',
-        timeLabel: '15:33',
-        direction: ChatMessageDirection.incoming,
-      ),
-      HrChatMessage(
-        id: 'm2',
-        senderName: 'Tenant Admin',
-        senderInitials: 'TA',
-        text: 'hello',
-        timeLabel: '01:11',
-        direction: ChatMessageDirection.outgoing,
-      ),
-      HrChatMessage(
-        id: 'm3',
-        senderName: 'Tenant Admin',
-        senderInitials: 'TA',
-        text: 'hi',
-        timeLabel: '01:11',
-        direction: ChatMessageDirection.outgoing,
-      ),
-    ],
-    'maya-direct': const [
-      HrChatMessage(
-        id: 'd1',
-        senderName: 'Maya Rahman',
-        senderInitials: 'MR',
-        text: 'Can you cover tomorrow morning?',
-        timeLabel: '18:20',
-        direction: ChatMessageDirection.incoming,
-      ),
-    ],
-    'family-ayaan': const [
-      HrChatMessage(
-        id: 'f1',
-        senderName: 'Nusrat Khan',
-        senderInitials: 'NK',
-        text: 'Thank you for the update.',
-        timeLabel: '11:05',
-        direction: ChatMessageDirection.incoming,
-      ),
-    ],
-  };
-
-  final RxList<HrChatMessage> activeMessages = <HrChatMessage>[].obs;
+  List<HrConversation> get conversations => state.value.data ?? const [];
 
   @override
   void onInit() {
     super.onInit();
     searchController = TextEditingController();
     messageController = TextEditingController();
-    selectedConversationId.value = _conversations.first.id;
-    _loadActiveMessages();
   }
 
   @override
@@ -126,9 +53,8 @@ class CommunicationController extends GetxController {
   }
 
   List<HrConversation> get filteredConversations {
-    listVersion.value; // dependency for Obx
     final query = searchQuery.value.trim().toLowerCase();
-    return _conversations.where((conversation) {
+    return conversations.where((conversation) {
       final matchesFilter = selectedFilter.value == ConversationFilter.all ||
           conversation.kind == selectedFilter.value;
       final matchesQuery = query.isEmpty ||
@@ -141,16 +67,16 @@ class CommunicationController extends GetxController {
   HrConversation? get selectedConversation {
     final id = selectedConversationId.value;
     if (id == null) return null;
-    for (final conversation in _conversations) {
+    for (final conversation in conversations) {
       if (conversation.id == id) return conversation;
     }
     return null;
   }
 
   int get activeCount =>
-      _conversations.where((conversation) => conversation.isActive).length;
+      conversations.where((conversation) => conversation.isActive).length;
 
-  int get unreadCount => _conversations.fold<int>(
+  int get unreadCount => conversations.fold<int>(
         0,
         (sum, conversation) => sum + conversation.unreadCount,
       );
@@ -161,97 +87,207 @@ class CommunicationController extends GetxController {
 
   void onSearchChanged(String value) => searchQuery.value = value;
 
-  void selectConversation(String id) {
+  Future<void> loadConversations() async {
+    setLoading(true);
+    final result = await repository.getConversations();
+    result.when(
+      success: (items) {
+        setSuccess(items);
+        final selected = selectedConversationId.value;
+        if (selected == null ||
+            items.every((conversation) => conversation.id != selected)) {
+          selectedConversationId.value =
+              items.isEmpty ? null : items.first.id;
+        }
+        final id = selectedConversationId.value;
+        if (id != null) {
+          loadMessages(id);
+        } else {
+          activeMessages.clear();
+        }
+      },
+      failure: (error) {
+        setError(error.message);
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not load conversations',
+        );
+      },
+    );
+    setLoading(false);
+  }
+
+  Future<void> loadContacts() async {
+    isLoadingContacts.value = true;
+    final result = await repository.getContacts();
+    result.when(
+      success: (items) => contacts.assignAll(items),
+      failure: (_) {},
+    );
+    isLoadingContacts.value = false;
+  }
+
+  Future<void> selectConversation(String id) async {
+    if (selectedConversationId.value == id) return;
     selectedConversationId.value = id;
-    _loadActiveMessages();
+    await loadMessages(id);
+    await repository.markThreadRead(id);
+    _clearUnreadLocally(id);
   }
 
-  void _loadActiveMessages() {
-    final id = selectedConversationId.value;
-    activeMessages.assignAll(_threads[id] ?? const []);
+  Future<void> loadMessages(String conversationId) async {
+    isLoadingMessages.value = true;
+    final result = await repository.getMessages(conversationId);
+    result.when(
+      success: (messages) {
+        if (selectedConversationId.value == conversationId) {
+          activeMessages.assignAll(messages);
+        }
+      },
+      failure: (error) {
+        if (selectedConversationId.value == conversationId) {
+          activeMessages.clear();
+          AppErrorDialog.showResultError(
+            error,
+            fallbackTitle: 'Could not load messages',
+          );
+        }
+      },
+    );
+    isLoadingMessages.value = false;
   }
 
-  void sendMessage() {
+  Future<void> sendMessage() async {
     final text = messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || isSending.value) return;
     final id = selectedConversationId.value;
     if (id == null) return;
 
-    final now = TimeOfDay.now();
-    final hour = now.hour.toString().padLeft(2, '0');
-    final minute = now.minute.toString().padLeft(2, '0');
-    final message = HrChatMessage(
-      id: 'local-${DateTime.now().millisecondsSinceEpoch}',
-      senderName: 'Tenant Admin',
-      senderInitials: 'TA',
-      text: text,
-      timeLabel: '$hour:$minute',
-      direction: ChatMessageDirection.outgoing,
+    isSending.value = true;
+    final result = await repository.sendMessage(
+      conversationId: id,
+      body: text,
     );
-    final existing = List<HrChatMessage>.from(_threads[id] ?? const []);
-    existing.add(message);
-    _threads[id] = existing;
-    activeMessages.add(message);
-    messageController.clear();
-    draftText.value = '';
+    result.when(
+      success: (message) {
+        activeMessages.add(message);
+        messageController.clear();
+        draftText.value = '';
+        _patchConversationPreview(id, message.text);
+      },
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not send message',
+        );
+      },
+    );
+    isSending.value = false;
   }
 
-  void startConversation({
-    required ConversationFilter type,
-    required String recipient,
+  Future<void> startConversation({
+    required String title,
+    required List<String> memberUserIds,
     String firstMessage = '',
-  }) {
-    final trimmedRecipient = recipient.trim();
-    if (trimmedRecipient.isEmpty) return;
+  }) async {
+    if (isStarting.value) return;
+    final trimmedTitle = title.trim();
+    if (trimmedTitle.isEmpty || memberUserIds.isEmpty) return;
 
-    final id = 'new-${DateTime.now().millisecondsSinceEpoch}';
+    isStarting.value = true;
+    final result = await repository.startConversation(
+      title: trimmedTitle,
+      memberUserIds: memberUserIds,
+    );
+
+    await result.when(
+      success: (conversation) async {
+        final existing = List<HrConversation>.from(conversations);
+        existing.removeWhere((item) => item.id == conversation.id);
+        existing.insert(0, conversation);
+        setSuccess(existing);
+        selectedFilter.value = ConversationFilter.all;
+        selectedTab.value = CommunicationTab.messages;
+        selectedConversationId.value = conversation.id;
+        activeMessages.clear();
+
+        final messageText = firstMessage.trim();
+        if (messageText.isNotEmpty) {
+          final sent = await repository.sendMessage(
+            conversationId: conversation.id,
+            body: messageText,
+          );
+          sent.when(
+            success: (message) {
+              activeMessages.assignAll([message]);
+              _patchConversationPreview(conversation.id, message.text);
+            },
+            failure: (error) {
+              AppErrorDialog.showResultError(
+                error,
+                fallbackTitle: 'Conversation created, but message failed',
+              );
+            },
+          );
+        }
+
+        AppSnackbar.show(
+          'Conversation started',
+          conversation.title,
+        );
+      },
+      failure: (error) async {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not start conversation',
+        );
+      },
+    );
+    isStarting.value = false;
+  }
+
+  Future<void> markAllRead() async {
+    final result = await repository.markAllRead();
+    result.when(
+      success: (_) {
+        final updated = conversations
+            .map((conversation) => conversation.copyWith(unreadCount: 0))
+            .toList();
+        setSuccess(updated);
+        AppSnackbar.show('All caught up', 'Conversations marked as read.');
+      },
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not mark conversations read',
+        );
+      },
+    );
+  }
+
+  void _clearUnreadLocally(String id) {
+    final updated = conversations.map((conversation) {
+      if (conversation.id != id) return conversation;
+      return conversation.copyWith(unreadCount: 0);
+    }).toList();
+    setSuccess(updated);
+  }
+
+  void _patchConversationPreview(String id, String preview) {
     final now = DateTime.now();
     final dateLabel =
         '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
-    final isGroup = type != ConversationFilter.direct;
-    final subtitle = switch (type) {
-      ConversationFilter.direct => 'Direct message',
-      ConversationFilter.group => 'Residence group',
-      ConversationFilter.family => 'Family channel',
-      ConversationFilter.all => 'Conversation',
-    };
-
-    _conversations.insert(
-      0,
-      HrConversation(
-        id: id,
-        title: trimmedRecipient,
-        preview: firstMessage.trim().isEmpty ? 'New conversation' : firstMessage.trim(),
+    final updated = conversations.map((conversation) {
+      if (conversation.id != id) return conversation;
+      return conversation.copyWith(
+        preview: preview,
         dateLabel: dateLabel,
-        subtitle: subtitle,
-        kind: type == ConversationFilter.all ? ConversationFilter.direct : type,
-        memberCount: isGroup ? 3 : 2,
         unreadCount: 0,
         isActive: true,
-        isGroup: isGroup,
-      ),
-    );
-
-    final messages = <HrChatMessage>[];
-    if (firstMessage.trim().isNotEmpty) {
-      final time = TimeOfDay.now();
-      messages.add(
-        HrChatMessage(
-          id: '$id-first',
-          senderName: 'Tenant Admin',
-          senderInitials: 'TA',
-          text: firstMessage.trim(),
-          timeLabel:
-              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
-          direction: ChatMessageDirection.outgoing,
-        ),
       );
-    }
-    _threads[id] = messages;
-    selectedFilter.value = ConversationFilter.all;
-    selectedTab.value = CommunicationTab.messages;
-    selectedConversationId.value = id;
-    activeMessages.assignAll(messages);
-    listVersion.value++;
+    }).toList();
+    setSuccess(updated);
   }
+
+  Future<void> refreshConversations() => loadConversations();
 }
