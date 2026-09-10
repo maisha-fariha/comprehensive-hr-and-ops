@@ -17,6 +17,7 @@ class StaffOverviewSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         Text(
           "Today's Overview",
           style: TextStyle(
@@ -24,12 +25,14 @@ class StaffOverviewSection extends StatelessWidget {
             fontWeight: FontWeight.w700,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
             color: AppColors.textHeading,
+            height: 1.2,
           ),
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
           itemCount: stats.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,

@@ -67,7 +67,9 @@ class StaffDashboardPage extends StatelessWidget {
           context,
           kStaffShiftCardOverlap,
         );
-        final afterShiftGap = overlap + ResponsiveHelper.getResponsiveHeight(context, 16);
+        // Card hangs [overlap] below the header; add a small gap before body.
+        final afterShiftGap =
+            overlap + ResponsiveHelper.getResponsiveHeight(context, 10);
 
         return RefreshIndicator(
           color: AppColors.secondaryTeal,
