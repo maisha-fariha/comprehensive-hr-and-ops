@@ -9,6 +9,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
@@ -37,17 +38,24 @@ class IncidentCreationController extends GetxController {
 
   final IncidentsRepository repository;
   final UserSession session;
+  final String? editIncidentId;
 
   IncidentCreationController({
     IncidentsRepository? repository,
     UserSession? session,
+    this.editIncidentId,
   })  : repository = repository ?? GetIt.instance<IncidentsRepository>(),
         session = session ?? Get.find<UserSession>();
 
   final Rx<IncidentCreationStep> currentStep = IncidentCreationStep.details.obs;
   final RxBool isSubmitting = false.obs;
+  final RxBool isLoadingEdit = false.obs;
   final RxString draftId = ''.obs;
   final RxString submitError = ''.obs;
+  final RxnString existingStatus = RxnString();
+
+  bool get isEditMode =>
+      editIncidentId != null && editIncidentId!.trim().isNotEmpty;
 
   int get currentStepIndex => steps.indexOf(currentStep.value);
   bool get isLastStep => currentStep.value == IncidentCreationStep.evidence;
@@ -131,30 +139,45 @@ class IncidentCreationController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    final now = DateTime.now();
-    incidentDateController.text = _formatIncidentDate(now);
-    incidentTimeController.text = _formatIncidentTime(
-      TimeOfDay(hour: now.hour, minute: now.minute),
-    );
-
-    final sessionResidenceName = session.residenceName;
-    final sessionResidenceId = session.residenceId;
-    if (sessionResidenceName != null && sessionResidenceName.isNotEmpty) {
-      final seeded = IncidentResidenceOption(
-        id: sessionResidenceId ?? sessionResidenceName,
-        name: sessionResidenceName,
+    if (!isEditMode) {
+      final now = DateTime.now();
+      incidentDateController.text = _formatIncidentDate(now);
+      incidentTimeController.text = _formatIncidentTime(
+        TimeOfDay(hour: now.hour, minute: now.minute),
       );
-      selectedResidence.value = seeded;
-      residence.value = seeded.name;
-      selectedResidenceId.value = seeded.id;
+
+      final sessionResidenceName = session.residenceName;
+      final sessionResidenceId = session.residenceId;
+      if (sessionResidenceName != null && sessionResidenceName.isNotEmpty) {
+        final seeded = IncidentResidenceOption(
+          id: sessionResidenceId ?? sessionResidenceName,
+          name: sessionResidenceName,
+        );
+        selectedResidence.value = seeded;
+        residence.value = seeded.name;
+        selectedResidenceId.value = seeded.id;
+      }
+
+      reportedBy.value = session.displayName;
+      draftId.value = 'Draft';
+    } else {
+      final id = editIncidentId!.trim();
+      draftId.value = '#${id.length > 8 ? id.substring(0, 8) : id}';
     }
 
-    reportedBy.value = session.displayName;
-    draftId.value = 'Draft';
-    loadCategories();
-    loadCirTemplates();
-    loadResidences();
-    loadStaff();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await Future.wait([
+      loadCategories(),
+      loadCirTemplates(),
+      loadResidences(),
+      loadStaff(),
+    ]);
+    if (isEditMode) {
+      await loadForEdit(editIncidentId!.trim());
+    }
   }
 
   // ── Lookups ────────────────────────────────────────────────────────────
@@ -180,7 +203,9 @@ class IncidentCreationController extends GetxController {
     result.when(
       success: (data) {
         cirTemplates.assignAll(data);
-        if (selectedCirTemplate.value == null && data.isNotEmpty) {
+        if (!isEditMode &&
+            selectedCirTemplate.value == null &&
+            data.isNotEmpty) {
           selectedCirTemplate.value = data.first;
         }
       },
@@ -801,6 +826,252 @@ class IncidentCreationController extends GetxController {
     return 'image/jpeg';
   }
 
+  // ── Edit mode ──────────────────────────────────────────────────────────
+
+  Future<void> loadForEdit(String incidentId) async {
+    isLoadingEdit.value = true;
+    final result = await repository.getIncidentDetail(incidentId);
+    isLoadingEdit.value = false;
+    result.when(
+      success: _applyIncidentDetail,
+      failure: (error) {
+        AppSnackbar.show('Could not load incident', error.message);
+      },
+    );
+  }
+
+  void _applyIncidentDetail(Map<String, dynamic> json) {
+    final id = JsonCodec.stringOr(json['id'], editIncidentId ?? 'incident');
+    draftId.value = '#${id.length > 8 ? id.substring(0, 8) : id}';
+    existingStatus.value = JsonCodec.string(json['status']);
+
+    incidentTitleController.text = JsonCodec.stringOr(json['title'], '');
+
+    final categoryMap = JsonCodec.mapAt(json, 'category') ?? const {};
+    final categoryId = JsonCodec.string(json['categoryId'] ?? categoryMap['id']);
+    final categoryName = JsonCodec.string(categoryMap['name'] ?? json['category']);
+    if (categoryId != null && categoryId.isNotEmpty) {
+      IncidentCategoryOption? matched;
+      for (final option in categories) {
+        if (option.id == categoryId) {
+          matched = option;
+          break;
+        }
+      }
+      selectedCategory.value = matched ??
+          IncidentCategoryOption(
+            id: categoryId,
+            name: categoryName ?? 'Category',
+          );
+    }
+
+    final cirTemplateId = JsonCodec.string(json['cirTemplateId']);
+    if (cirTemplateId != null && cirTemplateId.isNotEmpty) {
+      IncidentCirTemplateOption? matched;
+      for (final option in cirTemplates) {
+        if (option.id == cirTemplateId) {
+          matched = option;
+          break;
+        }
+      }
+      if (matched != null) selectedCirTemplate.value = matched;
+    }
+
+    final clientMap = JsonCodec.mapAt(json, 'client') ??
+        JsonCodec.mapAt(json, 'resident') ??
+        const {};
+    final clientId = JsonCodec.string(json['clientId'] ?? clientMap['id']);
+    final clientName = JsonCodec.string(
+          clientMap['name'] ??
+              clientMap['fullName'] ??
+              json['clientName'] ??
+              json['residentName'],
+        ) ??
+        '';
+    if (clientId != null && clientId.isNotEmpty) {
+      final client = IncidentClientOption(
+        id: clientId,
+        name: clientName.isEmpty ? 'Client' : clientName,
+      );
+      selectedClient.value = client;
+      clientController.text = client.name;
+    }
+
+    final residenceMap = JsonCodec.mapAt(json, 'residence') ?? const {};
+    final residenceId = JsonCodec.string(
+      json['residenceId'] ?? residenceMap['id'],
+    );
+    final residenceName = JsonCodec.string(
+          residenceMap['name'] ?? json['residenceName'],
+        ) ??
+        '';
+    if (residenceId != null && residenceId.isNotEmpty) {
+      IncidentResidenceOption? matched;
+      for (final option in residences) {
+        if (option.id == residenceId) {
+          matched = option;
+          break;
+        }
+      }
+      final option = matched ??
+          IncidentResidenceOption(
+            id: residenceId,
+            name: residenceName.isEmpty ? 'Residence' : residenceName,
+          );
+      selectedResidence.value = option;
+      residence.value = option.name;
+      selectedResidenceId.value = option.id;
+    }
+
+    final reportedAt = JsonCodec.dateTime(json['reportedAt'] ?? json['createdAt']);
+    if (reportedAt != null) {
+      final local = reportedAt.toLocal();
+      incidentDateController.text = _formatIncidentDate(local);
+      incidentTimeController.text = _formatIncidentTime(
+        TimeOfDay(hour: local.hour, minute: local.minute),
+      );
+    }
+
+    final severityRaw =
+        (JsonCodec.string(json['severity']) ?? 'high').toLowerCase();
+    severity.value = IncidentSeverity.values.firstWhere(
+      (value) => value.name == severityRaw,
+      orElse: () => IncidentSeverity.high,
+    );
+
+    final payload = JsonCodec.mapAt(json, 'payload') ??
+        JsonCodec.mapAt(json, 'payloadJson') ??
+        const {};
+
+    locationController.text = JsonCodec.stringOr(payload['location'], '');
+    detectedDuring.value = JsonCodec.string(payload['detectedDuring']);
+    immediateActionController.text = JsonCodec.stringOr(
+      payload['immediateAction'],
+      '',
+    );
+    additionalNotesController.text = JsonCodec.stringOr(
+      payload['additionalNotes'],
+      '',
+    );
+    followUpRequired.value = payload['followUpRequired'] == true;
+    followUpDateController.text = JsonCodec.stringOr(payload['followUpDate'], '');
+
+    final involvedId = JsonCodec.string(payload['involvedClientId']);
+    final involvedName = JsonCodec.stringOr(
+      payload['involvedClientName'],
+      '',
+    );
+    if (involvedId != null && involvedId.isNotEmpty) {
+      selectedInvolvedClient.value = IncidentClientOption(
+        id: involvedId,
+        name: involvedName.isEmpty ? 'Client' : involvedName,
+      );
+      involvedClientController.text = selectedInvolvedClient.value!.name;
+    } else if (involvedName.isNotEmpty) {
+      involvedClientController.text = involvedName;
+    }
+
+    final staffInvolvedId = JsonCodec.string(payload['staffInvolvedId']);
+    final staffInvolvedName = JsonCodec.stringOr(
+      payload['staffInvolvedName'],
+      '',
+    );
+    if (staffInvolvedId != null) {
+      selectedStaffInvolved.value = _staffById(staffInvolvedId) ??
+          IncidentStaffOption(
+            id: staffInvolvedId,
+            name: staffInvolvedName.isEmpty ? 'Staff' : staffInvolvedName,
+          );
+      staffInvolvedController.text = selectedStaffInvolved.value!.name;
+    } else if (staffInvolvedName.isNotEmpty) {
+      staffInvolvedController.text = staffInvolvedName;
+    }
+
+    final reporterId = JsonCodec.string(
+      payload['reportedByStaffId'] ?? json['reportedBy'],
+    );
+    final reporterName = JsonCodec.string(
+      payload['reportedByName'] ?? json['reportedByName'],
+    );
+    if (reporterId != null && reporterId.isNotEmpty) {
+      selectedReporter.value = _staffById(reporterId) ??
+          (reporterName == null
+              ? null
+              : IncidentStaffOption(id: reporterId, name: reporterName));
+    }
+    reportedBy.value = selectedReporter.value?.name ??
+        reporterName ??
+        session.displayName;
+
+    final supervisorId = JsonCodec.string(payload['supervisorId']);
+    final supervisorName = JsonCodec.string(payload['supervisorName']);
+    if (supervisorId != null && supervisorId.isNotEmpty) {
+      selectedSupervisor.value = _staffById(supervisorId) ??
+          IncidentStaffOption(
+            id: supervisorId,
+            name: supervisorName ?? 'Supervisor',
+          );
+      supervisorAssignment.value = selectedSupervisor.value?.name;
+    } else if (supervisorName != null) {
+      supervisorAssignment.value = supervisorName;
+    }
+
+    final witnessRaw = payload['witnesses'];
+    if (witnessRaw is List) {
+      witnesses.assignAll(
+        witnessRaw
+            .map((item) => JsonCodec.string(item) ?? item.toString())
+            .where((item) => item.trim().isNotEmpty)
+            .toList(),
+      );
+    }
+
+    final investigation = JsonCodec.mapAt(json, 'investigation') ?? const {};
+    investigationNotesController.text = JsonCodec.stringOr(
+      investigation['findings'] ?? payload['investigationNotes'],
+      '',
+    );
+    if (immediateActionController.text.trim().isEmpty) {
+      immediateActionController.text = JsonCodec.stringOr(
+        investigation['correctiveActions'],
+        '',
+      );
+    }
+
+    final evidenceRaw = json['evidence'];
+    if (evidenceRaw is List) {
+      final files = <IncidentEvidenceFile>[];
+      for (final item in evidenceRaw) {
+        if (item is! Map) continue;
+        final map = JsonCodec.asMap(item);
+        final url = JsonCodec.string(
+          map['fileUrl'] ?? map['url'] ?? map['publicUrl'],
+        );
+        if (url == null || url.isEmpty) continue;
+        final name = JsonCodec.stringOr(
+          map['fileName'] ?? map['name'],
+          url.split('/').last,
+        );
+        files.add(
+          IncidentEvidenceFile(
+            localPath: '',
+            fileName: name,
+            mimeType: JsonCodec.string(map['fileType'] ?? map['mimeType']),
+            fileUrl: url,
+          ),
+        );
+      }
+      evidenceFiles.assignAll(files);
+    }
+  }
+
+  IncidentStaffOption? _staffById(String id) {
+    for (final option in staffOptions) {
+      if (option.id == id) return option;
+    }
+    return null;
+  }
+
   // ── Navigation ─────────────────────────────────────────────────────────
 
   void goToStep(IncidentCreationStep step) => currentStep.value = step;
@@ -857,67 +1128,111 @@ class IncidentCreationController extends GetxController {
     final title = incidentTitleController.text.trim();
     final reportedAt = _reportedAtIso();
     final payload = _buildPayload();
+    final supervisorNotified = selectedSupervisor.value != null;
 
-    final createResult = await repository.createIncident(
-      residenceId: residenceId,
-      clientId: client.id,
-      categoryId: category.id,
-      cirTemplateId: selectedCirTemplate.value?.id,
-      title: title,
-      severity: severity.value.name,
-      payload: payload,
-      status: 'open',
-      reportedAt: reportedAt,
-      residentChecked: false,
-      supervisorNotified: selectedSupervisor.value != null,
-      familyNotified: false,
-      carePlanReviewed: false,
-    );
+    late final String incidentId;
+    if (isEditMode) {
+      final updateResult = await repository.updateIncident(
+        incidentId: editIncidentId!.trim(),
+        residenceId: residenceId,
+        clientId: client.id,
+        categoryId: category.id,
+        cirTemplateId: selectedCirTemplate.value?.id,
+        title: title,
+        severity: severity.value.name,
+        payload: payload,
+        status: existingStatus.value ?? 'investigating',
+        reportedAt: reportedAt,
+        residentChecked: false,
+        supervisorNotified: supervisorNotified,
+        familyNotified: false,
+        carePlanReviewed: false,
+      );
 
-    final createdId = createResult.when(
-      success: (id) => id,
-      failure: (error) {
-        submitError.value = error.message;
-        AppErrorDialog.showResultError(
-          error,
-          fallbackTitle:
-              asDraft ? 'Could not save draft' : 'Could not submit incident',
-        );
-        return null;
-      },
-    );
+      final updated = updateResult.when(
+        success: (_) => true,
+        failure: (error) {
+          submitError.value = error.message;
+          AppErrorDialog.showResultError(
+            error,
+            fallbackTitle: asDraft
+                ? 'Could not save changes'
+                : 'Could not update incident',
+          );
+          return false;
+        },
+      );
+      if (!updated) {
+        isSubmitting.value = false;
+        return false;
+      }
+      incidentId = editIncidentId!.trim();
+    } else {
+      final createResult = await repository.createIncident(
+        residenceId: residenceId,
+        clientId: client.id,
+        categoryId: category.id,
+        cirTemplateId: selectedCirTemplate.value?.id,
+        title: title,
+        severity: severity.value.name,
+        payload: payload,
+        status: 'open',
+        reportedAt: reportedAt,
+        residentChecked: false,
+        supervisorNotified: supervisorNotified,
+        familyNotified: false,
+        carePlanReviewed: false,
+      );
 
-    if (createdId == null) {
-      isSubmitting.value = false;
-      return false;
+      final createdId = createResult.when(
+        success: (id) => id,
+        failure: (error) {
+          submitError.value = error.message;
+          AppErrorDialog.showResultError(
+            error,
+            fallbackTitle:
+                asDraft ? 'Could not save draft' : 'Could not submit incident',
+          );
+          return null;
+        },
+      );
+
+      if (createdId == null) {
+        isSubmitting.value = false;
+        return false;
+      }
+      incidentId = createdId;
     }
 
-    draftId.value = createdId.startsWith('#') ? createdId : '#$createdId';
+    draftId.value =
+        incidentId.startsWith('#') ? incidentId : '#$incidentId';
 
     final findings = investigationNotesController.text.trim();
     final immediate = immediateActionController.text.trim();
     if (!asDraft && (findings.isNotEmpty || immediate.isNotEmpty)) {
       final investigation = await repository.recordInvestigation(
-        incidentId: createdId,
+        incidentId: incidentId,
         findings: findings.isEmpty ? immediate : findings,
         rootCause: null,
         correctiveActions: immediate.isEmpty ? null : immediate,
-        status: 'open',
+        status: isEditMode ? (existingStatus.value ?? 'open') : 'open',
       );
       investigation.when(
         success: (_) {},
         failure: (error) {
           AppSnackbar.show(
-            'Incident created',
+            isEditMode ? 'Incident updated' : 'Incident created',
             'Investigation notes could not be saved: ${error.message}',
           );
         },
       );
     }
 
-    for (final file in evidenceFiles.where((item) => item.isReady)) {
+    for (final file in evidenceFiles.where(
+      (item) => item.isReady && item.localPath.trim().isNotEmpty,
+    )) {
       final attached = await repository.attachEvidence(
-        incidentId: createdId,
+        incidentId: incidentId,
         fileUrl: file.fileUrl!,
         fileType: file.mimeType ?? 'image/jpeg',
       );
@@ -934,10 +1249,14 @@ class IncidentCreationController extends GetxController {
 
     isSubmitting.value = false;
     AppSnackbar.show(
-      asDraft ? 'Draft saved' : 'Incident submitted',
-      asDraft
-          ? 'Incident $createdId was created on the care home.'
-          : 'Incident $createdId was created successfully.',
+      isEditMode
+          ? (asDraft ? 'Changes saved' : 'Incident updated')
+          : (asDraft ? 'Draft saved' : 'Incident submitted'),
+      isEditMode
+          ? 'Incident $incidentId was updated successfully.'
+          : asDraft
+              ? 'Incident $incidentId was created on the care home.'
+              : 'Incident $incidentId was created successfully.',
     );
     return true;
   }

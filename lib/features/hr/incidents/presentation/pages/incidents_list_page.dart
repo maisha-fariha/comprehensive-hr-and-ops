@@ -11,10 +11,12 @@ import '../../../presentation/open_manager_portal_search.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../controllers/incidents_controller.dart';
+import '../widgets/add_investigation_note_sheet.dart';
 import '../widgets/closed_incident_card.dart';
 import '../widgets/create_incident_button.dart';
 import '../widgets/incident_stat_tile_row.dart';
 import '../widgets/investigation_incident_card.dart';
+import '../widgets/investigation_summary_sheet.dart';
 import '../widgets/open_incident_card.dart';
 import 'incident_creation_page.dart';
 
@@ -99,7 +101,12 @@ class IncidentsListPage extends StatelessWidget {
                     horizontalPad,
                     ResponsiveHelper.getResponsiveHeight(context, 14),
                   ),
-                  children: _buildTabChildren(context, selectedTab, board),
+                  children: _buildTabChildren(
+                    context,
+                    selectedTab,
+                    board,
+                    controller,
+                  ),
                 ),
               ),
             ),
@@ -127,6 +134,7 @@ class IncidentsListPage extends StatelessWidget {
     BuildContext context,
     IncidentsTab tab,
     IncidentsBoard board,
+    IncidentsController controller,
   ) {
     final gap12 = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18));
     final gap10 = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10));
@@ -162,7 +170,22 @@ class IncidentsListPage extends StatelessWidget {
           ),
           gap10,
           for (final incident in section.incidents) ...[
-            InvestigationIncidentCard(incident: incident),
+            InvestigationIncidentCard(
+              incident: incident,
+              onViewInvestigation: () => showInvestigationSummarySheet(
+                context,
+                incident: incident,
+              ),
+              onAddNote: () async {
+                final saved = await showAddInvestigationNoteSheet(
+                  context,
+                  incident: incident,
+                );
+                if (saved) {
+                  await controller.refresh();
+                }
+              },
+            ),
             gap10,
           ],
         ];

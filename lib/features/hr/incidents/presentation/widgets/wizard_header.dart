@@ -15,6 +15,7 @@ const List<String> _stepLabels = ['Details', 'People', 'Investigate', 'Evidence'
 class WizardHeader extends StatelessWidget {
   final IncidentCreationStep currentStep;
   final String draftId;
+  final bool isEditMode;
   final VoidCallback onBack;
   final VoidCallback onClose;
   final ValueChanged<IncidentCreationStep>? onStepTap;
@@ -25,6 +26,7 @@ class WizardHeader extends StatelessWidget {
     required this.draftId,
     required this.onBack,
     required this.onClose,
+    this.isEditMode = false,
     this.onStepTap,
   });
 
@@ -53,7 +55,7 @@ class WizardHeader extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      'New Incident',
+                      isEditMode ? 'Edit Incident' : 'New Incident',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
@@ -62,7 +64,7 @@ class WizardHeader extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Draft · $draftId',
+                      isEditMode ? 'Editing · $draftId' : 'Draft · $draftId',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w400,

@@ -4,6 +4,7 @@ import '../../domain/entities/closed_incident.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
 import '../../domain/entities/incident_client_option.dart';
+import '../../domain/entities/incident_investigation_summary.dart';
 import '../../domain/entities/incident_residence_option.dart';
 import '../../domain/entities/incident_staff_option.dart';
 import '../../domain/entities/incident_stat.dart';
@@ -392,6 +393,164 @@ abstract final class IncidentsMapper {
   static bool _isArchived(Map<String, dynamic> json) {
     final status = (JsonCodec.string(json['status']) ?? '').toLowerCase();
     return status.contains('archive');
+  }
+
+  /// Parse `GET /incidents/:id` into the View Investigation summary sheet.
+  static IncidentInvestigationSummary investigationSummaryFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final id = JsonCodec.stringOr(json['id'], 'incident');
+    final shortId = id.length > 8 ? id.substring(0, 8) : id;
+    final client = _clientName(json);
+    final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+    final residenceName = JsonCodec.string(
+          json['residenceName'] ?? residence['name'],
+        ) ??
+        '';
+    final reportedAt = JsonCodec.dateTime(
+      json['reportedAt'] ?? json['createdAt'],
+    );
+    final payload = JsonCodec.mapAt(json, 'payload') ??
+        JsonCodec.mapAt(json, 'payloadJson') ??
+        const {};
+    final description = JsonCodec.string(
+          json['description'] ??
+              payload['summary'] ??
+              payload['description'] ??
+              json['body'] ??
+              json['narrative'],
+        ) ??
+        '';
+
+    return IncidentInvestigationSummary(
+      id: id,
+      title: JsonCodec.stringOr(json['title'] ?? json['category'], 'Incident'),
+      shortIdLabel: '#$shortId',
+      clientName: client.isEmpty ? '—' : client,
+      residenceName: residenceName.isEmpty ? '—' : residenceName,
+      reportedAtLabel: reportedAt == null
+          ? '—'
+          : _formatDayMonthYear(reportedAt.toLocal()),
+      reportedByName: () {
+        final name = _reporterName(json);
+        return name.isEmpty || name == 'Unknown' ? '—' : name;
+      }(),
+      description: description.trim().isEmpty
+          ? 'No description recorded.'
+          : description.trim(),
+      statusLabel: _displayStatus(json['status']),
+      iconKind: _icon(json),
+      formSections: _cirFormSections(json),
+    );
+  }
+
+  static String _displayStatus(dynamic raw) {
+    final value = (JsonCodec.string(raw) ?? '').trim();
+    if (value.isEmpty) return 'Under Review';
+    return value
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) =>
+              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
+
+  static List<CirFormSection> _cirFormSections(Map<String, dynamic> json) {
+    final snapshot = json['templateSnapshotJson'] ??
+        json['templateSnapshot'] ??
+        json['cirSnapshot'];
+    if (snapshot is! Map) {
+      return const [
+        CirFormSection(
+          title: "Section 1: Child or Youth's Information",
+          fields: [],
+        ),
+      ];
+    }
+    final map = JsonCodec.asMap(snapshot);
+    final fieldsRaw = map['fields'] ?? map['sections'];
+    if (fieldsRaw is! List || fieldsRaw.isEmpty) {
+      return [
+        CirFormSection(
+          title: JsonCodec.stringOr(
+            map['name'] ?? map['title'],
+            "Section 1: Child or Youth's Information",
+          ),
+          fields: const [],
+        ),
+      ];
+    }
+
+    // Prefer explicit sections if present.
+    if (fieldsRaw.first is Map &&
+        (JsonCodec.asMap(fieldsRaw.first as Map).containsKey('fields') ||
+            JsonCodec.asMap(fieldsRaw.first as Map).containsKey('items'))) {
+      final sections = <CirFormSection>[];
+      for (var i = 0; i < fieldsRaw.length; i++) {
+        final item = fieldsRaw[i];
+        if (item is! Map) continue;
+        final section = JsonCodec.asMap(item);
+        final nested = section['fields'] ?? section['items'];
+        sections.add(
+          CirFormSection(
+            title: JsonCodec.stringOr(
+              section['title'] ?? section['name'] ?? section['label'],
+              'Section ${i + 1}',
+            ),
+            fields: _cirFields(nested),
+          ),
+        );
+      }
+      return sections.isEmpty
+          ? [
+              const CirFormSection(
+                title: "Section 1: Child or Youth's Information",
+              ),
+            ]
+          : sections;
+    }
+
+    return [
+      CirFormSection(
+        title: JsonCodec.stringOr(
+          map['name'] ?? map['title'],
+          "Section 1: Child or Youth's Information",
+        ),
+        fields: _cirFields(fieldsRaw),
+      ),
+    ];
+  }
+
+  static List<CirFormField> _cirFields(dynamic raw) {
+    if (raw is! List) return const [];
+    final fields = <CirFormField>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final label = JsonCodec.string(
+            json['label'] ?? json['name'] ?? json['title'] ?? json['key'],
+          ) ??
+          '';
+      if (label.isEmpty) continue;
+      final value = JsonCodec.string(
+            json['value'] ??
+                json['answer'] ??
+                json['response'] ??
+                json['defaultValue'],
+          ) ??
+          '—';
+      fields.add(CirFormField(label: label, value: value));
+    }
+    return fields;
+  }
+
+  static String _formatDayMonthYear(DateTime date) {
+    final dd = date.day.toString().padLeft(2, '0');
+    final mm = date.month.toString().padLeft(2, '0');
+    return '$dd/$mm/${date.year}';
   }
 
   static IncidentSeverity _severity(dynamic raw) {

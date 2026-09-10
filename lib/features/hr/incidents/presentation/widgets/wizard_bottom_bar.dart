@@ -14,6 +14,7 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 /// stays as-is.
 class WizardBottomBar extends StatelessWidget {
   final bool isLastStep;
+  final bool isEditMode;
   final VoidCallback? onSaveDraft;
   final VoidCallback? onPrimary;
 
@@ -22,6 +23,7 @@ class WizardBottomBar extends StatelessWidget {
     required this.isLastStep,
     required this.onSaveDraft,
     required this.onPrimary,
+    this.isEditMode = false,
   });
 
   @override
@@ -39,7 +41,7 @@ class WizardBottomBar extends StatelessWidget {
             children: [
               Expanded(
                 child: _BottomButton(
-                  label: 'Save Draft',
+                  label: isEditMode ? 'Save Changes' : 'Save Draft',
                   svgAsset: 'assets/icons/incidents/save.svg',
                   background: AppColors.filterButtonBackground,
                   foreground: AppColors.textBody,
@@ -49,7 +51,9 @@ class WizardBottomBar extends StatelessWidget {
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
               Expanded(
                 child: _BottomButton(
-                  label: isLastStep ? 'Submit Incident' : 'Continue',
+                  label: isLastStep
+                      ? (isEditMode ? 'Update Incident' : 'Submit Incident')
+                      : 'Continue',
                   svgAsset: isLastStep ? 'assets/icons/incidents/submit.svg' : null,
                   icon: isLastStep ? null : Icons.arrow_forward_rounded,
                   iconTrailing: !isLastStep,

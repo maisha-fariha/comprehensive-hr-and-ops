@@ -3,6 +3,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/tenant_store.dart';
+import '../../../../../core/network/token_store.dart';
 import '../../../../../core/roles/user_session.dart';
 
 import '../data/repositories/incidents_repository_impl.dart';
@@ -20,6 +22,8 @@ Future<void> setupHrIncidentsDependencies() async {
     factory: () => IncidentsRepositoryImpl(
       api: getIt<AppApiClient>(),
       session: Get.find<UserSession>(),
+      tokens: getIt<TokenStore>(),
+      tenant: getIt<TenantStore>(),
     ),
   );
 

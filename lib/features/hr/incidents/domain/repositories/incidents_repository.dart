@@ -4,6 +4,7 @@ import '../entities/incident_category_option.dart';
 import '../entities/incident_cir_template_option.dart';
 import '../entities/incident_client_option.dart';
 import '../entities/incident_evidence_file.dart';
+import '../entities/incident_investigation_summary.dart';
 import '../entities/incident_residence_option.dart';
 import '../entities/incident_staff_option.dart';
 import '../entities/incidents_board.dart';
@@ -11,6 +12,23 @@ import '../entities/incidents_board.dart';
 /// Contract for the Incidents list board and create-incident flow.
 abstract class IncidentsRepository {
   Future<Result<IncidentsBoard>> getBoard();
+
+  /// Investigation summary for Under Review → View Investigation.
+  ///
+  /// Loads `GET /incidents/:id` (per-incident detail). Board counters still
+  /// use `GET /incidents/summary`.
+  Future<Result<IncidentInvestigationSummary>> getInvestigationSummary(
+    String incidentId,
+  );
+
+  /// Signed CIR PDF URL (`GET /incidents/:id/cir-pdf-link`).
+  Future<Result<String>> getCirPdfLink(String incidentId);
+
+  /// CIR PDF bytes for print / download (`cir-pdf-link` then PDF fetch).
+  Future<Result<List<int>>> downloadCirPdf(String incidentId);
+
+  /// Full incident detail (`GET /incidents/:id`) for edit-mode prefill.
+  Future<Result<Map<String, dynamic>>> getIncidentDetail(String incidentId);
 
   /// Categories for the Create Incident "Incident Category" dropdown.
   Future<Result<List<IncidentCategoryOption>>> getCategories();
@@ -37,6 +55,24 @@ abstract class IncidentsRepository {
     required Map<String, dynamic> payload,
     String? cirTemplateId,
     String status = 'open',
+    String? reportedAt,
+    bool residentChecked = false,
+    bool supervisorNotified = false,
+    bool familyNotified = false,
+    bool carePlanReviewed = false,
+  });
+
+  /// Updates an existing incident (`PATCH /incidents/:id`).
+  Future<Result<void>> updateIncident({
+    required String incidentId,
+    required String residenceId,
+    required String clientId,
+    required String categoryId,
+    required String title,
+    required String severity,
+    required Map<String, dynamic> payload,
+    String? cirTemplateId,
+    String? status,
     String? reportedAt,
     bool residentChecked = false,
     bool supervisorNotified = false,

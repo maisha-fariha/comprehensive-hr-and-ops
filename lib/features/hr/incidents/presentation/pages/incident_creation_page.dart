@@ -13,9 +13,12 @@ import '../widgets/wizard_bottom_bar.dart';
 import '../widgets/wizard_header.dart';
 
 /// The 4-step "Create Incident" wizard, reached from the "+ Create
-/// Incident" button on the Incidents list screen.
+/// Incident" button on the Incidents list screen, or in edit mode from
+/// View Investigation → Edit.
 class IncidentCreationPage extends StatefulWidget {
-  const IncidentCreationPage({super.key});
+  final String? editIncidentId;
+
+  const IncidentCreationPage({super.key, this.editIncidentId});
 
   @override
   State<IncidentCreationPage> createState() => _IncidentCreationPageState();
@@ -31,7 +34,9 @@ class _IncidentCreationPageState extends State<IncidentCreationPage> {
     if (Get.isRegistered<IncidentCreationController>()) {
       Get.delete<IncidentCreationController>(force: true);
     }
-    _controller = Get.put(IncidentCreationController());
+    _controller = Get.put(
+      IncidentCreationController(editIncidentId: widget.editIncidentId),
+    );
   }
 
   @override
@@ -48,58 +53,69 @@ class _IncidentCreationPageState extends State<IncidentCreationPage> {
       backgroundColor: AppColors.scaffoldBackground,
       body: SafeArea(
         child: Obx(
-          () => Column(
-            children: [
-              Container(
-                color: AppColors.surfaceWhite,
-                child: WizardHeader(
-                  currentStep: _controller.currentStep.value,
-                  draftId: _controller.draftId.value,
-                  onBack: () {
-                    if (_controller.currentStepIndex > 0) {
-                      _controller.previousStep();
-                    } else {
-                      Get.back();
-                    }
-                  },
-                  onClose: Get.back,
-                  onStepTap: _controller.goToStep,
+          () {
+            if (_controller.isLoadingEdit.value) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.secondaryTeal,
                 ),
-              ),
-              Expanded(
-                child: Container(
-                  color: AppColors.scaffoldBackground,
-                  child: SingleChildScrollView(
-                    padding: ResponsiveHelper.getResponsivePadding(
-                      context,
-                      horizontal: 20,
-                      vertical: 18,
-                    ),
-                    child: _StepBody(controller: _controller),
+              );
+            }
+            return Column(
+              children: [
+                Container(
+                  color: AppColors.surfaceWhite,
+                  child: WizardHeader(
+                    currentStep: _controller.currentStep.value,
+                    draftId: _controller.draftId.value,
+                    isEditMode: _controller.isEditMode,
+                    onBack: () {
+                      if (_controller.currentStepIndex > 0) {
+                        _controller.previousStep();
+                      } else {
+                        Get.back();
+                      }
+                    },
+                    onClose: Get.back,
+                    onStepTap: _controller.goToStep,
                   ),
                 ),
-              ),
-              WizardBottomBar(
-                isLastStep: _controller.isLastStep,
-                onSaveDraft: _controller.isSubmitting.value
-                    ? null
-                    : () async {
-                        final ok = await _controller.submit(asDraft: true);
-                        if (ok && mounted) Get.back(result: true);
-                      },
-                onPrimary: _controller.isSubmitting.value
-                    ? null
-                    : () async {
-                        if (!_controller.isLastStep) {
-                          _controller.nextStep();
-                          return;
-                        }
-                        final ok = await _controller.submit();
-                        if (ok && mounted) Get.back(result: true);
-                      },
-              ),
-            ],
-          ),
+                Expanded(
+                  child: Container(
+                    color: AppColors.scaffoldBackground,
+                    child: SingleChildScrollView(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 20,
+                        vertical: 18,
+                      ),
+                      child: _StepBody(controller: _controller),
+                    ),
+                  ),
+                ),
+                WizardBottomBar(
+                  isLastStep: _controller.isLastStep,
+                  isEditMode: _controller.isEditMode,
+                  onSaveDraft: _controller.isSubmitting.value
+                      ? null
+                      : () async {
+                          final ok = await _controller.submit(asDraft: true);
+                          if (ok && mounted) Get.back(result: true);
+                        },
+                  onPrimary: _controller.isSubmitting.value
+                      ? null
+                      : () async {
+                          if (!_controller.isLastStep) {
+                            _controller.nextStep();
+                            return;
+                          }
+                          final ok = await _controller.submit();
+                          if (ok && mounted) Get.back(result: true);
+                        },
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
