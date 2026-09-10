@@ -174,6 +174,9 @@ abstract final class ApiEndpoints {
   static String taskNotes(String id) => '$tasks/$id/notes';
   static String taskAssignees(String id) => '$tasks/$id/assignees';
   static String taskReview(String id) => '$tasks/$id/review';
+  static String taskRecurringById(String id) => '$tasksRecurring/$id';
+  static String taskRecurringPause(String id) => '$tasksRecurring/$id/pause';
+  static String taskRecurringResume(String id) => '$tasksRecurring/$id/resume';
   static String trainingCourseQuiz(String courseId) =>
       '/training/courses/$courseId/quiz';
   static String trainingCourseAttempts(String courseId) =>

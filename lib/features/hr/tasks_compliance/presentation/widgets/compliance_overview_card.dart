@@ -96,42 +96,43 @@ class ComplianceOverviewCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                Container(
-                  padding: ResponsiveHelper.getResponsivePadding(
-                    context,
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _trendBg,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.keyboard_arrow_up_rounded,
-                        size: ResponsiveHelper.getResponsiveSize(context, 16),
-                        color: _ringProgress,
-                      ),
-                      SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 2)),
-                      Flexible(
-                        child: Text(
-                          summary.trendLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w600,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                            color: _ringProgress,
-                            height: 1.1,
+                if (summary.trendLabel.trim().isNotEmpty)
+                  Container(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _trendBg,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          size: ResponsiveHelper.getResponsiveSize(context, 16),
+                          color: _ringProgress,
+                        ),
+                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 2)),
+                        Flexible(
+                          child: Text(
+                            summary.trendLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                              color: _ringProgress,
+                              height: 1.1,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),

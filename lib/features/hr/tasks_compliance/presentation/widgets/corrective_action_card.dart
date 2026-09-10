@@ -70,6 +70,7 @@ class CorrectiveActionCard extends StatelessWidget {
   static const Color _overdue = Color(0xFFD64545);
   static const Color _inProgress = Color(0xFFB36B21);
   static const Color _open = Color(0xFF2A5DA6);
+  static const Color _completed = Color(0xFF2E8C58);
 
   const CorrectiveActionCard({
     super.key,
@@ -83,11 +84,11 @@ class CorrectiveActionCard extends StatelessWidget {
     final severityStyle = _severityStyles[action.severity]!;
     final (statusColor, statusLabel) = switch (action.status) {
       CorrectiveActionStatus.overdue => (_overdue, 'Overdue'),
-      CorrectiveActionStatus.inProgress =>
-        action.issueType == CorrectiveIssueType.handoverGap
-            ? (_open, 'Open')
-            : (_inProgress, 'In Progress'),
+      CorrectiveActionStatus.open => (_open, 'Open'),
+      CorrectiveActionStatus.completed => (_completed, 'Completed'),
+      CorrectiveActionStatus.inProgress => (_inProgress, 'In Progress'),
     };
+    final showReview = action.status != CorrectiveActionStatus.completed;
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 40);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
@@ -312,19 +313,20 @@ class CorrectiveActionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                GestureDetector(
-                  onTap: onReviewTap,
-                  behavior: HitTestBehavior.opaque,
-                  child: Text(
-                    'Review →',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                      color: AppColors.secondaryTeal,
+                if (showReview)
+                  GestureDetector(
+                    onTap: onReviewTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Text(
+                      'Review →',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                        color: AppColors.secondaryTeal,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

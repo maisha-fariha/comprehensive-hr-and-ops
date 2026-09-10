@@ -5,10 +5,10 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/tasks_compliance_overview.dart';
 import 'compliance_checklist_tile.dart';
 import 'compliance_overview_card.dart';
+import 'compliance_requirement_tile.dart';
 import 'compliance_stats_row.dart';
 
-/// Compliance tab body: overview card, stats row, checklist, and upcoming
-/// reviews — matched to the Compliance tab reference.
+/// Compliance tab body: score, counters, checklist, upcoming reviews.
 class ComplianceTabView extends StatelessWidget {
   final TasksComplianceOverview overview;
 
@@ -20,48 +20,76 @@ class ComplianceTabView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = overview.complianceChecklistItems;
+    final reviews = overview.upcomingReviews;
     final cardGap = ResponsiveHelper.getResponsiveHeight(context, 10);
     final sectionGap = ResponsiveHelper.getResponsiveHeight(context, 18);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ComplianceOverviewCard(summary: overview.complianceSummary),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-            ComplianceStatsRow(stats: overview.complianceStats),
-            SizedBox(height: sectionGap),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Compliance Checklist',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                ),
-                _SoftCountBadge(
-                  count: overview.complianceChecklistCount,
-                  background: _badgeSoft,
-                  foreground: _badgeFg,
-                ),
-              ],
-            ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            for (var i = 0; i < items.length; i++) ...[
-              if (i > 0) SizedBox(height: cardGap),
-              ComplianceChecklistTile(item: items[i]),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ComplianceOverviewCard(summary: overview.complianceSummary),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        ComplianceStatsRow(stats: overview.complianceStats),
+        SizedBox(height: sectionGap),
+        _SectionHeader(
+          title: 'Compliance Checklist',
+          count: overview.complianceChecklistCount,
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+        if (items.isEmpty)
+          const _EmptyHint('No outstanding compliance checks.')
+        else
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) SizedBox(height: cardGap),
+            ComplianceChecklistTile(item: items[i]),
           ],
-        );
-      },
+        SizedBox(height: sectionGap),
+        _SectionHeader(
+          title: 'Upcoming Compliance Reviews',
+          count: overview.upcomingReviewsCount,
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+        if (reviews.isEmpty)
+          const _EmptyHint('No upcoming compliance reviews.')
+        else
+          for (var i = 0; i < reviews.length; i++) ...[
+            if (i > 0) SizedBox(height: cardGap),
+            ComplianceRequirementTile(item: reviews[i]),
+          ],
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final int count;
+
+  const _SectionHeader({required this.title, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
+              color: AppColors.textHeading,
+            ),
+          ),
+        ),
+        _SoftCountBadge(
+          count: count,
+          background: ComplianceTabView._badgeSoft,
+          foreground: ComplianceTabView._badgeFg,
+        ),
+      ],
     );
   }
 }
@@ -93,6 +121,28 @@ class _SoftCountBadge extends StatelessWidget {
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
           color: foreground,
           height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyHint extends StatelessWidget {
+  final String text;
+
+  const _EmptyHint(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: ResponsiveHelper.getResponsivePadding(context, vertical: 8),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w400,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+          color: AppColors.textSecondary,
         ),
       ),
     );

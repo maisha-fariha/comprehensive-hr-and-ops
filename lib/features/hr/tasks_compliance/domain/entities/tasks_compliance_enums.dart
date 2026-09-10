@@ -2,6 +2,9 @@
 /// is currently selected.
 enum TasksComplianceTab { tasks, compliance, corrective }
 
+/// Sub-tabs under the main "Tasks" tab (below the stats grid).
+enum TasksListSegment { tasksDue, reviewQueue, recurring }
+
 /// Semantic tag for a tile in the "Tasks" tab's 2x2 stat grid.
 enum TaskStatTag { dueToday, thisWeek, upcoming, completed }
 
@@ -30,4 +33,4 @@ enum CorrectiveIssueType { documentationError, safetyImprovement, handoverGap }
 enum CorrectiveSeverity { high, medium }
 
 /// Current progress of a corrective action; drives the footer status dot.
-enum CorrectiveActionStatus { overdue, inProgress }
+enum CorrectiveActionStatus { open, inProgress, overdue, completed }

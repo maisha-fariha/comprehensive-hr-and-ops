@@ -15,15 +15,18 @@ const Map<TasksComplianceTab, String> _tabLabels = {
 class TasksComplianceTabBar extends StatelessWidget {
   final TasksComplianceTab selectedTab;
   final ValueChanged<TasksComplianceTab> onTabSelected;
+  final int complianceAlertCount;
 
   static const Color _trackBackground = Color(0xFFF1F5F9);
   static const Color _selectedLabel = Color(0xFF0D685E);
   static const Color _unselectedLabel = Color(0xFF718096);
+  static const Color _alertBadge = Color(0xFFD64545);
 
   const TasksComplianceTabBar({
     super.key,
     required this.selectedTab,
     required this.onTabSelected,
+    this.complianceAlertCount = 0,
   });
 
   @override
@@ -44,6 +47,9 @@ class TasksComplianceTabBar extends StatelessWidget {
               child: _TabSegment(
                 label: _tabLabels[tab]!,
                 isSelected: tab == selectedTab,
+                badgeCount: tab == TasksComplianceTab.compliance
+                    ? complianceAlertCount
+                    : 0,
                 onTap: () => onTabSelected(tab),
               ),
             ),
@@ -56,11 +62,13 @@ class TasksComplianceTabBar extends StatelessWidget {
 class _TabSegment extends StatelessWidget {
   final String label;
   final bool isSelected;
+  final int badgeCount;
   final VoidCallback onTap;
 
   const _TabSegment({
     required this.label,
     required this.isSelected,
+    required this.badgeCount,
     required this.onTap,
   });
 
@@ -86,26 +94,67 @@ class _TabSegment extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: const Color(0xFF1A2B3C).withValues(alpha: 0.08),
-                    offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+                    offset: Offset(
+                      0,
+                      ResponsiveHelper.getResponsiveHeight(context, 1),
+                    ),
                     blurRadius: ResponsiveHelper.getResponsiveHeight(context, 3),
                   ),
                 ]
               : null,
         ),
         alignment: Alignment.center,
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-            color: isSelected
-                ? TasksComplianceTabBar._selectedLabel
-                : TasksComplianceTabBar._unselectedLabel,
-            height: 1.1,
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: isSelected
+                      ? TasksComplianceTabBar._selectedLabel
+                      : TasksComplianceTabBar._unselectedLabel,
+                  height: 1.1,
+                ),
+              ),
+            ),
+            if (badgeCount > 0) ...[
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+              Container(
+                constraints: BoxConstraints(
+                  minWidth: ResponsiveHelper.getResponsiveSize(context, 16),
+                  minHeight: ResponsiveHelper.getResponsiveSize(context, 16),
+                ),
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 4,
+                ),
+                decoration: const BoxDecoration(
+                  color: TasksComplianceTabBar._alertBadge,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 9),
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
