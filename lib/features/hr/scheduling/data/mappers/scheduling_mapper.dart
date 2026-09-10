@@ -465,6 +465,7 @@ abstract final class SchedulingMapper {
       final giving = json['fromShift'] ?? json['givingShift'] ?? json['currentShift'];
       final receiving =
           json['toShift'] ?? json['receivingShift'] ?? json['requestedShift'];
+      final apiStatus = JsonCodec.string(json['status'])?.toLowerCase() ?? '';
       return ShiftRequest(
         id: JsonCodec.stringOr(json['id'], name),
         staffName: name,
@@ -475,6 +476,8 @@ abstract final class SchedulingMapper {
             : IsoDateRange.timeAgo(created),
         givingLabel: _swapShiftLabel(giving),
         receivingLabel: _swapShiftLabel(receiving),
+        canManagerDecide:
+            status == RequestStatus.pending && apiStatus == 'awaiting_manager',
       );
     }).toList();
   }

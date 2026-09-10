@@ -6,6 +6,7 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../data/mappers/scheduling_mapper.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
+import '../../domain/entities/shift_request.dart';
 import '../../domain/repositories/scheduling_repository.dart';
 
 /// GetX controller for the HR/Manager Scheduling screen.
@@ -191,13 +192,23 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   @override
   Future<void> refresh() => loadOverview();
 
-  Future<void> approveRequest(String swapId) => _decideSwap(swapId, approve: true);
+  Future<void> approveRequest(ShiftRequest request) =>
+      _decideSwap(request, approve: true);
 
-  Future<void> declineRequest(String swapId) => _decideSwap(swapId, approve: false);
+  Future<void> declineRequest(ShiftRequest request) =>
+      _decideSwap(request, approve: false);
 
-  Future<void> _decideSwap(String swapId, {required bool approve}) async {
+  Future<void> _decideSwap(ShiftRequest request, {required bool approve}) async {
+    if (!request.canManagerDecide) {
+      AppSnackbar.show(
+        approve ? 'Cannot approve yet' : 'Cannot decline yet',
+        'The colleague asked has not answered yet.',
+      );
+      return;
+    }
+
     final result = await repository.decideShiftSwap(
-      swapId: swapId,
+      swapId: request.id,
       approve: approve,
     );
     result.when(

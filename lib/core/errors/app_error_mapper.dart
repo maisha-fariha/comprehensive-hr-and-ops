@@ -35,15 +35,6 @@ abstract final class AppErrorMapper {
       );
     }
 
-    if (error is NetworkError || _looksOffline(error.message)) {
-      return AppErrorInfo(
-        title: 'No connection',
-        message:
-            'We could not reach the care home. Check Wi-Fi or mobile data, then try again. Anything you already opened can still be viewed from the last saved copy.',
-        isOffline: true,
-      );
-    }
-
     if (error is AuthError || error is PermissionError) {
       return AppErrorInfo(
         title: error is PermissionError ? 'Access denied' : 'Sign-in needed',
@@ -69,6 +60,42 @@ abstract final class AppErrorMapper {
       );
     }
 
+    // NetworkError may carry an HTTP status in [code] (e.g. "500", "409")
+    // when AppApiClient maps server failures that way.
+    if (error is NetworkError) {
+      final status = int.tryParse(error.code ?? '');
+      if (status != null && status > 0) {
+        return _fromStatus(
+          statusCode: status,
+          raw: error.message,
+          fallbackTitle: fallbackTitle,
+        );
+      }
+      if (error.code == 'offline' ||
+          error.code == '0' ||
+          (_isTrueOfflineMessage(error.message))) {
+        return const AppErrorInfo(
+          title: 'No connection',
+          message:
+              'We could not reach the care home. Check Wi-Fi or mobile data, then try again. Anything you already opened can still be viewed from the last saved copy.',
+          isOffline: true,
+        );
+      }
+      return AppErrorInfo(
+        title: fallbackTitle ?? 'Something went wrong',
+        message: _clean(error.message),
+      );
+    }
+
+    if (_isTrueOfflineMessage(error.message)) {
+      return const AppErrorInfo(
+        title: 'No connection',
+        message:
+            'We could not reach the care home. Check Wi-Fi or mobile data, then try again. Anything you already opened can still be viewed from the last saved copy.',
+        isOffline: true,
+      );
+    }
+
     return AppErrorInfo(
       title: fallbackTitle ?? 'Something went wrong',
       message: _clean(error.message),
@@ -85,7 +112,10 @@ abstract final class AppErrorMapper {
       case 422:
         return AppErrorInfo(
           title: 'Check your details',
-          message: _clean(raw, fallback: 'Some of the information entered is not valid.'),
+          message: _clean(
+            raw,
+            fallback: 'Some of the information entered is not valid.',
+          ),
           canRetry: false,
         );
       case 401:
@@ -117,29 +147,39 @@ abstract final class AppErrorMapper {
           ),
           canRetry: false,
         );
+      case 409:
+        return AppErrorInfo(
+          title: 'Not ready yet',
+          message: _clean(
+            raw,
+            fallback:
+                'This request cannot be decided yet. The colleague asked may still need to respond.',
+          ),
+          canRetry: false,
+        );
       case 408:
       case 504:
-        return AppErrorInfo(
+        return const AppErrorInfo(
           title: 'Request timed out',
           message:
               'The care home server took too long to respond. Try again on a stronger connection.',
           isOffline: true,
         );
       case 429:
-        return AppErrorInfo(
+        return const AppErrorInfo(
           title: 'Too many attempts',
           message: 'Please wait a moment and try again.',
         );
       default:
         if (statusCode != null && statusCode >= 500) {
-          return AppErrorInfo(
+          return const AppErrorInfo(
             title: 'Care home is unavailable',
             message:
                 'The server is having trouble right now. Your last saved information is still on this device. Please try again shortly.',
           );
         }
-        if (_looksOffline(raw)) {
-          return AppErrorInfo(
+        if (_isTrueOfflineMessage(raw)) {
+          return const AppErrorInfo(
             title: 'No connection',
             message:
                 'We could not reach the care home. Check your internet and try again.',
@@ -153,19 +193,30 @@ abstract final class AppErrorMapper {
     }
   }
 
-  static bool _looksOffline(String message) {
+  /// Real transport failures — not Dio HTTP boilerplate that happens to
+  /// mention "connection" after sanitizing.
+  static bool _isTrueOfflineMessage(String message) {
+    if (_looksLikeHttpBoilerplate(message)) return false;
     final lower = message.toLowerCase();
     return lower.contains('socket') ||
-        lower.contains('connection') ||
-        lower.contains('network') ||
-        lower.contains('offline') ||
-        lower.contains('timed out') ||
-        lower.contains('timeout') ||
-        lower.contains('host lookup') ||
-        lower.contains('failed host') ||
-        lower.contains('connection refused') ||
+        lower.contains('connection timeout') ||
         lower.contains('connection error') ||
-        lower.contains('unable to reach');
+        lower.contains('connection refused') ||
+        lower.contains('failed host') ||
+        lower.contains('host lookup') ||
+        lower.contains('network is unreachable') ||
+        lower.contains('offline') ||
+        lower.contains('unable to reach') ||
+        lower.contains('no address associated') ||
+        (lower.contains('timed out') && !lower.contains('status code'));
+  }
+
+  static bool _looksLikeHttpBoilerplate(String message) {
+    final lower = message.toLowerCase();
+    return message.startsWith('DioException') ||
+        lower.contains('validatestatus') ||
+        lower.contains('this exception was thrown because') ||
+        lower.contains('status code of');
   }
 
   static String _validationMessage(ValidationError error) {
@@ -179,17 +230,14 @@ abstract final class AppErrorMapper {
   static String _clean(String message, {String? fallback}) {
     final text = message.trim();
     if (text.isEmpty) return fallback ?? 'Please try again in a moment.';
-    final lower = text.toLowerCase();
-    if (text.startsWith('DioException') ||
+    if (_looksLikeHttpBoilerplate(text) ||
         text.startsWith('Exception:') ||
         text.contains('SocketException') ||
-        text.contains('HttpException') ||
-        lower.contains('validateStatus') ||
-        lower.contains('status code of 401') ||
-        lower.contains('this exception was thrown because')) {
-      return fallback ??
-          'We could not complete this request. Check your connection and try again.';
+        text.contains('HttpException')) {
+      return fallback ?? 'Please try again in a moment.';
     }
+    // Nested API envelope: { error: { message: "..." } } may already be
+    // flattened by the client; keep readable server copy as-is.
     return text;
   }
 
@@ -200,7 +248,12 @@ abstract final class AppErrorMapper {
         message: info.message,
         statusCode: error.statusCode,
         responseData: error.responseData,
-        code: error.code ?? (info.isOffline ? 'offline' : info.isAuth ? 'auth' : null),
+        code: error.code ??
+            (info.isOffline
+                ? 'offline'
+                : info.isAuth
+                    ? 'auth'
+                    : error.statusCode?.toString()),
         originalError: error.originalError,
         stackTrace: error.stackTrace,
       );
@@ -208,7 +261,7 @@ abstract final class AppErrorMapper {
     if (error is NetworkError) {
       return NetworkError(
         message: info.message,
-        code: error.code ?? 'offline',
+        code: error.code ?? (info.isOffline ? 'offline' : null),
         originalError: error.originalError,
         stackTrace: error.stackTrace,
       );

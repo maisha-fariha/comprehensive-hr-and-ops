@@ -349,7 +349,7 @@ class AppApiClient {
 
   AppError _errorFromResponse(ApiResponse<dynamic> response) {
     final status = response.statusCode;
-    final message = response.message ?? 'Request failed';
+    final message = _resolveErrorMessage(response);
     if (status == 401) {
       return AuthError(message: message, code: '401');
     }
@@ -362,18 +362,40 @@ class AppApiClient {
         fieldErrors: _fieldErrors(response.errors),
       );
     }
-    if (status == null ||
-        status == 0 ||
-        status == 408 ||
-        status == 504 ||
-        status >= 500) {
-      return NetworkError(message: message, code: '${status ?? 0}');
+    if (status == null || status == 0) {
+      return NetworkError(message: message, code: 'offline');
     }
+    if (status == 408 || status == 504) {
+      return NetworkError(message: message, code: '$status');
+    }
+    // Prefer ApiError for HTTP statuses (incl. 409 / 5xx) so the UI can show
+    // the right copy instead of a generic offline dialog.
     return ApiError(
       message: message,
       statusCode: status,
       responseData: response.errors,
+      code: '$status',
     );
+  }
+
+  String _resolveErrorMessage(ApiResponse<dynamic> response) {
+    final errors = response.errors;
+    if (errors != null) {
+      final nested = errors['message'] ?? errors['error'];
+      if (nested is String && nested.trim().isNotEmpty) return nested.trim();
+      if (nested is Map) {
+        final msg = nested['message'];
+        if (msg is String && msg.trim().isNotEmpty) return msg.trim();
+      }
+    }
+    final raw = response.message?.trim() ?? '';
+    if (raw.isNotEmpty &&
+        !raw.contains('validateStatus') &&
+        !raw.startsWith('DioException') &&
+        !raw.toLowerCase().contains('this exception was thrown because')) {
+      return raw;
+    }
+    return raw.isEmpty ? 'Request failed' : raw;
   }
 
   Map<String, List<String>>? _fieldErrors(Map<String, dynamic>? errors) {
@@ -432,7 +454,6 @@ class AppApiClient {
   }
 
   bool _isOfflineError(AppError error) {
-    if (error is NetworkError) return true;
     if (error.code == 'offline' || error.code == '0') return true;
     return AppErrorMapper.from(error).isOffline;
   }
