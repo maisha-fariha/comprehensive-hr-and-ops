@@ -7,8 +7,8 @@ import '../../domain/entities/schedule_dose.dart';
 import 'schedule_dose_tile.dart';
 import 'schedule_period_selector.dart';
 
-/// Content of the "Due" tab: schedule title, period chips, Priority
-/// Medications and Later Today lists — matched to the Due tab reference.
+/// Content of the "Due" tab: schedule title, period chips, Priority /
+/// Later Today / Completed lists — matched to the Due tab reference.
 class DueTabView extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -16,11 +16,14 @@ class DueTabView extends StatelessWidget {
   final ValueChanged<SchedulePeriod> onPeriodSelected;
   final List<ScheduleDose> priorityDoses;
   final List<ScheduleDose> laterTodayDoses;
+  final List<ScheduleDose> completedDoses;
+  final ValueChanged<ScheduleDose>? onDoseTap;
 
   static const Color _priorityTitle = Color(0xFF9B3A3A);
   static const Color _prioritySuffix = Color(0xFFB57A7A);
   static const Color _priorityDot = Color(0xFFD64545);
   static const Color _laterDot = Color(0xFF2A5DA6);
+  static const Color _completedDot = Color(0xFF2E8C58);
 
   const DueTabView({
     super.key,
@@ -30,6 +33,8 @@ class DueTabView extends StatelessWidget {
     required this.onPeriodSelected,
     required this.priorityDoses,
     required this.laterTodayDoses,
+    this.completedDoses = const [],
+    this.onDoseTap,
   });
 
   @override
@@ -84,7 +89,13 @@ class DueTabView extends StatelessWidget {
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
               for (var i = 0; i < priorityDoses.length; i++) ...[
                 if (i > 0) SizedBox(height: cardGap),
-                ScheduleDoseTile(dose: priorityDoses[i], isPriority: true),
+                ScheduleDoseTile(
+                  dose: priorityDoses[i],
+                  isPriority: true,
+                  onTap: onDoseTap == null
+                      ? null
+                      : () => onDoseTap!(priorityDoses[i]),
+                ),
               ],
             ],
             if (laterTodayDoses.isNotEmpty) ...[
@@ -97,7 +108,30 @@ class DueTabView extends StatelessWidget {
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
               for (var i = 0; i < laterTodayDoses.length; i++) ...[
                 if (i > 0) SizedBox(height: cardGap),
-                ScheduleDoseTile(dose: laterTodayDoses[i]),
+                ScheduleDoseTile(
+                  dose: laterTodayDoses[i],
+                  onTap: onDoseTap == null
+                      ? null
+                      : () => onDoseTap!(laterTodayDoses[i]),
+                ),
+              ],
+            ],
+            if (completedDoses.isNotEmpty) ...[
+              SizedBox(height: sectionGap),
+              const _SectionCaption(
+                dotColor: _completedDot,
+                title: 'Completed',
+                titleColor: AppColors.textHeading,
+              ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+              for (var i = 0; i < completedDoses.length; i++) ...[
+                if (i > 0) SizedBox(height: cardGap),
+                ScheduleDoseTile(
+                  dose: completedDoses[i],
+                  onTap: onDoseTap == null
+                      ? null
+                      : () => onDoseTap!(completedDoses[i]),
+                ),
               ],
             ],
           ],

@@ -3,10 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'medication_enums.dart';
 
 /// A single row in the "Due" tab's "Today's Medication Schedule" list
-/// (used for both the "Priority Medications" and "Later Today" sections).
+/// (Priority / Later / Completed sections).
 @immutable
 class ScheduleDose {
   final String id;
+  final String? clientId;
   final String residentName;
   final String residentInitials;
   final AvatarPalette avatarColor;
@@ -22,6 +23,7 @@ class ScheduleDose {
 
   const ScheduleDose({
     required this.id,
+    this.clientId,
     required this.residentName,
     required this.residentInitials,
     required this.avatarColor,

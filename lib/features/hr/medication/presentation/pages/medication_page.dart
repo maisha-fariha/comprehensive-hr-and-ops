@@ -9,9 +9,11 @@ import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../domain/entities/medication_enums.dart';
 import '../controllers/medication_controller.dart';
+import '../widgets/client_medications_sheet.dart';
 import '../widgets/due_tab_view.dart';
 import '../widgets/medication_header.dart';
 import '../widgets/medication_tab_bar.dart';
+import '../widgets/medication_issue_actions.dart';
 import '../widgets/missed_tab_view.dart';
 import '../widgets/overview_tab_view.dart';
 import '../widgets/refused_tab_view.dart';
@@ -132,14 +134,36 @@ class MedicationPage extends StatelessWidget {
                           laterTodayDoses: controller.dosesForPeriod(
                             overview.laterTodayDoses,
                           ),
+                          completedDoses: controller.dosesForPeriod(
+                            overview.completedDoses,
+                          ),
+                          onDoseTap: (dose) => showClientMedicationsSheet(
+                            context,
+                            dose: dose,
+                          ),
                         ),
                       MedicationTab.missed => MissedTabView(
                           stats: overview.missedStats,
                           medications: overview.missedMedications,
+                          onReviewTap: (medication) =>
+                              reviewMissedMedicationIssue(
+                            context,
+                            medication: medication,
+                          ),
+                          onContactStaffTap: (medication) =>
+                              contactMissedMedicationStaff(
+                            context,
+                            medication: medication,
+                          ),
                         ),
                       MedicationTab.refused => RefusedTabView(
                           stats: overview.refusedStats,
                           medications: overview.refusedMedications,
+                          onLogFollowUpTap: (medication) =>
+                              logRefusedMedicationFollowUp(
+                            context,
+                            medication: medication,
+                          ),
                         ),
                     },
                   ],
@@ -181,8 +205,17 @@ class _MedicationError extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
-              child: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text(
+                'Retry',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),

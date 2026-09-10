@@ -2,10 +2,14 @@ import 'package:flutter/foundation.dart';
 
 import 'medication_enums.dart';
 
-/// A single card in the "Refused" tab's "Refused Medications" list.
+/// A single card in the "Refused" tab's "Refused Medications" list
+/// (`GET /mar/administrations?status=refused`).
 @immutable
 class RefusedMedication {
   final String id;
+  final String? clientId;
+  final String? residenceId;
+  final String? reportedByUserId;
   final String residentName;
   final String residentInitials;
   final AvatarPalette avatarColor;
@@ -20,6 +24,9 @@ class RefusedMedication {
 
   const RefusedMedication({
     required this.id,
+    this.clientId,
+    this.residenceId,
+    this.reportedByUserId,
     required this.residentName,
     required this.residentInitials,
     required this.avatarColor,

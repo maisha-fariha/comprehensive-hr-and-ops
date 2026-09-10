@@ -12,6 +12,8 @@ import 'missed_medication_card.dart';
 class MissedTabView extends StatelessWidget {
   final List<MedicationStatTileData> stats;
   final List<MissedMedication> medications;
+  final void Function(MissedMedication medication)? onReviewTap;
+  final void Function(MissedMedication medication)? onContactStaffTap;
 
   static const Color _badgeSoft = Color(0xFFFBEDED);
   static const Color _badgeFg = Color(0xFFD64545);
@@ -20,6 +22,8 @@ class MissedTabView extends StatelessWidget {
     super.key,
     required this.stats,
     required this.medications,
+    this.onReviewTap,
+    this.onContactStaffTap,
   });
 
   @override
@@ -65,7 +69,15 @@ class MissedTabView extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
             for (var i = 0; i < medications.length; i++) ...[
               if (i > 0) SizedBox(height: cardGap),
-              MissedMedicationCard(medication: medications[i]),
+              MissedMedicationCard(
+                medication: medications[i],
+                onReviewTap: onReviewTap == null
+                    ? null
+                    : () => onReviewTap!(medications[i]),
+                onContactStaffTap: onContactStaffTap == null
+                    ? null
+                    : () => onContactStaffTap!(medications[i]),
+              ),
             ],
           ],
         );

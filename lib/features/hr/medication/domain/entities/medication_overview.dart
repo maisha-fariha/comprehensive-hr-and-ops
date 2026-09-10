@@ -29,6 +29,7 @@ class MedicationOverview {
   final String scheduleSubtitle;
   final List<ScheduleDose> priorityDoses;
   final List<ScheduleDose> laterTodayDoses;
+  final List<ScheduleDose> completedDoses;
 
   // Missed tab
   final List<MedicationStatTileData> missedStats;
@@ -52,6 +53,7 @@ class MedicationOverview {
     required this.scheduleSubtitle,
     required this.priorityDoses,
     required this.laterTodayDoses,
+    this.completedDoses = const [],
     required this.missedStats,
     required this.missedMedications,
     required this.refusedStats,

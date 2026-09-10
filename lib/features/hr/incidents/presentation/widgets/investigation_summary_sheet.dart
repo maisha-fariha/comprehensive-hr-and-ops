@@ -1,15 +1,14 @@
 import 'dart:typed_data';
 
-import 'package:file_save_directory/file_save_directory.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:printing/printing.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/storage/media_store_download.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/incident_investigation_summary.dart';
 import '../../domain/entities/investigation_incident.dart';
@@ -100,31 +99,21 @@ class _InvestigationSummarySheetState
               onLayout: (_) async => pdfBytes,
             );
           } else {
-            final saveResult = await FileSaveDirectory.instance.saveFile(
+            // Android 10+: MediaStore Downloads (scoped storage).
+            final saveResult = await MediaStoreDownload.savePdf(
               fileName: fileName,
-              fileBytes: pdfBytes,
-              location: SaveLocation.downloads,
-              openAfterSave: false,
+              bytes: pdfBytes,
             );
             if (!mounted) return;
             if (saveResult.success) {
               AppSnackbar.show(
                 'PDF downloaded',
-                saveResult.path != null && saveResult.path!.isNotEmpty
-                    ? 'Saved to ${saveResult.path}'
-                    : 'Saved to device Downloads / Files.',
+                'Saved to ${saveResult.displayLocation}',
               );
-            } else if (saveResult.needsPermission) {
-              AppSnackbar.show(
-                'Permission needed',
-                saveResult.error ??
-                    'Allow storage access to save the PDF to Downloads.',
-              );
-              await openAppSettings();
             } else {
               AppSnackbar.show(
                 'Could not download PDF',
-                saveResult.error ?? 'Could not save the PDF to device storage.',
+                saveResult.error ?? 'Could not save the PDF to Downloads.',
               );
             }
           }

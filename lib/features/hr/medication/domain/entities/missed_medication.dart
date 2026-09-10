@@ -2,10 +2,14 @@ import 'package:flutter/foundation.dart';
 
 import 'medication_enums.dart';
 
-/// A single card in the "Missed" tab's "Missed Medications" list.
+/// A single card in the "Missed" tab's "Missed Medications" list
+/// (`GET /mar/administrations?status=missed`).
 @immutable
 class MissedMedication {
   final String id;
+  final String? clientId;
+  final String? residenceId;
+  final String? assigneeUserId;
   final String residentName;
   final String residentInitials;
   final AvatarPalette avatarColor;
@@ -20,6 +24,9 @@ class MissedMedication {
 
   const MissedMedication({
     required this.id,
+    this.clientId,
+    this.residenceId,
+    this.assigneeUserId,
     required this.residentName,
     required this.residentInitials,
     required this.avatarColor,

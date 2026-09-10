@@ -12,6 +12,7 @@ import 'refused_medication_card.dart';
 class RefusedTabView extends StatelessWidget {
   final List<MedicationStatTileData> stats;
   final List<RefusedMedication> medications;
+  final void Function(RefusedMedication medication)? onLogFollowUpTap;
 
   static const Color _badgeSoft = Color(0xFFFCF5ED);
   static const Color _badgeFg = Color(0xFFB36B21);
@@ -20,6 +21,7 @@ class RefusedTabView extends StatelessWidget {
     super.key,
     required this.stats,
     required this.medications,
+    this.onLogFollowUpTap,
   });
 
   @override
@@ -65,7 +67,12 @@ class RefusedTabView extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
             for (var i = 0; i < medications.length; i++) ...[
               if (i > 0) SizedBox(height: cardGap),
-              RefusedMedicationCard(medication: medications[i]),
+              RefusedMedicationCard(
+                medication: medications[i],
+                onLogFollowUpTap: onLogFollowUpTap == null
+                    ? null
+                    : () => onLogFollowUpTap!(medications[i]),
+              ),
             ],
           ],
         );
