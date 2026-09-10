@@ -20,6 +20,7 @@ import '../../domain/entities/staff_status_entry.dart';
 import '../controllers/attendance_controller.dart';
 import '../widgets/attendance_avatar.dart';
 import '../widgets/attendance_header.dart';
+import 'manual_attendance_entry_page.dart';
 
 /// The "Attendance" screen — "Attendance" tab of the HR portal.
 ///
@@ -87,8 +88,11 @@ class AttendancePage extends StatelessWidget {
                       child: Align(
                         alignment: Alignment.centerRight,
                         child: _ManualEntryButton(
-                          onTap: () {
-                            // Manual entry screen wiring comes next.
+                          onTap: () async {
+                            final saved = await openManualAttendanceEntry();
+                            if (saved == true) {
+                              await controller.refresh();
+                            }
                           },
                         ),
                       ),

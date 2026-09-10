@@ -5,6 +5,7 @@ import '../../domain/entities/attendance_enums.dart';
 import '../../domain/entities/attendance_overview.dart';
 import '../../domain/entities/attendance_stat.dart';
 import '../../domain/entities/late_arrival_entry.dart';
+import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/entities/missed_clock_in_entry.dart';
 import '../../domain/entities/overtime_entry.dart';
 import '../../domain/entities/staff_status_entry.dart';
@@ -335,6 +336,157 @@ abstract final class AttendanceMapper {
       default:
         return OvertimeStatus.approaching;
     }
+  }
+
+  static List<ManualEntryResidenceOption> residencesFrom(dynamic body) {
+    final options = <ManualEntryResidenceOption>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final name = JsonCodec.string(
+            json['name'] ??
+                json['label'] ??
+                json['title'] ??
+                json['residenceName'] ??
+                json['displayName'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      options.add(
+        ManualEntryResidenceOption(
+          id: JsonCodec.stringOr(
+            json['id'] ?? json['residenceId'] ?? name,
+            name,
+          ),
+          name: name,
+        ),
+      );
+    }
+    return options;
+  }
+
+  static List<ManualEntryStaffOption> staffFrom(dynamic body) {
+    final options = <ManualEntryStaffOption>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final user = JsonCodec.mapAt(json, 'user') ??
+          JsonCodec.mapAt(json, 'profile') ??
+          json;
+      final category = JsonCodec.mapAt(json, 'category') ??
+          JsonCodec.mapAt(json, 'staffCategory') ??
+          JsonCodec.mapAt(user, 'category') ??
+          const {};
+      final name = JsonCodec.string(
+            user['preferredName'] ??
+                user['fullName'] ??
+                user['displayName'] ??
+                user['name'] ??
+                [
+                  user['firstName'] ?? json['firstName'],
+                  user['lastName'] ?? json['lastName'],
+                ]
+                    .where((p) => p != null && p.toString().trim().isNotEmpty)
+                    .join(' '),
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+
+      final role = JsonCodec.string(
+        category['name'] ??
+            json['categoryName'] ??
+            json['role'] ??
+            json['jobTitle'] ??
+            user['role'],
+      );
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final location = JsonCodec.string(
+        json['residenceName'] ?? residence['name'] ?? json['location'],
+      );
+      final detail = [
+        if (role != null && role.isNotEmpty) role,
+        if (location != null && location.isNotEmpty) location,
+      ].join(' · ');
+
+      options.add(
+        ManualEntryStaffOption(
+          id: JsonCodec.stringOr(
+            json['id'] ?? json['staffId'] ?? user['id'] ?? name,
+            name,
+          ),
+          name: name,
+          detail: detail.isEmpty ? 'Staff' : detail,
+          initials: IsoDateRange.initials(name),
+        ),
+      );
+    }
+    return options;
+  }
+
+  /// Shifts from `GET /shifts`, optionally filtered to those assigned to [staffId].
+  static List<ManualEntryShiftOption> shiftsForStaff(
+    dynamic body, {
+    String? staffId,
+  }) {
+    final options = <ManualEntryShiftOption>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id'] ?? json['shiftId']);
+      if (id == null || id.isEmpty) continue;
+
+      if (staffId != null && staffId.isNotEmpty) {
+        final assigned = json['staff'];
+        var matched = false;
+        if (assigned is List) {
+          for (final person in assigned) {
+            if (person is! Map) continue;
+            final personMap = JsonCodec.asMap(person);
+            final personId = JsonCodec.string(
+              personMap['id'] ?? personMap['staffId'],
+            );
+            if (personId == staffId) {
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched) continue;
+      }
+
+      final startsAt = JsonCodec.dateTime(
+            json['startsAt'] ?? json['startAt'] ?? json['start'],
+          ) ??
+          DateTime.now();
+      final endsAt = JsonCodec.dateTime(
+            json['endsAt'] ?? json['endAt'] ?? json['end'],
+          ) ??
+          startsAt.add(const Duration(hours: 8));
+      final title = JsonCodec.string(
+            json['title'] ?? json['name'] ?? json['shiftType'],
+          ) ??
+          'Shift';
+      final startLabel = _formatShiftClock(startsAt);
+      final endLabel = _formatShiftClock(endsAt);
+      options.add(
+        ManualEntryShiftOption(
+          id: id,
+          label: '$title · $startLabel – $endLabel',
+          startsAt: startsAt,
+          endsAt: endsAt,
+        ),
+      );
+    }
+    options.sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    return options;
+  }
+
+  static String _formatShiftClock(DateTime dt) {
+    final local = dt.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
   }
 
   const AttendanceMapper._();
