@@ -807,7 +807,7 @@ class ManualEntryApprovalForm extends StatelessWidget {
             onTap: onStatusTap,
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-          const ManualEntryFieldLabel('Note'),
+          const ManualEntryFieldLabel("Approval's Note"),
           ManualEntryTextField(
             controller: noteController,
             hint: 'Add a note for this approval decision…',

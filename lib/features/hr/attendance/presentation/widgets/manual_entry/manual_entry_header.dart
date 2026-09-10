@@ -228,7 +228,7 @@ class _TabChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : AppColors.textMuted;
+    final fg = selected ? Colors.white : AppColors.textHeading;
     return Material(
       color: selected ? AppColors.primaryNavy : Colors.transparent,
       shape: RoundedRectangleBorder(
@@ -250,7 +250,7 @@ class _TabChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _TabIcon(tab: tab, color: fg),
+              _TabIcon(tab: tab, selected: selected, color: fg),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
               Text(
                 tab.label,
@@ -259,7 +259,7 @@ class _TabChip extends StatelessWidget {
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   fontSize:
                       ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                  color: fg,
+                  color: selected ? Colors.white : AppColors.textHeading,
                 ),
               ),
             ],
@@ -272,12 +272,21 @@ class _TabChip extends StatelessWidget {
 
 class _TabIcon extends StatelessWidget {
   final ManualEntryTab tab;
+  final bool selected;
   final Color color;
 
-  const _TabIcon({required this.tab, required this.color});
+  const _TabIcon({
+    required this.tab,
+    required this.selected,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (tab == ManualEntryTab.approval && !selected) {
+      return const _ApprovalInactiveIcon();
+    }
+
     switch (tab) {
       case ManualEntryTab.attendanceDetails:
         return AppSvgIcon(AppAssets.clock, size: 16, color: color);
@@ -290,8 +299,71 @@ class _TabIcon extends StatelessWidget {
           color: color,
         );
       case ManualEntryTab.approval:
-        return AppSvgIcon(AppAssets.clipboardCheck, size: 16, color: color);
+        return Icon(
+          Icons.check_circle_outline_rounded,
+          size: ResponsiveHelper.getResponsiveSize(context, 16),
+          color: color,
+        );
     }
+  }
+}
+
+/// Inactive Approval tab glyph: mint tile + green check + status badge.
+class _ApprovalInactiveIcon extends StatelessWidget {
+  const _ApprovalInactiveIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = ResponsiveHelper.getResponsiveSize(context, 28);
+    final badge = ResponsiveHelper.getResponsiveSize(context, 12);
+
+    return SizedBox(
+      width: tile + 2,
+      height: tile + 2,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: Container(
+              width: tile,
+              height: tile,
+              decoration: BoxDecoration(
+                color: AppColors.activeBackground,
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 8),
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.check_circle_outline_rounded,
+                size: ResponsiveHelper.getResponsiveSize(context, 16),
+                color: AppColors.activeGreen,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Container(
+              width: badge,
+              height: badge,
+              decoration: const BoxDecoration(
+                color: AppColors.activeGreen,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.check_rounded,
+                size: ResponsiveHelper.getResponsiveSize(context, 8),
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

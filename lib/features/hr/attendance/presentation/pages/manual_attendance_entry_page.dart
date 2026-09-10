@@ -57,6 +57,9 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
   bool _isLoadingShifts = false;
   bool _isSubmitting = false;
 
+  /// Residence auto-filled from session; changing away from this counts as an edit.
+  String? _bootstrappedResidenceId;
+
   static const _unpaidBreakOptions = [
     'None',
     '15 minutes',
@@ -76,8 +79,9 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
 
   static const _approvalStatusOptions = [
     'Pending approval',
-    'Approved',
-    'Rejected',
+    'Present',
+    'Late',
+    'Missed — nobody worked it',
   ];
 
   static const _allowedEvidenceExtensions = {
@@ -98,6 +102,13 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     'Other': 'other',
   };
 
+  static const _approvalStatusCodes = {
+    'Pending approval': 'pending_approval',
+    'Present': 'present',
+    'Late': 'late',
+    'Missed — nobody worked it': 'missed',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -112,7 +123,10 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     if (sessionResidenceId != null && sessionResidenceId.isNotEmpty) {
       final match = _residences.where((r) => r.id == sessionResidenceId);
       if (match.isNotEmpty) {
-        setState(() => _selectedResidence = match.first);
+        setState(() {
+          _selectedResidence = match.first;
+          _bootstrappedResidenceId = match.first.id;
+        });
       } else if (_session.residenceName != null &&
           _session.residenceName!.isNotEmpty) {
         setState(() {
@@ -120,6 +134,7 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
             id: sessionResidenceId,
             name: _session.residenceName!,
           );
+          _bootstrappedResidenceId = sessionResidenceId;
         });
       }
     }
@@ -134,9 +149,98 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     super.dispose();
   }
 
-  void _close() {
+  bool get _hasUnsavedChanges {
+    if (_selectedStaff != null) return true;
+    if (_selectedShift != null) return true;
+    if (_originalCheckInAt != null ||
+        _originalCheckOutAt != null ||
+        _correctedCheckInAt != null ||
+        _correctedCheckOutAt != null) {
+      return true;
+    }
+    if (_unpaidBreakLabel != 'None') return true;
+    if (_reasonCategoryLabel != null) return true;
+    if (_approvalStatusLabel != 'Pending approval') return true;
+    if (_notesController.text.trim().isNotEmpty) return true;
+    if (_approvalNoteController.text.trim().isNotEmpty) return true;
+    if (_evidenceFiles.isNotEmpty) return true;
+    if (_staffSearchController.text.trim().isNotEmpty) return true;
+    if (_selectedResidence != null &&
+        _selectedResidence!.id != _bootstrappedResidenceId) {
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _close() async {
     if (_isSubmitting) return;
-    Navigator.of(context).pop();
+    if (!_hasUnsavedChanges) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+    final discard = await _showDiscardDialog();
+    if (discard == true && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<bool?> _showDiscardDialog() {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceWhite,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'Discard changes?',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: AppColors.textHeading,
+            ),
+          ),
+          content: const Text(
+            'You have unsaved changes. If you leave now, your edits will be lost.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: 14,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Keep editing',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textHeading,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Discard',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.criticalRed,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   int get _unpaidBreakMinutes {
@@ -517,7 +621,8 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
       'staffId': _selectedStaff!.id,
       'residenceId': _selectedResidence!.id,
       'checkInAt': _correctedCheckInAt!.toUtc().toIso8601String(),
-      'status': 'present',
+      'status':
+          _approvalStatusCodes[_approvalStatusLabel] ?? 'pending_approval',
       'breakMinutes': _unpaidBreakMinutes,
       'shiftId': ?_selectedShift?.id,
       'checkOutAt': ?_correctedCheckOutAt?.toUtc().toIso8601String(),
@@ -590,30 +695,7 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
       if (!mounted) return;
 
       await result.when(
-        success: (id) async {
-          if (_approvalStatusLabel == 'Approved' &&
-              id.isNotEmpty) {
-            final approve = await _repository.approveAttendance(id);
-            if (approve.isFailure && mounted) {
-              AppSnackbar.show(
-                'Entry saved',
-                'Created, but approve failed: ${approve.error?.message ?? ''}',
-              );
-              Navigator.of(context).pop(true);
-              return;
-            }
-          } else if (_approvalStatusLabel == 'Rejected' && id.isNotEmpty) {
-            final reject = await _repository.rejectAttendance(id);
-            if (reject.isFailure && mounted) {
-              AppSnackbar.show(
-                'Entry saved',
-                'Created, but reject failed: ${reject.error?.message ?? ''}',
-              );
-              Navigator.of(context).pop(true);
-              return;
-            }
-          }
-
+        success: (_) async {
           if (!mounted) return;
           AppSnackbar.show(
             'Manual entry saved',
@@ -636,46 +718,53 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     final total = ManualEntryTab.values.length;
     final percent = (step / total) * 100;
 
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ColoredBox(
-                color: AppColors.surfaceWhite,
-                child: Column(
-                  children: [
-                    ManualEntryHeader(
-                      onClose: _isSubmitting ? null : _close,
-                    ),
-                    const ManualEntryWarningBanner(),
-                    ManualEntryStepTabs(
-                      selected: _tab,
-                      onSelected: _isSubmitting
-                          ? null
-                          : (tab) => setState(() => _tab = tab),
-                    ),
-                    ManualEntryCompletionBar(
-                      currentStep: step,
-                      totalSteps: total,
-                      percent: percent,
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: _bodyForTab(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || _isSubmitting) return;
+        await _close();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.scaffoldBackground,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: ColoredBox(
+                  color: AppColors.surfaceWhite,
+                  child: Column(
+                    children: [
+                      ManualEntryHeader(
+                        onClose: _isSubmitting ? null : () => _close(),
                       ),
-                    ),
-                  ],
+                      const ManualEntryWarningBanner(),
+                      ManualEntryStepTabs(
+                        selected: _tab,
+                        onSelected: _isSubmitting
+                            ? null
+                            : (tab) => setState(() => _tab = tab),
+                      ),
+                      ManualEntryCompletionBar(
+                        currentStep: step,
+                        totalSteps: total,
+                        percent: percent,
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: _bodyForTab(),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            ManualEntryFooter(
-              isSubmitting: _isSubmitting,
-              onCancel: _isSubmitting ? null : _close,
-              onSave: _isSubmitting ? null : _onSave,
-            ),
-          ],
+              ManualEntryFooter(
+                isSubmitting: _isSubmitting,
+                onCancel: _isSubmitting ? null : () => _close(),
+                onSave: _isSubmitting ? null : _onSave,
+              ),
+            ],
+          ),
         ),
       ),
     );
