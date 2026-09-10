@@ -5,6 +5,12 @@ abstract final class IsoDateRange {
     return DateTime(now.year, now.month, now.day);
   }
 
+  /// Local midnight for "today" (public for attendance range queries).
+  static DateTime startOfLocalDay([DateTime? date]) {
+    final d = date ?? DateTime.now();
+    return DateTime(d.year, d.month, d.day);
+  }
+
   static String get todayDate {
     final now = DateTime.now();
     final month = now.month.toString().padLeft(2, '0');

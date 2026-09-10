@@ -15,6 +15,8 @@ abstract final class AttendanceMapper {
     required dynamic overtimeBody,
     required dynamic residenceBody,
     required String? fallbackResidenceName,
+    dynamic summaryBody,
+    bool multiDay = false,
   }) {
     final rows = JsonCodec.unwrapList(attendanceBody)
         .whereType<Map>()
@@ -25,7 +27,28 @@ abstract final class AttendanceMapper {
         rows.where((row) => _status(row) == StaffAttendanceStatus.missed).toList();
     final onTime =
         rows.where((row) => _status(row) == StaffAttendanceStatus.onTime).toList();
-    final onDuty = onTime.length + late.length;
+
+    final summaryData = summaryBody == null
+        ? null
+        : JsonCodec.unwrapMap(summaryBody);
+    final byStatus = summaryData == null
+        ? null
+        : (JsonCodec.mapAt(summaryData, 'byStatus') ?? summaryData);
+
+    final presentCount = byStatus == null
+        ? onTime.length
+        : JsonCodec.integerOr(
+            byStatus['present'] ?? byStatus['onTime'] ?? byStatus['on_time'],
+            onTime.length,
+          );
+    final lateCount = byStatus == null
+        ? late.length
+        : JsonCodec.integerOr(byStatus['late'], late.length);
+    final missedCount = byStatus == null
+        ? missed.length
+        : JsonCodec.integerOr(byStatus['missed'], missed.length);
+    final onDuty = presentCount + lateCount;
+
     final otRows = JsonCodec.unwrapList(overtimeBody)
         .whereType<Map>()
         .map(JsonCodec.asMap)
@@ -45,28 +68,39 @@ abstract final class AttendanceMapper {
     final residenceName = JsonCodec.string(residence['name']) ??
         fallbackResidenceName;
 
+    final latenessStaff = summaryData == null
+        ? late.length
+        : JsonCodec.integerOr(
+            JsonCodec.mapAt(summaryData, 'lateness')?['staff'],
+            late.length,
+          );
+
+    final lateLabel = multiDay ? 'Late' : 'Late Today';
+    final missedLabel = multiDay ? 'Missed' : 'Missed Today';
+    final onDutyLabel = multiDay ? '$onDuty present' : '$onDuty on duty';
+
     return AttendanceOverview(
-      lateCount: late.length,
-      missedCount: missed.length,
+      lateCount: lateCount,
+      missedCount: missedCount,
       otCount: otRows.length,
       todayStats: [
         AttendanceStat(
           id: 'on-time',
-          value: '${onTime.length}',
-          label: 'On Time',
+          value: '$presentCount',
+          label: multiDay ? 'Present' : 'On Time',
           tone: AttendanceStatTone.positive,
           iconAsset: AttendanceAssets.onTime,
         ),
         AttendanceStat(
           id: 'late',
-          value: '${late.length}',
+          value: '$lateCount',
           label: 'Late',
           tone: AttendanceStatTone.warning,
           iconAsset: AttendanceAssets.late,
         ),
         AttendanceStat(
           id: 'missed',
-          value: '${missed.length}',
+          value: '$missedCount',
           label: 'Missed',
           tone: AttendanceStatTone.critical,
           iconAsset: AttendanceAssets.missed,
@@ -74,12 +108,12 @@ abstract final class AttendanceMapper {
         AttendanceStat(
           id: 'on-duty',
           value: '$onDuty',
-          label: 'On Duty',
+          label: multiDay ? 'Present + late' : 'On Duty',
           tone: AttendanceStatTone.info,
           iconAsset: AttendanceAssets.onDuty,
         ),
       ],
-      staffOnDutyLabel: '$onDuty on duty',
+      staffOnDutyLabel: onDutyLabel,
       staffStatus: [
         for (var i = 0; i < rows.length; i++)
           if (_status(rows[i]) != null) _statusEntry(rows[i], i),
@@ -87,14 +121,14 @@ abstract final class AttendanceMapper {
       lateStats: [
         AttendanceStat(
           id: 'late-today',
-          value: '${late.length}',
-          label: 'Late Today',
+          value: '$lateCount',
+          label: lateLabel,
           tone: AttendanceStatTone.warning,
           iconAsset: AttendanceAssets.late,
         ),
         AttendanceStat(
           id: 'late-affected',
-          value: '${late.length}',
+          value: '$latenessStaff',
           label: 'Affected',
           tone: AttendanceStatTone.info,
           iconAsset: AttendanceAssets.onDuty,
@@ -106,8 +140,8 @@ abstract final class AttendanceMapper {
       missedStats: [
         AttendanceStat(
           id: 'missed-today',
-          value: '${missed.length}',
-          label: 'Missed Today',
+          value: '$missedCount',
+          label: missedLabel,
           tone: AttendanceStatTone.critical,
           iconAsset: AttendanceAssets.missedToday,
         ),

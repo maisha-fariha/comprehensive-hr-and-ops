@@ -2,12 +2,14 @@ import 'package:gems_core/gems_core.dart';
 
 import '../entities/attendance_overview.dart';
 
-/// Contract for fetching the "Attendance" screen's data. The presentation
-/// layer only ever depends on this interface, so swapping the mocked
-/// [AttendanceRepositoryImpl] for a real API-backed implementation later
-/// requires no changes above the data layer.
+/// Contract for fetching the "Attendance" screen's data.
 abstract class AttendanceRepository {
-  Future<Result<AttendanceOverview>> getOverview();
+  /// Loads list + overtime + summary for `[from, to)` (ISO query params).
+  /// Defaults to today when both are omitted.
+  Future<Result<AttendanceOverview>> getOverview({
+    DateTime? from,
+    DateTime? to,
+  });
 
   /// Manager review of a missed / exceptional attendance record.
   Future<Result<void>> approveAttendance(String attendanceId);

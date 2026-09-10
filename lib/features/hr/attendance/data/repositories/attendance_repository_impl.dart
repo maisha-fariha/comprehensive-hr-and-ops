@@ -19,17 +19,44 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
         _session = session;
 
   @override
-  Future<Result<AttendanceOverview>> getOverview() async {
+  Future<Result<AttendanceOverview>> getOverview({
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final rangeStart = from == null
+        ? IsoDateRange.startOfLocalDay()
+        : DateTime(from.year, from.month, from.day);
+    final rangeEndExclusive = to == null
+        ? rangeStart.add(const Duration(days: 1))
+        : DateTime(to.year, to.month, to.day).add(const Duration(days: 1));
+
+    final fromIso = rangeStart.toUtc().toIso8601String();
+    final toIso = rangeEndExclusive.toUtc().toIso8601String();
     final residenceId = _session.residenceId;
-    final query = <String, dynamic>{
-      'from': IsoDateRange.todayStartIso,
-      'to': IsoDateRange.todayEndIso,
-      'page': 1,
-      'limit': 200,
+    final rangeQuery = <String, dynamic>{
+      'from': fromIso,
+      'to': toIso,
       'residenceId': ?residenceId,
     };
 
-    final attendance = await _api.get(ApiEndpoints.attendance, query: query);
+    final results = await Future.wait([
+      _api.get(
+        ApiEndpoints.attendance,
+        query: {
+          ...rangeQuery,
+          'page': 1,
+          'limit': 200,
+        },
+      ),
+      _api.get(ApiEndpoints.attendanceOvertime, query: rangeQuery),
+      _api.get(ApiEndpoints.attendanceSummary, query: rangeQuery),
+      if (residenceId != null && residenceId.isNotEmpty)
+        _api.get(ApiEndpoints.residenceById(residenceId))
+      else
+        Future.value(Result<dynamic>.success(null)),
+    ]);
+
+    final attendance = results[0];
     if (attendance.isFailure) {
       return Result.failure(
         attendance.error ??
@@ -37,22 +64,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       );
     }
 
-    final extras = await Future.wait([
-      _api.get(
-        ApiEndpoints.attendanceOvertime,
-        query: {
-          'from': IsoDateRange.weekStartIso,
-          'to': IsoDateRange.weekEndIso,
-          'residenceId': ?residenceId,
-        },
-      ),
-      if (residenceId != null && residenceId.isNotEmpty)
-        _api.get(ApiEndpoints.residenceById(residenceId))
-      else
-        Future.value(Result<dynamic>.success(null)),
-    ]);
-
-    final overtime = extras[0];
+    final overtime = results[1];
     if (overtime.isFailure) {
       return Result.failure(
         overtime.error ??
@@ -60,12 +72,18 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       );
     }
 
+    // Summary powers the stat tiles; if it fails, list-derived counts still work.
+    final summaryBody =
+        results[2].isSuccess ? results[2].value : null;
+
     return Result.success(
       AttendanceMapper.compose(
         attendanceBody: attendance.value,
         overtimeBody: overtime.value,
-        residenceBody: extras[1].isSuccess ? extras[1].value : null,
+        summaryBody: summaryBody,
+        residenceBody: results[3].isSuccess ? results[3].value : null,
         fallbackResidenceName: _session.residenceName,
+        multiDay: rangeEndExclusive.difference(rangeStart).inDays > 1,
       ),
     );
   }

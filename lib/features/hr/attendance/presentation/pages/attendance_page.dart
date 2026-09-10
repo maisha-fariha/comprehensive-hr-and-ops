@@ -74,7 +74,25 @@ class AttendancePage extends StatelessWidget {
                 bottom: false,
                 child: Column(
                   children: [
-                    const AttendanceHeader(),
+                    AttendanceHeader(
+                      onCalendarTap: () =>
+                          controller.pickRangeAndReload(context),
+                    ),
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 20,
+                        bottom: 10,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _ManualEntryButton(
+                          onTap: () {
+                            // Manual entry screen wiring comes next.
+                          },
+                        ),
+                      ),
+                    ),
                     _AttendanceTabBar(
                       selected: selectedTab,
                       lateCount: overview.lateCount,
@@ -157,6 +175,57 @@ class AttendancePage extends StatelessWidget {
           _OvertimeTrackingSection(entries: overview.overtimeEntries),
         ];
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Manual entry
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ManualEntryButton extends StatelessWidget {
+  final VoidCallback? onTap;
+
+  const _ManualEntryButton({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 14,
+          vertical: 9,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.secondaryTeal,
+          borderRadius: BorderRadius.circular(
+            ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusButton),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.add_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 16),
+              color: Colors.white,
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+            Text(
+              'Manual Entry',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
