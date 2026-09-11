@@ -387,8 +387,21 @@ class AppApiClient {
         final msg = nested['message'];
         if (msg is String && msg.trim().isNotEmpty) return msg.trim();
       }
+      // Some tenants put validation copy under details.formErrors.
+      final details = errors['details'];
+      if (details is Map) {
+        final formErrors = details['formErrors'];
+        if (formErrors is List && formErrors.isNotEmpty) {
+          return formErrors.map((e) => e.toString()).join(' ');
+        }
+      }
     }
     final raw = response.message?.trim() ?? '';
+    if (raw.contains('subtype of type') ||
+        raw.contains('is not a subtype') ||
+        raw.startsWith('type \'')) {
+      return 'Request failed. Please try again.';
+    }
     if (raw.isNotEmpty &&
         !raw.contains('validateStatus') &&
         !raw.startsWith('DioException') &&

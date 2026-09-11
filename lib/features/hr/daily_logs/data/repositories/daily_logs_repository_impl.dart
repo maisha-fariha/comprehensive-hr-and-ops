@@ -3,6 +3,7 @@ import 'package:gems_core/gems_core.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/daily_logs_overview.dart';
 import '../../domain/repositories/daily_logs_repository.dart';
@@ -14,8 +15,8 @@ import '../mappers/daily_logs_mapper.dart';
 /// - `GET /care-flags?state=open&page&limit&residenceId`
 /// - `GET /shift-handovers?page&limit&residenceId&status=submitted`
 ///
-/// Falls back to `GET /daily-logs/entries` only when the primary daily-logs
-/// path rejects the query (also present in Manager A4).
+/// `residenceId` is required by the API whenever `status` is set. If the
+/// session has no residence yet, we resolve one from `GET /residences`.
 class DailyLogsRepositoryImpl implements DailyLogsRepository {
   static const _pageSize = 100;
   static const _rangeDays = 14;
@@ -31,24 +32,41 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
 
   @override
   Future<Result<DailyLogsOverview>> getOverview() async {
-    final residenceId = _session.residenceId;
+    final residenceId = await _resolveResidenceId();
+    if (residenceId == null || residenceId.isEmpty) {
+      return Result.failure(
+        const ValidationError(
+          message:
+              'Select a residence before opening Daily Logs. The server requires residenceId for review and missing queues.',
+        ),
+      );
+    }
+
     final range = <String, dynamic>{
       'from': IsoDateRange.daysAgoStartIso(_rangeDays),
       'to': IsoDateRange.todayEndIso,
-      'residenceId': ?residenceId,
+      'residenceId': residenceId,
     };
 
     // Silent GETs — controller shows a single error/empty state.
     final results = await Future.wait([
-      _fetchDailyLogs({...range, 'status': 'review'}, silent: true),
-      _fetchDailyLogs({...range, 'status': 'missing'}, silent: true),
+      _api.get(
+        ApiEndpoints.dailyLogs,
+        query: {...range, 'status': 'review', 'page': 1, 'limit': _pageSize},
+        silent: true,
+      ),
+      _api.get(
+        ApiEndpoints.dailyLogs,
+        query: {...range, 'status': 'missing', 'page': 1, 'limit': _pageSize},
+        silent: true,
+      ),
       _api.get(
         ApiEndpoints.careFlags,
         query: {
           'state': 'open',
           'page': 1,
           'limit': _pageSize,
-          'residenceId': ?residenceId,
+          'residenceId': residenceId,
         },
         silent: true,
       ),
@@ -58,7 +76,7 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
           'page': 1,
           'limit': _pageSize,
           'status': 'submitted',
-          'residenceId': ?residenceId,
+          'residenceId': residenceId,
         },
         silent: true,
       ),
@@ -67,7 +85,25 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
     final review = results[0];
     final missing = results[1];
     final flags = results[2];
-    final handovers = results[3];
+    var handovers = results[3];
+
+    // If the submitted filter is empty/unavailable, still show recent handovers.
+    if (handovers.isFailure ||
+        (handovers.isSuccess &&
+            JsonCodec.unwrapList(handovers.value).isEmpty)) {
+      final fallbackHandovers = await _api.get(
+        ApiEndpoints.shiftHandovers,
+        query: {
+          'page': 1,
+          'limit': _pageSize,
+          'residenceId': residenceId,
+        },
+        silent: true,
+      );
+      if (fallbackHandovers.isSuccess) {
+        handovers = fallbackHandovers;
+      }
+    }
 
     final reviewOk = review.isSuccess;
     final missingOk = missing.isSuccess;
@@ -75,44 +111,76 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
 
     if (!reviewOk && !missingOk && !handoversOk) {
       return Result.failure(
-        review.error ??
-            missing.error ??
-            handovers.error ??
-            const ApiError(message: 'Could not load daily logs.'),
+        _friendlyFailure(
+          review.error ?? missing.error ?? handovers.error,
+          fallback: 'Could not load daily logs.',
+        ),
       );
     }
 
-    return Result.success(
-      DailyLogsMapper.compose(
-        reviewBody: reviewOk ? review.value : null,
-        flagsBody: flags.isSuccess ? flags.value : null,
-        missingBody: missingOk ? missing.value : null,
-        handoversBody: handoversOk ? handovers.value : null,
-        residenceName: _session.residenceName,
-      ),
-    );
+    try {
+      return Result.success(
+        DailyLogsMapper.compose(
+          reviewBody: reviewOk ? review.value : null,
+          flagsBody: flags.isSuccess ? flags.value : null,
+          missingBody: missingOk ? missing.value : null,
+          handoversBody: handoversOk ? handovers.value : null,
+          residenceName: _session.residenceName,
+        ),
+      );
+    } catch (error) {
+      return Result.failure(
+        _friendlyFailure(
+          ApiError(message: error.toString()),
+          fallback: 'Could not parse daily logs from the server response.',
+        ),
+      );
+    }
   }
 
-  Future<Result<dynamic>> _fetchDailyLogs(
-    Map<String, dynamic> query, {
-    bool silent = false,
-  }) async {
-    final primary = await _api.get(
-      ApiEndpoints.dailyLogs,
-      query: query,
-      silent: silent,
-    );
-    if (primary.isSuccess) return primary;
+  /// Prefer the session residence; otherwise use the first `GET /residences` row
+  /// and cache it on the session for later screens.
+  Future<String?> _resolveResidenceId() async {
+    final existing = _session.residenceId?.trim();
+    if (existing != null && existing.isNotEmpty) return existing;
 
-    final error = primary.error;
-    final shouldFallback = error is ApiError || error is ValidationError;
-    if (!shouldFallback) return primary;
-
-    return _api.get(
-      ApiEndpoints.dailyLogEntries,
-      query: query,
+    final result = await _api.get(
+      ApiEndpoints.residences,
+      query: const {'page': 1, 'limit': 20},
       silent: true,
     );
+    if (result.isFailure) return null;
+
+    final rows = JsonCodec.unwrapList(result.value).whereType<Map>();
+    for (final raw in rows) {
+      final json = JsonCodec.asMap(raw);
+      final id = JsonCodec.string(json['id'])?.trim();
+      if (id == null || id.isEmpty) continue;
+      final name = JsonCodec.string(json['name']);
+      _session.applyStaffContext(residenceId: id, residenceName: name);
+      return id;
+    }
+    return null;
+  }
+
+  AppError _friendlyFailure(AppError? error, {required String fallback}) {
+    final message = (error?.message ?? '').trim();
+    if (message.contains('subtype of type') ||
+        message.contains('is not a subtype') ||
+        message.startsWith('type \'')) {
+      return ApiError(
+        message:
+            'Could not load daily logs. Check that a residence is selected, then try again.',
+        statusCode: error is ApiError ? error.statusCode : null,
+        code: error?.code,
+      );
+    }
+    if (message.isEmpty ||
+        message == 'Please try again in a moment.' ||
+        message == 'Request failed') {
+      return ApiError(message: fallback, code: error?.code);
+    }
+    return error ?? ApiError(message: fallback);
   }
 
   @override

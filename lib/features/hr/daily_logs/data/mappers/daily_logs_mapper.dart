@@ -172,16 +172,29 @@ abstract final class DailyLogsMapper {
   }
 
   static HandoverEntry _handover(Map<String, dynamic> json) {
-    final from = json['fromStaff'] ?? json['outgoingStaff'] ?? json['from'];
+    final from = json['fromStaff'] ??
+        json['outgoingStaff'] ??
+        json['from'] ??
+        json['author'];
+    // Prefer the latest acknowledger when `acknowledgements` is a list.
+    dynamic fromPerson = from;
+    final ackList = JsonCodec.listAt(json, 'acknowledgements');
+    if (fromPerson == null && ackList.isNotEmpty && ackList.first is Map) {
+      final ack = JsonCodec.asMap(ackList.first);
+      fromPerson = ack['user'] ?? ack['staff'];
+    }
+
     final to = json['toStaff'] ?? json['incomingStaff'] ?? json['to'];
-    final fromName = from == null ? null : IsoDateRange.personName(from);
+    final fromName =
+        fromPerson == null ? null : IsoDateRange.personName(fromPerson);
     final toName = to == null ? null : IsoDateRange.personName(to);
     final summary = JsonCodec.string(json['summary']);
     final status = (json['status'] ?? '').toString().toLowerCase();
     final acknowledged = JsonCodec.boolean(json['acknowledged']) ??
         (status == 'acknowledged' ||
             status == 'viewed' ||
-            JsonCodec.dateTime(json['firstViewedAt']) != null);
+            JsonCodec.dateTime(json['firstViewedAt']) != null ||
+            ackList.isNotEmpty);
 
     final notes = <HandoverNote>[];
     if (summary != null && summary.trim().isNotEmpty) {
@@ -222,9 +235,12 @@ abstract final class DailyLogsMapper {
     final createdAt = JsonCodec.dateTime(
       json['submittedAt'] ?? json['createdAt'],
     );
+    final fromShiftMap = JsonCodec.mapAt(json, 'fromShift');
+    final toShiftMap = JsonCodec.mapAt(json, 'toShift');
     final fromShift = JsonCodec.stringOr(
       json['fromShiftName'] ??
-          JsonCodec.mapAt(json, 'fromShift')?['name'] ??
+          fromShiftMap?['title'] ??
+          fromShiftMap?['name'] ??
           json['fromPeriod'],
       createdAt == null
           ? 'Handover'
@@ -232,7 +248,8 @@ abstract final class DailyLogsMapper {
     );
     final toShift = JsonCodec.stringOr(
       json['toShiftName'] ??
-          JsonCodec.mapAt(json, 'toShift')?['name'] ??
+          toShiftMap?['title'] ??
+          toShiftMap?['name'] ??
           json['toPeriod'],
       JsonCodec.stringOr(json['status'], 'Submitted'),
     );
