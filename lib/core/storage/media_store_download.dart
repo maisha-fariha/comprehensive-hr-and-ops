@@ -22,8 +22,21 @@ class MediaStoreDownload {
   static Future<MediaStoreSaveResult> savePdf({
     required String fileName,
     required Uint8List bytes,
+  }) {
+    return saveFile(
+      fileName: fileName,
+      bytes: bytes,
+      mimeType: 'application/pdf',
+    );
+  }
+
+  /// Saves [bytes] as [fileName] with the given [mimeType].
+  static Future<MediaStoreSaveResult> saveFile({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
   }) async {
-    final safeName = fileName.trim().isEmpty ? 'download.pdf' : fileName.trim();
+    final safeName = fileName.trim().isEmpty ? 'download.bin' : fileName.trim();
 
     if (Platform.isAndroid) {
       try {
@@ -32,7 +45,7 @@ class MediaStoreDownload {
           {
             'fileName': safeName,
             'bytes': bytes,
-            'mimeType': 'application/pdf',
+            'mimeType': mimeType,
           },
         );
         if (result == null) {
@@ -80,7 +93,7 @@ class MediaStoreDownload {
 
     return const MediaStoreSaveResult(
       success: false,
-      error: 'PDF download is only supported on Android and iOS.',
+      error: 'File download is only supported on Android and iOS.',
     );
   }
 }

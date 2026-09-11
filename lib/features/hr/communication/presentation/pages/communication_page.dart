@@ -13,8 +13,17 @@ import '../widgets/conversations_panel.dart';
 import '../widgets/new_conversation_dialog.dart';
 
 /// HR Communication screen — Messages / Communication Log.
-class CommunicationPage extends StatelessWidget {
-  const CommunicationPage({super.key});
+class CommunicationPage extends StatefulWidget {
+  final String? initialConversationId;
+
+  const CommunicationPage({super.key, this.initialConversationId});
+
+  @override
+  State<CommunicationPage> createState() => _CommunicationPageState();
+}
+
+class _CommunicationPageState extends State<CommunicationPage> {
+  var _didSeedConversation = false;
 
   CommunicationController _resolve() {
     if (Get.isRegistered<CommunicationController>()) {
@@ -48,9 +57,23 @@ class CommunicationPage extends StatelessWidget {
     );
   }
 
+  Future<void> _seedIfNeeded(CommunicationController controller) async {
+    if (_didSeedConversation) return;
+    final seedId = widget.initialConversationId?.trim();
+    if (seedId == null || seedId.isEmpty) return;
+    _didSeedConversation = true;
+    if (controller.conversations.isEmpty) {
+      await controller.loadConversations();
+    }
+    await controller.selectConversation(seedId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolve();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _seedIfNeeded(controller);
+    });
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,

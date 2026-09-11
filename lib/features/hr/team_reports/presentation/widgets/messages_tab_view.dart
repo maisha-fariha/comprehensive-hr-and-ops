@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/messages_tab_overview.dart';
 import '../../domain/entities/team_reports_enums.dart';
 import '../../team_reports_assets.dart';
@@ -44,8 +45,14 @@ const Map<MessageStatTag, _MessageStatStyle> _messageStatStyles = {
 class MessagesTabView extends StatelessWidget {
   final MessagesTabOverview overview;
   final VoidCallback? onMarkAllRead;
+  final ValueChanged<ConversationPreview>? onConversationTap;
 
-  const MessagesTabView({super.key, required this.overview, this.onMarkAllRead});
+  const MessagesTabView({
+    super.key,
+    required this.overview,
+    this.onMarkAllRead,
+    this.onConversationTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -87,18 +94,47 @@ class MessagesTabView extends StatelessWidget {
           ),
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-        for (var i = 0; i < overview.conversations.length; i++) ...[
-          if (i > 0) SizedBox(height: cardGap),
-          ConversationTile(conversation: overview.conversations[i]),
-        ],
+        if (overview.conversations.isEmpty)
+          const _EmptyHint('No conversations yet. Tap compose to start one.')
+        else
+          for (var i = 0; i < overview.conversations.length; i++) ...[
+            if (i > 0) SizedBox(height: cardGap),
+            ConversationTile(
+              conversation: overview.conversations[i],
+              onTap: onConversationTap == null
+                  ? null
+                  : () => onConversationTap!(overview.conversations[i]),
+            ),
+          ],
         SizedBox(height: sectionGap),
         const _SectionHeader(title: 'Important Announcements'),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-        for (var i = 0; i < overview.announcements.length; i++) ...[
-          if (i > 0) SizedBox(height: cardGap),
-          AnnouncementCard(announcement: overview.announcements[i]),
-        ],
+        if (overview.announcements.isEmpty)
+          const _EmptyHint('No announcements right now.')
+        else
+          for (var i = 0; i < overview.announcements.length; i++) ...[
+            if (i > 0) SizedBox(height: cardGap),
+            AnnouncementCard(announcement: overview.announcements[i]),
+          ],
       ],
+    );
+  }
+}
+
+class _EmptyHint extends StatelessWidget {
+  final String text;
+
+  const _EmptyHint(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontFamily: 'Outfit',
+        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+        color: AppColors.textSecondary,
+      ),
     );
   }
 }

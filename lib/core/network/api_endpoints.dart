@@ -128,6 +128,11 @@ abstract final class ApiEndpoints {
   static const String conversationContacts = '/conversations/contacts';
 
   static String staffById(String staffId) => '$staff/$staffId';
+  static String staffDocuments(String staffId) => '$staff/$staffId/documents';
+  static String reportsExportById(String exportId) =>
+      '$reportsExports/$exportId';
+  static String reportsExportDownload(String exportId) =>
+      '$reportsExports/$exportId/download';
   static String residenceById(String id) => '$residences/$id';
   static String residenceGeofence(String id) => '$residences/$id/geofence';
   static String shiftById(String id) => '$shifts/$id';
@@ -166,10 +171,14 @@ abstract final class ApiEndpoints {
   static String incidentCirPdfLink(String id) => '$incidents/$id/cir-pdf-link';
   static String notificationRead(String id) => '$notifications/$id/read';
   static const String notificationsReadAll = '$notifications/read-all';
+  static String conversationById(String id) => '$conversations/$id';
   static String conversationMessages(String id) =>
       '$conversations/$id/messages';
   static String conversationRead(String id) => '$conversations/$id/read';
   static const String conversationsReadAll = '$conversations/read-all';
+  static String conversationMembers(String id) => '$conversations/$id/members';
+  static String conversationMember(String id, String memberId) =>
+      '$conversations/$id/members/$memberId';
   static String taskById(String id) => '$tasks/$id';
   static String taskNotes(String id) => '$tasks/$id/notes';
   static String taskAssignees(String id) => '$tasks/$id/assignees';

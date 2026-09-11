@@ -4,6 +4,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/team_reports_enums.dart';
+import '../../domain/entities/team_staff_member.dart';
 import '../../domain/entities/team_tab_overview.dart';
 import 'conversation_tile.dart';
 import 'stat_tile_card.dart';
@@ -56,6 +57,8 @@ class TeamTabView extends StatelessWidget {
   final VoidCallback? onViewAllStats;
   final VoidCallback? onViewAllReports;
   final VoidCallback? onViewAllMessages;
+  final ValueChanged<TeamStaffMember>? onStaffTap;
+  final ValueChanged<ConversationPreview>? onConversationTap;
 
   const TeamTabView({
     super.key,
@@ -63,68 +66,86 @@ class TeamTabView extends StatelessWidget {
     this.onViewAllStats,
     this.onViewAllReports,
     this.onViewAllMessages,
+    this.onStaffTap,
+    this.onConversationTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final sectionGap = ResponsiveHelper.getResponsiveHeight(context, 18);
     final cardGap = ResponsiveHelper.getResponsiveHeight(context, 10);
-    final messages = overview.recentMessage.previewText.isEmpty &&
-            overview.recentMessage.senderName.isEmpty
-        ? const <ConversationPreview>[]
-        : [overview.recentMessage];
+    final messages = overview.recentMessages;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _SectionHeader(title: 'Team Overview', onViewAll: onViewAllStats),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: overview.stats.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: ResponsiveHelper.getResponsiveHeight(context, 10),
-                crossAxisSpacing: ResponsiveHelper.getResponsiveWidth(context, 10),
-                mainAxisExtent: ResponsiveHelper.getResponsiveHeight(context, 78),
-              ),
-              itemBuilder: (context, index) {
-                final stat = overview.stats[index];
-                final style = _teamStatStyles[stat.tag]!;
-                return StatTileCard(
-                  asset: style.asset,
-                  color: style.color,
-                  background: style.background,
-                  value: stat.value,
-                  valueColor: style.valueColor,
-                  label: stat.label,
-                );
-              },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SectionHeader(title: 'Team Overview', onViewAll: onViewAllStats),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: overview.stats.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: ResponsiveHelper.getResponsiveHeight(context, 10),
+            crossAxisSpacing: ResponsiveHelper.getResponsiveWidth(context, 10),
+            mainAxisExtent: ResponsiveHelper.getResponsiveHeight(context, 78),
+          ),
+          itemBuilder: (context, index) {
+            final stat = overview.stats[index];
+            final style = _teamStatStyles[stat.tag]!;
+            return StatTileCard(
+              asset: style.asset,
+              color: style.color,
+              background: style.background,
+              value: stat.value,
+              valueColor: style.valueColor,
+              label: stat.label,
+            );
+          },
+        ),
+        SizedBox(height: sectionGap),
+        _SectionHeader(title: 'Top Reports', onViewAll: onViewAllReports),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+        if (overview.topReports.isEmpty)
+          Text(
+            'No report summaries yet.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: AppColors.textSecondary,
             ),
-            SizedBox(height: sectionGap),
-            _SectionHeader(title: 'Top Reports', onViewAll: onViewAllReports),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            for (var i = 0; i < overview.topReports.length; i++) ...[
-              if (i > 0) SizedBox(height: cardGap),
-              TopReportTile(item: overview.topReports[i]),
-            ],
-            SizedBox(height: sectionGap),
-            _SectionHeader(title: 'Recent Messages', onViewAll: onViewAllMessages),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            for (var i = 0; i < messages.length; i++) ...[
-              if (i > 0) SizedBox(height: cardGap),
-              ConversationTile(
-                conversation: messages[i],
-                showUnreadBadge: false,
-                showTrailingStatusDot: true,
-              ),
-            ],
+          )
+        else
+          for (var i = 0; i < overview.topReports.length; i++) ...[
+            if (i > 0) SizedBox(height: cardGap),
+            TopReportTile(item: overview.topReports[i]),
           ],
-        );
-      },
+        SizedBox(height: sectionGap),
+        _SectionHeader(title: 'Recent Messages', onViewAll: onViewAllMessages),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+        if (messages.isEmpty)
+          Text(
+            'No recent conversations.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: AppColors.textSecondary,
+            ),
+          )
+        else
+          for (var i = 0; i < messages.length; i++) ...[
+            if (i > 0) SizedBox(height: cardGap),
+            ConversationTile(
+              conversation: messages[i],
+              showUnreadBadge: messages[i].unreadCount > 0,
+              showTrailingStatusDot: true,
+              onTap: onConversationTap == null
+                  ? null
+                  : () => onConversationTap!(messages[i]),
+            ),
+          ],
+      ],
     );
   }
 }
