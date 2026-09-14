@@ -6,6 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/domain/entities/portal_search_hit.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
@@ -28,11 +29,22 @@ class StaffDashboardPage extends StatelessWidget {
   const StaffDashboardPage({super.key});
 
   StaffDashboardController _resolveController() {
-    try {
-      return Get.find<StaffDashboardController>();
-    } catch (_) {
-      return Get.put(GetIt.instance<StaffDashboardController>(), permanent: true);
+    final session = Get.find<UserSession>();
+    if (Get.isRegistered<StaffDashboardController>()) {
+      final existing = Get.find<StaffDashboardController>();
+      if (existing.boundUserId == null ||
+          existing.boundUserId == session.userId) {
+        return existing;
+      }
+      Get.delete<StaffDashboardController>(force: true);
+      try {
+        GetIt.instance.resetLazySingleton<StaffDashboardController>();
+      } catch (_) {}
     }
+    return Get.put(
+      GetIt.instance<StaffDashboardController>(),
+      permanent: true,
+    );
   }
 
   @override

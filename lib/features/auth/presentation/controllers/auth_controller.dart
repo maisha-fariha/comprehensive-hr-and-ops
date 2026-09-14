@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../core/network/tenant_store.dart';
+import '../../../../core/roles/session_lifecycle.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../domain/entities/mobile_profile.dart';
@@ -138,6 +139,9 @@ class AuthController extends GetxController {
       errorMessage.value = error ?? 'Sign-in failed.';
       return false;
     }
+    // Drop previous account's permanent controllers + HTTP cache before
+    // opening the portal, so staff roles never reuse another person's data.
+    await SessionLifecycle.reset();
     Get.find<UserSession>().applyProfile(profile);
     Get.offAllNamed(profile.role.portalRoute);
     return true;

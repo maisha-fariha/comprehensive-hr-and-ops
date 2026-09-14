@@ -18,7 +18,7 @@ Future<void> setupStaffTasksMessagesDependencies() async {
     ),
   );
 
-  DIHelper.registerController<TasksMessagesController>(
+  await DIHelper.registerControllerFactory<TasksMessagesController>(
     factory: () => TasksMessagesController(
       repository: getIt<StaffTasksMessagesRepository>(),
     ),

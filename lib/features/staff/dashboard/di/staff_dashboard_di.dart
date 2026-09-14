@@ -18,8 +18,9 @@ Future<void> setupStaffDashboardDependencies() async {
     ),
   );
 
-  DIHelper.registerController<StaffDashboardController>(
-    factory: () =>
-        StaffDashboardController(repository: getIt<StaffDashboardRepository>()),
+  await DIHelper.registerControllerFactory<StaffDashboardController>(
+    factory: () => StaffDashboardController(
+      repository: getIt<StaffDashboardRepository>(),
+    ),
   );
 }

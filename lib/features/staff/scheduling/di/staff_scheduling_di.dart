@@ -13,7 +13,7 @@ Future<void> setupStaffSchedulingDependencies() async {
     factory: () => StaffScheduleRepositoryImpl(api: getIt<AppApiClient>()),
   );
 
-  DIHelper.registerController<StaffScheduleController>(
+  await DIHelper.registerControllerFactory<StaffScheduleController>(
     factory: () =>
         StaffScheduleController(repository: getIt<StaffScheduleRepository>()),
   );

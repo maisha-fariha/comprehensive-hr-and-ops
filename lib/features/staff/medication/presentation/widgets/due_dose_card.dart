@@ -14,6 +14,7 @@ class DueDoseCard extends StatelessWidget {
   final DueDose dose;
   final VoidCallback onAdminister;
   final VoidCallback onNotGiven;
+  final bool canWrite;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _metaColor = Color(0xFF7E8B9A);
@@ -25,6 +26,7 @@ class DueDoseCard extends StatelessWidget {
     required this.dose,
     required this.onAdminister,
     required this.onNotGiven,
+    this.canWrite = true,
   });
 
   String get _routeLabel =>
@@ -149,6 +151,17 @@ class DueDoseCard extends StatelessWidget {
     switch (dose.status) {
       case DueDoseStatus.upcoming:
       case DueDoseStatus.pending:
+        if (!canWrite) {
+          return Text(
+            'View only — administering needs nurse permission.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w500,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+              color: _metaColor,
+            ),
+          );
+        }
         return Row(
           children: [
             Expanded(child: _AdministerButton(onTap: onAdminister)),

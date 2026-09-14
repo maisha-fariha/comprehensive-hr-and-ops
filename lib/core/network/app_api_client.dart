@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../errors/app_error_dialog.dart';
 import '../errors/app_error_mapper.dart';
+import '../roles/user_session.dart';
 import 'connectivity_monitor.dart';
 import 'response_cache.dart';
 import 'tenant_store.dart';
@@ -222,11 +223,10 @@ class AppApiClient {
 
     if (!online && canQueue) {
       await _enqueue(method, path, data);
-      if (!silent) {
-        await AppErrorDialog.showQueued(
-          'You are offline. This change is saved on this device and will be sent when you are back online.',
-        );
-      }
+      await _showQueued(
+        'You are offline. This change is saved on this device and will be sent when you are back online.',
+        silent: silent,
+      );
       return Result.success(const {'offlineQueued': true});
     }
 
@@ -237,7 +237,7 @@ class AppApiClient {
           code: 'offline',
         ),
       );
-      if (!silent) await AppErrorDialog.showError(error);
+      await _showError(error, silent: silent);
       return Result.failure(error);
     }
 
@@ -274,14 +274,13 @@ class AppApiClient {
         }
         if (canQueue && _isOfflineError(error)) {
           await _enqueue(method, path, data);
-          if (!silent) {
-            await AppErrorDialog.showQueued(
-              'The care home could not be reached. This change is saved on this device and will be sent when you are back online.',
-            );
-          }
+          await _showQueued(
+            'The care home could not be reached. This change is saved on this device and will be sent when you are back online.',
+            silent: silent,
+          );
           return Result.success(const {'offlineQueued': true});
         }
-        if (!silent) await AppErrorDialog.showError(error);
+        await _showError(error, silent: silent);
         return Result.failure(error);
       }
 
@@ -304,14 +303,13 @@ class AppApiClient {
       }
       if (canQueue && _isOfflineError(mapped)) {
         await _enqueue(method, path, data);
-        if (!silent) {
-          await AppErrorDialog.showQueued(
-            'The care home could not be reached. This change is saved on this device and will be sent when you are back online.',
-          );
-        }
+        await _showQueued(
+          'The care home could not be reached. This change is saved on this device and will be sent when you are back online.',
+          silent: silent,
+        );
         return Result.success(const {'offlineQueued': true});
       }
-      if (!silent) await AppErrorDialog.showError(mapped);
+      await _showError(mapped, silent: silent);
       return Result.failure(mapped);
     }
   }
@@ -455,6 +453,26 @@ class AppApiClient {
         path.contains('/public/tenant') ||
         path.contains('/auth/login') ||
         path.contains('/auth/logout');
+  }
+
+  bool get _suppressErrorDialogs {
+    try {
+      if (Get.isRegistered<UserSession>() &&
+          Get.find<UserSession>().isSigningOut) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<void> _showError(AppError error, {required bool silent}) async {
+    if (silent || _suppressErrorDialogs) return;
+    await AppErrorDialog.showError(error);
+  }
+
+  Future<void> _showQueued(String message, {required bool silent}) async {
+    if (silent || _suppressErrorDialogs) return;
+    await AppErrorDialog.showQueued(message);
   }
 
   bool get _isOnline {

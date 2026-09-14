@@ -85,6 +85,8 @@ class AuthRepositoryImpl implements AuthRepository {
       success: (body) async {
         final saved = await _saveTokens(body);
         if (saved.isFailure) return Result.failure(saved.error!);
+        // Avoid serving the previous account's cached GETs (e.g. /mobile/home).
+        await _cache?.clear();
         return fetchMe();
       },
       failure: (error) async => Result.failure(error),
@@ -161,6 +163,7 @@ class AuthRepositoryImpl implements AuthRepository {
       success: (body) async {
         final saved = await _saveTokens(body);
         if (saved.isFailure) return Result.failure(saved.error!);
+        await _cache?.clear();
         return fetchMe();
       },
       failure: (error) async => Result.failure(error),

@@ -34,19 +34,43 @@ class DIHelper {
     }
   }
 
-  /// Register controller with dependencies
+  /// Register controller with dependencies.
+  ///
+  /// Controllers are always [registerFactory] — never GetIt singletons — so a
+  /// new login cannot reuse another account's in-memory screen state via
+  /// `Get.put(GetIt.instance<T>())`.
   static void registerController<T extends Object>({
     required T Function() factory,
     bool lazy = true,
   }) {
     final getIt = GetIt.instance;
-    if (getIt.isRegistered<T>()) return;
-
-    if (lazy) {
-      getIt.registerLazySingleton<T>(factory);
-    } else {
-      getIt.registerSingleton<T>(factory());
+    if (getIt.isRegistered<T>()) {
+      // Replace legacy lazy-singleton registrations from older builds.
+      // unregister is sync unless a disposing Future is returned.
+      final pending = getIt.unregister<T>();
+      if (pending is Future) {
+        pending.then((_) {
+          if (!getIt.isRegistered<T>()) {
+            getIt.registerFactory<T>(factory);
+          }
+        });
+        return;
+      }
     }
+    if (!getIt.isRegistered<T>()) {
+      getIt.registerFactory<T>(factory);
+    }
+  }
+
+  /// Async variant that awaits unregister — prefer this in `setup*Dependencies`.
+  static Future<void> registerControllerFactory<T extends Object>({
+    required T Function() factory,
+  }) async {
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<T>()) {
+      await getIt.unregister<T>();
+    }
+    getIt.registerFactory<T>(factory);
   }
 }
 

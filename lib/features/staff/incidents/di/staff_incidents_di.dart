@@ -20,19 +20,19 @@ Future<void> setupStaffIncidentsDependencies() async {
     ),
   );
 
-  DIHelper.registerController<StaffIncidentsController>(
+  await DIHelper.registerControllerFactory<StaffIncidentsController>(
     factory: () => StaffIncidentsController(
       repository: getIt<StaffIncidentsRepository>(),
     ),
   );
 
-  DIHelper.registerController<IncidentDetailsController>(
+  await DIHelper.registerControllerFactory<IncidentDetailsController>(
     factory: () => IncidentDetailsController(
       repository: getIt<StaffIncidentsRepository>(),
     ),
   );
 
-  DIHelper.registerController<IncidentCreationController>(
+  await DIHelper.registerControllerFactory<IncidentCreationController>(
     factory: () => IncidentCreationController(),
   );
 }

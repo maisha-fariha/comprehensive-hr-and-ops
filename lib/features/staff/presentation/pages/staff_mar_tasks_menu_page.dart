@@ -36,12 +36,14 @@ class StaffMarTasksMenuPage extends StatelessWidget {
         child: Obx(() {
           final entries = <StaffMenuEntry>[
             if (session.canAccessMar)
-              const StaffMenuEntry(
+              StaffMenuEntry(
                 icon: Icons.medication_outlined,
                 iconBackground: AppColors.activeBackground,
                 iconColor: AppColors.activeGreen,
                 title: 'Medication MAR',
-                subtitle: 'Due, administered, missed & refused doses',
+                subtitle: session.canWriteMar
+                    ? 'Due, administered, missed & refused doses'
+                    : 'View due and recorded doses (read only)',
               ),
             const StaffMenuEntry(
               icon: Icons.fact_check_outlined,

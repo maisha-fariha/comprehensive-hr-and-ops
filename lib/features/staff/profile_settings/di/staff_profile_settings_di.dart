@@ -19,7 +19,9 @@ Future<void> setupStaffProfileSettingsDependencies() async {
     ),
   );
 
-  DIHelper.registerController<StaffProfileSettingsController>(
-    factory: () => StaffProfileSettingsController(repository: getIt<StaffProfileSettingsRepository>()),
+  await DIHelper.registerControllerFactory<StaffProfileSettingsController>(
+    factory: () => StaffProfileSettingsController(
+      repository: getIt<StaffProfileSettingsRepository>(),
+    ),
   );
 }

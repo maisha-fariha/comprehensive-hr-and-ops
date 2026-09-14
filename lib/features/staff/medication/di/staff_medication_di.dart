@@ -18,7 +18,7 @@ Future<void> setupStaffMedicationDependencies() async {
     ),
   );
 
-  DIHelper.registerController<StaffMedicationController>(
+  await DIHelper.registerControllerFactory<StaffMedicationController>(
     factory: () => StaffMedicationController(
       repository: getIt<StaffMedicationRepository>(),
     ),

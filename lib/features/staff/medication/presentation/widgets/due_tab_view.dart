@@ -10,6 +10,7 @@ class DueTabView extends StatelessWidget {
   final List<DueDose> laterTodayDoses;
   final ValueChanged<String> onAdminister;
   final ValueChanged<String> onNotGiven;
+  final bool canWrite;
 
   static const Color _titleColor = Color(0xFF1A2B48);
 
@@ -27,6 +28,7 @@ class DueTabView extends StatelessWidget {
     required this.laterTodayDoses,
     required this.onAdminister,
     required this.onNotGiven,
+    this.canWrite = true,
   });
 
   @override
@@ -46,6 +48,7 @@ class DueTabView extends StatelessWidget {
           for (var i = 0; i < dueNowDoses.length; i++) ...[
             DueDoseCard(
               dose: dueNowDoses[i],
+              canWrite: canWrite,
               onAdminister: () => onAdminister(dueNowDoses[i].id),
               onNotGiven: () => onNotGiven(dueNowDoses[i].id),
             ),
@@ -65,6 +68,7 @@ class DueTabView extends StatelessWidget {
           for (var i = 0; i < laterTodayDoses.length; i++) ...[
             DueDoseCard(
               dose: laterTodayDoses[i],
+              canWrite: canWrite,
               onAdminister: () => onAdminister(laterTodayDoses[i].id),
               onNotGiven: () => onNotGiven(laterTodayDoses[i].id),
             ),

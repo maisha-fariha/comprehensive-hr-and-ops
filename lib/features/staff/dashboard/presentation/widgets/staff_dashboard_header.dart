@@ -7,7 +7,7 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/staff_dashboard_overview.dart';
 
 /// How far [TodayShiftCard] overlaps the gradient header.
-const double kStaffShiftCardOverlap = 38;
+const double kStaffShiftCardOverlap = 70;
 
 /// Teal gradient hero: org switcher, notifications, avatar, greeting.
 class StaffDashboardHeader extends StatelessWidget {

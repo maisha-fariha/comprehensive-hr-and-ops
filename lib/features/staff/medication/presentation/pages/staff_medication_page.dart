@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../../domain/entities/staff_medication_enums.dart';
@@ -109,6 +110,7 @@ class StaffMedicationPage extends StatelessWidget {
                       StaffMedicationTab.due => DueTabView(
                           dueNowDoses: overview.dueNowDoses,
                           laterTodayDoses: overview.laterTodayDoses,
+                          canWrite: Get.find<UserSession>().canWriteMar,
                           onAdminister: controller.markAdministered,
                           onNotGiven: controller.markNotGiven,
                         ),

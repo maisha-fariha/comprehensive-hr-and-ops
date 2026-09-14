@@ -6,6 +6,7 @@ import '../../features/auth/domain/entities/mobile_profile.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../errors/app_error_mapper.dart';
 import '../routing/app_routes.dart';
+import 'session_lifecycle.dart';
 import 'user_role.dart';
 
 /// Tenant-configured family portal visibility from `GET /family/home`.
@@ -50,11 +51,15 @@ class UserSession extends GetxService {
   final RxnString _staffId = RxnString();
   final RxnString _relationship = RxnString();
   final RxnString _selectedClientId = RxnString();
+  final RxnString _roleRaw = RxnString();
+  final Rxn<StaffKind> _staffKind = Rxn<StaffKind>();
   final RxList<String> _permissions = <String>[].obs;
   final Rx<FamilyVisibility> _familyVisibility = FamilyVisibility.unknown.obs;
+  bool _signingOut = false;
 
   UserRole get role => _role.value ?? UserRole.hr;
   bool get isSignedIn => _role.value != null;
+  bool get isSigningOut => _signingOut;
   String? get userId => _userId.value;
   String get displayName => _displayName.value;
   String get email => _email.value;
@@ -65,43 +70,63 @@ class UserSession extends GetxService {
   String? get staffId => _staffId.value;
   String? get relationship => _relationship.value;
   String? get selectedClientId => _selectedClientId.value;
+  String? get roleRaw => _roleRaw.value;
+  StaffKind? get staffKind => _staffKind.value;
   List<String> get permissions => List.unmodifiable(_permissions);
   FamilyVisibility get familyVisibility => _familyVisibility.value;
 
   String get portalRoute => isSignedIn ? role.portalRoute : AppRoutes.login;
 
-  /// When `/mobile/me` (or `/mobile/home`) has not returned permissions yet,
-  /// screens stay visible so a first paint does not hide the whole shell.
+  /// Permission checks follow API keys from `/mobile/me` / `/mobile/home`
+  /// (e.g. `clients:read`, `mar:write`). Empty list = first paint before
+  /// permissions arrive — keep shell visible.
   bool can(String permission) {
     if (_permissions.isEmpty) return true;
-    final needed = permission.toLowerCase();
+    final needed = permission.toLowerCase().replaceAll('_', '-');
     for (final raw in _permissions) {
-      final perm = raw.toLowerCase();
+      final perm = raw.toLowerCase().replaceAll('_', '-');
       if (perm == needed) return true;
-      if (perm.startsWith('$needed:')) return true;
+      // `can('clients')` matches `clients:read` / `clients:write`.
+      if (!needed.contains(':') && perm.startsWith('$needed:')) return true;
+      // `can('mar:write')` also matches bare `mar` if ever returned.
       if (needed.contains(':') && perm == needed.split(':').first) return true;
     }
     return false;
   }
 
   bool get canAccessClients => can('clients');
-  bool get canAccessDailyLogs => can('daily-logs') || can('daily_logs');
+  bool get canAccessDailyLogs => can('daily-logs');
   bool get canAccessMar => can('mar');
+  bool get canWriteMar => can('mar:write');
   bool get canAccessIncidents => can('incidents');
   bool get canAccessTasks => can('tasks');
   bool get canAccessAppointments => can('appointments');
   bool get canAccessHandovers => can('shift-handovers') || can('handovers');
 
   void applyPermissions(Iterable<String> values) {
-    if (values.isEmpty) return;
-    _permissions.assignAll(values);
+    // `/mobile/home` sometimes omits permissions; keep `/mobile/me` values.
+    final list = values.toList();
+    if (list.isEmpty) return;
+    _permissions.assignAll(list);
   }
 
   void applyStaffContext({
     String? staffId,
     String? residenceId,
     String? residenceName,
+    bool replace = false,
   }) {
+    if (replace) {
+      _staffId.value =
+          (staffId != null && staffId.isNotEmpty) ? staffId : null;
+      _residenceId.value =
+          (residenceId != null && residenceId.isNotEmpty) ? residenceId : null;
+      if (residenceName != null && residenceName.isNotEmpty) {
+        _residenceName.value = residenceName;
+        _organizationName.value = residenceName;
+      }
+      return;
+    }
     if (staffId != null && staffId.isNotEmpty) _staffId.value = staffId;
     if (residenceId != null && residenceId.isNotEmpty) {
       _residenceId.value = residenceId;
@@ -114,6 +139,8 @@ class UserSession extends GetxService {
 
   void applyProfile(MobileProfile profile) {
     _role.value = profile.role;
+    _roleRaw.value = profile.roleRaw.isEmpty ? null : profile.roleRaw;
+    _staffKind.value = StaffKind.tryParse(profile.roleRaw);
     _userId.value = profile.id.isEmpty ? null : profile.id;
     _displayName.value = profile.displayName;
     _email.value = profile.email;
@@ -184,11 +211,23 @@ class UserSession extends GetxService {
   /// Clears the local session and returns to the login screen, dropping the
   /// current portal stack so back cannot restore a signed-in shell.
   Future<void> signOut() async {
+    _signingOut = true;
     try {
-      await GetIt.instance<AuthRepository>().logout();
-    } catch (_) {}
-    _clear();
-    Get.offAllNamed(AppRoutes.login);
+      // Leave the portal first. If we clear tokens / delete controllers while
+      // StaffShell is still mounted, Obx rebuilds recreate controllers and
+      // fire unauthenticated GETs → "Sign-in needed" on the login screen.
+      if (Get.isDialogOpen == true) {
+        Get.back<void>();
+      }
+      Get.offAllNamed(AppRoutes.login);
+      await SessionLifecycle.reset();
+      try {
+        await GetIt.instance<AuthRepository>().logout();
+      } catch (_) {}
+      _clear();
+    } finally {
+      _signingOut = false;
+    }
   }
 
   void _clear() {
@@ -203,6 +242,8 @@ class UserSession extends GetxService {
     _staffId.value = null;
     _relationship.value = null;
     _selectedClientId.value = null;
+    _roleRaw.value = null;
+    _staffKind.value = null;
     _permissions.clear();
     _familyVisibility.value = FamilyVisibility.unknown;
   }

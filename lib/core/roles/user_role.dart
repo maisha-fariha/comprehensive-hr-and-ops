@@ -28,6 +28,9 @@ enum UserRole {
 
   /// Maps `/mobile/me` role strings onto a portal. Returns null when the
   /// backend role is not one of the three mobile apps.
+  ///
+  /// Staff portal covers nurse, caregiver, and housekeeper — the same shell
+  /// with permission-scoped data from `/mobile/me` + `/mobile/home`.
   static UserRole? tryParse(String? raw) {
     if (raw == null) return null;
     final normalized = raw
@@ -43,14 +46,9 @@ enum UserRole {
         normalized.contains('kin')) {
       return UserRole.family;
     }
-    if (normalized.contains('housekeeper') ||
-        normalized.contains('house_keeper')) {
-      return UserRole.staff;
-    }
-    if (normalized.contains('staff') ||
-        normalized.contains('caregiver') ||
+    if (StaffKind.tryParse(normalized) != null ||
+        normalized.contains('staff') ||
         normalized.contains('care_worker') ||
-        normalized.contains('nurse') ||
         normalized == 'carer') {
       return UserRole.staff;
     }
@@ -61,5 +59,56 @@ enum UserRole {
       return UserRole.hr;
     }
     return null;
+  }
+}
+
+/// Care-role subtype inside the Staff portal.
+///
+/// Portal chrome is shared; menus and tiles follow API permissions
+/// (`clients:read`, `mar:read` / `mar:write`, `incidents:read`, …).
+enum StaffKind {
+  nurse,
+  caregiver,
+  housekeeper,
+  other;
+
+  static StaffKind? tryParse(String? raw) {
+    if (raw == null) return null;
+    final normalized = raw
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+    if (normalized.isEmpty) return null;
+    if (normalized.contains('housekeeper') ||
+        normalized.contains('house_keeper')) {
+      return StaffKind.housekeeper;
+    }
+    if (normalized.contains('caregiver') ||
+        normalized.contains('care_giver') ||
+        normalized.contains('care_worker') ||
+        normalized == 'carer') {
+      return StaffKind.caregiver;
+    }
+    if (normalized.contains('nurse')) {
+      return StaffKind.nurse;
+    }
+    if (normalized.contains('staff')) {
+      return StaffKind.other;
+    }
+    return null;
+  }
+
+  String get label {
+    switch (this) {
+      case StaffKind.nurse:
+        return 'Nurse';
+      case StaffKind.caregiver:
+        return 'Caregiver';
+      case StaffKind.housekeeper:
+        return 'Housekeeper';
+      case StaffKind.other:
+        return 'Staff';
+    }
   }
 }

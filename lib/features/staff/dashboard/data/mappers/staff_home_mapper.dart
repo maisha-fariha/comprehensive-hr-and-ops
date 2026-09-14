@@ -30,6 +30,7 @@ abstract final class StaffHomeMapper {
           JsonCodec.string(json['residenceId']),
       residenceName: JsonCodec.string(shift['residenceName']) ??
           JsonCodec.string(json['residenceName']),
+      replace: true,
     );
 
     final onShift = JsonCodec.boolean(attendance['onShift']) ?? false;

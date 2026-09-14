@@ -19,13 +19,13 @@ Future<void> setupStaffDailyLogsDependencies() async {
     ),
   );
 
-  DIHelper.registerController<StaffDailyLogsController>(
+  await DIHelper.registerControllerFactory<StaffDailyLogsController>(
     factory: () => StaffDailyLogsController(
       repository: getIt<StaffDailyLogsRepository>(),
     ),
   );
 
-  DIHelper.registerController<DailyNoteController>(
+  await DIHelper.registerControllerFactory<DailyNoteController>(
     factory: () => DailyNoteController(
       repository: getIt<StaffDailyLogsRepository>(),
     ),

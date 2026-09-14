@@ -1,5 +1,7 @@
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get/get.dart';
 
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_dashboard_overview.dart';
 import '../../domain/repositories/staff_dashboard_repository.dart';
 
@@ -11,17 +13,31 @@ import '../../domain/repositories/staff_dashboard_repository.dart';
 class StaffDashboardController extends BaseController<StaffDashboardOverview> {
   final StaffDashboardRepository repository;
 
-  StaffDashboardController({required this.repository}) {
-    loadOverview();
-  }
+  /// Account this controller's data belongs to — used to detect stale reuse.
+  String? boundUserId;
+
+  StaffDashboardController({required this.repository});
 
   StaffDashboardOverview? get overview => state.value.data;
+
+  @override
+  void onInit() {
+    super.onInit();
+    loadOverview();
+  }
 
   Future<void> loadOverview() async {
     setLoading(true);
     final result = await repository.getOverview();
     result.when(
-      success: setSuccess,
+      success: (data) {
+        try {
+          boundUserId = Get.find<UserSession>().userId;
+        } catch (_) {
+          boundUserId = null;
+        }
+        setSuccess(data);
+      },
       failure: (error) => setError(error.message),
     );
     setLoading(false);

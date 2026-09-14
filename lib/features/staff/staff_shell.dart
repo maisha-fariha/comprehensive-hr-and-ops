@@ -40,6 +40,10 @@ class _StaffShellState extends State<StaffShell> {
     final session = Get.find<UserSession>();
 
     return Obx(() {
+      // Keyed by user so a different staff login never reuses the previous
+      // account's IndexedStack / tab Element tree.
+      final userKey = session.userId ?? session.email;
+
       final tabs = <Widget>[
         const StaffDashboardPage(),
         const StaffSchedulePage(),
@@ -56,7 +60,12 @@ class _StaffShellState extends State<StaffShell> {
       final index = _currentIndex.clamp(0, tabs.length - 1);
 
       return Scaffold(
-        body: IndexedStack(index: index, children: tabs),
+        key: ValueKey('staff-shell-$userKey'),
+        body: IndexedStack(
+          key: ValueKey('staff-tabs-$userKey'),
+          index: index,
+          children: tabs,
+        ),
         bottomNavigationBar: StaffBottomNavBar(
           currentIndex: index,
           onTap: (value) => setState(() => _currentIndex = value),

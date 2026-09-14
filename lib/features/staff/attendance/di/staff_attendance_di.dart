@@ -18,7 +18,7 @@ Future<void> setupStaffAttendanceDependencies() async {
     ),
   );
 
-  DIHelper.registerController<StaffAttendanceController>(
+  await DIHelper.registerControllerFactory<StaffAttendanceController>(
     factory: () => StaffAttendanceController(
       repository: getIt<StaffAttendanceRepository>(),
     ),
