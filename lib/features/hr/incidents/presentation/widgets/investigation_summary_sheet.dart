@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
@@ -8,8 +6,10 @@ import 'package:printing/printing.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/storage/media_store_download.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../data/cir_pdf_builder.dart';
 import '../../domain/entities/incident_investigation_summary.dart';
 import '../../domain/entities/investigation_incident.dart';
 import '../../domain/repositories/incidents_repository.dart';
@@ -80,60 +80,59 @@ class _InvestigationSummarySheetState
   }
 
   Future<void> _handlePdf({required bool forPrint}) async {
-    if (_pdfBusy) return;
+    if (_pdfBusy || _summary == null) return;
     setState(() => _pdfBusy = true);
-    final result = await _repository.downloadCirPdf(widget.incident.id);
-    if (!mounted) return;
 
-    await result.when(
-      success: (bytes) async {
-        final pdfBytes = Uint8List.fromList(bytes);
-        final shortId = widget.incident.id.length > 8
-            ? widget.incident.id.substring(0, 8)
-            : widget.incident.id;
-        final fileName = 'CIR-$shortId.pdf';
-        try {
-          if (forPrint) {
-            await Printing.layoutPdf(
-              name: fileName,
-              onLayout: (_) async => pdfBytes,
-            );
-          } else {
-            // Android 10+: MediaStore Downloads (scoped storage).
-            final saveResult = await MediaStoreDownload.savePdf(
-              fileName: fileName,
-              bytes: pdfBytes,
-            );
-            if (!mounted) return;
-            if (saveResult.success) {
-              AppSnackbar.show(
-                'PDF downloaded',
-                'Saved to ${saveResult.displayLocation}',
-              );
-            } else {
-              AppSnackbar.show(
-                'Could not download PDF',
-                saveResult.error ?? 'Could not save the PDF to Downloads.',
-              );
-            }
-          }
-        } catch (error) {
-          if (!mounted) return;
+    final summary = _summary!;
+    final shortId = summary.id.length > 8
+        ? summary.id.substring(0, 8)
+        : summary.id;
+    final fileName = 'CIR-$shortId.pdf';
+    final generatedFor = Get.isRegistered<UserSession>()
+        ? Get.find<UserSession>().displayName
+        : '';
+
+    try {
+      final pdfBytes = await CirPdfBuilder.build(
+        summary: summary,
+        generatedForName:
+            generatedFor.trim().isEmpty ? 'User' : generatedFor.trim(),
+      );
+      if (!mounted) return;
+
+      if (forPrint) {
+        await Printing.layoutPdf(
+          name: fileName,
+          onLayout: (_) async => pdfBytes,
+        );
+      } else {
+        // Generate → save to Downloads → open in a PDF viewer.
+        final saveResult = await MediaStoreDownload.savePdfAndOpen(
+          fileName: fileName,
+          bytes: pdfBytes,
+        );
+        if (!mounted) return;
+        if (saveResult.success) {
           AppSnackbar.show(
-            forPrint ? 'Could not print' : 'Could not download PDF',
-            error.toString(),
+            'PDF ready',
+            '$fileName saved to ${saveResult.displayLocation} and opened.',
+          );
+        } else {
+          AppSnackbar.show(
+            'Could not download PDF',
+            saveResult.error ?? 'Could not save or open the PDF.',
           );
         }
-      },
-      failure: (error) async {
-        AppSnackbar.show(
-          forPrint ? 'Could not print' : 'Could not download PDF',
-          error.message,
-        );
-      },
-    );
-
-    if (mounted) setState(() => _pdfBusy = false);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      AppSnackbar.show(
+        forPrint ? 'Could not print' : 'Could not download PDF',
+        error.toString(),
+      );
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
+    }
   }
 
   void _close() => Navigator.of(context).pop();
