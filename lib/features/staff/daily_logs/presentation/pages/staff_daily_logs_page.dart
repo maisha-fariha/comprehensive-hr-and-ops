@@ -86,6 +86,9 @@ class StaffDailyLogsPage extends StatelessWidget {
                     StaffDailyLogsTabBar(
                       selectedTab: controller.selectedTab.value,
                       onTabSelected: controller.selectTab,
+                      myClientsCount: overview.myClientsTotalCount,
+                      inProgressCount: overview.inProgressClients.length,
+                      submittedCount: overview.submittedTotalCount,
                     ),
                   ],
                 ),

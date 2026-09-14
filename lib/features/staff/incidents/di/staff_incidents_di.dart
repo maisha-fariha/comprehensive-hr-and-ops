@@ -33,6 +33,8 @@ Future<void> setupStaffIncidentsDependencies() async {
   );
 
   await DIHelper.registerControllerFactory<IncidentCreationController>(
-    factory: () => IncidentCreationController(),
+    factory: () => IncidentCreationController(
+      repository: getIt<StaffIncidentsRepository>(),
+    ),
   );
 }

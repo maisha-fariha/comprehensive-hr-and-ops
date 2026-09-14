@@ -10,6 +10,16 @@ enum IncidentSeverity { low, medium, high, critical }
 /// on each Staff Incidents list card ("Open" / "In Review" / "Closed").
 enum IncidentStatus { open, inReview, closed }
 
+extension IncidentStatusApi on IncidentStatus {
+  /// Query value for `GET /incidents?status=`.
+  /// UI "In Review" maps to API `investigating`.
+  String get apiValue => switch (this) {
+        IncidentStatus.open => 'open',
+        IncidentStatus.inReview => 'investigating',
+        IncidentStatus.closed => 'closed',
+      };
+}
+
 /// Which icon glyph an incident card's leading icon uses - a warning
 /// triangle for physical/behavioral incidents (Fall, Verbal Aggression) or
 /// an info circle for care-related incidents (Medication Refusal). The

@@ -103,6 +103,10 @@ class UserSession extends GetxService {
   bool get canAccessAppointments => can('appointments');
   bool get canAccessHandovers => can('shift-handovers') || can('handovers');
 
+  /// Staff Schedule "Upcoming Appointments" — nurse / caregiver only (B2).
+  bool get canSeeStaffScheduleAppointments =>
+      staffKind == StaffKind.nurse || staffKind == StaffKind.caregiver;
+
   void applyPermissions(Iterable<String> values) {
     // `/mobile/home` sometimes omits permissions; keep `/mobile/me` values.
     final list = values.toList();

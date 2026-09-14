@@ -16,13 +16,19 @@ class _BadgeStyle {
 class StaffDailyLogsTabBar extends StatelessWidget {
   final StaffDailyLogsTab selectedTab;
   final ValueChanged<StaffDailyLogsTab> onTabSelected;
+  final int myClientsCount;
+  final int inProgressCount;
+  final int submittedCount;
 
   static const Color _track = Color(0xFFF1F4F8);
   static const Color _inactiveLabel = Color(0xFF7E8CA0);
   static const Color _activeLabel = Color(0xFF005F56);
 
-  static const int _inProgressBadge = 2;
-  static const int _submittedBadge = 5;
+  /// Soft slate badge + dark navy count.
+  static const _BadgeStyle _myClientsBadgeStyle = _BadgeStyle(
+    Color(0xFFECEFF3),
+    Color(0xFF1A2B3C),
+  );
 
   /// Pale blue badge + dark navy count (matches header ink).
   static const _BadgeStyle _inProgressBadgeStyle = _BadgeStyle(
@@ -40,6 +46,9 @@ class StaffDailyLogsTabBar extends StatelessWidget {
     super.key,
     required this.selectedTab,
     required this.onTabSelected,
+    this.myClientsCount = 0,
+    this.inProgressCount = 0,
+    this.submittedCount = 0,
   });
 
   @override
@@ -68,6 +77,10 @@ class StaffDailyLogsTabBar extends StatelessWidget {
                 label: 'My Clients',
                 isActive: selectedTab == StaffDailyLogsTab.myClients,
                 radius: segmentRadius,
+                badgeCount: selectedTab == StaffDailyLogsTab.myClients
+                    ? null
+                    : (myClientsCount > 0 ? myClientsCount : null),
+                badgeStyle: _myClientsBadgeStyle,
                 onTap: () => onTabSelected(StaffDailyLogsTab.myClients),
               ),
             ),
@@ -78,7 +91,7 @@ class StaffDailyLogsTabBar extends StatelessWidget {
                 radius: segmentRadius,
                 badgeCount: selectedTab == StaffDailyLogsTab.inProgress
                     ? null
-                    : _inProgressBadge,
+                    : (inProgressCount > 0 ? inProgressCount : null),
                 badgeStyle: _inProgressBadgeStyle,
                 onTap: () => onTabSelected(StaffDailyLogsTab.inProgress),
               ),
@@ -90,7 +103,7 @@ class StaffDailyLogsTabBar extends StatelessWidget {
                 radius: segmentRadius,
                 badgeCount: selectedTab == StaffDailyLogsTab.submitted
                     ? null
-                    : _submittedBadge,
+                    : (submittedCount > 0 ? submittedCount : null),
                 badgeStyle: _submittedBadgeStyle,
                 onTap: () => onTabSelected(StaffDailyLogsTab.submitted),
               ),

@@ -39,5 +39,23 @@ abstract final class StaffDailyLogsConstants {
     AvatarColorPair(AppColors.activeIconBackground, AppColors.activeGreen),
   ];
 
+  /// Dropdown choices for Daily Note observation rows.
+  static const Map<String, List<String>> noteFieldOptions = {
+    'mood': ['Happy', 'Calm', 'Anxious', 'Withdrawn', 'Agitated'],
+    'meals': ['Ate well', 'Partial', 'Assisted', 'Refused'],
+    'sleep': ['Good', 'Restless', 'Poor', 'Napped'],
+    'hygiene': ['Independent', 'Assisted', 'Refused'],
+    'activities': ['Engaged', 'Limited', 'Declined'],
+    'behavior': ['Settled', 'Settled with support', 'Challenging'],
+    'wellness': ['No concerns', 'Mild concerns', 'Needs review'],
+  };
+
+  static const List<String> shiftOptions = [
+    'morning',
+    'afternoon',
+    'night',
+    'day',
+  ];
+
   const StaffDailyLogsConstants._();
 }

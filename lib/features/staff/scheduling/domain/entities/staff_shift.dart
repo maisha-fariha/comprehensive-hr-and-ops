@@ -15,9 +15,12 @@ class StaffShift {
   final int extraStaffCount;
   final int filled;
   final int total;
+  /// Remaining open slots from API `openCount`, else `total - filled`.
+  final int openSlots;
   final String roleTag;
   final String statusLabel;
   final StaffingLevel staffingLevel;
+  final DateTime? startAt;
 
   const StaffShift({
     required this.id,
@@ -29,8 +32,10 @@ class StaffShift {
     required this.extraStaffCount,
     required this.filled,
     required this.total,
+    required this.openSlots,
     required this.roleTag,
     required this.statusLabel,
     required this.staffingLevel,
+    this.startAt,
   });
 }

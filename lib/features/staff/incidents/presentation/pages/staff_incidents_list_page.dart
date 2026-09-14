@@ -19,11 +19,6 @@ import 'incident_details_page.dart';
 /// The Staff Incidents list screen - "My Incidents / All Incidents" tabs
 /// of the Staff (care-worker) portal.
 ///
-/// Reproduction of the Figma "My Incidents - Incidents" and "All Incidents
-/// - Incidents" screenshots, built without Figma MCP access (monthly quota
-/// exhausted) - see the feature's final report for details on any
-/// approximated content and icon placeholders.
-///
 /// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
 /// matches reference frames that show the staff bottom nav.
 class StaffIncidentsListPage extends StatefulWidget {
@@ -50,7 +45,10 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
     try {
       return Get.find<StaffIncidentsController>();
     } catch (_) {
-      return Get.put(GetIt.instance<StaffIncidentsController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<StaffIncidentsController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -64,6 +62,21 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
 
   void _onBottomNavTap(int index) {
     Get.offAll(() => StaffShell(initialIndex: index));
+  }
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final initialStart = _controller.fromDate.value ??
+        now.subtract(const Duration(days: 30));
+    final initialEnd = _controller.toDate.value ?? now;
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: now.add(const Duration(days: 1)),
+      initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
+    );
+    if (range == null) return;
+    _controller.setDateRange(from: range.start, to: range.end);
   }
 
   @override
@@ -87,7 +100,9 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
           final hasData = response.data != null;
 
           if (!hasData && _controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+            );
           }
 
           if (!hasData) {
@@ -102,6 +117,7 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
           final selectedTab = _controller.selectedTab.value;
           final incidents = _controller.visibleIncidents;
           final showCreateButton = selectedTab == StaffIncidentsTab.myIncidents;
+          final summary = _controller.summary.value;
 
           return Column(
             children: [
@@ -119,7 +135,15 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                       ),
                       child: StaffIncidentsTabBar(
                         selected: selectedTab,
-                        totalCount: _controller.incidents.length,
+                        myIncidentsCount: selectedTab ==
+                                StaffIncidentsTab.myIncidents
+                            ? incidents.length
+                            : _controller.myIncidentsCount.value,
+                        allIncidentsCount: summary.total > 0
+                            ? summary.total
+                            : (selectedTab == StaffIncidentsTab.allIncidents
+                                ? incidents.length
+                                : _controller.allIncidentsCount.value),
                         onSelected: _controller.selectTab,
                       ),
                     ),
@@ -142,11 +166,16 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                         controller: _searchController,
                         onChanged: _controller.updateSearchQuery,
                       ),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                      ),
                       if (incidents.isEmpty)
                         Padding(
                           padding: EdgeInsets.symmetric(
-                            vertical: ResponsiveHelper.getResponsiveHeight(context, 40),
+                            vertical: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              40,
+                            ),
                           ),
                           child: const _NoResults(),
                         )
@@ -154,16 +183,23 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                         for (var i = 0; i < incidents.length; i++) ...[
                           if (i > 0)
                             SizedBox(
-                              height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                              height: ResponsiveHelper.getResponsiveHeight(
+                                context,
+                                12,
+                              ),
                             ),
                           StaffIncidentCard(
                             incident: incidents[i],
                             tab: selectedTab,
-                            onViewDetails: () => _openIncidentDetails(incidents[i].id),
+                            onViewDetails: () =>
+                                _openIncidentDetails(incidents[i].id),
                           ),
                         ],
                       if (showCreateButton) ...[
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                        SizedBox(
+                          height:
+                              ResponsiveHelper.getResponsiveHeight(context, 16),
+                        ),
                         StaffPrimaryButton(
                           label: 'Create Incident',
                           icon: Icons.add_rounded,
@@ -216,7 +252,11 @@ class _IncidentsError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.criticalRed, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.criticalRed,
+              size: 40,
+            ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Text(
               message,
@@ -230,7 +270,9 @@ class _IncidentsError extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+              ),
               child: const Text('Retry'),
             ),
           ],

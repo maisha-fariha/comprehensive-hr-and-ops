@@ -10,6 +10,7 @@ import '../../../staff_core_constants.dart';
 class SelfieVerificationRow extends StatelessWidget {
   final bool isVerified;
   final String verifiedLabel;
+  final String? selfieUrl;
 
   static const Color _primary = Color(0xFF1A2B3C);
   static const Color _verified = Color(0xFF2E7D32);
@@ -20,6 +21,7 @@ class SelfieVerificationRow extends StatelessWidget {
     super.key,
     required this.isVerified,
     required this.verifiedLabel,
+    this.selfieUrl,
   });
 
   @override
@@ -139,13 +141,21 @@ class SelfieVerificationRow extends StatelessWidget {
                         blurRadius: ResponsiveHelper.getResponsiveHeight(context, 6),
                       ),
                     ],
+                    image: selfieUrl != null && selfieUrl!.isNotEmpty
+                        ? DecorationImage(
+                            image: NetworkImage(selfieUrl!),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
                   alignment: Alignment.center,
-                  child: Icon(
-                    StaffMaterialIconFallback.personAvatar,
-                    size: ResponsiveHelper.getResponsiveSize(context, 50),
-                    color: AppColors.textFaint,
-                  ),
+                  child: selfieUrl != null && selfieUrl!.isNotEmpty
+                      ? null
+                      : Icon(
+                          StaffMaterialIconFallback.personAvatar,
+                          size: ResponsiveHelper.getResponsiveSize(context, 50),
+                          color: AppColors.textFaint,
+                        ),
                 ),
                 if (isVerified)
                   Positioned(

@@ -9,11 +9,13 @@ import '../../../../../core/constants/app_colors.dart';
 class DailyNoteHandoverSection extends StatelessWidget {
   final VoidCallback? onSubmit;
   final TextEditingController controller;
+  final String submitLabel;
 
   const DailyNoteHandoverSection({
     super.key,
     required this.controller,
     this.onSubmit,
+    this.submitLabel = 'Submit Note',
   });
 
   static const int _maxChars = 250;
@@ -158,7 +160,7 @@ class DailyNoteHandoverSection extends StatelessWidget {
                 SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
                 Flexible(
                   child: Text(
-                    'Submit Note',
+                    submitLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

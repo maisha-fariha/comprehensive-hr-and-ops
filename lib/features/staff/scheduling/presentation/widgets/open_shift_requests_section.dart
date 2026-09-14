@@ -105,7 +105,7 @@ class _OpenShiftCard extends StatelessWidget {
                 ),
                 SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
                 Text(
-                  '${shift.location} · ${shift.total - shift.filled} open · ${shift.roleTag}',
+                  '${shift.location} · ${shift.openSlots} open · ${shift.roleTag}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

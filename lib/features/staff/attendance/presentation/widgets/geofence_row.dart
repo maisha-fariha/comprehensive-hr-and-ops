@@ -10,6 +10,8 @@ import '../../../staff_core_constants.dart';
 /// card chrome (for use inside [ShiftDetailsCard]).
 class GeofenceRow extends StatelessWidget {
   final bool isWithinGeofence;
+  /// e.g. "Within Geofence · Accuracy 12 ft"
+  final String statusLabel;
   final String address;
   final VoidCallback? onTap;
   final bool embedded;
@@ -22,6 +24,7 @@ class GeofenceRow extends StatelessWidget {
   const GeofenceRow({
     super.key,
     required this.isWithinGeofence,
+    required this.statusLabel,
     required this.address,
     this.onTap,
     this.embedded = false,
@@ -58,7 +61,9 @@ class GeofenceRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                isWithinGeofence ? 'Within Geofence' : 'Outside Geofence',
+                statusLabel.isNotEmpty
+                    ? statusLabel
+                    : (isWithinGeofence ? 'Within Geofence' : 'Outside Geofence'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

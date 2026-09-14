@@ -10,12 +10,14 @@ class MyShiftsSection extends StatelessWidget {
   final String shiftsThisWeekLabel;
   final List<StaffShift> shifts;
   final ValueChanged<StaffShift>? onShiftTap;
+  final ValueChanged<StaffShift>? onRequestSwap;
 
   const MyShiftsSection({
     super.key,
     required this.shiftsThisWeekLabel,
     required this.shifts,
     this.onShiftTap,
+    this.onRequestSwap,
   });
 
   @override
@@ -76,9 +78,49 @@ class MyShiftsSection extends StatelessWidget {
                   if (i > 0) SizedBox(height: itemGap),
                   ShiftCard(
                     shift: shifts[i],
-                    onTap: onShiftTap == null ? null : () => onShiftTap!(shifts[i]),
+                    onTap: onShiftTap == null
+                        ? null
+                        : () => onShiftTap!(shifts[i]),
                     showDividerBar: true,
                   ),
+                  if (onRequestSwap != null) ...[
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 10),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: GestureDetector(
+                        onTap: () => onRequestSwap!(shifts[i]),
+                        behavior: HitTestBehavior.opaque,
+                        child: Container(
+                          padding: ResponsiveHelper.getResponsivePadding(
+                            context,
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceWhite,
+                            borderRadius: BorderRadius.circular(
+                              ResponsiveHelper.getResponsiveRadius(context, 10),
+                            ),
+                            border: Border.all(color: AppColors.secondaryTeal),
+                          ),
+                          child: Text(
+                            'Request swap',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                12,
+                              ),
+                              color: AppColors.secondaryTeal,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ],
             ),

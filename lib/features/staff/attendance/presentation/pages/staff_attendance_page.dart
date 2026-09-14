@@ -98,14 +98,16 @@ class StaffAttendancePage extends StatelessWidget {
                     ShiftDetailsCard(
                       locationName: overview.shiftLocationName,
                       timeRange: overview.shiftTimeRange,
-                      elapsedTimeLabel: overview.elapsedTimeLabel,
+                      elapsedTimeLabel: controller.liveElapsedLabel.value,
                       isWithinGeofence: overview.isWithinGeofence,
+                      geofenceStatusLabel: overview.geofenceStatusLabel,
                       geofenceAddress: overview.geofenceAddress,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                     SelfieVerificationRow(
                       isVerified: overview.isSelfieVerified,
                       verifiedLabel: overview.selfieVerifiedLabel,
+                      selfieUrl: overview.selfieUrl,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                     BreakRow(

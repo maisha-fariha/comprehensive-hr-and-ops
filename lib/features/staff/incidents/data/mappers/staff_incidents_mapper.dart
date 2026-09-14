@@ -3,7 +3,9 @@ import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/incident_activity_entry.dart';
 import '../../domain/entities/incident_detail.dart';
 import '../../domain/entities/staff_incident.dart';
+import '../../domain/entities/staff_incident_options.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
+import '../../domain/entities/staff_incidents_summary.dart';
 
 abstract final class StaffIncidentsMapper {
   static List<StaffIncident> listFrom(dynamic body) {
@@ -166,15 +168,144 @@ abstract final class StaffIncidentsMapper {
   static IncidentStatus _status(dynamic raw) {
     switch ((raw ?? '').toString().toLowerCase()) {
       case 'closed':
+      case 'resolved':
+      case 'archived':
         return IncidentStatus.closed;
       case 'investigating':
       case 'in_review':
       case 'in-review':
       case 'under_review':
+      case 'in review':
         return IncidentStatus.inReview;
       default:
         return IncidentStatus.open;
     }
+  }
+
+  /// UI "In Review" → API `investigating`.
+  static String? statusQueryValue(IncidentStatus? status) {
+    if (status == null) return null;
+    return switch (status) {
+      IncidentStatus.open => 'open',
+      IncidentStatus.inReview => 'investigating',
+      IncidentStatus.closed => 'closed',
+    };
+  }
+
+  static StaffIncidentsSummary summaryFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final open = JsonCodec.integerOr(
+      json['open'] ?? json['openCount'] ?? json['openIncidents'],
+      0,
+    );
+    final investigating = JsonCodec.integerOr(
+      json['investigating'] ??
+          json['underReview'] ??
+          json['inReview'] ??
+          json['pendingReview'],
+      0,
+    );
+    final closed = JsonCodec.integerOr(
+      json['closed'] ?? json['closedCount'] ?? json['resolved'],
+      0,
+    );
+    final total = JsonCodec.integerOr(
+      json['total'] ?? json['totalCount'] ?? json['count'],
+      open + investigating + closed,
+    );
+    return StaffIncidentsSummary(
+      total: total,
+      open: open,
+      investigating: investigating,
+      closed: closed,
+    );
+  }
+
+  static List<StaffIncidentCategoryOption> categoriesFrom(dynamic body) {
+    var source = JsonCodec.unwrapList(body);
+    if (source.isEmpty) {
+      final map = JsonCodec.unwrapMap(body);
+      final nested = map['categories'] ?? map['items'] ?? map['results'];
+      if (nested is List) source = nested;
+    }
+    final options = <StaffIncidentCategoryOption>[];
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final name = JsonCodec.string(
+            json['name'] ?? json['label'] ?? json['title'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      options.add(
+        StaffIncidentCategoryOption(
+          id: JsonCodec.stringOr(json['id'] ?? json['categoryId'], name),
+          name: name,
+        ),
+      );
+    }
+    return options;
+  }
+
+  static List<StaffCirTemplateOption> cirTemplatesFrom(dynamic body) {
+    var source = JsonCodec.unwrapList(body);
+    if (source.isEmpty) {
+      final map = JsonCodec.unwrapMap(body);
+      final nested = map['templates'] ?? map['items'] ?? map['results'];
+      if (nested is List) source = nested;
+    }
+    final options = <StaffCirTemplateOption>[];
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final name = JsonCodec.string(
+            json['name'] ?? json['label'] ?? json['title'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      options.add(
+        StaffCirTemplateOption(
+          id: JsonCodec.stringOr(json['id'] ?? json['cirTemplateId'], name),
+          name: name,
+        ),
+      );
+    }
+    return options;
+  }
+
+  static List<StaffIncidentClientOption> clientsFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final options = <StaffIncidentClientOption>[];
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final name = JsonCodec.string(
+            json['preferredName'] ??
+                json['fullName'] ??
+                json['name'] ??
+                json['displayName'] ??
+                json['clientName'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      options.add(
+        StaffIncidentClientOption(
+          id: JsonCodec.stringOr(json['id'] ?? json['clientId'], name),
+          name: name,
+          residenceId: JsonCodec.string(
+            json['residenceId'] ?? residence['id'],
+          ),
+          residenceName: JsonCodec.string(
+            json['residenceName'] ?? residence['name'],
+          ),
+          roomLabel: JsonCodec.string(
+            json['room'] ?? json['roomNumber'] ?? json['location'],
+          ),
+        ),
+      );
+    }
+    return options;
   }
 
   static String _statusLabel(IncidentStatus status) {

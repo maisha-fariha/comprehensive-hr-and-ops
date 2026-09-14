@@ -11,6 +11,7 @@ class ShiftDetailsCard extends StatelessWidget {
   final String timeRange;
   final String elapsedTimeLabel;
   final bool isWithinGeofence;
+  final String geofenceStatusLabel;
   final String geofenceAddress;
   final VoidCallback? onViewScheduleTap;
   final VoidCallback? onGeofenceTap;
@@ -25,6 +26,7 @@ class ShiftDetailsCard extends StatelessWidget {
     required this.timeRange,
     required this.elapsedTimeLabel,
     required this.isWithinGeofence,
+    required this.geofenceStatusLabel,
     required this.geofenceAddress,
     this.onViewScheduleTap,
     this.onGeofenceTap,
@@ -109,6 +111,7 @@ class ShiftDetailsCard extends StatelessWidget {
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
           GeofenceRow(
             isWithinGeofence: isWithinGeofence,
+            statusLabel: geofenceStatusLabel,
             address: geofenceAddress,
             onTap: onGeofenceTap,
             embedded: true,

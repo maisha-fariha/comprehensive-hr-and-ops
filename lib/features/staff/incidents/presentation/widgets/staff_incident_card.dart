@@ -12,11 +12,10 @@ import 'staff_incident_type_icon.dart';
 
 /// Incident list card for both Staff Incidents tabs.
 ///
-/// **My Incidents:** icon/title/severity → date → divider → avatar + name +
-/// status (no View Details).
+/// **My Incidents:** reference card — icon/title/severity → calendar date →
+/// divider → avatar + name + status (tappable, no View Details).
 ///
-/// **All Incidents:** same top block → divider → avatar + "Assigned: …" +
-/// status → mint outlined View Details button.
+/// **All Incidents:** prior layout with Assigned footer + View Details.
 class StaffIncidentCard extends StatelessWidget {
   final StaffIncident incident;
   final StaffIncidentsTab tab;
@@ -26,11 +25,281 @@ class StaffIncidentCard extends StatelessWidget {
   static const Color _dateInk = Color(0xFF7E8CA0);
   static const Color _viewBg = Color(0xFFF3FAF9);
   static const Color _viewBorder = Color(0xFFCFE7E5);
+  static const Color _myTitle = Color(0xFF1A2B3C);
+  static const Color _closedStatus = Color(0xFF5B6B7C);
 
   const StaffIncidentCard({
     super.key,
     required this.incident,
     required this.tab,
+    this.onViewDetails,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (tab == StaffIncidentsTab.myIncidents) {
+      final card = _MyIncidentCard(incident: incident);
+      if (onViewDetails == null) return card;
+      return GestureDetector(
+        onTap: onViewDetails,
+        behavior: HitTestBehavior.opaque,
+        child: card,
+      );
+    }
+    return _AllIncidentCard(
+      incident: incident,
+      onViewDetails: onViewDetails,
+    );
+  }
+}
+
+/// My Incidents card — matched to the staff incidents reference screenshot.
+class _MyIncidentCard extends StatelessWidget {
+  final StaffIncident incident;
+
+  const _MyIncidentCard({required this.incident});
+
+  Color _statusColor(IncidentStatus status) {
+    switch (status) {
+      case IncidentStatus.open:
+        return AppColors.infoBlue;
+      case IncidentStatus.inReview:
+        return AppColors.urgentAmber;
+      case IncidentStatus.closed:
+        return StaffIncidentCard._closedStatus;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final severityStyle = IncidentSeverityStyle.of(incident.severity);
+    final statusStyle = IncidentStatusStyle.of(incident.status);
+    final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 44);
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 16);
+
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 16,
+        vertical: 16,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1A2B3C).withValues(alpha: 0.07),
+            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 3)),
+            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: iconBoxSize,
+                height: iconBoxSize,
+                decoration: BoxDecoration(
+                  color: severityStyle.background,
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(context, 12),
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: StaffIncidentTypeIcon(
+                  kind: incident.iconKind,
+                  color: severityStyle.color,
+                  size: 20,
+                ),
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      incident.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          16.5,
+                        ),
+                        color: StaffIncidentCard._myTitle,
+                        height: 1.25,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 6),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          width: ResponsiveHelper.getResponsiveSize(context, 7),
+                          height: ResponsiveHelper.getResponsiveSize(context, 7),
+                          decoration: BoxDecoration(
+                            color: severityStyle.color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        SizedBox(
+                          width: ResponsiveHelper.getResponsiveWidth(context, 6),
+                        ),
+                        Flexible(
+                          child: Text(
+                            severityStyle.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                12.5,
+                              ),
+                              color: severityStyle.color,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+          Row(
+            children: [
+              const AppSvgIcon(
+                AppAssets.navCalendar,
+                size: 15,
+                color: StaffIncidentCard._dateInk,
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
+              Flexible(
+                child: Text(
+                  incident.dateTimeLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w400,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    color: StaffIncidentCard._dateInk,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
+            ),
+            child: const Divider(
+              height: 1,
+              thickness: 1,
+              color: StaffIncidentCard._divider,
+            ),
+          ),
+          Row(
+            children: [
+              _MyCardAvatar(initials: incident.personInitials),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+              Expanded(
+                child: Text(
+                  incident.personName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    color: StaffIncidentCard._myTitle,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              Text(
+                statusStyle.label,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: _statusColor(incident.status),
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MyCardAvatar extends StatelessWidget {
+  final String initials;
+
+  /// Pastel chips matching the My Incidents reference (lavender / mint / rose).
+  static const List<(Color, Color)> _palette = [
+    (Color(0xFFEDE7F6), Color(0xFF6D5BCE)),
+    (Color(0xFFE6F6EE), Color(0xFF2E8C58)),
+    (Color(0xFFFCE7F0), Color(0xFFC2478E)),
+    (Color(0xFFE8F0FE), Color(0xFF2A5DA6)),
+  ];
+
+  const _MyCardAvatar({required this.initials});
+
+  @override
+  Widget build(BuildContext context) {
+    final pair = _palette[initials.hashCode.abs() % _palette.length];
+    final size = ResponsiveHelper.getResponsiveSize(context, 30);
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: pair.$1, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w700,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+          color: pair.$2,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+/// All Incidents card — previous layout preserved (Assigned + View Details).
+class _AllIncidentCard extends StatelessWidget {
+  final StaffIncident incident;
+  final VoidCallback? onViewDetails;
+
+  const _AllIncidentCard({
+    required this.incident,
     this.onViewDetails,
   });
 
@@ -42,15 +311,9 @@ class StaffIncidentCard extends StatelessWidget {
   }
 
   String get _footerInitials {
-    if (tab == StaffIncidentsTab.myIncidents) return incident.personInitials;
     final names = incident.assignedNames;
     if (names.isEmpty) return '?';
     return _initialsFromName(names.first);
-  }
-
-  String get _footerName {
-    if (tab == StaffIncidentsTab.myIncidents) return incident.personName;
-    return _assignedLabel;
   }
 
   static String _initialsFromName(String name) {
@@ -81,9 +344,8 @@ class StaffIncidentCard extends StatelessWidget {
     final statusStyle = IncidentStatusStyle.of(incident.status);
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 42);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
-    final isAll = tab == StaffIncidentsTab.allIncidents;
 
-    final card = Container(
+    return Container(
       width: double.infinity,
       padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
       decoration: BoxDecoration(
@@ -133,12 +395,17 @@ class StaffIncidentCard extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          15,
+                        ),
                         color: AppColors.textHeading,
                         height: 1.25,
                       ),
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 5),
+                    ),
                     Row(
                       children: [
                         Container(
@@ -149,7 +416,9 @@ class StaffIncidentCard extends StatelessWidget {
                             shape: BoxShape.circle,
                           ),
                         ),
-                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+                        SizedBox(
+                          width: ResponsiveHelper.getResponsiveWidth(context, 6),
+                        ),
                         Flexible(
                           child: Text(
                             severityStyle.label,
@@ -158,7 +427,10 @@ class StaffIncidentCard extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w600,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                12,
+                              ),
                               color: severityStyle.color,
                               height: 1.2,
                             ),
@@ -174,7 +446,11 @@ class StaffIncidentCard extends StatelessWidget {
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
           Row(
             children: [
-              const AppSvgIcon(AppAssets.navCalendar, size: 14, color: _dateInk),
+              const AppSvgIcon(
+                AppAssets.navCalendar,
+                size: 14,
+                color: StaffIncidentCard._dateInk,
+              ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
               Flexible(
                 child: Text(
@@ -184,8 +460,9 @@ class StaffIncidentCard extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: _dateInk,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: StaffIncidentCard._dateInk,
                     height: 1.2,
                   ),
                 ),
@@ -196,21 +473,26 @@ class StaffIncidentCard extends StatelessWidget {
             padding: EdgeInsets.symmetric(
               vertical: ResponsiveHelper.getResponsiveHeight(context, 12),
             ),
-            child: const Divider(height: 1, thickness: 1, color: _divider),
+            child: const Divider(
+              height: 1,
+              thickness: 1,
+              color: StaffIncidentCard._divider,
+            ),
           ),
           Row(
             children: [
-              _CardAvatar(initials: _footerInitials),
+              _AllCardAvatar(initials: _footerInitials),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
               Expanded(
                 child: Text(
-                  _footerName,
+                  _assignedLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 13),
                     color: AppColors.textHeading,
                     height: 1.2,
                   ),
@@ -222,32 +504,23 @@ class StaffIncidentCard extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12.5),
                   color: _statusColor(incident.status),
                   height: 1.2,
                 ),
               ),
             ],
           ),
-          if (isAll) ...[
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-            _ViewDetailsButton(onTap: onViewDetails),
-          ],
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+          _ViewDetailsButton(onTap: onViewDetails),
         ],
       ),
-    );
-
-    if (isAll || onViewDetails == null) return card;
-
-    return GestureDetector(
-      onTap: onViewDetails,
-      behavior: HitTestBehavior.opaque,
-      child: card,
     );
   }
 }
 
-class _CardAvatar extends StatelessWidget {
+class _AllCardAvatar extends StatelessWidget {
   final String initials;
 
   static const List<(Color, Color)> _palette = [
@@ -257,7 +530,7 @@ class _CardAvatar extends StatelessWidget {
     (Color(0xFFE6F6EE), Color(0xFF2E8C58)),
   ];
 
-  const _CardAvatar({required this.initials});
+  const _AllCardAvatar({required this.initials});
 
   @override
   Widget build(BuildContext context) {
@@ -285,7 +558,6 @@ class _CardAvatar extends StatelessWidget {
   }
 }
 
-/// Mint outlined "View Details" control on All Incidents cards.
 class _ViewDetailsButton extends StatelessWidget {
   final VoidCallback? onTap;
 
@@ -303,7 +575,9 @@ class _ViewDetailsButton extends StatelessWidget {
         padding: ResponsiveHelper.getResponsivePadding(context, vertical: 12),
         decoration: BoxDecoration(
           color: StaffIncidentCard._viewBg,
-          border: Border.all(color: StaffIncidentCard._viewBorder.withValues(alpha: 0.45)),
+          border: Border.all(
+            color: StaffIncidentCard._viewBorder.withValues(alpha: 0.45),
+          ),
           borderRadius: BorderRadius.circular(radius),
         ),
         child: Row(
@@ -312,7 +586,7 @@ class _ViewDetailsButton extends StatelessWidget {
             Icon(
               Icons.visibility_outlined,
               size: ResponsiveHelper.getResponsiveSize(context, 16),
-              color: Color(0xFF0E7C7B),
+              color: const Color(0xFF0E7C7B),
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
             Text(
@@ -321,7 +595,7 @@ class _ViewDetailsButton extends StatelessWidget {
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w700,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                color: Color(0xFF0E7C7B),
+                color: const Color(0xFF0E7C7B),
                 height: 1.2,
               ),
             ),

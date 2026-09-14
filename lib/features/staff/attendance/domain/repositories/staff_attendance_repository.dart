@@ -6,11 +6,35 @@ import '../entities/staff_attendance_overview.dart';
 abstract class StaffAttendanceRepository {
   Future<Result<StaffAttendanceOverview>> getOverview();
 
-  Future<Result<void>> checkIn({String? shiftId, String? residenceId});
+  /// `POST /attendance/check-in`
+  Future<Result<void>> checkIn({
+    String? shiftId,
+    String? residenceId,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+    String? selfieUrl,
+  });
 
-  Future<Result<void>> checkOut({String? shiftId, String? residenceId});
+  /// `POST /attendance/check-out`
+  Future<Result<void>> checkOut({
+    String? shiftId,
+    String? residenceId,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+    String? selfieUrl,
+  });
 
+  /// `POST /uploads?category=attendance` → URL for [selfieUrl].
+  Future<Result<String>> uploadAttendanceSelfie({
+    required String localPath,
+    required String fileName,
+  });
+
+  /// `POST /attendance/break/start`
   Future<Result<void>> startBreak({String? residenceId});
 
+  /// `POST /attendance/break/end`
   Future<Result<void>> endBreak({String? residenceId});
 }

@@ -3,12 +3,15 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../domain/entities/daily_note_attachment.dart';
 
 /// Attachments block matched to the Daily Note reference: title, Photo /
 /// Upload File actions, and dashed "+ Add image / file" drop zone.
 class DailyNoteAttachmentsSection extends StatelessWidget {
+  final List<DailyNoteAttachment> attachments;
   final VoidCallback? onAddPhoto;
   final VoidCallback? onAddFiles;
+  final ValueChanged<DailyNoteAttachment>? onRemove;
 
   static const String _cameraAsset = 'assets/icons/staff_daily_logs/camera.svg';
   static const String _uploadAsset = 'assets/icons/staff_daily_logs/upload.svg';
@@ -20,8 +23,10 @@ class DailyNoteAttachmentsSection extends StatelessWidget {
 
   const DailyNoteAttachmentsSection({
     super.key,
+    this.attachments = const [],
     this.onAddPhoto,
     this.onAddFiles,
+    this.onRemove,
   });
 
   @override
@@ -67,6 +72,66 @@ class DailyNoteAttachmentsSection extends StatelessWidget {
           ],
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        if (attachments.isNotEmpty) ...[
+          for (final file in attachments)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: ResponsiveHelper.getResponsiveHeight(context, 8),
+              ),
+              child: Container(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceWhite,
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(context, 12),
+                  ),
+                  border: Border.all(color: _buttonBorder),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.attach_file_rounded,
+                      size: ResponsiveHelper.getResponsiveSize(context, 18),
+                      color: _iconTeal,
+                    ),
+                    SizedBox(
+                      width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                    ),
+                    Expanded(
+                      child: Text(
+                        file.fileName ?? file.fileUrl,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            13,
+                          ),
+                          color: _title,
+                        ),
+                      ),
+                    ),
+                    if (onRemove != null)
+                      GestureDetector(
+                        onTap: () => onRemove!(file),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: ResponsiveHelper.getResponsiveSize(context, 18),
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+        ],
         GestureDetector(
           onTap: onAddFiles ?? onAddPhoto,
           behavior: HitTestBehavior.opaque,

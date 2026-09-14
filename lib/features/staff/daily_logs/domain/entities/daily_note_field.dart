@@ -15,4 +15,12 @@ class DailyNoteField {
     required this.label,
     required this.value,
   });
+
+  DailyNoteField copyWith({String? value}) {
+    return DailyNoteField(
+      key: key,
+      label: label,
+      value: value ?? this.value,
+    );
+  }
 }
