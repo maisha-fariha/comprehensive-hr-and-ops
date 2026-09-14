@@ -12,6 +12,7 @@ import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../../domain/entities/investigation_incident.dart';
 import '../../domain/entities/open_incident.dart';
+import '../cir_answer_formatter.dart';
 
 abstract final class IncidentsMapper {
   /// Parse `GET /residences` into dropdown options.
@@ -409,17 +410,28 @@ abstract final class IncidentsMapper {
     final reportedAt = JsonCodec.dateTime(
       json['reportedAt'] ?? json['createdAt'],
     );
-    final payload = JsonCodec.mapAt(json, 'payload') ??
-        JsonCodec.mapAt(json, 'payloadJson') ??
-        const {};
+    final payload = Map<String, dynamic>.from(
+      JsonCodec.mapAt(json, 'payload') ??
+          JsonCodec.mapAt(json, 'payloadJson') ??
+          const {},
+    );
+    final snapshotRaw = json['templateSnapshotJson'] ??
+        json['templateSnapshot'] ??
+        json['cirSnapshot'];
+    final snapshot = snapshotRaw is Map
+        ? Map<String, dynamic>.from(JsonCodec.asMap(snapshotRaw))
+        : null;
     final description = JsonCodec.string(
           json['description'] ??
               payload['summary'] ??
               payload['description'] ??
+              payload['incidentDescription'] ??
               json['body'] ??
               json['narrative'],
         ) ??
         '';
+    final statusRaw = (JsonCodec.string(json['status']) ?? '').trim();
+    final severity = _severity(json['severity']);
 
     return IncidentInvestigationSummary(
       id: id,
@@ -430,6 +442,8 @@ abstract final class IncidentsMapper {
       reportedAtLabel: reportedAt == null
           ? '—'
           : _formatDayMonthYear(reportedAt.toLocal()),
+      reportedAtUtcLabel:
+          reportedAt == null ? '-' : _formatUtcStamp(reportedAt.toUtc()),
       reportedByName: () {
         final name = _reporterName(json);
         return name.isEmpty || name == 'Unknown' ? '—' : name;
@@ -437,9 +451,13 @@ abstract final class IncidentsMapper {
       description: description.trim().isEmpty
           ? 'No description recorded.'
           : description.trim(),
-      statusLabel: _displayStatus(json['status']),
+      statusLabel: _displayStatus(statusRaw),
+      statusRaw: statusRaw.isEmpty ? '-' : statusRaw,
+      severityLabel: _severityLabel(json['severity'], severity),
       iconKind: _icon(json),
-      formSections: _cirFormSections(json),
+      formSections: _cirFormSections(json, payload: payload),
+      cirPayload: payload,
+      templateSnapshot: snapshot,
     );
   }
 
@@ -458,7 +476,34 @@ abstract final class IncidentsMapper {
         .join(' ');
   }
 
-  static List<CirFormSection> _cirFormSections(Map<String, dynamic> json) {
+  static String _formatUtcStamp(DateTime utc) {
+    final y = utc.year.toString().padLeft(4, '0');
+    final m = utc.month.toString().padLeft(2, '0');
+    final d = utc.day.toString().padLeft(2, '0');
+    final hh = utc.hour.toString().padLeft(2, '0');
+    final mm = utc.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $hh:$mm UTC';
+  }
+
+  static String _severityLabel(dynamic raw, IncidentSeverity severity) {
+    final value = (JsonCodec.string(raw) ?? '').trim();
+    if (value.isEmpty) return '-';
+    switch (severity) {
+      case IncidentSeverity.low:
+        return 'Low';
+      case IncidentSeverity.medium:
+        return 'Medium';
+      case IncidentSeverity.high:
+        return 'High';
+      case IncidentSeverity.critical:
+        return 'Critical';
+    }
+  }
+
+  static List<CirFormSection> _cirFormSections(
+    Map<String, dynamic> json, {
+    required Map<String, dynamic> payload,
+  }) {
     final snapshot = json['templateSnapshotJson'] ??
         json['templateSnapshot'] ??
         json['cirSnapshot'];
@@ -500,7 +545,7 @@ abstract final class IncidentsMapper {
               section['title'] ?? section['name'] ?? section['label'],
               'Section ${i + 1}',
             ),
-            fields: _cirFields(nested),
+            fields: _cirFields(nested, payload: payload),
           ),
         );
       }
@@ -519,12 +564,15 @@ abstract final class IncidentsMapper {
           map['name'] ?? map['title'],
           "Section 1: Child or Youth's Information",
         ),
-        fields: _cirFields(fieldsRaw),
+        fields: _cirFields(fieldsRaw, payload: payload),
       ),
     ];
   }
 
-  static List<CirFormField> _cirFields(dynamic raw) {
+  static List<CirFormField> _cirFields(
+    dynamic raw, {
+    required Map<String, dynamic> payload,
+  }) {
     if (raw is! List) return const [];
     final fields = <CirFormField>[];
     for (final item in raw) {
@@ -535,16 +583,80 @@ abstract final class IncidentsMapper {
           ) ??
           '';
       if (label.isEmpty) continue;
-      final value = JsonCodec.string(
-            json['value'] ??
-                json['answer'] ??
-                json['response'] ??
-                json['defaultValue'],
-          ) ??
-          '—';
+      final key = JsonCodec.string(json['key']) ?? '';
+      final type = JsonCodec.string(json['type']) ?? 'text';
+      final options = json['options'] is List ? json['options'] as List : null;
+
+      if (type == 'table' && key == 'partiesNotified') {
+        fields.addAll(_partiesNotifiedFields(payload, json));
+        continue;
+      }
+
+      final rawValue = key.isNotEmpty
+          ? (payload.containsKey(key) ? payload[key] : json['value'])
+          : (json['value'] ??
+              json['answer'] ??
+              json['response'] ??
+              json['defaultValue']);
+
+      final value = CirAnswerFormatter.display(
+        rawValue,
+        type: type,
+        options: options,
+      );
+
+      // Hide empty "Please specify" companions.
+      if (label.toLowerCase().contains('please specify') &&
+          value == CirAnswerFormatter.empty) {
+        continue;
+      }
+
       fields.add(CirFormField(label: label, value: value));
     }
     return fields;
+  }
+
+  static List<CirFormField> _partiesNotifiedFields(
+    Map<String, dynamic> payload,
+    Map<String, dynamic> fieldDef,
+  ) {
+    final rows = fieldDef['rows'];
+    final parties = CirAnswerFormatter.partiesTable(payload);
+    final out = <CirFormField>[];
+    if (rows is! List) return out;
+
+    for (final row in rows) {
+      if (row is! Map) continue;
+      final rowMap = JsonCodec.asMap(row);
+      final rowKey = JsonCodec.string(rowMap['key']) ?? '';
+      final rowLabel = JsonCodec.string(rowMap['label']) ?? rowKey;
+      if (rowKey.isEmpty) continue;
+      final answer = parties[rowKey] ?? const <String, dynamic>{};
+      final notified = CirAnswerFormatter.display(
+        answer['notified'],
+        options: const [
+          {'value': 'yes', 'label': 'Yes'},
+          {'value': 'no', 'label': 'No'},
+        ],
+      );
+      final contact = CirAnswerFormatter.display(answer['contactName']);
+      final date = CirAnswerFormatter.display(answer['dateNotified']);
+      out.add(
+        CirFormField(
+          label: rowLabel,
+          value: '$notified · $contact · $date',
+        ),
+      );
+    }
+
+    final other = CirAnswerFormatter.fromPayload(
+      key: 'partiesNotifiedOtherDescription',
+      payload: payload,
+    );
+    out.add(
+      CirFormField(label: 'Other, please describe', value: other),
+    );
+    return out;
   }
 
   static String _formatDayMonthYear(DateTime date) {

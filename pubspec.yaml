@@ -68,8 +68,10 @@ dependencies:
   flutter_svg: ^2.0.10+1
   # 8.0.0+1 still uses removed Android v1 embedding (PluginRegistry.Registrar).
   file_picker: ^10.3.10
+  pdf: ^3.11.3
   printing: ^5.14.3
   path_provider: ^2.1.6
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:
