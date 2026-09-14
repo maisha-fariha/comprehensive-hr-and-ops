@@ -27,17 +27,25 @@ abstract final class StaffHomeMapper {
     session.applyStaffContext(
       staffId: JsonCodec.string(json['staffId']),
       residenceId: JsonCodec.string(shift['residenceId']) ??
+          JsonCodec.string(attendance['residenceId']) ??
+          JsonCodec.string(JsonCodec.mapAt(attendance, 'residence')?['id']) ??
           JsonCodec.string(json['residenceId']),
       residenceName: JsonCodec.string(shift['residenceName']) ??
+          JsonCodec.string(JsonCodec.mapAt(attendance, 'residence')?['name']) ??
           JsonCodec.string(json['residenceName']),
       replace: true,
     );
 
     final onShift = JsonCodec.boolean(attendance['onShift']) ?? false;
     final onBreak = JsonCodec.boolean(attendance['onBreak']) ?? false;
+    final clients = _tileInt(tiles, 'clients');
+    final tasksDue = _tileInt(tiles, 'tasksDue');
+    final medsDue = _tileInt(tiles, 'medicationsDue');
+    final alerts = _tileInt(tiles, 'alerts') ?? 0;
 
     return StaffDashboardOverview(
       organizationName: session.organizationName ??
+          session.residenceName ??
           JsonCodec.string(shift['residenceName']) ??
           'Residence',
       dateLabel: IsoDateRange.formatDisplayDate(now),
@@ -53,35 +61,78 @@ abstract final class StaffHomeMapper {
                 : 'Off Shift',
         dateLabel: IsoDateRange.formatMonthDay(now),
         timeRange: _shiftRange(shift),
+        onShift: onShift,
+        onBreak: onBreak,
+        shiftId: JsonCodec.string(shift['id'] ?? shift['shiftId']),
+        residenceId: session.residenceId,
       ),
       overviewStats: _stats(
         onShift: onShift,
         onBreak: onBreak,
         tiles: tiles,
       ),
-      alertCount: JsonCodec.integerOr(tiles['alerts'], 0),
+      alertCount: alerts,
       alertLabel: 'Alerts',
-      quickActions: const [
-        StaffQuickAction(
-          id: 'log-task',
-          asset: AppAssets.notePencil,
-          label: 'Log Task',
-        ),
-        StaffQuickAction(
-          id: 'message',
-          asset: AppAssets.messageCircle,
-          label: 'Message',
-        ),
-        StaffQuickAction(
-          id: 'mark-done',
-          asset: AppAssets.checkCircle,
-          label: 'Mark Done',
-        ),
-      ],
+      quickActions: _quickActions(
+        onShift: onShift,
+        clients: clients,
+        tasksDue: tasksDue,
+        medsDue: medsDue,
+        canAccessClients: session.canAccessClients,
+        canAccessMar: session.canAccessMar,
+      ),
     );
   }
 
+  static List<StaffQuickAction> _quickActions({
+    required bool onShift,
+    required int? clients,
+    required int? tasksDue,
+    required int? medsDue,
+    required bool canAccessClients,
+    required bool canAccessMar,
+  }) {
+    return [
+      StaffQuickAction(
+        id: 'clock-in-out',
+        asset: AppAssets.clock,
+        label: 'Clock In / Out',
+        subtitle: 'Tap to manage your shift',
+        trailing: onShift ? 'On Shift' : 'Off Shift',
+      ),
+      if (canAccessClients)
+        StaffQuickAction(
+          id: 'daily-logs',
+          asset: 'assets/icons/team_reports/team_doc.svg',
+          label: 'Start Daily Logs',
+          subtitle: 'Record client daily notes',
+          trailing: clients == null ? '' : '$clients Clients',
+        ),
+      if (canAccessMar)
+        StaffQuickAction(
+          id: 'medication-mar',
+          asset: 'assets/icons/staff_core/medication_due.svg',
+          label: 'Medication MAR',
+          subtitle: 'Administer & record meds',
+          trailing: medsDue == null ? '' : '$medsDue Due',
+        ),
+      StaffQuickAction(
+        id: 'my-tasks',
+        asset: 'assets/icons/staff_core/tasks_due.svg',
+        label: 'My Tasks',
+        subtitle: 'View assigned tasks',
+        trailing: tasksDue == null ? '' : '$tasksDue Due',
+      ),
+    ];
+  }
+
+  static int? _tileInt(Map<String, dynamic> tiles, String key) {
+    if (!tiles.containsKey(key) || tiles[key] == null) return null;
+    return JsonCodec.integerOr(tiles[key], 0);
+  }
+
   static String _shiftRange(Map<String, dynamic> shift) {
+    if (shift.isEmpty) return 'No shift today';
     final start = JsonCodec.dateTime(
       shift['startAt'] ?? shift['startsAt'] ?? shift['startTime'] ?? shift['from'],
     );
@@ -111,6 +162,7 @@ abstract final class StaffHomeMapper {
       ),
     ];
 
+    // B1 map tiles — null values are hidden (role-aware home payload).
     _addTile(stats, tiles, 'clients', StaffStatTag.clients, 'Clients Assigned');
     _addTile(stats, tiles, 'tasksDue', StaffStatTag.tasks, 'Tasks Due');
     _addTile(

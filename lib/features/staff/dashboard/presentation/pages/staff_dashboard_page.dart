@@ -131,15 +131,20 @@ class StaffDashboardPage extends StatelessWidget {
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                       StaffQuickActionsSection(
                         actions: overview.quickActions,
+                        clockBusy: controller.clockBusy.value,
                         onActionTap: (action) {
                           switch (action.id) {
                             case 'clock-in-out':
-                              Get.to(() => const StaffAttendancePage());
+                              // POST /attendance/check-in | check-out
+                              controller.toggleClockInOut();
                             case 'daily-logs':
+                              // Opens Clients tab → GET /clients?assignedToMe=true
                               Get.offAll(() => const StaffShell(initialIndex: 2));
                             case 'medication-mar':
+                              // Opens MAR → GET /mar/round
                               Get.to(() => const StaffMedicationPage());
                             case 'my-tasks':
+                              // Opens Tasks → GET /tasks?assignee=me
                               Get.to(() => const StaffTasksMessagesPage());
                           }
                         },
