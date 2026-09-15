@@ -3,12 +3,15 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../domain/entities/tasks_messages_enums.dart';
 
-/// Bottom composer bar on the Message Details screen: attachment button,
-/// pill text field with inline emoji, and circular send.
+/// Bottom composer bar on the Message Details screen: priority chips,
+/// pill text field, and circular send.
 class MessageInputBar extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
+  final MessagePriority priority;
+  final ValueChanged<MessagePriority>? onPriorityChanged;
   final VoidCallback? onAttachmentTap;
   final VoidCallback? onEmojiTap;
 
@@ -27,6 +30,8 @@ class MessageInputBar extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onSend,
+    this.priority = MessagePriority.general,
+    this.onPriorityChanged,
     this.onAttachmentTap,
     this.onEmojiTap,
   });
@@ -44,24 +49,53 @@ class MessageInputBar extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (onPriorityChanged != null) ...[
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final value in MessagePriority.values) ...[
+                      if (value != MessagePriority.values.first)
+                        SizedBox(
+                          width: ResponsiveHelper.getResponsiveWidth(context, 6),
+                        ),
+                      _PriorityChip(
+                        label: switch (value) {
+                          MessagePriority.general => 'General',
+                          MessagePriority.routine => 'Routine',
+                          MessagePriority.highPriority => 'High',
+                        },
+                        selected: priority == value,
+                        onTap: () => onPriorityChanged!(value),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            ],
+            Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            GestureDetector(
-              onTap: onAttachmentTap,
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                width: attachSize,
-                height: attachSize,
-                decoration: BoxDecoration(
-                  color: _attachBg,
-                  borderRadius: BorderRadius.circular(radius),
-                ),
-                alignment: Alignment.center,
-                child: const AppSvgIcon(_attachAsset, size: 20, color: _iconColor),
-              ),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+            // GestureDetector(
+            //   onTap: onAttachmentTap,
+            //   behavior: HitTestBehavior.opaque,
+            //   child: Container(
+            //     width: attachSize,
+            //     height: attachSize,
+            //     decoration: BoxDecoration(
+            //       color: _attachBg,
+            //       borderRadius: BorderRadius.circular(radius),
+            //     ),
+            //     alignment: Alignment.center,
+            //     child: const AppSvgIcon(_attachAsset, size: 20, color: _iconColor),
+            //   ),
+            // ),
+            // SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
             Expanded(
               child: Container(
                 constraints: BoxConstraints(
@@ -108,17 +142,17 @@ class MessageInputBar extends StatelessWidget {
                         ),
                       ),
                     ),
-                    SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-                    GestureDetector(
-                      onTap: onEmojiTap,
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: ResponsiveHelper.getResponsiveHeight(context, 8),
-                        ),
-                        child: const AppSvgIcon(_emojiAsset, size: 20, color: _iconColor),
-                      ),
-                    ),
+                    // SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+                    // GestureDetector(
+                    //   onTap: onEmojiTap,
+                    //   behavior: HitTestBehavior.opaque,
+                    //   child: Padding(
+                    //     padding: EdgeInsets.symmetric(
+                    //       vertical: ResponsiveHelper.getResponsiveHeight(context, 8),
+                    //     ),
+                    //     child: const AppSvgIcon(_emojiAsset, size: 20, color: _iconColor),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
@@ -146,6 +180,46 @@ class MessageInputBar extends StatelessWidget {
               ),
             ),
           ],
+        ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PriorityChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PriorityChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF0E7C7B) : AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? const Color(0xFF0E7C7B) : const Color(0xFFE5E9EF),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: 11.5,
+            color: selected ? Colors.white : const Color(0xFF6B7280),
+          ),
         ),
       ),
     );

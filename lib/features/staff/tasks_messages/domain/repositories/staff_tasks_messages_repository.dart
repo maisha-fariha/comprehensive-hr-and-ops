@@ -1,5 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../entities/conversation_preview.dart';
+import '../entities/message_contact.dart';
 import '../entities/message_thread.dart';
 import '../entities/recurring_check_instance.dart';
 import '../entities/staff_task.dart';
@@ -46,13 +48,34 @@ abstract class StaffTasksMessagesRepository {
   /// `GET /documents?page=1&limit=20`
   Future<Result<List<Map<String, String>>>> getDocuments();
 
-  Future<Result<MessageThread>> getThread(String conversationId);
+  /// `GET /conversations`
+  Future<Result<List<ConversationPreview>>> getConversations();
 
+  /// `GET /conversations/contacts`
+  Future<Result<List<MessageContact>>> getContacts();
+
+  /// `POST /conversations`
+  Future<Result<ConversationPreview>> startConversation({
+    required String title,
+    required List<String> memberUserIds,
+  });
+
+  /// `GET /conversations/{id}/messages`
+  Future<Result<MessageThread>> getThread({
+    required String conversationId,
+    String? contactName,
+  });
+
+  /// `POST /conversations/{id}/messages` with `priority` (`general`|`routine`|`high`).
   Future<Result<void>> sendMessage({
     required String conversationId,
     required String body,
     String priority = 'general',
   });
 
+  /// `POST /conversations/{id}/read`
   Future<Result<void>> markConversationRead(String conversationId);
+
+  /// `POST /conversations/read-all`
+  Future<Result<void>> markAllConversationsRead();
 }

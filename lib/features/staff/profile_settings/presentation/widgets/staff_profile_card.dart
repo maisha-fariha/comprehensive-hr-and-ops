@@ -90,6 +90,19 @@ class StaffProfileCard extends StatelessWidget {
                       height: 1.3,
                     ),
                   ),
+                  if ((profile.residenceName ?? '').isNotEmpty)
+                    Text(
+                      profile.residenceName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                        color: _emailColor,
+                        height: 1.3,
+                      ),
+                    ),
                   Text(
                     profile.email,
                     maxLines: 1,

@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../data/mappers/staff_tasks_messages_mapper.dart';
+import '../../domain/entities/conversation_preview.dart';
+import '../../domain/entities/message_contact.dart';
 import '../../domain/entities/recurring_check_instance.dart';
 import '../../domain/entities/staff_task.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
@@ -21,10 +23,12 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
 
   final Rx<TasksMessagesTab> selectedTab = TasksMessagesTab.tasks.obs;
   final Rx<TaskFilter> selectedFilter = TaskFilter.all.obs;
+  final RxList<MessageContact> contacts = <MessageContact>[].obs;
+  final RxBool isLoadingContacts = false.obs;
+  final RxBool isStartingConversation = false.obs;
 
   TasksMessagesOverview? get overview => state.value.data;
 
-  /// Full list from `GET /tasks`; chips filter this in-memory.
   List<StaffTask> get _allTasks => overview?.tasks ?? const [];
 
   List<StaffTask> get filteredTasks =>
@@ -32,6 +36,9 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
 
   List<RecurringCheckInstance> get recurringChecks =>
       overview?.recurringChecks ?? const [];
+
+  List<ConversationPreview> get conversations =>
+      overview?.conversations ?? const [];
 
   int countFor(TaskFilter filter) {
     final stats = overview?.stats;
@@ -44,7 +51,12 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     };
   }
 
-  void selectTab(TasksMessagesTab tab) => selectedTab.value = tab;
+  void selectTab(TasksMessagesTab tab) {
+    selectedTab.value = tab;
+    if (tab == TasksMessagesTab.messages && contacts.isEmpty) {
+      loadContacts();
+    }
+  }
 
   void selectFilter(TaskFilter filter) {
     if (selectedFilter.value == filter) return;
@@ -59,6 +71,92 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
       failure: (error) => setError(error.message),
     );
     setLoading(false);
+  }
+
+  Future<void> loadContacts() async {
+    isLoadingContacts.value = true;
+    final result = await repository.getContacts();
+    result.when(
+      success: (items) => contacts.assignAll(items),
+      failure: (_) {},
+    );
+    isLoadingContacts.value = false;
+  }
+
+  void clearConversationUnread(String conversationId) {
+    final current = overview;
+    if (current == null) return;
+    final updated = current.conversations
+        .map(
+          (c) => c.id == conversationId ? c.copyWith(unreadCount: 0) : c,
+        )
+        .toList();
+    setSuccess(current.copyWith(conversations: updated));
+  }
+
+  Future<void> markAllConversationsRead() async {
+    final result = await repository.markAllConversationsRead();
+    if (result.isFailure) {
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not mark conversations read',
+      );
+      return;
+    }
+    final current = overview;
+    if (current != null) {
+      setSuccess(
+        current.copyWith(
+          conversations: current.conversations
+              .map((c) => c.copyWith(unreadCount: 0))
+              .toList(),
+        ),
+      );
+    }
+    AppSnackbar.show('All caught up', 'Conversations marked as read.');
+  }
+
+  Future<ConversationPreview?> startConversation({
+    required String title,
+    required List<String> memberUserIds,
+    String firstMessage = '',
+  }) async {
+    if (isStartingConversation.value) return null;
+    isStartingConversation.value = true;
+    final result = await repository.startConversation(
+      title: title,
+      memberUserIds: memberUserIds,
+    );
+    ConversationPreview? created;
+    if (result.isSuccess) {
+      final conversation = result.value;
+      if (conversation != null) {
+        created = conversation;
+        final current = overview;
+        if (current != null) {
+          final list = <ConversationPreview>[
+            conversation,
+            ...current.conversations.where((c) => c.id != conversation.id),
+          ];
+          setSuccess(current.copyWith(conversations: list));
+        }
+        final text = firstMessage.trim();
+        if (text.isNotEmpty) {
+          await repository.sendMessage(
+            conversationId: conversation.id,
+            body: text,
+          );
+        }
+        AppSnackbar.show('Conversation started', conversation.name);
+      }
+    } else {
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not start conversation',
+      );
+    }
+    isStartingConversation.value = false;
+    return created;
   }
 
   Future<void> openTask(StaffTask task) async {

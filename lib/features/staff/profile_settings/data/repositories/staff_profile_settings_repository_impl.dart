@@ -4,6 +4,7 @@ import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../auth/domain/repositories/auth_repository.dart';
 import '../../domain/entities/staff_profile_settings_overview.dart';
 import '../../domain/repositories/staff_profile_settings_repository.dart';
 import '../mappers/staff_profile_mapper.dart';
@@ -12,26 +13,43 @@ class StaffProfileSettingsRepositoryImpl
     implements StaffProfileSettingsRepository {
   final AppApiClient _api;
   final UserSession _session;
+  final AuthRepository _auth;
 
   StaffProfileSettingsRepositoryImpl({
     required AppApiClient api,
     required UserSession session,
+    required AuthRepository auth,
   })  : _api = api,
-        _session = session;
+        _session = session,
+        _auth = auth;
 
   @override
   Future<Result<StaffProfileSettingsOverview>> getOverview() async {
+    // Always refresh identity from GET /mobile/me so the card matches
+    // the signed-in user (not a stale cached session / previous login).
+    final me = await _auth.fetchMe(silent: true);
+    if (me.isSuccess && me.value != null) {
+      _session.applyProfile(me.value!);
+    }
+
     Result<dynamic> clients = Result.success(<dynamic>[]);
     if (_session.canAccessClients) {
       clients = await _api.get(
         ApiEndpoints.clients,
-        query: const {'assignedToMe': true, 'page': 1, 'limit': 50},
+        query: {
+          'assignedToMe': true,
+          'page': 1,
+          'limit': 50,
+          'residenceId': ?_session.residenceId,
+        },
+        silent: true,
       );
     }
+
     return Result.success(
       StaffProfileMapper.compose(
         session: _session,
-        clientsBody: clients.value,
+        clientsBody: clients.isSuccess ? clients.value : const <dynamic>[],
       ),
     );
   }

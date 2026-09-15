@@ -1,5 +1,6 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_role.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_linked_item.dart';
 import '../../domain/entities/staff_preference_item.dart';
@@ -33,12 +34,21 @@ abstract final class StaffProfileMapper {
       );
     }).toList();
 
+    final name = session.displayName.trim().isEmpty
+        ? (session.email.contains('@')
+            ? session.email.split('@').first
+            : 'Staff')
+        : session.displayName.trim();
+
     return StaffProfileSettingsOverview(
       profile: StaffProfile(
-        initials: session.avatarInitials,
-        name: session.displayName,
-        role: session.role.label,
+        initials: session.avatarInitials.trim().isEmpty
+            ? IsoDateRange.initials(name)
+            : session.avatarInitials,
+        name: name,
+        role: _roleLabel(session),
         email: session.email,
+        residenceName: session.residenceName ?? session.organizationName,
       ),
       linkedItems: clients,
       preferenceItems: const [
@@ -66,6 +76,33 @@ abstract final class StaffProfileMapper {
       pushNotificationsEnabled: true,
       darkModeEnabled: false,
     );
+  }
+
+  /// Prefer care-role (Nurse / Caregiver / …) over portal label "Staff".
+  static String _roleLabel(UserSession session) {
+    final kind = session.staffKind;
+    if (kind != null && kind != StaffKind.other) return kind.label;
+
+    final raw = (session.roleRaw ?? '').trim();
+    if (raw.isNotEmpty) {
+      final parsed = StaffKind.tryParse(raw);
+      if (parsed != null && parsed != StaffKind.other) return parsed.label;
+      return _titleCase(raw);
+    }
+    return session.role.label;
+  }
+
+  static String _titleCase(String raw) {
+    return raw
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) =>
+              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join(' ');
   }
 
   const StaffProfileMapper._();

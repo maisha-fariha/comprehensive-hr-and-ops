@@ -12,27 +12,20 @@ import '../widgets/chat_bubble.dart';
 import '../widgets/date_divider.dart';
 import '../widgets/message_input_bar.dart';
 import '../widgets/thread_header.dart';
-import '../widgets/typing_indicator.dart';
 
-/// The Message Details (conversation thread) screen for a single
-/// conversation.
-///
-/// Unlike `TasksMessagesController`/`StaffTasksMessagesPage`, this page's
-/// controller is **not** a shared singleton: since the chat history
-/// is per-conversation mock data, a fresh [MessageThreadController] is put
-/// into GetX tagged with [conversationId] the first time this page is
-/// opened for that conversation, so switching between conversations never
-/// mixes up message lists.
-///
-/// Hosts [StaffBottomNavBar] with "MAR / Tasks" selected so the pushed route
-/// still matches reference frames that show the staff bottom nav.
+/// Message Details (conversation thread) for a single conversation.
 class MessageThreadPage extends StatelessWidget {
   final String conversationId;
+  final String contactName;
 
   /// Index of the "MAR / Tasks" slot in [StaffBottomNavBar.items].
   static const int _marTasksTabIndex = 3;
 
-  const MessageThreadPage({super.key, required this.conversationId});
+  const MessageThreadPage({
+    super.key,
+    required this.conversationId,
+    this.contactName = 'Conversation',
+  });
 
   MessageThreadController _resolveController() {
     try {
@@ -41,6 +34,7 @@ class MessageThreadPage extends StatelessWidget {
       return Get.put(
         MessageThreadController(
           conversationId: conversationId,
+          contactName: contactName,
           repository: GetIt.instance<StaffTasksMessagesRepository>(),
         ),
         tag: conversationId,
@@ -68,7 +62,9 @@ class MessageThreadPage extends StatelessWidget {
           final thread = controller.thread;
 
           if (thread == null && controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+            );
           }
 
           if (thread == null) {
@@ -99,39 +95,64 @@ class MessageThreadPage extends StatelessWidget {
                 child: ThreadHeader(
                   contactName: thread.contactName,
                   contactInitials: thread.contactInitials,
-                  isActiveNow: thread.isActiveNow,
+                  // Presence is not available yet — keep header name-only.
+                  isActiveNow: false,
                 ),
               ),
               Expanded(
                 child: ListView(
-                  padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16, vertical: 16),
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   children: [
-                    const DateDivider(label: 'Today'),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                    for (var i = 0; i < messages.length; i++) ...[
-                      ChatBubble(
-                        message: messages[i],
-                        contactInitials: thread.contactInitials,
-                        // Avatar on the first bubble of a consecutive same-direction group.
-                        showAvatar: i == 0 || messages[i].direction != messages[i - 1].direction,
+                    if (messages.isNotEmpty) ...[
+                      const DateDivider(label: 'Today'),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 16),
                       ),
-                      if (i != messages.length - 1)
-                        SizedBox(
-                          height: ResponsiveHelper.getResponsiveHeight(
-                            context,
-                            messages[i].direction == messages[i + 1].direction ? 10 : 16,
+                    ],
+                    if (messages.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'No messages yet. Say hello.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            color: AppColors.textMuted,
                           ),
                         ),
-                    ],
-                    if (thread.isOtherPersonTyping) ...[
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                      TypingIndicator(contactInitials: thread.contactInitials),
-                    ],
+                      )
+                    else
+                      for (var i = 0; i < messages.length; i++) ...[
+                        ChatBubble(
+                          message: messages[i],
+                          contactInitials: thread.contactInitials,
+                          showAvatar: i == 0 ||
+                              messages[i].direction !=
+                                  messages[i - 1].direction,
+                        ),
+                        if (i != messages.length - 1)
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              messages[i].direction ==
+                                      messages[i + 1].direction
+                                  ? 10
+                                  : 16,
+                            ),
+                          ),
+                      ],
                   ],
                 ),
               ),
               MessageInputBar(
                 controller: controller.textController,
+                priority: controller.sendPriority.value,
+                onPriorityChanged: controller.setSendPriority,
                 onSend: controller.sendMessage,
               ),
             ],

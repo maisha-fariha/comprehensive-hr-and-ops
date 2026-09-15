@@ -2,6 +2,7 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/chat_message.dart';
 import '../../domain/entities/conversation_preview.dart';
+import '../../domain/entities/message_contact.dart';
 import '../../domain/entities/message_thread.dart';
 import '../../domain/entities/recurring_check_instance.dart';
 import '../../domain/entities/staff_task.dart';
@@ -16,12 +17,18 @@ abstract final class StaffTasksMessagesMapper {
     required dynamic conversationsBody,
     dynamic statsBody,
     dynamic recurringBody,
+    String? currentUserId,
   }) {
     return TasksMessagesOverview(
       tasks: tasksFrom(tasksBody),
       conversations: JsonCodec.unwrapList(conversationsBody)
           .whereType<Map>()
-          .map((item) => conversationFrom(JsonCodec.asMap(item)))
+          .map(
+            (item) => conversationFrom(
+              JsonCodec.asMap(item),
+              currentUserId: currentUserId,
+            ),
+          )
           .toList(),
       stats: statsFrom(statsBody),
       recurringChecks: recurringFrom(recurringBody),
@@ -218,70 +225,210 @@ abstract final class StaffTasksMessagesMapper {
     }).toList();
   }
 
-  static ConversationPreview conversationFrom(Map<String, dynamic> json) {
-    final name = JsonCodec.stringOr(
-      json['title'] ??
-          json['name'] ??
-          json['subject'] ??
-          IsoDateRange.personName(json['otherParticipant'] ?? json['peer']),
-      'Conversation',
+  static ConversationPreview conversationFrom(
+    Map<String, dynamic> json, {
+    String? currentUserId,
+  }) {
+    final name = conversationDisplayTitle(json, currentUserId: currentUserId);
+
+    // Prefer nested `messages[]` (real API), then `lastMessage`.
+    Map<String, dynamic>? lastMessage;
+    DateTime? lastAt;
+    for (final raw in JsonCodec.listAt(json, 'messages').whereType<Map>()) {
+      final row = JsonCodec.asMap(raw);
+      final at = JsonCodec.dateTime(row['createdAt'] ?? row['sentAt']);
+      if (lastMessage == null ||
+          (at != null && (lastAt == null || at.isAfter(lastAt)))) {
+        lastMessage = row;
+        lastAt = at;
+      }
+    }
+    lastMessage ??= JsonCodec.mapAt(json, 'lastMessage');
+    lastAt ??= JsonCodec.dateTime(
+      lastMessage?['createdAt'] ??
+          lastMessage?['sentAt'] ??
+          json['updatedAt'] ??
+          json['createdAt'],
     );
-    final last = JsonCodec.mapAt(json, 'lastMessage') ?? json;
-    final at = JsonCodec.dateTime(
-      last['createdAt'] ?? last['sentAt'] ?? json['updatedAt'],
-    );
+
     return ConversationPreview(
       id: JsonCodec.stringOr(json['id'], name),
       name: name,
       initials: IsoDateRange.initials(name),
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: lastAt == null ? '' : IsoDateRange.timeLabel(lastAt.toLocal()),
       previewText: JsonCodec.stringOr(
-        last['body'] ?? last['text'] ?? last['preview'] ?? json['preview'],
-        '',
+        lastMessage?['body'] ??
+            lastMessage?['text'] ??
+            json['preview'] ??
+            'No messages yet',
+        'No messages yet',
       ),
-      priority: _priority(last['priority'] ?? json['priority']),
-      isOnline: false,
+      priority: _priority(lastMessage?['priority'] ?? json['priority']),
+      unreadCount: JsonCodec.integerOr(json['unreadCount'], 0),
     );
+  }
+
+  /// List/thread title:
+  /// - Direct / DM → other participant's name (who you message / who messages you)
+  /// - Group / residence → conversation `title`
+  static String conversationDisplayTitle(
+    Map<String, dynamic> json, {
+    String? currentUserId,
+  }) {
+    final type = (json['type'] ?? '').toString().toLowerCase();
+    final explicitTitle = JsonCodec.string(
+      json['title'] ?? json['name'] ?? json['subject'],
+    );
+    final members = JsonCodec.listAt(json, 'members').whereType<Map>().toList();
+    final peerName = _otherMemberName(members, currentUserId);
+    final isDirect = type.contains('direct') ||
+        type == 'dm' ||
+        json['directKey'] != null ||
+        (members.length <= 2 &&
+            !type.contains('group') &&
+            !type.contains('residence') &&
+            !type.contains('family'));
+
+    if (isDirect) {
+      if (peerName != null && peerName.isNotEmpty) return peerName;
+      final fromPeerField = IsoDateRange.personName(
+        json['otherParticipant'] ?? json['peer'] ?? json['recipient'],
+      );
+      if (fromPeerField != 'Unknown' && fromPeerField.isNotEmpty) {
+        return fromPeerField;
+      }
+    }
+
+    if (explicitTitle != null && explicitTitle.isNotEmpty) return explicitTitle;
+    if (peerName != null && peerName.isNotEmpty) return peerName;
+    return 'Conversation';
+  }
+
+  static String? _otherMemberName(
+    List<Map> members,
+    String? currentUserId,
+  ) {
+    final selfId = (currentUserId ?? '').trim();
+    for (final raw in members) {
+      final member = JsonCodec.asMap(raw);
+      final userId = JsonCodec.string(
+        member['userId'] ?? JsonCodec.mapAt(member, 'user')?['id'],
+      );
+      if (selfId.isNotEmpty && userId != null && userId == selfId) continue;
+      final name = IsoDateRange.personName(
+        member['user'] ?? member['name'] ?? member['displayName'],
+      );
+      if (name != 'Unknown' && name.isNotEmpty) return name;
+    }
+    // If only self is listed, still try any member name as last resort.
+    for (final raw in members) {
+      final member = JsonCodec.asMap(raw);
+      final name = IsoDateRange.personName(
+        member['user'] ?? member['name'] ?? member['displayName'],
+      );
+      if (name != 'Unknown' && name.isNotEmpty) return name;
+    }
+    return null;
+  }
+
+  static List<MessageContact> contactsFrom(dynamic body) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) {
+          final json = JsonCodec.asMap(item);
+          return MessageContact(
+            id: JsonCodec.stringOr(json['id'], ''),
+            name: JsonCodec.stringOr(json['name'], 'Unknown'),
+            roles: JsonCodec.listAt(json, 'roles')
+                .map((role) => role?.toString() ?? '')
+                .where((role) => role.isNotEmpty)
+                .toList(),
+          );
+        })
+        .where((contact) => contact.id.isNotEmpty)
+        .toList();
   }
 
   static MessageThread threadFrom({
     required String conversationId,
     required String contactName,
     required dynamic messagesBody,
-    required String selfId,
+    String? currentUserId,
+    String? currentUserEmail,
+    String? selfInitials,
   }) {
-    final messages = JsonCodec.unwrapList(messagesBody)
-        .whereType<Map>()
-        .map((item) {
+    String? peerFromMessages;
+    final rows = JsonCodec.unwrapList(messagesBody).whereType<Map>().map((item) {
       final json = JsonCodec.asMap(item);
+      final sender = JsonCodec.mapAt(json, 'sender') ?? const {};
       final senderId = JsonCodec.string(
-        json['senderId'] ??
-            json['authorId'] ??
-            JsonCodec.mapAt(json, 'sender')?['id'],
+        json['senderId'] ?? sender['id'],
       );
-      final outgoing = senderId != null && senderId == selfId;
+      final senderEmail =
+          (JsonCodec.string(sender['email']) ?? '').toLowerCase();
+      final outgoing = _isMine(
+        senderId: senderId,
+        senderEmail: senderEmail,
+        currentUserId: currentUserId,
+        currentUserEmail: currentUserEmail,
+      );
+      if (!outgoing && peerFromMessages == null) {
+        final name = IsoDateRange.personName(
+          sender.isEmpty ? json['senderName'] : sender,
+        );
+        if (name != 'Unknown' && name.isNotEmpty) peerFromMessages = name;
+      }
       final at = JsonCodec.dateTime(json['createdAt'] ?? json['sentAt']);
-      return ChatMessage(
-        id: JsonCodec.stringOr(json['id'], json.hashCode.toString()),
-        text: JsonCodec.stringOr(
-          json['body'] ?? json['text'] ?? json['content'],
-          '',
+      return (
+        message: ChatMessage(
+          id: JsonCodec.stringOr(json['id'], json.hashCode.toString()),
+          text: JsonCodec.stringOr(
+            json['body'] ?? json['text'] ?? json['content'],
+            '',
+          ),
+          direction:
+              outgoing ? MessageDirection.outgoing : MessageDirection.incoming,
+          timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+          // Per-message Seen/Delivered is not available — only lastReadAt.
+          receiptStatus: null,
+          senderInitials: outgoing
+              ? (selfInitials ?? IsoDateRange.initials('You'))
+              : null,
         ),
-        direction:
-            outgoing ? MessageDirection.outgoing : MessageDirection.incoming,
-        timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
-        receiptStatus: null,
-        senderInitials: outgoing ? IsoDateRange.initials(contactName) : null,
+        sortKey: at?.millisecondsSinceEpoch ?? 0,
       );
-    }).toList();
+    }).toList()
+      ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+
+    final trimmed = contactName.trim();
+    final resolvedName = (trimmed.isNotEmpty && trimmed != 'Conversation')
+        ? trimmed
+        : (peerFromMessages ?? 'Conversation');
 
     return MessageThread(
       conversationId: conversationId,
-      contactName: contactName,
-      contactInitials: IsoDateRange.initials(contactName),
+      contactName: resolvedName,
+      contactInitials: IsoDateRange.initials(resolvedName),
+      // No presence / typing sockets yet.
       isActiveNow: false,
-      messages: messages,
+      messages: rows.map((row) => row.message).toList(),
     );
+  }
+
+  static bool _isMine({
+    required String? senderId,
+    required String senderEmail,
+    required String? currentUserId,
+    required String? currentUserEmail,
+  }) {
+    if (currentUserId != null &&
+        currentUserId.isNotEmpty &&
+        senderId != null &&
+        senderId == currentUserId) {
+      return true;
+    }
+    final email = (currentUserEmail ?? '').trim().toLowerCase();
+    return email.isNotEmpty && senderEmail == email;
   }
 
   static TaskStatus _taskStatus(dynamic raw, DateTime? due) {

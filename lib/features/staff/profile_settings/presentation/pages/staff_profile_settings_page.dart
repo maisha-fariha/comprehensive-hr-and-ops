@@ -18,16 +18,36 @@ import '../widgets/staff_profile_card.dart';
 import '../widgets/staff_profile_settings_header.dart';
 
 /// Profile & Settings for the Staff portal — same visual design as Family.
-class StaffProfileSettingsPage extends StatelessWidget {
+class StaffProfileSettingsPage extends StatefulWidget {
   const StaffProfileSettingsPage({super.key});
 
+  @override
+  State<StaffProfileSettingsPage> createState() =>
+      _StaffProfileSettingsPageState();
+}
+
+class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
   static const int _moreTabIndex = 4;
+  late final StaffProfileSettingsController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = _resolveController();
+    // Permanent GetX controller can keep a previous login — reload for this user.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _controller.refresh();
+    });
+  }
 
   StaffProfileSettingsController _resolveController() {
     try {
       return Get.find<StaffProfileSettingsController>();
     } catch (_) {
-      return Get.put(GetIt.instance<StaffProfileSettingsController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<StaffProfileSettingsController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -183,7 +203,7 @@ class StaffProfileSettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
+    final controller = _controller;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,

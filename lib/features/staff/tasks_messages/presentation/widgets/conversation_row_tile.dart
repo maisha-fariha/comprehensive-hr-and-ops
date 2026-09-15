@@ -55,17 +55,13 @@ class ConversationRowTile extends StatelessWidget {
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _metaColor = Color(0xFF94A3B8);
-  static const Color _onlineDot = Color(0xFF0E7C7B);
+  static const Color _unreadDot = Color(0xFF0E7C7B);
 
   const ConversationRowTile({super.key, required this.conversation, this.onTap});
 
   static _AvatarPalette _paletteFor(ConversationPreview conversation) {
-    return switch (conversation.id) {
-      'angela-m' => _avatarPalette[0],
-      'priya-k' => _avatarPalette[1],
-      'robert-t' => _avatarPalette[2],
-      _ => _avatarPalette[conversation.id.hashCode.abs() % _avatarPalette.length],
-    };
+    return _avatarPalette[
+        conversation.id.hashCode.abs() % _avatarPalette.length];
   }
 
   @override
@@ -73,10 +69,8 @@ class ConversationRowTile extends StatelessWidget {
     final avatarSize = ResponsiveHelper.getResponsiveSize(context, 48);
     final palette = _paletteFor(conversation);
     final priorityStyle = _priorityStyles[conversation.priority]!;
-    // Mock data pairs online + unread; use [isOnline] for both UI cues.
-    final isUnread = conversation.isOnline;
+    final isUnread = conversation.hasUnread;
     final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
-    final statusDot = ResponsiveHelper.getResponsiveSize(context, 11);
     final unreadDot = ResponsiveHelper.getResponsiveSize(context, 8);
 
     return Material(
@@ -93,7 +87,8 @@ class ConversationRowTile extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: AppColors.shadowNavy.withValues(alpha: 0.04),
-                offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 3)),
+                offset:
+                    Offset(0, ResponsiveHelper.getResponsiveHeight(context, 3)),
                 blurRadius: ResponsiveHelper.getResponsiveHeight(context, 10),
               ),
             ],
@@ -101,46 +96,25 @@ class ConversationRowTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: avatarSize,
-                    height: avatarSize,
-                    decoration: BoxDecoration(
-                      color: palette.background,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      conversation.initials,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                        color: palette.color,
-                        height: 1,
-                      ),
-                    ),
+              Container(
+                width: avatarSize,
+                height: avatarSize,
+                decoration: BoxDecoration(
+                  color: palette.background,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  conversation.initials,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 14),
+                    color: palette.color,
+                    height: 1,
                   ),
-                  if (conversation.isOnline)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: statusDot,
-                        height: statusDot,
-                        decoration: BoxDecoration(
-                          color: _onlineDot,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.surfaceWhite,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
               Expanded(
@@ -158,50 +132,67 @@ class ConversationRowTile extends StatelessWidget {
                             style: TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w700,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                14,
+                              ),
                               color: _titleColor,
                               height: 1.25,
                             ),
                           ),
                         ),
-                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                        SizedBox(
+                          width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                        ),
                         Text(
                           conversation.timeLabel,
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w400,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              11.5,
+                            ),
                             color: _metaColor,
                             height: 1.2,
                           ),
                         ),
                         if (isUnread) ...[
-                          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+                          SizedBox(
+                            width:
+                                ResponsiveHelper.getResponsiveWidth(context, 6),
+                          ),
                           Container(
                             width: unreadDot,
                             height: unreadDot,
                             decoration: const BoxDecoration(
-                              color: _onlineDot,
+                              color: _unreadDot,
                               shape: BoxShape.circle,
                             ),
                           ),
                         ],
                       ],
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ),
                     Text(
                       conversation.previewText,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
-                        fontWeight: isUnread ? FontWeight.w600 : FontWeight.w400,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                        fontWeight:
+                            isUnread ? FontWeight.w600 : FontWeight.w400,
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 13),
                         color: isUnread ? _titleColor : _metaColor,
                         height: 1.35,
                       ),
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 8),
+                    ),
                     Container(
                       padding: ResponsiveHelper.getResponsivePadding(
                         context,
@@ -217,7 +208,10 @@ class ConversationRowTile extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            11,
+                          ),
                           color: priorityStyle.color,
                           height: 1,
                         ),

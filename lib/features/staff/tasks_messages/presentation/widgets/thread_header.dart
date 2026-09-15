@@ -123,9 +123,9 @@ class ThreadHeader extends StatelessWidget {
                         ),
                       ),
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
-                      Row(
-                        children: [
-                          if (isActiveNow) ...[
+                      if (isActiveNow)
+                        Row(
+                          children: [
                             Container(
                               width: ResponsiveHelper.getResponsiveSize(context, 6),
                               height: ResponsiveHelper.getResponsiveSize(context, 6),
@@ -135,44 +135,43 @@ class ThreadHeader extends StatelessWidget {
                               ),
                             ),
                             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
-                          ],
-                          Flexible(
-                            child: Text(
-                              isActiveNow ? 'Active now' : 'Offline',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w500,
-                                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                                color: isActiveNow ? _activeGreen : AppColors.textFaint,
-                                height: 1.2,
+                            Flexible(
+                              child: Text(
+                                'Active now',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                                  color: _activeGreen,
+                                  height: 1.2,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
                 SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                _SquareIconButton(
-                  onTap: onCallTap,
-                  child: AppSvgIcon(
-                    'assets/icons/staff_tasks_messages/phone.svg',
-                    size: ResponsiveHelper.getResponsiveSize(context, 18),
-                    color: _actionIcon,
-                  ),
-                ),
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                _SquareIconButton(
-                  onTap: onVideoTap,
-                  child: AppSvgIcon(
-                    'assets/icons/staff_tasks_messages/video.svg',
-                    size: ResponsiveHelper.getResponsiveSize(context, 18),
-                    color: _actionIcon,
-                  ),
-                ),
+                // _SquareIconButton(
+                //   onTap: onCallTap,
+                //   child: AppSvgIcon(
+                //     'assets/icons/staff_tasks_messages/phone.svg',
+                //     size: ResponsiveHelper.getResponsiveSize(context, 18),
+                //     color: _actionIcon,
+                //   ),
+                // ),
+                // SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                // _SquareIconButton(
+                //   onTap: onVideoTap,
+                //   child: AppSvgIcon(
+                //     'assets/icons/staff_tasks_messages/video.svg',
+                //     size: ResponsiveHelper.getResponsiveSize(context, 18),
+                //     color: _actionIcon,
+                //   ),
+                // ),
               ],
             ),
           ),

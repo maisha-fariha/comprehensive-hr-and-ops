@@ -6,6 +6,7 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/conversation_preview.dart';
+import '../../domain/entities/message_contact.dart';
 import '../../domain/entities/message_thread.dart';
 import '../../domain/entities/recurring_check_instance.dart';
 import '../../domain/entities/staff_task.dart';
@@ -52,6 +53,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
             .map(
               (item) => StaffTasksMessagesMapper.conversationFrom(
                 JsonCodec.asMap(item),
+                currentUserId: _session.userId,
               ),
             )
             .toList()
@@ -231,17 +233,107 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   }
 
   @override
-  Future<Result<MessageThread>> getThread(String conversationId) async {
+  Future<Result<List<ConversationPreview>>> getConversations() async {
+    final result = await _api.get(ApiEndpoints.conversations);
+    return result.when(
+      success: (body) async => Result.success(
+        JsonCodec.unwrapList(body)
+            .whereType<Map>()
+            .map(
+              (item) => StaffTasksMessagesMapper.conversationFrom(
+                JsonCodec.asMap(item),
+                currentUserId: _session.userId,
+              ),
+            )
+            .toList(),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<MessageContact>>> getContacts() async {
     final result = await _api.get(
-      ApiEndpoints.conversationMessages(conversationId),
+      ApiEndpoints.conversationContacts,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(StaffTasksMessagesMapper.contactsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<ConversationPreview>> startConversation({
+    required String title,
+    required List<String> memberUserIds,
+  }) async {
+    final trimmedTitle = title.trim();
+    final members = memberUserIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (members.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Select at least one contact.'),
+      );
+    }
+    final residenceId = _session.residenceId;
+    if (residenceId == null || residenceId.isEmpty) {
+      return Result.failure(
+        const ValidationError(
+          message: 'Residence context is required to start a conversation.',
+        ),
+      );
+    }
+
+    final result = await _api.post(
+      ApiEndpoints.conversations,
+      data: {
+        'type': 'residence_group',
+        'residenceId': residenceId,
+        // API still expects a title; blank UI title becomes selected names / fallback.
+        'title': trimmedTitle.isEmpty ? 'Conversation' : trimmedTitle,
+        'memberUserIds': members,
+        'isMonitored': false,
+      },
+      allowQueue: false,
     );
     return result.when(
       success: (body) async => Result.success(
+        StaffTasksMessagesMapper.conversationFrom(
+          JsonCodec.unwrapMap(body),
+          currentUserId: _session.userId,
+        ),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<MessageThread>> getThread({
+    required String conversationId,
+    String? contactName,
+  }) async {
+    final id = conversationId.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ApiError(message: 'Missing conversation id.'),
+      );
+    }
+    final result = await _api.get(ApiEndpoints.conversationMessages(id));
+    return result.when(
+      success: (body) async => Result.success(
         StaffTasksMessagesMapper.threadFrom(
-          conversationId: conversationId,
-          contactName: 'Conversation',
+          conversationId: id,
+          contactName: (contactName ?? '').trim().isEmpty
+              ? 'Conversation'
+              : contactName!.trim(),
           messagesBody: body,
-          selfId: _session.staffId ?? '',
+          currentUserId: _session.userId,
+          currentUserEmail: _session.email,
+          selfInitials: _session.avatarInitials,
         ),
       ),
       failure: (error) async => Result.failure(error),
@@ -254,9 +346,27 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     required String body,
     String priority = 'general',
   }) async {
+    final id = conversationId.trim();
+    final text = body.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ApiError(message: 'Missing conversation id.'),
+      );
+    }
+    if (text.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Message body is required.'),
+      );
+    }
+    final normalized = switch (priority.toLowerCase().trim()) {
+      'high' || 'high_priority' || 'highpriority' => 'high',
+      'routine' => 'routine',
+      _ => 'general',
+    };
     final result = await _api.post(
-      ApiEndpoints.conversationMessages(conversationId),
-      data: {'body': body, 'priority': priority},
+      ApiEndpoints.conversationMessages(id),
+      data: {'body': text, 'priority': normalized},
+      allowQueue: false,
     );
     return result.when(
       success: (_) async => Result.success(null),
@@ -266,9 +376,30 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
 
   @override
   Future<Result<void>> markConversationRead(String conversationId) async {
+    final id = conversationId.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ApiError(message: 'Missing conversation id.'),
+      );
+    }
     final result = await _api.post(
-      ApiEndpoints.conversationRead(conversationId),
-      data: {},
+      ApiEndpoints.conversationRead(id),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+      silent: true,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> markAllConversationsRead() async {
+    final result = await _api.post(
+      ApiEndpoints.conversationsReadAll,
+      data: const <String, dynamic>{},
+      allowQueue: false,
     );
     return result.when(
       success: (_) async => Result.success(null),

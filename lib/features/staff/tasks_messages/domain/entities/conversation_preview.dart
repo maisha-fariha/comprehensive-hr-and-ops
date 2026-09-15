@@ -2,20 +2,21 @@ import 'package:flutter/foundation.dart';
 
 import 'tasks_messages_enums.dart';
 
-/// A single row in the "Messages" tab's conversation list.
+/// A single row in the "Messages" tab's conversation list
+/// (`GET /conversations`).
 @immutable
 class ConversationPreview {
   final String id;
 
-  /// Full display name, including any role suffix already baked in (e.g.
-  /// "Angela M. (RN)", "Robert T. (Supervisor)"), matching the reference
-  /// design exactly.
+  /// Conversation title (group) or peer name (direct).
   final String name;
   final String initials;
   final String timeLabel;
   final String previewText;
   final MessagePriority priority;
-  final bool isOnline;
+
+  /// From `unreadCount` on the conversation row.
+  final int unreadCount;
 
   const ConversationPreview({
     required this.id,
@@ -24,6 +25,20 @@ class ConversationPreview {
     required this.timeLabel,
     required this.previewText,
     required this.priority,
-    this.isOnline = false,
+    this.unreadCount = 0,
   });
+
+  bool get hasUnread => unreadCount > 0;
+
+  ConversationPreview copyWith({int? unreadCount, String? previewText}) {
+    return ConversationPreview(
+      id: id,
+      name: name,
+      initials: initials,
+      timeLabel: timeLabel,
+      previewText: previewText ?? this.previewText,
+      priority: priority,
+      unreadCount: unreadCount ?? this.unreadCount,
+    );
+  }
 }
