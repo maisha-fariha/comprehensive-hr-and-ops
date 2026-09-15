@@ -4,10 +4,11 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
+import '../pages/staff_quick_link_list_page.dart';
 
-/// "Quick Links" grid under the Tasks list: Profile / Training / Documents /
-/// Notifications.
+/// "Quick Links" grid: Profile / Training / Documents / Notifications.
 class QuickLinksSection extends StatelessWidget {
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _iconBoxBg = Color(0xFFE6F5F2);
@@ -17,18 +18,22 @@ class QuickLinksSection extends StatelessWidget {
     _QuickLinkItem(
       label: 'Profile',
       asset: 'assets/icons/staff_tasks_messages/profile.svg',
+      action: _QuickLinkAction.profile,
     ),
     _QuickLinkItem(
       label: 'Training',
       asset: 'assets/icons/staff_tasks_messages/training.svg',
+      action: _QuickLinkAction.training,
     ),
     _QuickLinkItem(
       label: 'Documents',
       asset: 'assets/icons/staff_tasks_messages/document.svg',
+      action: _QuickLinkAction.documents,
     ),
     _QuickLinkItem(
       label: 'Notifications',
       asset: 'assets/icons/staff_tasks_messages/notification.svg',
+      action: _QuickLinkAction.notifications,
     ),
   ];
 
@@ -68,14 +73,40 @@ class QuickLinksSection extends StatelessWidget {
 class _QuickLinkItem {
   final String label;
   final String asset;
+  final _QuickLinkAction action;
 
-  const _QuickLinkItem({required this.label, required this.asset});
+  const _QuickLinkItem({
+    required this.label,
+    required this.asset,
+    required this.action,
+  });
 }
+
+enum _QuickLinkAction { profile, training, documents, notifications }
 
 class _QuickLinkCard extends StatelessWidget {
   final _QuickLinkItem item;
 
   const _QuickLinkCard({required this.item});
+
+  void _open() {
+    switch (item.action) {
+      case _QuickLinkAction.profile:
+        Get.to(() => const StaffProfileSettingsPage());
+      case _QuickLinkAction.training:
+        Get.to(
+          () => const StaffQuickLinkListPage(kind: StaffQuickLinkKind.training),
+        );
+      case _QuickLinkAction.documents:
+        Get.to(
+          () =>
+              const StaffQuickLinkListPage(kind: StaffQuickLinkKind.documents),
+        );
+      case _QuickLinkAction.notifications:
+        // Same inbox used from Staff Dashboard (GET /notifications).
+        Get.to(() => const PortalNotificationsPage());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,9 +116,7 @@ class _QuickLinkCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: item.label == 'Profile'
-            ? () => Get.to(() => const StaffProfileSettingsPage())
-            : null,
+        onTap: _open,
         borderRadius: BorderRadius.circular(radius),
         child: Ink(
           padding: ResponsiveHelper.getResponsivePadding(
@@ -102,7 +131,8 @@ class _QuickLinkCard extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: AppColors.shadowNavy.withValues(alpha: 0.04),
-                offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 3)),
+                offset:
+                    Offset(0, ResponsiveHelper.getResponsiveHeight(context, 3)),
                 blurRadius: ResponsiveHelper.getResponsiveHeight(context, 10),
               ),
             ],

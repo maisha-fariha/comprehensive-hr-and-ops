@@ -73,7 +73,9 @@ class StaffTasksMessagesPage extends StatelessWidget {
                     ),
                     child: TasksMessagesSegmentedTabs(
                       selectedTab: selectedTab,
-                      tasksCount: overview.tasks.length,
+                      tasksCount: overview.stats.all > 0
+                          ? overview.stats.all
+                          : overview.tasks.length,
                       messagesCount: overview.conversations.length,
                       onTabSelected: controller.selectTab,
                     ),
@@ -95,9 +97,12 @@ class StaffTasksMessagesPage extends StatelessWidget {
                       switch (selectedTab) {
                         TasksMessagesTab.tasks => TasksTabView(
                             tasks: controller.filteredTasks,
+                            recurringChecks: controller.recurringChecks,
                             selectedFilter: controller.selectedFilter.value,
                             countFor: controller.countFor,
                             onFilterSelected: controller.selectFilter,
+                            onTaskTap: controller.openTask,
+                            onRecurringTap: controller.completeRecurringCheck,
                           ),
                         TasksMessagesTab.messages => MessagesTabView(
                             conversations: overview.conversations,
