@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../staff_shell.dart';
 import '../../domain/entities/daily_note_client_info.dart';
 import '../../domain/entities/staff_client_log_entry.dart';
 import '../../domain/entities/staff_daily_logs_enums.dart';
@@ -51,6 +52,11 @@ class StaffDailyLogsPage extends StatelessWidget {
     );
   }
 
+  void _onBack() {
+    // Clients tab is rooted in the shell — nothing to pop; go Home like Schedule.
+    Get.offAll(() => const StaffShell(initialIndex: 0));
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
@@ -82,7 +88,7 @@ class StaffDailyLogsPage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const StaffDailyLogsAppBar(),
+                    StaffDailyLogsAppBar(onBack: _onBack),
                     StaffDailyLogsTabBar(
                       selectedTab: controller.selectedTab.value,
                       onTabSelected: controller.selectTab,

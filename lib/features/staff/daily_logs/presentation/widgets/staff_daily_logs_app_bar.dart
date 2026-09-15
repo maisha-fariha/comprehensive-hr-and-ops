@@ -50,7 +50,14 @@ class StaffDailyLogsAppBar extends StatelessWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: GestureDetector(
-                  onTap: onBack ?? Get.back,
+                  onTap: onBack ??
+                      () {
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else {
+                          Get.back();
+                        }
+                      },
                   behavior: HitTestBehavior.opaque,
                   child: Container(
                     width: buttonSize,
