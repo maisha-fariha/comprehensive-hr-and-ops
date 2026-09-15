@@ -13,6 +13,7 @@ import '../widgets/administered_tab_view.dart';
 import '../widgets/due_tab_view.dart';
 import '../widgets/missed_tab_view.dart';
 import '../widgets/refused_tab_view.dart';
+import '../widgets/staff_client_medications_sheet.dart';
 import '../widgets/staff_medication_header.dart';
 import '../widgets/staff_medication_tab_bar.dart';
 
@@ -86,8 +87,10 @@ class StaffMedicationPage extends StatelessWidget {
                     ),
                     child: StaffMedicationTabBar(
                       selectedTab: controller.selectedTab.value,
-                      administeredCount: overview.administeredDoses.length,
-                      missedCount: overview.missedDoses.length,
+                      dueCount: overview.dueCount,
+                      administeredCount: overview.administeredCount,
+                      missedCount: overview.missedCount,
+                      refusedCount: overview.refusedCount,
                       onTabSelected: controller.selectTab,
                     ),
                   ),
@@ -110,14 +113,26 @@ class StaffMedicationPage extends StatelessWidget {
                       StaffMedicationTab.due => DueTabView(
                           dueNowDoses: overview.dueNowDoses,
                           laterTodayDoses: overview.laterTodayDoses,
-                          canWrite: Get.find<UserSession>().canWriteMar,
+                          canWriteScheduled:
+                              Get.find<UserSession>().canWriteMar,
+                          canWritePrn: Get.find<UserSession>()
+                              .canAdministerMarDose(isPrn: true),
                           onAdminister: controller.markAdministered,
                           onNotGiven: controller.markNotGiven,
+                          onOpenClientMedications: (dose) {
+                            showStaffClientMedicationsSheet(
+                              context,
+                              clientId: dose.clientId,
+                              clientName: dose.residentName,
+                            );
+                          },
                         ),
                       StaffMedicationTab.administered =>
                         AdministeredTabView(doses: overview.administeredDoses),
-                      StaffMedicationTab.missed => MissedTabView(doses: overview.missedDoses),
-                      StaffMedicationTab.refused => RefusedTabView(doses: overview.refusedDoses),
+                      StaffMedicationTab.missed =>
+                        MissedTabView(doses: overview.missedDoses),
+                      StaffMedicationTab.refused =>
+                        RefusedTabView(doses: overview.refusedDoses),
                     },
                   ],
                 ),

@@ -1,19 +1,30 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../entities/staff_client_medication_item.dart';
 import '../entities/staff_medication_overview.dart';
 
-/// Contract for fetching the Staff "Medication MAR" (Medication
-/// Administration Record) summary. The presentation layer only ever
-/// depends on this interface, so swapping the mocked
-/// [StaffMedicationRepositoryImpl] for a real API-backed implementation
-/// later requires no changes above the data layer.
+/// Staff Medication MAR — single round fetch fills all four tabs.
 abstract class StaffMedicationRepository {
+  /// `GET /mar/round?residenceId=&date=YYYY-MM-DD`
   Future<Result<StaffMedicationOverview>> getOverview();
 
+  /// `POST /mar/administrations` — status: administered | refused | missed | late.
   Future<Result<void>> recordAdministration({
     required String clientId,
     required String residenceId,
     required String medicationId,
     required String status,
+    String? notes,
+    bool isPrn = false,
   });
+
+  /// `GET /medications?clientId=`
+  Future<Result<List<StaffClientMedicationItem>>> getClientMedications(
+    String clientId,
+  );
+
+  /// `GET /prn-medications?clientId=`
+  Future<Result<List<StaffClientMedicationItem>>> getClientPrnMedications(
+    String clientId,
+  );
 }

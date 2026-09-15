@@ -54,6 +54,7 @@ class UserSession extends GetxService {
   final RxnString _roleRaw = RxnString();
   final Rxn<StaffKind> _staffKind = Rxn<StaffKind>();
   final RxList<String> _permissions = <String>[].obs;
+  final RxBool _medAdminCertified = false.obs;
   final Rx<FamilyVisibility> _familyVisibility = FamilyVisibility.unknown.obs;
   bool _signingOut = false;
 
@@ -73,6 +74,7 @@ class UserSession extends GetxService {
   String? get roleRaw => _roleRaw.value;
   StaffKind? get staffKind => _staffKind.value;
   List<String> get permissions => List.unmodifiable(_permissions);
+  bool get medAdminCertified => _medAdminCertified.value;
   FamilyVisibility get familyVisibility => _familyVisibility.value;
 
   String get portalRoute => isSignedIn ? role.portalRoute : AppRoutes.login;
@@ -102,6 +104,13 @@ class UserSession extends GetxService {
   bool get canAccessTasks => can('tasks');
   bool get canAccessAppointments => can('appointments');
   bool get canAccessHandovers => can('shift-handovers') || can('handovers');
+
+  /// Scheduled MAR charting needs `mar:write`; PRN also needs med-admin cert.
+  bool canAdministerMarDose({required bool isPrn}) {
+    if (!canWriteMar) return false;
+    if (isPrn && !medAdminCertified) return false;
+    return true;
+  }
 
   /// Staff Schedule "Upcoming Appointments" — nurse / caregiver only (B2).
   bool get canSeeStaffScheduleAppointments =>
@@ -155,6 +164,7 @@ class UserSession extends GetxService {
     _staffId.value = profile.staffId;
     _relationship.value = profile.relationship;
     _permissions.assignAll(profile.permissions);
+    _medAdminCertified.value = profile.medAdminCertified;
   }
 
   void applyFamilyHome({
@@ -249,6 +259,7 @@ class UserSession extends GetxService {
     _roleRaw.value = null;
     _staffKind.value = null;
     _permissions.clear();
+    _medAdminCertified.value = false;
     _familyVisibility.value = FamilyVisibility.unknown;
   }
 

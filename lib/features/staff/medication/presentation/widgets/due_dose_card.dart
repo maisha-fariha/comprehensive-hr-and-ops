@@ -14,6 +14,7 @@ class DueDoseCard extends StatelessWidget {
   final DueDose dose;
   final VoidCallback onAdminister;
   final VoidCallback onNotGiven;
+  final VoidCallback? onOpenClientMedications;
   final bool canWrite;
 
   static const Color _titleColor = Color(0xFF1A2B48);
@@ -26,6 +27,7 @@ class DueDoseCard extends StatelessWidget {
     required this.dose,
     required this.onAdminister,
     required this.onNotGiven,
+    this.onOpenClientMedications,
     this.canWrite = true,
   });
 
@@ -56,89 +58,108 @@ class DueDoseCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: avatarSize,
-                height: avatarSize,
-                decoration: BoxDecoration(
-                  color: avatarStyle.background,
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveHelper.getResponsiveRadius(context, 12),
+          GestureDetector(
+            onTap: onOpenClientMedications,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: avatarSize,
+                  height: avatarSize,
+                  decoration: BoxDecoration(
+                    color: avatarStyle.background,
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveHelper.getResponsiveRadius(context, 12),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    dose.residentInitials,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 14),
+                      color: avatarStyle.foreground,
+                      height: 1,
+                    ),
                   ),
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  dose.residentInitials,
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        dose.residentName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            14,
+                          ),
+                          color: _titleColor,
+                          height: 1.25,
+                        ),
+                      ),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 3),
+                      ),
+                      Text(
+                        '${dose.medicationName} ${dose.dose}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            14,
+                          ),
+                          color: _titleColor,
+                          height: 1.25,
+                        ),
+                      ),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 3),
+                      ),
+                      Text(
+                        dose.isPrn ? 'PRN  •  $_routeLabel' : _routeLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w400,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            12.5,
+                          ),
+                          color: _metaColor,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                Text(
+                  dose.timeLabel,
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                    color: avatarStyle.foreground,
-                    height: 1,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    color: _accentGreen,
+                    height: 1.2,
                   ),
                 ),
-              ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      dose.residentName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                        color: _titleColor,
-                        height: 1.25,
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
-                    Text(
-                      '${dose.medicationName} ${dose.dose}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                        color: _titleColor,
-                        height: 1.25,
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
-                    Text(
-                      _routeLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w400,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                        color: _metaColor,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              Text(
-                dose.timeLabel,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: _accentGreen,
-                  height: 1.2,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
           _buildActionArea(context),
@@ -153,7 +174,9 @@ class DueDoseCard extends StatelessWidget {
       case DueDoseStatus.pending:
         if (!canWrite) {
           return Text(
-            'View only — administering needs nurse permission.',
+            dose.isPrn
+                ? 'View only — PRN needs medication-admin certification.'
+                : 'View only — administering needs mar:write permission.',
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w500,

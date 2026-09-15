@@ -10,7 +10,9 @@ class DueTabView extends StatelessWidget {
   final List<DueDose> laterTodayDoses;
   final ValueChanged<String> onAdminister;
   final ValueChanged<String> onNotGiven;
-  final bool canWrite;
+  final ValueChanged<DueDose>? onOpenClientMedications;
+  final bool canWriteScheduled;
+  final bool canWritePrn;
 
   static const Color _titleColor = Color(0xFF1A2B48);
 
@@ -28,15 +30,20 @@ class DueTabView extends StatelessWidget {
     required this.laterTodayDoses,
     required this.onAdminister,
     required this.onNotGiven,
-    this.canWrite = true,
+    this.onOpenClientMedications,
+    this.canWriteScheduled = true,
+    this.canWritePrn = false,
   });
+
+  bool _canWrite(DueDose dose) =>
+      dose.isPrn ? canWritePrn : canWriteScheduled;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20),),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
         if (dueNowDoses.isNotEmpty) ...[
           _SectionHeader(
             title: 'Due Now',
@@ -48,9 +55,12 @@ class DueTabView extends StatelessWidget {
           for (var i = 0; i < dueNowDoses.length; i++) ...[
             DueDoseCard(
               dose: dueNowDoses[i],
-              canWrite: canWrite,
+              canWrite: _canWrite(dueNowDoses[i]),
               onAdminister: () => onAdminister(dueNowDoses[i].id),
               onNotGiven: () => onNotGiven(dueNowDoses[i].id),
+              onOpenClientMedications: onOpenClientMedications == null
+                  ? null
+                  : () => onOpenClientMedications!(dueNowDoses[i]),
             ),
             if (i != dueNowDoses.length - 1)
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
@@ -68,9 +78,12 @@ class DueTabView extends StatelessWidget {
           for (var i = 0; i < laterTodayDoses.length; i++) ...[
             DueDoseCard(
               dose: laterTodayDoses[i],
-              canWrite: canWrite,
+              canWrite: _canWrite(laterTodayDoses[i]),
               onAdminister: () => onAdminister(laterTodayDoses[i].id),
               onNotGiven: () => onNotGiven(laterTodayDoses[i].id),
+              onOpenClientMedications: onOpenClientMedications == null
+                  ? null
+                  : () => onOpenClientMedications!(laterTodayDoses[i]),
             ),
             if (i != laterTodayDoses.length - 1)
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),

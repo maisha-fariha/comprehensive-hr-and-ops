@@ -27,13 +27,18 @@ class _TabData {
 /// Inactive: muted label + count badge (Administered / Missed).
 class StaffMedicationTabBar extends StatelessWidget {
   final StaffMedicationTab selectedTab;
+  final int dueCount;
   final int administeredCount;
   final int missedCount;
+  final int refusedCount;
   final ValueChanged<StaffMedicationTab> onTabSelected;
 
   static const Color _track = Color(0xFFF1F4F8);
   static const Color _inactiveLabel = Color(0xFF7A869A);
   static const Color _activeLabel = Color(0xFF005F56);
+
+  static const Color _dueBadgeBg = Color(0xFFE8F6EF);
+  static const Color _dueBadgeFg = Color(0xFF2D8A56);
 
   /// Pale blue badge for Administered count.
   static const Color _administeredBadgeBg = Color(0xFFE7F0FF);
@@ -43,18 +48,29 @@ class StaffMedicationTabBar extends StatelessWidget {
   static const Color _missedBadgeBg = Color(0xFFFFF0D8);
   static const Color _missedBadgeFg = Color(0xFFDE7A00);
 
+  static const Color _refusedBadgeBg = Color(0xFFFFF1E8);
+  static const Color _refusedBadgeFg = Color(0xFFC26E00);
+
   const StaffMedicationTabBar({
     super.key,
     required this.selectedTab,
+    required this.dueCount,
     required this.administeredCount,
     required this.missedCount,
+    required this.refusedCount,
     required this.onTabSelected,
   });
 
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      const _TabData(tab: StaffMedicationTab.due, label: 'Due'),
+      _TabData(
+        tab: StaffMedicationTab.due,
+        label: 'Due',
+        count: dueCount,
+        badgeBackground: _dueBadgeBg,
+        badgeForeground: _dueBadgeFg,
+      ),
       _TabData(
         tab: StaffMedicationTab.administered,
         label: 'Administered',
@@ -69,7 +85,13 @@ class StaffMedicationTabBar extends StatelessWidget {
         badgeBackground: _missedBadgeBg,
         badgeForeground: _missedBadgeFg,
       ),
-      const _TabData(tab: StaffMedicationTab.refused, label: 'Refused'),
+      _TabData(
+        tab: StaffMedicationTab.refused,
+        label: 'Refused',
+        count: refusedCount,
+        badgeBackground: _refusedBadgeBg,
+        badgeForeground: _refusedBadgeFg,
+      ),
     ];
 
     final trackRadius = ResponsiveHelper.getResponsiveRadius(context, 16);

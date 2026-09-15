@@ -2,14 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'staff_medication_enums.dart';
 
-/// A single dose card in the "Due" tab, e.g. "James D. — Lisinopril 10mg —
-/// Tablet · Oral — 9:00 AM" with an "Administer"/"Not Given" action row.
-///
-/// [status] is intentionally mutable via [copyWith] (rather than a plain
-/// `const` field) so the controller can flip a card from [DueDoseStatus.pending]
-/// to [DueDoseStatus.administered]/[DueDoseStatus.notGiven] in local mock
-/// state when a staff member taps a button — there is no backend for this
-/// screen yet.
+/// A single dose card in the Due tab (Due Now / Later Today).
 @immutable
 class DueDose {
   final String id;
@@ -25,6 +18,7 @@ class DueDose {
   final String clientId;
   final String residenceId;
   final String medicationId;
+  final bool isPrn;
 
   const DueDose({
     required this.id,
@@ -40,6 +34,7 @@ class DueDose {
     this.clientId = '',
     this.residenceId = '',
     this.medicationId = '',
+    this.isPrn = false,
   });
 
   DueDose copyWith({DueDoseStatus? status}) {
@@ -57,6 +52,7 @@ class DueDose {
       clientId: clientId,
       residenceId: residenceId,
       medicationId: medicationId,
+      isPrn: isPrn,
     );
   }
 }

@@ -64,6 +64,8 @@ abstract final class AuthMapper {
     final tenant = JsonCodec.mapAt(user, 'tenant') ??
         JsonCodec.mapAt(json, 'tenant');
     final residence = _firstResidence(user) ?? _firstResidence(json);
+    final staff = JsonCodec.mapAt(user, 'staff') ??
+        JsonCodec.mapAt(json, 'staff');
 
     return MobileProfile(
       id: JsonCodec.stringOr(user['id'] ?? user['userId'] ?? json['id'], ''),
@@ -87,12 +89,17 @@ abstract final class AuthMapper {
           JsonCodec.string(user['residenceName']),
       staffId: JsonCodec.string(user['staffId']) ??
           JsonCodec.string(json['staffId']) ??
-          JsonCodec.string(JsonCodec.mapAt(user, 'staff')?['id']) ??
-          JsonCodec.string(JsonCodec.mapAt(json, 'staff')?['id']),
+          JsonCodec.string(staff?['id']),
       relationship: JsonCodec.string(user['relationship']) ??
           JsonCodec.string(json['relationship']) ??
           JsonCodec.string(user['relation']),
       avatarInitials: _initials(displayName, email),
+      medAdminCertified: JsonCodec.boolean(
+            user['medAdminCertified'] ??
+                json['medAdminCertified'] ??
+                staff?['medAdminCertified'],
+          ) ??
+          false,
     );
   }
 

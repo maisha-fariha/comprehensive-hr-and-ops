@@ -5,25 +5,25 @@ import 'due_dose.dart';
 import 'missed_dose.dart';
 import 'refused_dose.dart';
 
-/// Aggregate root for everything shown on the Staff "Medication MAR"
-/// screen — the shared header plus the per-tab content for all 4 tabs
-/// (Due, Administered, Missed, Refused).
+/// Aggregate root for the Staff Medication MAR screen.
+///
+/// Built from a single `GET /mar/round` response: tab lists from
+/// `occurrences[]`, header counters from `summary`.
 @immutable
 class StaffMedicationOverview {
   final String screenTitle;
 
-  // Due tab
   final List<DueDose> dueNowDoses;
   final List<DueDose> laterTodayDoses;
-
-  // Administered tab
   final List<AdministeredDose> administeredDoses;
-
-  // Missed tab
   final List<MissedDose> missedDoses;
-
-  // Refused tab
   final List<RefusedDose> refusedDoses;
+
+  /// Counts from round `summary` (fallback to list lengths when absent).
+  final int dueCount;
+  final int administeredCount;
+  final int missedCount;
+  final int refusedCount;
 
   const StaffMedicationOverview({
     required this.screenTitle,
@@ -32,7 +32,14 @@ class StaffMedicationOverview {
     required this.administeredDoses,
     required this.missedDoses,
     required this.refusedDoses,
-  });
+    int? dueCount,
+    int? administeredCount,
+    int? missedCount,
+    int? refusedCount,
+  })  : dueCount = dueCount ?? (dueNowDoses.length + laterTodayDoses.length),
+        administeredCount = administeredCount ?? administeredDoses.length,
+        missedCount = missedCount ?? missedDoses.length,
+        refusedCount = refusedCount ?? refusedDoses.length;
 
   StaffMedicationOverview copyWith({
     List<DueDose>? dueNowDoses,
@@ -45,6 +52,10 @@ class StaffMedicationOverview {
       administeredDoses: administeredDoses,
       missedDoses: missedDoses,
       refusedDoses: refusedDoses,
+      dueCount: dueCount,
+      administeredCount: administeredCount,
+      missedCount: missedCount,
+      refusedCount: refusedCount,
     );
   }
 }
