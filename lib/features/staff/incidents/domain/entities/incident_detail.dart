@@ -1,10 +1,11 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../hr/incidents/domain/entities/incident_investigation_summary.dart';
 import 'incident_activity_entry.dart';
+import 'incident_evidence_item.dart';
 import 'staff_incidents_enums.dart';
 
-/// Full read-only content for the Incident Details screen, reached by
-/// tapping "View Details" on an "All Incidents" card.
+/// Full read-only content for the Incident Details screen.
 @immutable
 class IncidentDetail {
   final String id;
@@ -16,9 +17,6 @@ class IncidentDetail {
   final IncidentSeverity severity;
 
   /// Freeform investigation-status pill text (e.g. "Under Investigation").
-  /// Kept as a plain string rather than [IncidentStatus] because the
-  /// source screenshot's value doesn't map 1:1 onto the list's
-  /// Open/In Review/Closed vocabulary.
   final String statusLabel;
 
   final String detectedDuring;
@@ -33,6 +31,10 @@ class IncidentDetail {
   final String reportedByInitials;
   final String description;
   final List<IncidentActivityEntry> activity;
+  final List<IncidentEvidenceItem> evidence;
+
+  /// CIR payload + template snapshot for manager-style PDF generation.
+  final IncidentInvestigationSummary? cirReport;
 
   const IncidentDetail({
     required this.id,
@@ -53,6 +55,8 @@ class IncidentDetail {
     required this.reportedByInitials,
     this.description = '',
     this.activity = const [],
+    this.evidence = const [],
+    this.cirReport,
   });
 
   /// Whether the red "supervisor review required" alert banner should show.
@@ -62,6 +66,8 @@ class IncidentDetail {
   IncidentDetail copyWith({
     String? description,
     List<IncidentActivityEntry>? activity,
+    List<IncidentEvidenceItem>? evidence,
+    IncidentInvestigationSummary? cirReport,
   }) {
     return IncidentDetail(
       id: id,
@@ -82,6 +88,8 @@ class IncidentDetail {
       reportedByInitials: reportedByInitials,
       description: description ?? this.description,
       activity: activity ?? this.activity,
+      evidence: evidence ?? this.evidence,
+      cirReport: cirReport ?? this.cirReport,
     );
   }
 }

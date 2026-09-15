@@ -31,6 +31,15 @@ abstract class StaffIncidentsRepository {
     required String notes,
   });
 
+  /// `GET /incidents/{id}/cir-pdf-link` → signed URL for CIR PDF.
+  Future<Result<String>> getCirPdfLink(String incidentId);
+
+  /// CIR PDF bytes (`cir-pdf-link`, then PDF fetch / `cir.pdf` fallback).
+  Future<Result<List<int>>> downloadCirPdf(String incidentId);
+
+  /// Download evidence bytes from a public/signed [fileUrl].
+  Future<Result<List<int>>> downloadFileBytes(String fileUrl);
+
   /// `GET /incident-categories`
   Future<Result<List<StaffIncidentCategoryOption>>> getCategories();
 

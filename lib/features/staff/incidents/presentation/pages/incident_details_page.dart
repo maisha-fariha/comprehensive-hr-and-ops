@@ -62,34 +62,15 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
   }
 
   Future<void> _promptNote(BuildContext context) async {
-    final notes = TextEditingController();
-    final submitted = await Get.dialog<bool>(
-      AlertDialog(
-        title: const Text('Add note'),
-        content: TextField(
-          controller: notes,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'Investigation note',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+    final note = await showDialog<String>(
+      context: context,
+      builder: (_) => const _AddInvestigationNoteDialog(),
     );
-    final text = notes.text;
-    notes.dispose();
-    if (submitted == true) {
-      await _controller.addNote(text);
-    }
+    if (!mounted || note == null || note.trim().isEmpty) return;
+    // Let the dialog route finish deactivating before mutating overlays.
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    await _controller.addNote(note);
   }
 
   @override
@@ -110,11 +91,22 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
               onBack: Get.back,
               trailing: StaffIncidentsHeader.iconButton(
                 context: context,
-                onTap: () {},
-                child: AppSvgIcon(
-                  'assets/icons/staff_incidents/share.svg',
-                  size: 18,
-                  color: AppColors.textHeading,
+                onTap: _controller.shareCirPdf,
+                child: Obx(
+                  () => _controller.isOpeningCirPdf.value
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.textHeading,
+                          ),
+                        )
+                      : AppSvgIcon(
+                          'assets/icons/staff_incidents/share.svg',
+                          size: 18,
+                          color: AppColors.textHeading,
+                        ),
                 ),
               ),
             ),
@@ -162,7 +154,11 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     IncidentDescriptionSection(description: detail.description),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                    const IncidentEvidenceSection(),
+                    IncidentEvidenceSection(
+                      items: detail.evidence,
+                      isBusy: _controller.isOpeningEvidence.value,
+                      onDownload: _controller.openEvidence,
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     IncidentActivityLogSection(entries: detail.activity),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
@@ -177,6 +173,56 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AddInvestigationNoteDialog extends StatefulWidget {
+  const _AddInvestigationNoteDialog();
+
+  @override
+  State<_AddInvestigationNoteDialog> createState() =>
+      _AddInvestigationNoteDialogState();
+}
+
+class _AddInvestigationNoteDialogState
+    extends State<_AddInvestigationNoteDialog> {
+  late final TextEditingController _notes;
+
+  @override
+  void initState() {
+    super.initState();
+    _notes = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add note'),
+      content: TextField(
+        controller: _notes,
+        autofocus: true,
+        maxLines: 4,
+        decoration: const InputDecoration(
+          hintText: 'Investigation note',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_notes.text),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

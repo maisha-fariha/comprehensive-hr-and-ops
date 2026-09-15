@@ -1,7 +1,9 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../hr/incidents/data/mappers/incidents_mapper.dart';
 import '../../domain/entities/incident_activity_entry.dart';
 import '../../domain/entities/incident_detail.dart';
+import '../../domain/entities/incident_evidence_item.dart';
 import '../../domain/entities/staff_incident.dart';
 import '../../domain/entities/staff_incident_options.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
@@ -60,6 +62,7 @@ abstract final class StaffIncidentsMapper {
     final reporter = JsonCodec.mapAt(json, 'reporter') ??
         JsonCodec.mapAt(json, 'reportedBy') ??
         {};
+    final payload = JsonCodec.mapAt(json, 'payload') ?? {};
     final reporterName = IsoDateRange.personName(
       reporter.isEmpty ? json['reportedByName'] : reporter,
     );
@@ -99,11 +102,50 @@ abstract final class StaffIncidentsMapper {
       ),
       reportedByInitials: IsoDateRange.initials(reporterName),
       description: JsonCodec.stringOr(
-        json['description'] ?? json['body'] ?? json['narrative'],
+        json['description'] ??
+            payload['description'] ??
+            payload['summary'] ??
+            json['body'] ??
+            json['narrative'],
         '',
       ),
       activity: activityFrom(json['activity'] ?? json['activities']),
+      evidence: evidenceFrom(
+        json['evidence'] ?? json['attachments'] ?? json['files'],
+      ),
+      cirReport: IncidentsMapper.investigationSummaryFrom(body),
     );
+  }
+
+  static List<IncidentEvidenceItem> evidenceFrom(dynamic body) {
+    final items = JsonCodec.unwrapList(body);
+    final out = <IncidentEvidenceItem>[];
+    for (final item in items) {
+      if (item is! Map) continue;
+      final row = JsonCodec.asMap(item);
+      final url = JsonCodec.string(
+        row['fileUrl'] ?? row['url'] ?? row['publicUrl'],
+      );
+      if (url == null || url.isEmpty) continue;
+      final name = JsonCodec.stringOr(
+        row['fileName'] ?? row['name'],
+        url.split('/').last,
+      );
+      out.add(
+        IncidentEvidenceItem(
+          fileName: name,
+          fileUrl: url,
+          fileType: JsonCodec.stringOr(
+            row['fileType'] ?? row['mimeType'] ?? row['contentType'],
+            'file',
+          ),
+          sizeLabel: JsonCodec.string(
+            row['sizeLabel'] ?? row['size'] ?? row['fileSize'],
+          ),
+        ),
+      );
+    }
+    return out;
   }
 
   static List<IncidentActivityEntry> activityFrom(dynamic body) {

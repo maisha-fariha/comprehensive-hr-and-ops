@@ -115,10 +115,10 @@ class CreateIncidentPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const CreateIncidentFieldLabel('Incident Category', required: true),
-                          Obx(
-                            () => CreateIncidentDropdownField(
+                    Obx(
+                      () => CreateIncidentDropdownField(
                               value: controller.incidentCategoryLabel,
-                              placeholder: 'Select category...',
+                        placeholder: 'Select category...',
                               onTap: controller.pickCategory,
                             ),
                           ),
@@ -139,21 +139,21 @@ class CreateIncidentPage extends StatelessWidget {
                               ],
                             );
                           }),
-                          fieldGap,
+                    fieldGap,
                           const CreateIncidentFieldLabel('Incident Title', required: true),
-                          CreateIncidentTextField(
-                            controller: controller.incidentTitleController,
+                    CreateIncidentTextField(
+                      controller: controller.incidentTitleController,
                             hint: 'e.g. Fall – No Injury',
-                          ),
-                          fieldGap,
-                          Row(
+                    ),
+                    fieldGap,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
                                     const CreateIncidentFieldLabel('Date', required: true),
                                     GestureDetector(
                                       onTap: () => controller.pickDate(context),
@@ -164,15 +164,15 @@ class CreateIncidentPage extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
+                            ],
+                          ),
+                        ),
                               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                                     const CreateIncidentFieldLabel('Time', required: true),
                                     GestureDetector(
                                       onTap: () => controller.pickTime(context),
@@ -183,17 +183,17 @@ class CreateIncidentPage extends StatelessWidget {
                                         ),
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
                             ],
                           ),
-                          fieldGap,
+                        ),
+                      ],
+                    ),
+                    fieldGap,
                           const CreateIncidentFieldLabel('Detected During', required: true),
-                          Obx(
-                            () => CreateIncidentDropdownField(
-                              value: controller.detectedDuring.value,
-                              placeholder: 'Select context...',
+                    Obx(
+                      () => CreateIncidentDropdownField(
+                        value: controller.detectedDuring.value,
+                        placeholder: 'Select context...',
                               onTap: controller.pickDetectedDuring,
                             ),
                           ),
@@ -243,17 +243,17 @@ class CreateIncidentPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const CreateIncidentFieldLabel('Resident / Client', required: true),
-                          Obx(
-                            () => CreateIncidentDropdownField(
+                    Obx(
+                      () => CreateIncidentDropdownField(
                               value: controller.residentLabel,
-                              placeholder: 'Select resident...',
+                        placeholder: 'Select resident...',
                               onTap: controller.pickResident,
-                            ),
-                          ),
-                          fieldGap,
-                          const CreateIncidentFieldLabel('Location'),
-                          CreateIncidentTextField(
-                            controller: controller.locationController,
+                      ),
+                    ),
+                    fieldGap,
+                    const CreateIncidentFieldLabel('Location'),
+                    CreateIncidentTextField(
+                      controller: controller.locationController,
                             hint: 'e.g. Bathroom 2',
                           ),
                           fieldGap,
@@ -477,7 +477,7 @@ class _ReportedByField extends StatelessWidget {
           Container(
             width: avatarSize,
             height: avatarSize,
-            decoration: const BoxDecoration(
+              decoration: const BoxDecoration(
               color: _avatarBg,
               shape: BoxShape.circle,
             ),
@@ -578,7 +578,7 @@ class _EvidenceSection extends StatelessWidget {
       width: double.infinity,
       padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
+                color: AppColors.surfaceWhite,
         borderRadius: BorderRadius.circular(cardRadius),
         border: Border.all(color: AppColors.cardBorder),
         boxShadow: [
