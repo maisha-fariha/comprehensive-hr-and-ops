@@ -12,6 +12,7 @@ import '../../../../common/inbox/domain/entities/portal_search_hit.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../../common/inbox/presentation/pages/portal_search_page.dart';
 import '../../../attendance/presentation/pages/staff_attendance_page.dart';
+import '../../../extras/presentation/widgets/staff_raise_emergency_dialog.dart';
 import '../../../incidents/presentation/pages/staff_incidents_list_page.dart';
 import '../../../medication/presentation/pages/staff_medication_page.dart';
 import '../../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
@@ -94,8 +95,11 @@ class StaffDashboardPage extends StatelessWidget {
                   children: [
                     StaffDashboardHeader(
                       overview: overview,
+                      showPanicButton:
+                          Get.find<UserSession>().canRaiseEmergency,
                       onNotificationsTap: () =>
                           Get.to(() => const PortalNotificationsPage()),
+                      onPanicTap: () => StaffRaiseEmergencyDialog.show(),
                       onAvatarTap: () =>
                           Get.to(() => const StaffProfileSettingsPage()),
                     ),

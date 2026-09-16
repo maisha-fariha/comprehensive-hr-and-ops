@@ -7,6 +7,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
+import '../../extras/presentation/pages/staff_emergency_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
 import '../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
 import '../widgets/staff_menu_entry.dart';
@@ -36,6 +37,14 @@ class StaffMoreMenuPage extends StatelessWidget {
       body: SafeArea(
         child: Obx(() {
           final entries = <StaffMenuEntry>[
+            if (session.canReadEmergency)
+              const StaffMenuEntry(
+                icon: Icons.warning_amber_rounded,
+                iconBackground: AppColors.urgentBackground,
+                iconColor: AppColors.criticalRed,
+                title: 'Emergency',
+                subtitle: 'Active alarms and response alerts',
+              ),
             const StaffMenuEntry(
               icon: Icons.access_time_rounded,
               iconBackground: AppColors.infoBackground,
@@ -84,7 +93,9 @@ class StaffMoreMenuPage extends StatelessWidget {
   }
 
   void _open(String title) {
-    if (title == 'Attendance') {
+    if (title == 'Emergency') {
+      Get.to(() => const StaffEmergencyPage());
+    } else if (title == 'Attendance') {
       Get.to(() => const StaffAttendancePage());
     } else if (title == 'Incidents') {
       Get.to(() => const StaffIncidentsListPage());

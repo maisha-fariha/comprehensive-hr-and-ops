@@ -106,6 +106,11 @@ abstract final class ApiEndpoints {
   static const String emergencyAlerts = '/emergency-alerts';
   static const String inventoryItems = '/inventory/items';
   static const String supportTickets = '/support/tickets';
+
+  static String emergencyAlertCancel(String id) =>
+      '$emergencyAlerts/$id/cancel';
+  static String emergencyAlertById(String id) => '$emergencyAlerts/$id';
+  static String emergencyAlertNotes(String id) => '$emergencyAlerts/$id/notes';
   static const String complianceScore = '/compliance/score';
   static const String complianceOverview = '/compliance/overview';
   static const String complianceChecks = '/compliance/checks';

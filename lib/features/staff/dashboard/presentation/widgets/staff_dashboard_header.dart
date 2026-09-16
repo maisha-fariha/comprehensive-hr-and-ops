@@ -9,19 +9,23 @@ import '../../domain/entities/staff_dashboard_overview.dart';
 /// How far [TodayShiftCard] overlaps the gradient header.
 const double kStaffShiftCardOverlap = 70;
 
-/// Teal gradient hero: org switcher, notifications, avatar, greeting.
+/// Teal gradient hero: org switcher, notifications, panic, avatar, greeting.
 class StaffDashboardHeader extends StatelessWidget {
   final StaffDashboardOverview overview;
   final VoidCallback? onOrganizationTap;
   final VoidCallback? onNotificationsTap;
+  final VoidCallback? onPanicTap;
   final VoidCallback? onAvatarTap;
+  final bool showPanicButton;
 
   const StaffDashboardHeader({
     super.key,
     required this.overview,
     this.onOrganizationTap,
     this.onNotificationsTap,
+    this.onPanicTap,
     this.onAvatarTap,
+    this.showPanicButton = false,
   });
 
   @override
@@ -101,6 +105,12 @@ class StaffDashboardHeader extends StatelessWidget {
                       count: overview.unreadNotificationCount,
                       onTap: onNotificationsTap,
                     ),
+                    if (showPanicButton) ...[
+                      SizedBox(
+                        width: ResponsiveHelper.getResponsiveWidth(context, 10),
+                      ),
+                      _PanicButton(onTap: onPanicTap),
+                    ],
                     SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
                     _AvatarButton(onTap: onAvatarTap),
                   ],
@@ -281,6 +291,43 @@ class _NotificationButton extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Circular red panic control — sits between notifications and avatar.
+class _PanicButton extends StatelessWidget {
+  final VoidCallback? onTap;
+
+  const _PanicButton({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = ResponsiveHelper.getResponsiveSize(context, 42);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE53935),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x44E53935),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: const AppSvgIcon(
+          'assets/icons/staff_core/panic_siren.svg',
+          size: 22,
+          color: Colors.white,
         ),
       ),
     );
