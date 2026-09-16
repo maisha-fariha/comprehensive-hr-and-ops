@@ -5,9 +5,14 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/roles/user_role.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
+import '../../extras/presentation/pages/staff_admissions_page.dart';
+import '../../extras/presentation/pages/staff_client_activities_page.dart';
 import '../../extras/presentation/pages/staff_emergency_page.dart';
+import '../../extras/presentation/pages/staff_inventory_page.dart';
+import '../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
 import '../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
 import '../widgets/staff_menu_entry.dart';
@@ -44,6 +49,39 @@ class StaffMoreMenuPage extends StatelessWidget {
                 iconColor: AppColors.criticalRed,
                 title: 'Emergency',
                 subtitle: 'Active alarms and response alerts',
+              ),
+            if (session.canAccessHandovers)
+              const StaffMenuEntry(
+                icon: Icons.swap_horiz_rounded,
+                iconBackground: AppColors.infoBackground,
+                iconColor: AppColors.infoBlue,
+                title: 'Shift handovers',
+                subtitle: 'Write and acknowledge handovers',
+              ),
+            if (session.canAccessClientActivities)
+              const StaffMenuEntry(
+                icon: Icons.directions_walk_outlined,
+                iconBackground: AppColors.activeBackground,
+                iconColor: AppColors.activeGreen,
+                title: 'Client activities',
+                subtitle: 'Record outings, school, and programs',
+              ),
+            if (session.canAccessInventory)
+              const StaffMenuEntry(
+                icon: Icons.inventory_2_outlined,
+                iconBackground: AppColors.nightBackground,
+                iconColor: AppColors.nightPurple,
+                title: 'Inventory',
+                subtitle: 'Stock on hand at your residence',
+              ),
+            if (session.canAccessAdmissions &&
+                session.staffKind == StaffKind.nurse)
+              const StaffMenuEntry(
+                icon: Icons.how_to_reg_outlined,
+                iconBackground: AppColors.infoBackground,
+                iconColor: AppColors.infoBlue,
+                title: 'Admissions',
+                subtitle: 'Referrals and assessments',
               ),
             const StaffMenuEntry(
               icon: Icons.access_time_rounded,
@@ -93,14 +131,23 @@ class StaffMoreMenuPage extends StatelessWidget {
   }
 
   void _open(String title) {
-    if (title == 'Emergency') {
-      Get.to(() => const StaffEmergencyPage());
-    } else if (title == 'Attendance') {
-      Get.to(() => const StaffAttendancePage());
-    } else if (title == 'Incidents') {
-      Get.to(() => const StaffIncidentsListPage());
-    } else if (title == 'Profile & Settings') {
-      Get.to(() => const StaffProfileSettingsPage());
+    switch (title) {
+      case 'Emergency':
+        Get.to(() => const StaffEmergencyPage());
+      case 'Shift handovers':
+        Get.to(() => const StaffShiftHandoversPage());
+      case 'Client activities':
+        Get.to(() => const StaffClientActivitiesPage());
+      case 'Inventory':
+        Get.to(() => const StaffInventoryPage());
+      case 'Admissions':
+        Get.to(() => const StaffAdmissionsPage());
+      case 'Attendance':
+        Get.to(() => const StaffAttendancePage());
+      case 'Incidents':
+        Get.to(() => const StaffIncidentsListPage());
+      case 'Profile & Settings':
+        Get.to(() => const StaffProfileSettingsPage());
     }
   }
 }

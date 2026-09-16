@@ -237,11 +237,12 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
 
     final base = AppEnv.apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
     if (trimmed.startsWith('/api/v1/')) {
-      final origin = base.replaceAll(RegExp(r'/api/v1$'), '');
+      final origin = base.replaceAll(RegExp(r'/api/v1/?$'), '');
       return '$origin$trimmed';
     }
+    // API-relative paths must keep the /api/v1 prefix.
     if (trimmed.startsWith('/')) {
-      return '${Uri.parse(base).origin}$trimmed';
+      return '$base$trimmed';
     }
     return '$base/$trimmed';
   }

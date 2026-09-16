@@ -3,6 +3,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../extras/presentation/pages/staff_training_certificates_page.dart';
+import '../../../extras/presentation/pages/staff_training_quiz_page.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
 
 enum StaffQuickLinkKind { training, documents }
@@ -71,6 +73,18 @@ class _StaffQuickLinkListPageState extends State<StaffQuickLinkListPage> {
         title: Text(_title),
         backgroundColor: AppColors.surfaceWhite,
         foregroundColor: AppColors.textHeading,
+        actions: [
+          if (widget.kind == StaffQuickLinkKind.training)
+            IconButton(
+              tooltip: 'Certificates',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const StaffTrainingCertificatesPage(),
+                ),
+              ),
+              icon: const Icon(Icons.workspace_premium_outlined),
+            ),
+        ],
       ),
       body: _loading
           ? const Center(
@@ -117,43 +131,84 @@ class _StaffQuickLinkListPageState extends State<StaffQuickLinkListPage> {
                         ),
                         itemCount: _items.length,
                         separatorBuilder: (_, _) => SizedBox(
-                          height:
-                              ResponsiveHelper.getResponsiveHeight(context, 8),
+                          height: ResponsiveHelper.getResponsiveHeight(
+                            context,
+                            8,
+                          ),
                         ),
                         itemBuilder: (context, index) {
                           final item = _items[index];
-                          return Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceWhite,
+                          return Material(
+                            color: AppColors.surfaceWhite,
+                            borderRadius: BorderRadius.circular(14),
+                            child: InkWell(
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: AppColors.cardBorder),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item['title'] ?? '',
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textHeading,
+                              onTap: widget.kind == StaffQuickLinkKind.training
+                                  ? () {
+                                      final courseId =
+                                          (item['courseId'] ?? item['id'] ?? '')
+                                              .trim();
+                                      if (courseId.isEmpty) return;
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => StaffTrainingQuizPage(
+                                            courseId: courseId,
+                                            courseTitle:
+                                                item['title'] ?? 'Training',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  : null,
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: AppColors.cardBorder,
                                   ),
                                 ),
-                                if ((item['subtitle'] ?? '').isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      item['subtitle']!,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['title'] ?? '',
                                       style: const TextStyle(
                                         fontFamily: 'Outfit',
-                                        color: AppColors.textSecondary,
-                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textHeading,
                                       ),
                                     ),
-                                  ),
-                              ],
+                                    if ((item['subtitle'] ?? '').isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          item['subtitle']!,
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            color: AppColors.textSecondary,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                    if (widget.kind ==
+                                        StaffQuickLinkKind.training)
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 8),
+                                        child: Text(
+                                          'Tap to open quiz',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 12,
+                                            color: AppColors.secondaryTeal,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
                             ),
                           );
                         },

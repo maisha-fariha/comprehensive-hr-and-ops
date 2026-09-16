@@ -60,8 +60,12 @@ class StaffProfileSettingsRepositoryImpl
     required String body,
   }) async {
     final result = await _api.post(
-      ApiEndpoints.tickets,
-      data: {'subject': subject, 'body': body},
+      ApiEndpoints.supportTickets,
+      data: {
+        'subject': subject,
+        'body': body,
+        'priority': 'normal',
+      },
     );
     return result.when(
       success: (_) async => Result.success(null),

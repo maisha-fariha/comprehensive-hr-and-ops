@@ -221,6 +221,10 @@ abstract final class StaffTasksMessagesMapper {
         'id': JsonCodec.stringOr(json['id'], title),
         'title': title,
         'subtitle': subtitle,
+        'courseId': JsonCodec.stringOr(
+          json['courseId'] ?? JsonCodec.mapAt(json, 'course')?['id'],
+          '',
+        ),
       };
     }).toList();
   }

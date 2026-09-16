@@ -186,17 +186,62 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     if (trimmed.isEmpty) {
       return Result.failure(const ApiError(message: 'File URL was missing.'));
     }
+
+    var downloadTarget = trimmed;
+    var authUnlessSigned = true;
+
     final isAbsolute =
         trimmed.startsWith('http://') || trimmed.startsWith('https://');
-    final looksSigned =
-        isAbsolute && (trimmed.contains('X-Amz-') || trimmed.contains('Signature='));
+    final looksSigned = isAbsolute &&
+        (trimmed.contains('X-Amz-') ||
+            trimmed.contains('Signature=') ||
+            trimmed.contains('token='));
+
+    if (looksSigned) {
+      authUnlessSigned = false;
+    } else {
+      // Prefer a short-lived signed link when the API exposes one.
+      final linkPath = _fileLinkApiPath(trimmed);
+      if (linkPath != null) {
+        final linkResult = await _api.get(linkPath, silent: true);
+        if (linkResult.isSuccess) {
+          final map = JsonCodec.unwrapMap(linkResult.value);
+          final signed = JsonCodec.string(map['signedUrl']);
+          final plain = JsonCodec.string(map['url'] ?? map['fileUrl']);
+          if (signed != null && signed.isNotEmpty) {
+            downloadTarget = signed;
+            authUnlessSigned = false;
+          } else if (plain != null && plain.isNotEmpty) {
+            downloadTarget = plain;
+          }
+        }
+      }
+    }
+
     return _downloadBytes(
-      trimmed,
-      authUnlessSigned: !looksSigned,
+      downloadTarget,
+      authUnlessSigned: authUnlessSigned,
       emptyMessage: 'Could not download this file.',
       failureMessage: 'Could not download this file.',
       requirePdf: false,
     );
+  }
+
+  /// Builds `GET /files/.../link` for API-relative or absolute file URLs.
+  static String? _fileLinkApiPath(String urlOrPath) {
+    var path = urlOrPath.trim();
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      final uri = Uri.tryParse(path);
+      if (uri == null) return null;
+      path = uri.path;
+    }
+    // Strip optional /api/v1 prefix so AppApiClient can resolve against baseUrl.
+    if (path.startsWith('/api/v1/')) {
+      path = path.substring('/api/v1'.length);
+    }
+    if (!path.startsWith('/files/')) return null;
+    if (path.endsWith('/link')) return path;
+    return path.endsWith('/') ? '${path}link' : '$path/link';
   }
 
   Future<Result<List<int>>> _downloadBytes(
@@ -269,11 +314,12 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
 
     final base = AppEnv.apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
     if (trimmed.startsWith('/api/v1/')) {
-      final origin = base.replaceAll(RegExp(r'/api/v1$'), '');
+      final origin = base.replaceAll(RegExp(r'/api/v1/?$'), '');
       return '$origin$trimmed';
     }
+    // API-relative paths (e.g. /files/incidents/photo.jpg) must keep /api/v1.
     if (trimmed.startsWith('/')) {
-      return '${Uri.parse(base).origin}$trimmed';
+      return '$base$trimmed';
     }
     return '$base/$trimmed';
   }

@@ -22,6 +22,7 @@ import '../../features/family/visit_requests/di/family_visit_requests_di.dart';
 import '../../features/staff/attendance/di/staff_attendance_di.dart';
 import '../../features/staff/daily_logs/di/staff_daily_logs_di.dart';
 import '../../features/staff/dashboard/di/staff_dashboard_di.dart';
+import '../../features/staff/extras/di/staff_extras_di.dart';
 import '../../features/staff/incidents/di/staff_incidents_di.dart';
 import '../../features/staff/medication/di/staff_medication_di.dart';
 import '../../features/staff/profile_settings/di/staff_profile_settings_di.dart';
@@ -48,6 +49,7 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupHrProfileSettingsDependencies();
 
   await setupStaffDashboardDependencies();
+  await setupStaffExtrasDependencies();
   await setupStaffSchedulingDependencies();
   await setupStaffAttendanceDependencies();
   await setupStaffDailyLogsDependencies();

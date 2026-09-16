@@ -106,6 +106,10 @@ class UserSession extends GetxService {
   bool get canAccessHandovers => can('shift-handovers') || can('handovers');
   bool get canRaiseEmergency => can('emergency:raise');
   bool get canReadEmergency => can('emergency:read') || canRaiseEmergency;
+  bool get canAccessClientActivities => can('client-activities');
+  bool get canAccessInventory => can('inventory');
+  bool get canAccessAdmissions =>
+      can('admissions:assess') || can('admissions');
 
   /// Scheduled MAR charting needs `mar:write`; PRN also needs med-admin cert.
   bool canAdministerMarDose({required bool isPrn}) {
