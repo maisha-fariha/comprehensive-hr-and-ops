@@ -10,6 +10,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/errors/app_error_dialog.dart';
 import '../controllers/auth_controller.dart';
 import '../widgets/auth_curved_header.dart';
+import '../widgets/auth_screen_layout.dart';
 
 /// OTP / "Verify your email" screen matched to the OTP Verification reference.
 /// Password-reset codes are submitted to `/mobile/auth/password/reset`;
@@ -179,75 +180,53 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   @override
   Widget build(BuildContext context) {
     final headerBottomRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
-    final overlap = ResponsiveHelper.getResponsiveHeight(context, 32);
-    final topInset = MediaQuery.paddingOf(context).top;
-    // back + gaps + icon + title + email lines + bottom pad
-    final headerBodyHeight = ResponsiveHelper.getResponsiveHeight(context, 209);
-    final formTopInset = topInset + headerBodyHeight - overlap;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceWhite,
-      body: SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: Stack(
-          clipBehavior: Clip.none,
+      body: AuthScreenLayout(
+        bottomPadding: 32,
+        header: _OtpHeader(
+          email: _email,
+          bottomRadius: headerBottomRadius,
+          bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 36)
+              .clamp(24.0, 40.0),
+          onBack: () => Get.back(),
+        ),
+        body: Column(
           children: [
-            Padding(
-              padding: EdgeInsets.only(top: formTopInset),
-              child: Container(
-                width: double.infinity,
-                color: AppColors.surfaceWhite,
-                padding: ResponsiveHelper.getResponsivePadding(
-                  context,
-                  horizontal: 22,
-                  top: overlap + ResponsiveHelper.getResponsiveHeight(context, 150),
-                  bottom: 32,
-                ),
-                child: Column(
-                  children: [
-                    _OtpInputRow(
-                      controllers: _controllers,
-                      focusNodes: _focusNodes,
-                      accent: _primaryTeal,
-                      onChanged: _onOtpChanged,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                    _ResendRow(
-                      secondsLeft: _secondsLeft,
-                      timerLabel: _timerLabel,
-                      onResend: _onResend,
-                    ),
-                    if (_isPasswordReset) ...[
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                      _ResetPasswordFields(
-                        passwordController: _newPasswordController,
-                        confirmController: _confirmPasswordController,
-                        obscure: _obscurePassword,
-                        accent: _primaryTeal,
-                        onToggleObscure: () =>
-                            setState(() => _obscurePassword = !_obscurePassword),
-                      ),
-                    ],
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
-                    Obx(
-                      () => _VerifyButton(
-                        accent: _primaryTeal,
-                        label: _auth.isBusy.value ? 'Verifying…' : 'Verify',
-                        onPressed: _auth.isBusy.value ? () {} : _onVerify,
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                    const _SecurityNote(),
-                  ],
-                ),
+            _OtpInputRow(
+              controllers: _controllers,
+              focusNodes: _focusNodes,
+              accent: _primaryTeal,
+              onChanged: _onOtpChanged,
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+            _ResendRow(
+              secondsLeft: _secondsLeft,
+              timerLabel: _timerLabel,
+              onResend: _onResend,
+            ),
+            if (_isPasswordReset) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+              _ResetPasswordFields(
+                passwordController: _newPasswordController,
+                confirmController: _confirmPasswordController,
+                obscure: _obscurePassword,
+                accent: _primaryTeal,
+                onToggleObscure: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+              ),
+            ],
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
+            Obx(
+              () => _VerifyButton(
+                accent: _primaryTeal,
+                label: _auth.isBusy.value ? 'Verifying…' : 'Verify',
+                onPressed: _auth.isBusy.value ? () {} : _onVerify,
               ),
             ),
-            _OtpHeader(
-              email: _email,
-              bottomRadius: headerBottomRadius,
-              bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 36),
-              onBack: () => Get.back(),
-            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+            const _SecurityNote(),
           ],
         ),
       ),

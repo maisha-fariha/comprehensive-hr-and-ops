@@ -10,6 +10,7 @@ import '../../../../core/errors/app_error_dialog.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
 import '../controllers/auth_controller.dart';
+import '../widgets/auth_screen_layout.dart';
 
 /// MediFlow Care Platform login screen — UI matched to the Staff Login
 /// reference. Account type is visual only; the portal is chosen from
@@ -70,138 +71,112 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final headerBottomRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
-    final overlap = ResponsiveHelper.getResponsiveHeight(context, 32);
-    final topInset = MediaQuery.paddingOf(context).top;
-    // Approximate header content height so the form can tuck underneath.
-    final headerBodyHeight = ResponsiveHelper.getResponsiveHeight(context, 209);
-    final headerHeight = topInset + headerBodyHeight;
-    final formTopInset = headerHeight - overlap;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceWhite,
-      body: SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: Stack(
-          clipBehavior: Clip.none,
+      body: AuthScreenLayout(
+        header: _LoginHeader(
+          bottomRadius: headerBottomRadius,
+          // Keep subtitle above the curve overlap zone on the body.
+          bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 36)
+              .clamp(28.0, 44.0),
+        ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Form sits under the rounded header bottom.
-            Padding(
-              padding: EdgeInsets.only(top: formTopInset),
-              child: Container(
-                width: double.infinity,
-                color: AppColors.surfaceWhite,
-                padding: ResponsiveHelper.getResponsivePadding(
-                  context,
-                  horizontal: 22,
-                  top: overlap + ResponsiveHelper.getResponsiveHeight(context, 120),
-                  bottom: 28,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Text(
-                    //   'Select your account type',
-                    //   style: TextStyle(
-                    //     fontFamily: 'Outfit',
-                    //     fontWeight: FontWeight.w600,
-                    //     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                    //     color: _labelColor,
-                    //   ),
-                    // ),
-                    // SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    // _AccountTypeRow(
-                    //   selected: _selectedType,
-                    //   accent: _primaryTeal,
-                    //   onChanged: (type) => setState(() => _selectedType = type),
-                    // ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                    _FieldLabel(text: 'Workspace code', color: _labelColor),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                    _LoginTextField(
-                      controller: _workspaceController,
-                      hint: 'e.g. sunrise',
-                      hintColor: _hintColor,
-                      borderColor: _fieldBorder,
-                      focusColor: _primaryTeal,
-                      prefixIcon: 'assets/icons/common/manager.svg',
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    _FieldLabel(text: 'Email address', color: _labelColor),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                    _LoginTextField(
-                      controller: _emailController,
-                      hint: 'Enter your email',
-                      hintColor: _hintColor,
-                      borderColor: _fieldBorder,
-                      focusColor: _primaryTeal,
-                      keyboardType: TextInputType.emailAddress,
-                      prefixIcon: 'assets/icons/common/email.svg',
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    _FieldLabel(text: 'Password', color: _labelColor),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                    _LoginTextField(
-                      controller: _passwordController,
-                      hint: 'Enter your password',
-                      hintColor: _hintColor,
-                      borderColor: _fieldBorder,
-                      focusColor: _primaryTeal,
-                      obscureText: _obscurePassword,
-                      prefixIcon: 'assets/icons/common/lock.svg',
-                      suffix: GestureDetector(
-                        onTap: () => setState(() => _obscurePassword = !_obscurePassword),
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: ResponsiveHelper.getResponsivePadding(
-                            context,
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
-                          child: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                            size: ResponsiveHelper.getResponsiveSize(context, 20),
-                            color: _hintColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    _RememberForgotRow(
-                      rememberMe: _rememberMe,
-                      accent: _primaryTeal,
-                      onToggleRemember: () => setState(() => _rememberMe = !_rememberMe),
-                      onForgotPassword: () => Get.toNamed(AppRoutes.forgotPassword),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                    Obx(
-                      () => _SignInButton(
-                        label: _auth.isBusy.value
-                            ? 'Signing in…'
-                            : 'Sign In as ${_selectedType.label}',
-                        accent: _primaryTeal,
-                        onPressed: _auth.isBusy.value ? null : _onSignIn,
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                    const _HipaaNote(accent: _primaryTeal),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 26)),
-                    const _AssistanceDivider(),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    _SupportRow(accent: _primaryTeal),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    const _LegalRow(),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                  ],
+            // Text(
+            //   'Select your account type',
+            //   style: TextStyle(
+            //     fontFamily: 'Outfit',
+            //     fontWeight: FontWeight.w600,
+            //     fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+            //     color: _labelColor,
+            //   ),
+            // ),
+            // SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+            // _AccountTypeRow(
+            //   selected: _selectedType,
+            //   accent: _primaryTeal,
+            //   onChanged: (type) => setState(() => _selectedType = type),
+            // ),
+            _FieldLabel(text: 'Workspace code', color: _labelColor),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            _LoginTextField(
+              controller: _workspaceController,
+              hint: 'e.g. sunrise',
+              hintColor: _hintColor,
+              borderColor: _fieldBorder,
+              focusColor: _primaryTeal,
+              prefixIcon: 'assets/icons/common/manager.svg',
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+            _FieldLabel(text: 'Email address', color: _labelColor),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            _LoginTextField(
+              controller: _emailController,
+              hint: 'Enter your email',
+              hintColor: _hintColor,
+              borderColor: _fieldBorder,
+              focusColor: _primaryTeal,
+              keyboardType: TextInputType.emailAddress,
+              prefixIcon: 'assets/icons/common/email.svg',
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+            _FieldLabel(text: 'Password', color: _labelColor),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            _LoginTextField(
+              controller: _passwordController,
+              hint: 'Enter your password',
+              hintColor: _hintColor,
+              borderColor: _fieldBorder,
+              focusColor: _primaryTeal,
+              obscureText: _obscurePassword,
+              prefixIcon: 'assets/icons/common/lock.svg',
+              suffix: GestureDetector(
+                onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    size: ResponsiveHelper.getResponsiveSize(context, 20),
+                    color: _hintColor,
+                  ),
                 ),
               ),
             ),
-            // Header painted last so its bottom radius overlaps the form.
-            _LoginHeader(
-              bottomRadius: headerBottomRadius,
-              bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 16),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+            _RememberForgotRow(
+              rememberMe: _rememberMe,
+              accent: _primaryTeal,
+              onToggleRemember: () => setState(() => _rememberMe = !_rememberMe),
+              onForgotPassword: () => Get.toNamed(AppRoutes.forgotPassword),
             ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+            Obx(
+              () => _SignInButton(
+                label: _auth.isBusy.value
+                    ? 'Signing in…'
+                    : 'Sign In as ${_selectedType.label}',
+                accent: _primaryTeal,
+                onPressed: _auth.isBusy.value ? null : _onSignIn,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+            const _HipaaNote(accent: _primaryTeal),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 26)),
+            const _AssistanceDivider(),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+            _SupportRow(accent: _primaryTeal),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+            const _LegalRow(),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
           ],
         ),
       ),

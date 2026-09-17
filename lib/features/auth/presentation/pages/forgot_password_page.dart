@@ -10,6 +10,7 @@ import '../../../../core/routing/app_routes.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
 import '../controllers/auth_controller.dart';
 import '../widgets/auth_curved_header.dart';
+import '../widgets/auth_screen_layout.dart';
 
 /// "Reset your password" screen matched to the Forgot Password reference.
 /// UI only — Send Reset Link navigates to OTP verification.
@@ -72,75 +73,53 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     final headerBottomRadius = ResponsiveHelper.getResponsiveRadius(context, 40);
-    final overlap = ResponsiveHelper.getResponsiveHeight(context, 32);
-    final topInset = MediaQuery.paddingOf(context).top;
-    // back + gaps + icon + title + subtitle + bottom pad
-    final headerBodyHeight = ResponsiveHelper.getResponsiveHeight(context, 209);
-    final formTopInset = topInset + headerBodyHeight - overlap;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceWhite,
-      body: SingleChildScrollView(
-        physics: const ClampingScrollPhysics(),
-        child: Stack(
-          clipBehavior: Clip.none,
+      body: AuthScreenLayout(
+        bottomPadding: 32,
+        header: _ForgotHeader(
+          bottomRadius: headerBottomRadius,
+          bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 36)
+              .clamp(24.0, 40.0),
+          onBack: _goBack,
+        ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: EdgeInsets.only(top: formTopInset),
-              child: Container(
-                width: double.infinity,
-                color: AppColors.surfaceWhite,
-                padding: ResponsiveHelper.getResponsivePadding(
-                  context,
-                  horizontal: 22,
-                  top: overlap + ResponsiveHelper.getResponsiveHeight(context, 150),
-                  bottom: 32,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Email address',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                        color: _labelColor,
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                    _EmailField(
-                      controller: _emailController,
-                      hintColor: _hintColor,
-                      borderColor: _fieldBorder,
-                      focusColor: _primaryTeal,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                    const _SecurityInfoBox(
-                      background: _infoBg,
-                      border: _infoBorder,
-                      foreground: _infoText,
-                      accent: _primaryTeal,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
-                    Obx(
-                      () => _SendResetButton(
-                        accent: _primaryTeal,
-                        onPressed: _auth.isBusy.value ? () {} : _onSendResetLink,
-                        label: _auth.isBusy.value ? 'Sending…' : 'Send Reset Link',
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                    _BackToSignInRow(accent: _primaryTeal, onTap: _goBack),
-                  ],
-                ),
+            Text(
+              'Email address',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                color: _labelColor,
               ),
             ),
-            _ForgotHeader(
-              bottomRadius: headerBottomRadius,
-              bottomPadding: ResponsiveHelper.getResponsiveHeight(context, 36),
-              onBack: _goBack,
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            _EmailField(
+              controller: _emailController,
+              hintColor: _hintColor,
+              borderColor: _fieldBorder,
+              focusColor: _primaryTeal,
             ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+            const _SecurityInfoBox(
+              background: _infoBg,
+              border: _infoBorder,
+              foreground: _infoText,
+              accent: _primaryTeal,
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
+            Obx(
+              () => _SendResetButton(
+                accent: _primaryTeal,
+                onPressed: _auth.isBusy.value ? () {} : _onSendResetLink,
+                label: _auth.isBusy.value ? 'Sending…' : 'Send Reset Link',
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+            _BackToSignInRow(accent: _primaryTeal, onTap: _goBack),
           ],
         ),
       ),
