@@ -9,7 +9,10 @@ import '../../domain/entities/visit_request_detail.dart';
 abstract final class FamilyVisitRequestsMapper {
   static bool isFamilyVisit(Map<String, dynamic> json) {
     final type = (JsonCodec.string(json['type']) ?? '').toLowerCase();
-    return type.contains('visit') || type.contains('family');
+    // API filter is type=family_visit; keep a narrow client-side guard.
+    return type == 'family_visit' ||
+        type == 'visit' ||
+        type.contains('family_visit');
   }
 
   static FamilyVisitRequestsOverview overviewFrom(dynamic body) {

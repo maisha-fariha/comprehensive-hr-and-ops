@@ -4,11 +4,11 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 
 const Map<FamilyVisitRequestsTab, String> _tabLabels = {
-  FamilyVisitRequestsTab.myRequests: 'My Requests',
+  FamilyVisitRequestsTab.pending: 'Pending',
   FamilyVisitRequestsTab.history: 'History',
 };
 
-/// Segmented All / My Requests / History control for Visit Requests.
+/// Pending / History filters for the family member's own visit requests.
 class FamilyVisitRequestsTabBar extends StatelessWidget {
   final FamilyVisitRequestsTab selected;
   final ValueChanged<FamilyVisitRequestsTab> onSelected;

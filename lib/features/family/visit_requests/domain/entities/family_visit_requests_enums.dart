@@ -1,5 +1,5 @@
-/// Which segmented tab of the Family "Visit Requests" list is selected.
-enum FamilyVisitRequestsTab { myRequests, history }
+/// Which My Requests filter is selected: open (Pending) vs past (History).
+enum FamilyVisitRequestsTab { pending, history }
 
 /// Whether a request is for a general "Visit" or a scheduled "Appointment",
 /// driving the small colored tag pill shown on every request card.

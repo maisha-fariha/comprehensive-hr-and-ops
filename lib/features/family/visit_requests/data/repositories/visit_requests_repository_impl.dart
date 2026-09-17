@@ -16,7 +16,11 @@ class VisitRequestsRepositoryImpl implements VisitRequestsRepository {
   Future<Result<FamilyVisitRequestsOverview>> getOverview() async {
     final result = await _api.get(
       ApiEndpoints.familyAppointments,
-      query: const {'page': 1, 'limit': 20},
+      query: const {
+        'page': 1,
+        'limit': 20,
+        'type': 'family_visit',
+      },
     );
     return result.when(
       success: (body) async =>

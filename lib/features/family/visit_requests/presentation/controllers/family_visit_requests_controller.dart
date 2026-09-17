@@ -7,12 +7,10 @@ import '../../domain/entities/my_visit_request.dart';
 import '../../domain/entities/visit_request.dart';
 import '../../domain/repositories/visit_requests_repository.dart';
 
-/// GetX controller for the Family Visit Requests list screen (all 3 tabs).
+/// GetX controller for the Family Visit Requests list screen.
 ///
-/// Extends the project's [BaseController] (from `gems_data_layer`) so
-/// loading/error state is handled the same way as every other feature
-/// controller in the app, and additionally owns the selected-tab state
-/// backing the "All / My Requests / History" segmented control.
+/// Owns the Pending / History filter for the signed-in family's own
+/// `family_visit` appointments (no cross-family "All" list).
 class FamilyVisitRequestsController extends BaseController<FamilyVisitRequestsOverview> {
   final VisitRequestsRepository repository;
 
@@ -21,7 +19,7 @@ class FamilyVisitRequestsController extends BaseController<FamilyVisitRequestsOv
   }
 
   final Rx<FamilyVisitRequestsTab> selectedTab =
-      FamilyVisitRequestsTab.myRequests.obs;
+      FamilyVisitRequestsTab.pending.obs;
 
   FamilyVisitRequestsOverview? get overview => state.value.data;
 

@@ -16,8 +16,8 @@ import '../widgets/my_visit_requests_stat_chips.dart';
 import '../widgets/visit_request_row_card.dart';
 import 'visit_request_details_page.dart';
 
-/// The Family Visit Requests list screen - "All / My Requests / History"
-/// tabs of the Family portal.
+/// Family Visit Requests — own `family_visit` appointments with Pending /
+/// History filters (no cross-family "All" list).
 ///
 /// Pushed as a standalone route from the Family "More" hub, so it owns its
 /// own `Scaffold` rather than being embedded in a shell.
@@ -141,8 +141,11 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
 
   Widget _buildTabContent(BuildContext context, FamilyVisitRequestsTab tab) {
     switch (tab) {
-      case FamilyVisitRequestsTab.myRequests:
-        return _MyRequestsTab(controller: _controller, onViewDetails: _openRequestDetails);
+      case FamilyVisitRequestsTab.pending:
+        return _PendingRequestsTab(
+          controller: _controller,
+          onViewDetails: _openRequestDetails,
+        );
       case FamilyVisitRequestsTab.history:
         return _HistoryTab(
           controller: _controller,
@@ -196,13 +199,16 @@ class _HistoryTab extends StatelessWidget {
   }
 }
 
-class _MyRequestsTab extends StatelessWidget {
+class _PendingRequestsTab extends StatelessWidget {
   final FamilyVisitRequestsController controller;
   final ValueChanged<String> onViewDetails;
 
   static const Color _sectionTitle = Color(0xFF1A2B48);
 
-  const _MyRequestsTab({required this.controller, required this.onViewDetails});
+  const _PendingRequestsTab({
+    required this.controller,
+    required this.onViewDetails,
+  });
 
   @override
   Widget build(BuildContext context) {
