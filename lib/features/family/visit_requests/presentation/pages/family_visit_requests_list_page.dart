@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
+import '../../domain/entities/family_visit_requests_overview.dart';
 import '../controllers/family_visit_requests_controller.dart';
 import '../widgets/family_visit_requests_header.dart';
 import '../widgets/family_visit_requests_tab_bar.dart';
@@ -54,6 +55,16 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
     Get.to(() => VisitRequestDetailsPage(requestId: requestId));
   }
 
+  void _onBack() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    // Fallback: Visit Requests lives under More.
+    Get.offAll(() => const FamilyShell(initialIndex: _moreTabIndex));
+  }
+
   void _onBottomNavTap(int index) {
     Get.offAll(() => FamilyShell(initialIndex: index));
   }
@@ -70,20 +81,6 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
         bottom: false,
         child: Obx(() {
           final overview = _controller.state.value.data;
-
-          if (overview == null && _controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
-          }
-
-          if (overview == null) {
-            return _VisitRequestsError(
-              message: _controller.errorMessage.value.isEmpty
-                  ? 'Something went wrong while loading visit requests.'
-                  : _controller.errorMessage.value,
-              onRetry: _controller.refresh,
-            );
-          }
-
           final selectedTab = _controller.selectedTab.value;
 
           return Column(
@@ -92,32 +89,53 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
                 color: AppColors.surfaceWhite,
                 child: Column(
                   children: [
-                    FamilyVisitRequestsHeader(onBackTap: Get.back),
-                    Padding(
-                      padding: ResponsiveHelper.getResponsivePadding(
-                        context,
-                        horizontal: 16,
-                        bottom: 16,
+                    FamilyVisitRequestsHeader(onBackTap: _onBack),
+                    if (overview != null)
+                      Padding(
+                        padding: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          horizontal: 16,
+                          bottom: 16,
+                        ),
+                        child: FamilyVisitRequestsTabBar(
+                          selected: selectedTab,
+                          onSelected: _controller.selectTab,
+                        ),
                       ),
-                      child: FamilyVisitRequestsTabBar(
-                        selected: selectedTab,
-                        onSelected: _controller.selectTab,
-                      ),
-                    ),
                   ],
                 ),
               ),
-              Expanded(
-                child: RefreshIndicator(
-                  color: AppColors.secondaryTeal,
-                  onRefresh: _controller.refresh,
-                  child: _buildTabContent(context, selectedTab),
-                ),
-              ),
+              Expanded(child: _buildBody(overview, selectedTab)),
             ],
           );
         }),
       ),
+    );
+  }
+
+  Widget _buildBody(
+    FamilyVisitRequestsOverview? overview,
+    FamilyVisitRequestsTab selectedTab,
+  ) {
+    if (overview == null && _controller.isLoading.value) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+      );
+    }
+
+    if (overview == null) {
+      return _VisitRequestsError(
+        message: _controller.errorMessage.value.isEmpty
+            ? 'Something went wrong while loading visit requests.'
+            : _controller.errorMessage.value,
+        onRetry: _controller.refresh,
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.secondaryTeal,
+      onRefresh: _controller.refresh,
+      child: _buildTabContent(context, selectedTab),
     );
   }
 

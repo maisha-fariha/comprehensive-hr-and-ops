@@ -10,13 +10,16 @@ import '../../../../../core/widgets/section_header_row.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_linked_client.dart';
+import '../../domain/entities/family_notification_preference.dart';
 import '../../domain/entities/family_preference_item.dart';
 import '../controllers/family_profile_settings_controller.dart';
+import '../widgets/family_add_client_link.dart';
 import '../widgets/family_linked_client_row.dart';
 import '../widgets/family_log_out_row.dart';
 import '../widgets/family_preference_tile.dart';
 import '../widgets/family_profile_card.dart';
 import '../widgets/family_profile_settings_header.dart';
+import 'family_support_tickets_page.dart';
 
 /// "Profile & Settings" — the Family portal's screen for the signed-in
 /// family member's own profile, linked clients, and app preferences.
@@ -45,6 +48,133 @@ class FamilyProfileSettingsPage extends StatelessWidget {
     Get.offAll(() => FamilyShell(initialIndex: index));
   }
 
+  void _openLinkedClientSwitcher(
+    BuildContext context,
+    FamilyProfileSettingsController controller,
+    List<FamilyLinkedClient> clients,
+  ) {
+    if (clients.isEmpty) {
+      Get.snackbar(
+        'Linked clients',
+        'No linked clients are available yet. Ask the care home to link a resident.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    Get.bottomSheet(
+      SafeArea(
+        child: Container(
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 20,
+                  top: 16,
+                  bottom: 8,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Switch client',
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          16,
+                        ),
+                        color: const Color(0xFF1A2B48),
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ),
+                    Text(
+                      clients.length == 1
+                          ? 'Only one linked resident is available on this account.'
+                          : 'Choose which linked resident to view.',
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w500,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12.5,
+                        ),
+                        color: const Color(0xFF6B7C93),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              for (final client in clients)
+                Obx(() {
+                  final selected =
+                      Get.find<UserSession>().selectedClientId == client.id;
+                  return ListTile(
+                    title: Text(
+                      client.name,
+                      style: const TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: client.subtitle.isEmpty
+                        ? null
+                        : Text(client.subtitle),
+                    trailing: selected
+                        ? const Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF0E7C7B),
+                          )
+                        : const Icon(
+                            Icons.radio_button_unchecked,
+                            color: Color(0xFFB0BACA),
+                          ),
+                    onTap: () async {
+                      if (Get.isBottomSheetOpen ?? false) {
+                        Get.back<void>();
+                      }
+                      await controller.switchLinkedClient(client);
+                    },
+                  );
+                }),
+              Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 20,
+                  bottom: 12,
+                ),
+                child: Text(
+                  'New residents can only be linked by the care home.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w500,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                    color: const Color(0xFF8E9BAE),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+    );
+  }
+
   void _onPreferenceTap(
     BuildContext context,
     FamilyProfileSettingsController controller,
@@ -52,7 +182,7 @@ class FamilyProfileSettingsPage extends StatelessWidget {
   ) {
     switch (item.type) {
       case FamilyPreferenceType.contactSupport:
-        _openSupportDialog(context, controller);
+        Get.to(() => const FamilySupportTicketsPage());
       case FamilyPreferenceType.notifications:
         _openNotificationPreferences(context, controller);
       case FamilyPreferenceType.changePassword:
@@ -69,35 +199,6 @@ class FamilyProfileSettingsPage extends StatelessWidget {
           'Your profile is read-only here. Use Change Password to update credentials.',
           snackPosition: SnackPosition.BOTTOM,
         );
-    }
-  }
-
-  Future<void> _openSupportDialog(
-    BuildContext context,
-    FamilyProfileSettingsController controller,
-  ) async {
-    final message = TextEditingController();
-    final sent = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Contact Support'),
-        content: TextField(
-          controller: message,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'How can the care team help?',
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Send')),
-        ],
-      ),
-    );
-    final body = message.text.trim();
-    message.dispose();
-    if (sent == true && body.isNotEmpty) {
-      await controller.submitSupportTicket(body);
     }
   }
 
@@ -154,10 +255,10 @@ class FamilyProfileSettingsPage extends StatelessWidget {
     BuildContext context,
     FamilyProfileSettingsController controller,
   ) async {
-    final values = Map<String, bool>.from(
+    final prefs = List<FamilyNotificationPreference>.from(
       await controller.loadNotificationPreferences(),
     );
-    if (values.isEmpty) {
+    if (prefs.isEmpty) {
       Get.snackbar(
         'Notification preferences',
         'No notification settings are available for this account yet.',
@@ -172,16 +273,21 @@ class FamilyProfileSettingsPage extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setState) => AlertDialog(
             title: const Text('Notification Preferences'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final entry in values.entries)
-                  SwitchListTile(
-                    title: Text(_preferenceLabel(entry.key)),
-                    value: entry.value,
-                    onChanged: (value) => setState(() => values[entry.key] = value),
-                  ),
-              ],
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (var i = 0; i < prefs.length; i++)
+                    SwitchListTile(
+                      title: Text(prefs[i].label),
+                      value: prefs[i].enabled,
+                      onChanged: (value) => setState(() {
+                        prefs[i] = prefs[i].copyWith(enabled: value);
+                      }),
+                    ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -191,7 +297,7 @@ class FamilyProfileSettingsPage extends StatelessWidget {
               TextButton(
                 onPressed: () async {
                   Navigator.pop(context);
-                  await controller.saveNotificationPreferences(values);
+                  await controller.saveNotificationPreferences(prefs);
                 },
                 child: const Text('Save'),
               ),
@@ -200,14 +306,6 @@ class FamilyProfileSettingsPage extends StatelessWidget {
         );
       },
     );
-  }
-
-  String _preferenceLabel(String key) {
-    final spaced = key.replaceAllMapped(
-      RegExp(r'([A-Z])'),
-      (match) => ' ${match.group(0)}',
-    );
-    return spaced[0].toUpperCase() + spaced.substring(1);
   }
 
   @override
@@ -271,11 +369,12 @@ class FamilyProfileSettingsPage extends StatelessWidget {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
                     _LinkedClientsCard(
                       clients: overview.linkedClients,
-                      onSelect: (client) {
-                        if (client.id.isEmpty) return;
-                        Get.find<UserSession>().selectClient(client.id);
-                        controller.refresh();
-                      },
+                      onSelect: controller.switchLinkedClient,
+                      onAddSwitchTap: () => _openLinkedClientSwitcher(
+                        context,
+                        controller,
+                        overview.linkedClients,
+                      ),
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'Preferences & Support'),
@@ -319,55 +418,102 @@ class FamilyProfileSettingsPage extends StatelessWidget {
 class _LinkedClientsCard extends StatelessWidget {
   final List<FamilyLinkedClient> clients;
   final ValueChanged<FamilyLinkedClient> onSelect;
+  final VoidCallback onAddSwitchTap;
 
   static const Color _cardBorder = Color(0xFFEEF1F4);
   static const Color _divider = Color(0xFFEEF1F4);
   static const Color _shadow = Color(0xFF142846);
 
-  const _LinkedClientsCard({required this.clients, required this.onSelect});
+  const _LinkedClientsCard({
+    required this.clients,
+    required this.onSelect,
+    required this.onAddSwitchTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 20);
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: _shadow.withValues(alpha: 0.04),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
-          ),
-          BoxShadow(
-            color: _shadow.withValues(alpha: 0.05),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < clients.length; i++) ...[
-            if (i > 0)
-              Padding(
-                padding: ResponsiveHelper.getResponsivePadding(
-                  context,
-                  horizontal: 16,
-                ),
-                child: const Divider(height: 1, thickness: 1, color: _divider),
-              ),
-            FamilyLinkedClientRow(
-              client: clients[i],
-              isSelected: Get.find<UserSession>().selectedClientId == clients[i].id,
-              onTap: () => onSelect(clients[i]),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(radius),
+      clipBehavior: Clip.antiAlias,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: _cardBorder),
+          boxShadow: [
+            BoxShadow(
+              color: _shadow.withValues(alpha: 0.04),
+              offset:
+                  Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
+            ),
+            BoxShadow(
+              color: _shadow.withValues(alpha: 0.05),
+              offset:
+                  Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
+              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
             ),
           ],
-        ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Obx(() {
+              final selectedId = Get.find<UserSession>().selectedClientId;
+              if (clients.isEmpty) {
+                return Padding(
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 16,
+                    vertical: 18,
+                  ),
+                  child: const Text(
+                    'No linked clients are available for this account yet.',
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF6B7C93),
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: [
+                  for (var i = 0; i < clients.length; i++) ...[
+                    if (i > 0)
+                      Padding(
+                        padding: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          horizontal: 16,
+                        ),
+                        child: const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: _divider,
+                        ),
+                      ),
+                    FamilyLinkedClientRow(
+                      client: clients[i],
+                      isSelected: selectedId == clients[i].id,
+                      onTap: () => onSelect(clients[i]),
+                    ),
+                  ],
+                ],
+              );
+            }),
+            Padding(
+              padding: ResponsiveHelper.getResponsivePadding(
+                context,
+                horizontal: 16,
+              ),
+              child: const Divider(height: 1, thickness: 1, color: _divider),
+            ),
+            // Keep outside Obx so the tap target is not rebuilt mid-gesture.
+            FamilyAddClientLink(onTap: onAddSwitchTap),
+          ],
+        ),
       ),
     );
   }

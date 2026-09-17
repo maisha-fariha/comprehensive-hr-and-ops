@@ -2,9 +2,13 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/family_linked_client.dart';
+import '../../domain/entities/family_notification_preference.dart';
 import '../../domain/entities/family_preference_item.dart';
 import '../../domain/entities/family_profile.dart';
 import '../../domain/entities/family_profile_settings_overview.dart';
+import '../../domain/entities/family_support_ticket.dart';
+import '../../domain/entities/family_support_ticket_message.dart';
+import '../../domain/entities/family_support_ticket_thread.dart';
 
 abstract final class FamilyProfileMapper {
   static FamilyProfileSettingsOverview compose({
@@ -15,14 +19,19 @@ abstract final class FamilyProfileMapper {
         .whereType<Map>()
         .map((item) {
           final json = JsonCodec.asMap(item);
+          // Family /clients returns firstName+lastName (not a flat `name`).
           final name = IsoDateRange.personName(
-            json['preferredName'] ?? json['name'],
+            json['preferredName'] ?? json['name'] ?? json,
           );
           final room = JsonCodec.string(json['room'] ?? json['roomNumber']);
           final residence = JsonCodec.string(
             json['residenceName'] ??
                 JsonCodec.mapAt(json, 'residence')?['name'],
           );
+          final rawStatus = JsonCodec.stringOr(json['status'], 'Active');
+          final statusLabel = rawStatus.isEmpty
+              ? 'Active'
+              : '${rawStatus[0].toUpperCase()}${rawStatus.substring(1)}';
           return FamilyLinkedClient(
             id: JsonCodec.stringOr(json['id'], name),
             initials: IsoDateRange.initials(name),
@@ -31,10 +40,21 @@ abstract final class FamilyProfileMapper {
               residence ?? session.residenceName ?? '',
               if (room != null) 'Room $room',
             ].where((part) => part.isNotEmpty).join(' · '),
-            statusLabel: JsonCodec.stringOr(json['status'], 'Active'),
+            statusLabel: statusLabel,
           );
         })
+        .where((client) => client.id.isNotEmpty)
         .toList();
+
+    // Ensure a selected client exists when the list loads.
+    if (clients.isNotEmpty) {
+      final selected = session.selectedClientId;
+      final stillLinked =
+          selected != null && clients.any((client) => client.id == selected);
+      if (!stillLinked) {
+        session.selectClient(clients.first.id);
+      }
+    }
 
     return FamilyProfileSettingsOverview(
       profile: FamilyProfile(
@@ -68,6 +88,111 @@ abstract final class FamilyProfileMapper {
       ],
       pushNotificationsEnabled: true,
       darkModeEnabled: false,
+    );
+  }
+
+  static List<FamilyNotificationPreference> notificationPreferencesFrom(
+    dynamic body,
+  ) {
+    final prefs = <FamilyNotificationPreference>[];
+    final data = JsonCodec.unwrap(body);
+
+    void addFromMap(Map<String, dynamic> json) {
+      final eventKey = JsonCodec.string(json['eventKey'] ?? json['key']);
+      if (eventKey == null || eventKey.isEmpty) return;
+      prefs.add(
+        FamilyNotificationPreference(
+          channel: JsonCodec.stringOr(json['channel'], 'push'),
+          eventKey: eventKey,
+          enabled: JsonCodec.boolean(json['enabled']) ?? true,
+        ),
+      );
+    }
+
+    if (data is List) {
+      for (final item in data) {
+        if (item is Map) addFromMap(JsonCodec.asMap(item));
+      }
+      return prefs;
+    }
+
+    final map = JsonCodec.asMap(data);
+    final nested = map['preferences'] ?? map['items'];
+    if (nested is List) {
+      for (final item in nested) {
+        if (item is Map) addFromMap(JsonCodec.asMap(item));
+      }
+      return prefs;
+    }
+
+    map.forEach((key, value) {
+      final enabled = JsonCodec.boolean(value);
+      if (enabled == null) return;
+      prefs.add(
+        FamilyNotificationPreference(
+          channel: 'push',
+          eventKey: key,
+          enabled: enabled,
+        ),
+      );
+    });
+    return prefs;
+  }
+
+  static FamilySupportTicket ticketFrom(Map<String, dynamic> json) {
+    final at = JsonCodec.dateTime(json['createdAt'] ?? json['updatedAt']);
+    return FamilySupportTicket(
+      id: JsonCodec.stringOr(json['id'], ''),
+      subject: JsonCodec.stringOr(json['subject'], 'Support request'),
+      status: JsonCodec.stringOr(json['status'], 'open'),
+      priority: JsonCodec.stringOr(json['priority'], 'low'),
+      createdAtLabel: at == null
+          ? ''
+          : IsoDateRange.dateTimeLabel(at.toLocal()),
+    );
+  }
+
+  static List<FamilySupportTicket> ticketsFrom(dynamic body) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) => ticketFrom(JsonCodec.asMap(item)))
+        .where((ticket) => ticket.id.isNotEmpty)
+        .toList();
+  }
+
+  static FamilySupportTicketMessage messageFrom(Map<String, dynamic> json) {
+    final at = JsonCodec.dateTime(json['createdAt'] ?? json['sentAt']);
+    final realm = (JsonCodec.string(json['senderRealm']) ?? '').toLowerCase();
+    final fromFamily = realm.isEmpty
+        ? JsonCodec.string(json['senderTenantUserId']) != null
+        : realm == 'tenant' || realm == 'family';
+    return FamilySupportTicketMessage(
+      id: JsonCodec.stringOr(json['id'], ''),
+      body: JsonCodec.stringOr(json['body'], ''),
+      fromFamily: fromFamily,
+      sentAtLabel: at == null ? '' : IsoDateRange.dateTimeLabel(at.toLocal()),
+    );
+  }
+
+  static List<FamilySupportTicketMessage> messagesFrom(dynamic body) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) => messageFrom(JsonCodec.asMap(item)))
+        .toList();
+  }
+
+  static FamilySupportTicketThread threadFrom({
+    required dynamic ticketBody,
+    required dynamic messagesBody,
+  }) {
+    final ticketJson = JsonCodec.unwrapMap(ticketBody);
+    final embedded = ticketJson['messages'];
+    final messages = embedded != null
+        ? messagesFrom(embedded)
+        : messagesFrom(messagesBody);
+    return FamilySupportTicketThread(
+      ticket: ticketFrom(ticketJson),
+      messages: messages,
     );
   }
 

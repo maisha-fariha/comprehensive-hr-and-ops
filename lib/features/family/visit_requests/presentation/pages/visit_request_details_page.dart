@@ -52,6 +52,15 @@ class _VisitRequestDetailsPageState extends State<VisitRequestDetailsPage> {
     }
   }
 
+  void _onBack() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    Get.offAll(() => const FamilyShell(initialIndex: _moreTabIndex));
+  }
+
   void _onBottomNavTap(int index) {
     Get.offAll(() => FamilyShell(initialIndex: index));
   }
@@ -106,7 +115,7 @@ class _VisitRequestDetailsPageState extends State<VisitRequestDetailsPage> {
           children: [
             ColoredBox(
               color: AppColors.surfaceWhite,
-              child: FamilyVisitRequestsHeader(onBackTap: Get.back),
+              child: FamilyVisitRequestsHeader(onBackTap: _onBack),
             ),
             Expanded(
               child: Obx(() {

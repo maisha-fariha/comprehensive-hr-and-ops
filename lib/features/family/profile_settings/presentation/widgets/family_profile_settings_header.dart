@@ -10,6 +10,7 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 class FamilyProfileSettingsHeader extends StatelessWidget {
   final VoidCallback? onBackTap;
   final String initials;
+  final String title;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _buttonBorder = Color(0xFFE2E8EE);
@@ -21,6 +22,7 @@ class FamilyProfileSettingsHeader extends StatelessWidget {
     super.key,
     this.onBackTap,
     this.initials = 'EJ',
+    this.title = 'Profile & Settings',
   });
 
   @override
@@ -68,7 +70,7 @@ class FamilyProfileSettingsHeader extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  'Profile & Settings',
+                  title,
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
