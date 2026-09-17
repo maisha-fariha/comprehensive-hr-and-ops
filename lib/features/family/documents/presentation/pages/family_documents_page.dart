@@ -117,7 +117,7 @@ class FamilyDocumentsPage extends StatelessWidget {
                     final document = documents[index];
                     return FamilyDocumentRowTile(
                       document: document,
-                      onDownloadTap: () => controller.download(document),
+                      onDownloadTap: () => controller.openDocument(document),
                     );
                   },
                 ),

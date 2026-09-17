@@ -89,6 +89,38 @@ abstract final class ApiEndpoints {
   static String uploadById(String id) => '$uploads/$id';
   static String uploadDownload(String id) => '$uploads/$id/download';
 
+  /// `GET /files/{tenantId}/{category}/{fileName}`
+  static String fileObject({
+    required String tenantId,
+    required String category,
+    required String fileName,
+  }) =>
+      '/files/$tenantId/$category/$fileName';
+
+  /// Short-lived open link for a stored file (`…/link`).
+  static String fileObjectLink({
+    required String tenantId,
+    required String category,
+    required String fileName,
+  }) =>
+      '${fileObject(tenantId: tenantId, category: category, fileName: fileName)}/link';
+
+  /// Turns a `/files/...` path (or absolute URL) into its `…/link` API path.
+  static String? fileLinkPath(String urlOrPath) {
+    var path = urlOrPath.trim();
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      final uri = Uri.tryParse(path);
+      if (uri == null) return null;
+      path = uri.path;
+    }
+    if (path.startsWith('/api/v1/')) {
+      path = path.substring('/api/v1'.length);
+    }
+    if (!path.startsWith('/files/')) return null;
+    if (path.endsWith('/link')) return path;
+    return path.endsWith('/') ? '${path}link' : '$path/link';
+  }
+
   // ── Medication MAR ──────────────────────────────────────────────────────
   static const String marDue = '/mar/due';
   static const String marRound = '/mar/round';

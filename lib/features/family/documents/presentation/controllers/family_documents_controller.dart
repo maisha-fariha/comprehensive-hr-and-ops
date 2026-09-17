@@ -1,24 +1,24 @@
-import 'package:flutter/services.dart';
+import 'dart:typed_data';
+
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/storage/media_store_download.dart';
 import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_documents_overview.dart';
 import '../../domain/repositories/family_documents_repository.dart';
 
 /// GetX controller for the "Documents" screen.
-///
-/// Extends the project's [BaseController] (from `gems_data_layer`) so
-/// loading/error state is handled the same way as every other feature
-/// controller in the app. The screen is fully static/list-style, so no
-/// additional selection/filter state is needed beyond the loaded overview.
 class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> {
   final FamilyDocumentsRepository repository;
 
   FamilyDocumentsController({required this.repository}) {
     loadOverview();
   }
+
+  final RxBool isOpening = false.obs;
 
   FamilyDocumentsOverview? get overview => state.value.data;
 
@@ -35,28 +35,65 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
   @override
   Future<void> refresh() => loadOverview();
 
-  Future<void> download(FamilyDocument document) async {
-    final result = await repository.resolveDownloadUrl(document);
-    result.when(
-      success: (url) async {
-        if (url == null || url.isEmpty) {
-          AppErrorDialog.showPageError(
-            title: 'Download unavailable',
-            message: 'This document does not have a download link yet.',
+  /// Opens a document via `GET /files/.../link` (or fallbacks), then launches
+  /// the system viewer.
+  Future<void> openDocument(FamilyDocument document) async {
+    if (isOpening.value) return;
+    isOpening.value = true;
+    try {
+      final result = await repository.openDocument(document);
+      await result.when(
+        success: (payload) async {
+          final bytes = Uint8List.fromList(payload.bytes);
+          final isPdf = payload.mimeType.contains('pdf') ||
+              payload.fileName.toLowerCase().endsWith('.pdf');
+
+          if (isPdf) {
+            final saveResult = await MediaStoreDownload.savePdfAndOpen(
+              fileName: payload.fileName.toLowerCase().endsWith('.pdf')
+                  ? payload.fileName
+                  : '${payload.fileName}.pdf',
+              bytes: bytes,
+            );
+            if (!saveResult.success) {
+              AppErrorDialog.showPageError(
+                title: 'Could not open file',
+                message: saveResult.error ?? 'Could not save or open the PDF.',
+              );
+            }
+            return;
+          }
+
+          final saveResult = await MediaStoreDownload.saveFile(
+            fileName: payload.fileName,
+            bytes: bytes,
+            mimeType: payload.mimeType,
           );
-          return;
-        }
-        await Clipboard.setData(ClipboardData(text: url));
-        Get.snackbar(
-          'Download link copied',
-          'Paste it in a browser to open the file.',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-      },
-      failure: (error) => AppErrorDialog.showResultError(
-        error,
-        fallbackTitle: 'Could not download',
-      ),
-    );
+          if (!saveResult.success) {
+            AppErrorDialog.showPageError(
+              title: 'Could not open file',
+              message: saveResult.error ?? 'Could not save the file.',
+            );
+            return;
+          }
+          final path = saveResult.path;
+          if (path != null && path.isNotEmpty) {
+            await OpenFilex.open(path, type: payload.mimeType);
+            return;
+          }
+          Get.snackbar(
+            'Downloaded',
+            '${payload.fileName} saved to ${saveResult.displayLocation}.',
+            snackPosition: SnackPosition.BOTTOM,
+          );
+        },
+        failure: (error) async => AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not open document',
+        ),
+      );
+    } finally {
+      isOpening.value = false;
+    }
   }
 }

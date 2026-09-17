@@ -23,6 +23,24 @@ abstract final class FamilyDocumentsMapper {
                   '')
               .toLowerCase();
           final upload = JsonCodec.mapAt(json, 'upload') ?? {};
+          final fileUrl = JsonCodec.string(
+            json['fileUrl'] ??
+                json['downloadUrl'] ??
+                json['url'] ??
+                upload['url'] ??
+                upload['fileUrl'],
+          );
+          final fileName = JsonCodec.string(
+                json['fileName'] ?? upload['fileName'],
+              ) ??
+              _fileNameFromPath(fileUrl);
+          final category = JsonCodec.stringOr(
+            json['category'] ??
+                json['documentType'] ??
+                json['type'] ??
+                _categoryFromPath(fileUrl),
+            '',
+          );
           return FamilyDocument(
             id: JsonCodec.stringOr(json['id'], name),
             title: name,
@@ -31,22 +49,22 @@ abstract final class FamilyDocumentsMapper {
                 : 'Updated ${IsoDateRange.formatMonthDay(at.toLocal())}',
             fileType: type.contains('jp') ||
                     type.contains('png') ||
-                    type.contains('image')
+                    type.contains('image') ||
+                    (fileName?.toLowerCase().endsWith('.jpg') ?? false) ||
+                    (fileName?.toLowerCase().endsWith('.jpeg') ?? false) ||
+                    (fileName?.toLowerCase().endsWith('.png') ?? false)
                 ? FamilyDocumentFileType.jpg
                 : FamilyDocumentFileType.pdf,
             uploadId: JsonCodec.string(
               json['uploadId'] ?? upload['id'] ?? json['fileId'],
             ),
             downloadUrl: JsonCodec.string(
-              json['downloadUrl'] ??
-                  json['url'] ??
-                  json['fileUrl'] ??
-                  upload['url'],
+              json['downloadUrl'] ?? json['url'] ?? upload['url'],
             ),
-            category: JsonCodec.stringOr(
-              json['category'] ?? json['documentType'] ?? json['type'],
-              '',
-            ),
+            fileUrl: fileUrl,
+            fileName: fileName,
+            tenantId: JsonCodec.string(json['tenantId'] ?? upload['tenantId']),
+            category: category,
           );
         })
         .toList();
@@ -54,6 +72,24 @@ abstract final class FamilyDocumentsMapper {
       captionText: 'Only approved documents are shared.',
       documents: documents,
     );
+  }
+
+  static String? _fileNameFromPath(String? path) {
+    if (path == null || path.isEmpty) return null;
+    final uriPath = Uri.tryParse(path)?.path ?? path;
+    final parts = uriPath.split('/').where((part) => part.isNotEmpty).toList();
+    return parts.isEmpty ? null : parts.last;
+  }
+
+  static String? _categoryFromPath(String? path) {
+    if (path == null || path.isEmpty) return null;
+    final uriPath = Uri.tryParse(path)?.path ?? path;
+    final parts = uriPath.split('/').where((part) => part.isNotEmpty).toList();
+    // /files/{category}/{fileName} or /files/{tenantId}/{category}/{fileName}
+    if (parts.length >= 3 && parts.first == 'files') {
+      return parts.length >= 4 ? parts[2] : parts[1];
+    }
+    return null;
   }
 
   const FamilyDocumentsMapper._();
