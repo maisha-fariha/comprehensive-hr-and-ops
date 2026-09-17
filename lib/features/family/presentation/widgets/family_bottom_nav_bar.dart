@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/roles/user_session.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
+import '../../messages/presentation/controllers/family_messages_controller.dart';
 
 class FamilyBottomNavItemData {
   final String asset;
@@ -17,24 +21,40 @@ class FamilyBottomNavItemData {
   });
 }
 
+/// Resolves unread message count for the Messages tab badge.
+///
+/// Returns `0` (no badge) when messaging is disabled, the controller is not
+/// ready, or there are no unread threads.
+int familyMessagesUnreadBadgeCount() {
+  try {
+    if (!Get.find<UserSession>().familyVisibility.messages) return 0;
+  } catch (_) {
+    return 0;
+  }
+  if (!Get.isRegistered<FamilyMessagesController>()) return 0;
+  final total = Get.find<FamilyMessagesController>().unreadTotal;
+  return total > 0 ? total : 0;
+}
+
+/// Ensures [FamilyMessagesController] is registered so the nav badge can
+/// reflect unread counts even before the Messages tab is opened.
+FamilyMessagesController ensureFamilyMessagesController() {
+  try {
+    return Get.find<FamilyMessagesController>();
+  } catch (_) {
+    return Get.put(
+      GetIt.instance<FamilyMessagesController>(),
+      permanent: true,
+    );
+  }
+}
+
 /// Bottom navigation for the Family portal: Home / Updates / Appointments /
 /// Messages / More. Used by [FamilyShell].
 class FamilyBottomNavBar extends StatelessWidget {
   static const Color _activeColor = Color(0xFF107C7C);
   static const Color _inactiveColor = Color(0xFF8E9CB2);
   static const Color _topBorder = Color(0xFFE8EDF1);
-
-  static const List<FamilyBottomNavItemData> items = [
-    FamilyBottomNavItemData(asset: AppAssets.navHome, label: 'Home'),
-    FamilyBottomNavItemData(asset: AppAssets.navCalendar, label: 'Updates'),
-    FamilyBottomNavItemData(asset: AppAssets.navAppointment, label: 'Appointments'),
-    FamilyBottomNavItemData(
-      asset: AppAssets.messageCircle,
-      label: 'Messages',
-      badgeCount: 3,
-    ),
-    FamilyBottomNavItemData(asset: AppAssets.navMore, label: 'More'),
-  ];
 
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -45,40 +65,64 @@ class FamilyBottomNavBar extends StatelessWidget {
     required this.onTap,
   });
 
+  List<FamilyBottomNavItemData> _items(int messagesUnreadCount) => [
+        const FamilyBottomNavItemData(asset: AppAssets.navHome, label: 'Home'),
+        const FamilyBottomNavItemData(
+          asset: AppAssets.navCalendar,
+          label: 'Updates',
+        ),
+        const FamilyBottomNavItemData(
+          asset: AppAssets.navAppointment,
+          label: 'Appointments',
+        ),
+        FamilyBottomNavItemData(
+          asset: AppAssets.messageCircle,
+          label: 'Messages',
+          badgeCount: messagesUnreadCount > 0 ? messagesUnreadCount : null,
+        ),
+        const FamilyBottomNavItemData(asset: AppAssets.navMore, label: 'More'),
+      ];
+
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceWhite,
-        border: Border(top: BorderSide(color: _topBorder)),
-      ),
-      child: SafeArea(
-        top: false,
-        minimum: EdgeInsets.only(
-          bottom: ResponsiveHelper.getResponsiveHeight(context, 6),
+    return Obx(() {
+      // Touch reactive sources so the badge updates when conversations load
+      // or family visibility changes.
+      final messagesUnread = familyMessagesUnreadBadgeCount();
+      final items = _items(messagesUnread);
+      return DecoratedBox(
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceWhite,
+          border: Border(top: BorderSide(color: _topBorder)),
         ),
-        child: Padding(
-          padding: ResponsiveHelper.getResponsivePadding(
-            context,
-            horizontal: 6,
-            top: 8,
+        child: SafeArea(
+          top: false,
+          minimum: EdgeInsets.only(
+            bottom: ResponsiveHelper.getResponsiveHeight(context, 6),
           ),
-          child: Row(
-            children: List.generate(items.length, (index) {
-              final item = items[index];
-              final isActive = index == currentIndex;
-              return Expanded(
-                child: _FamilyBottomNavItem(
-                  data: item,
-                  isActive: isActive,
-                  onTap: () => onTap(index),
-                ),
-              );
-            }),
+          child: Padding(
+            padding: ResponsiveHelper.getResponsivePadding(
+              context,
+              horizontal: 6,
+              top: 8,
+            ),
+            child: Row(
+              children: List.generate(items.length, (index) {
+                final item = items[index];
+                final isActive = index == currentIndex;
+                return Expanded(
+                  child: _FamilyBottomNavItem(
+                    data: item,
+                    isActive: isActive,
+                    onTap: () => onTap(index),
+                  ),
+                );
+              }),
+            ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 
@@ -95,7 +139,9 @@ class _FamilyBottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? FamilyBottomNavBar._activeColor : FamilyBottomNavBar._inactiveColor;
+    final color = isActive
+        ? FamilyBottomNavBar._activeColor
+        : FamilyBottomNavBar._inactiveColor;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -109,7 +155,9 @@ class _FamilyBottomNavItem extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 AppSvgIcon(data.asset, size: 22, color: color),
-                if (!isActive && data.badgeCount != null && data.badgeCount! > 0)
+                if (!isActive &&
+                    data.badgeCount != null &&
+                    data.badgeCount! > 0)
                   Positioned(
                     right: -8,
                     top: -4,
@@ -145,6 +193,7 @@ class _MessagesBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final label = count > 99 ? '99+' : '$count';
     return Container(
       constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
       padding: const EdgeInsets.symmetric(horizontal: 3.5),
@@ -154,13 +203,13 @@ class _MessagesBadge extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Text(
-        '$count',
+        label,
         style: TextStyle(
           fontFamily: 'Manrope',
           fontWeight: FontWeight.w700,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 9),
           color: Colors.white,
-          height: 1.1, 
+          height: 1.1,
         ),
       ),
     );

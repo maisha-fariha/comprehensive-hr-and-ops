@@ -21,6 +21,10 @@ class FamilyMessagesController extends BaseController<List<ConversationPreview>>
 
   List<ConversationPreview> get conversations => state.value.data ?? const [];
 
+  /// Total unread across threads — drives the Messages tab badge.
+  int get unreadTotal =>
+      conversations.fold<int>(0, (sum, item) => sum + item.unreadCount);
+
   /// Conversations matching [searchQuery], filtered by name or subtitle.
   List<ConversationPreview> get visibleConversations {
     final query = searchQuery.value.trim().toLowerCase();

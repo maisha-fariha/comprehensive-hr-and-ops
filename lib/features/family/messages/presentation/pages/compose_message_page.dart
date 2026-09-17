@@ -3,7 +3,9 @@ import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../domain/entities/family_messages_enums.dart';
 import '../controllers/compose_message_controller.dart';
+import '../widgets/attachment_options_row.dart';
 import '../widgets/compose_field_label.dart';
 import '../widgets/compose_message_field.dart';
 import '../widgets/compose_message_header.dart';
@@ -86,6 +88,62 @@ class ComposeMessagePage extends StatelessWidget {
                     const ComposeFieldLabel('Message'),
                     ComposeMessageField(controller: controller.messageController),
                     fieldGap,
+                    const ComposeFieldLabel('Attachments'),
+                    Obx(
+                      () => AttachmentOptionsRow(
+                        selected: {
+                          for (final file in controller.attachments)
+                            if (file.fileType.startsWith('image/'))
+                              MessageAttachmentType.photo
+                            else if (file.fileType.contains('pdf'))
+                              MessageAttachmentType.pdf
+                            else
+                              MessageAttachmentType.document,
+                        },
+                        onToggle: controller.pickAttachment,
+                      ),
+                    ),
+                    Obx(() {
+                      if (controller.attachments.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          top: ResponsiveHelper.getResponsiveHeight(context, 10),
+                        ),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final file in controller.attachments)
+                              InputChip(
+                                label: Text(
+                                  file.fileName,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onDeleted: controller.isSending.value
+                                    ? null
+                                    : () => controller.removeAttachment(file),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                    Obx(() {
+                      if (!controller.isUploading.value) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          top: ResponsiveHelper.getResponsiveHeight(context, 8),
+                        ),
+                        child: const LinearProgressIndicator(
+                          color: AppColors.secondaryTeal,
+                          minHeight: 2,
+                        ),
+                      );
+                    }),
+                    fieldGap,
                     Obx(
                       () => PriorityToggleRow(
                         value: controller.isPriority.value,
@@ -105,7 +163,10 @@ class ComposeMessagePage extends StatelessWidget {
                 padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 12, bottom: 12),
                 child: Obx(
                   () => SendMessageButton(
-                    onTap: controller.isSending.value ? () {} : controller.sendMessage,
+                    onTap: controller.isSending.value ||
+                            controller.isUploading.value
+                        ? () {}
+                        : controller.sendMessage,
                   ),
                 ),
               ),

@@ -26,6 +26,8 @@ class _FamilyShellState extends State<FamilyShell> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, 4);
+    // Warm messages so the nav badge can show real unread counts.
+    ensureFamilyMessagesController();
   }
 
   @override
