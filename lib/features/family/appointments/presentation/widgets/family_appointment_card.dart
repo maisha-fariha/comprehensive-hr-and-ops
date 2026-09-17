@@ -282,6 +282,35 @@ class FamilyAppointmentCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (appointment.hasRejectionDecision) ...[
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+                  Container(
+                    width: double.infinity,
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDF0F0),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFF4D6D6)),
+                    ),
+                    child: Text(
+                      appointment.rejectionSummary,
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w500,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12.5,
+                        ),
+                        color: const Color(0xFFC62828),
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

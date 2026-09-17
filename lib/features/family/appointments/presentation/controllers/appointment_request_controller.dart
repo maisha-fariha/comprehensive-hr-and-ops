@@ -141,7 +141,7 @@ class AppointmentRequestController extends GetxController {
     if (isSubmitting.value) return;
     isSubmitting.value = true;
     final result = await repository.createAppointment(
-      type: isVisit ? 'visit' : appointmentKind.value,
+      type: isVisit ? 'family_visit' : appointmentKind.value,
       scheduledAt: preferredAt.value,
       location: locationController.text.trim(),
       notes: noteController.text,

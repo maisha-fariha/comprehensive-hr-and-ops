@@ -55,17 +55,21 @@ abstract final class FamilyVisitRequestsMapper {
 
   static MyVisitRequest myFrom(Map<String, dynamic> json) {
     final at = JsonCodec.dateTime(json['scheduledAt']);
+    final status = statusFrom(json['status']);
+    final decisionReason = JsonCodec.string(json['decisionReason']);
+    final notes = JsonCodec.string(json['notes'] ?? json['purpose']);
     return MyVisitRequest(
       id: JsonCodec.stringOr(json['id'], 'visit'),
       type: VisitRequestType.visit,
       dateTimeLabel: at == null
           ? JsonCodec.stringOr(json['dateLabel'], '')
           : IsoDateRange.dateTimeLabel(at),
-      status: statusFrom(json['status']),
+      status: status,
       locationModeLabel: JsonCodec.stringOr(json['location'], ''),
-      notes: JsonCodec.string(
-        json['notes'] ?? json['decisionReason'] ?? json['purpose'],
-      ),
+      notes: status == VisitRequestStatus.rejected &&
+              (decisionReason != null && decisionReason.trim().isNotEmpty)
+          ? decisionReason
+          : notes,
     );
   }
 
@@ -76,7 +80,10 @@ abstract final class FamilyVisitRequestsMapper {
         JsonCodec.mapAt(json, 'staff') ??
         {};
     final at = JsonCodec.dateTime(json['scheduledAt']);
-    final reason = JsonCodec.string(json['decisionReason']);
+    final decidedByRaw = json['decidedBy'];
+    final decidedBy = decidedByRaw is Map
+        ? IsoDateRange.personName(decidedByRaw)
+        : JsonCodec.string(decidedByRaw);
     return VisitRequestDetail(
       id: JsonCodec.stringOr(json['id'], 'visit'),
       type: VisitRequestType.visit,
@@ -94,10 +101,10 @@ abstract final class FamilyVisitRequestsMapper {
         '',
       ),
       purpose: JsonCodec.stringOr(json['type'] ?? json['purpose'], 'Family Visit'),
-      notes: [
-        JsonCodec.string(json['notes']),
-        if (reason != null) 'Decision: $reason',
-      ].whereType<String>().join('\n'),
+      notes: JsonCodec.stringOr(json['notes'], ''),
+      decidedBy: decidedBy == 'Unknown' ? null : decidedBy,
+      decidedAt: JsonCodec.dateTime(json['decidedAt']),
+      decisionReason: JsonCodec.string(json['decisionReason']),
     );
   }
 

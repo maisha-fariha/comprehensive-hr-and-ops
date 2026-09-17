@@ -16,6 +16,9 @@ class VisitRequestDetail {
   final String roomLocationLabel;
   final String purpose;
   final String notes;
+  final String? decidedBy;
+  final DateTime? decidedAt;
+  final String? decisionReason;
 
   const VisitRequestDetail({
     required this.id,
@@ -28,7 +31,16 @@ class VisitRequestDetail {
     required this.roomLocationLabel,
     required this.purpose,
     required this.notes,
+    this.decidedBy,
+    this.decidedAt,
+    this.decisionReason,
   });
+
+  bool get hasRejectionDecision =>
+      status == VisitRequestStatus.rejected &&
+      ((decisionReason != null && decisionReason!.trim().isNotEmpty) ||
+          (decidedBy != null && decidedBy!.trim().isNotEmpty) ||
+          decidedAt != null);
 
   /// Whether the "Cancel Request" button at the bottom of the details
   /// screen should show - only makes sense while a request hasn't already

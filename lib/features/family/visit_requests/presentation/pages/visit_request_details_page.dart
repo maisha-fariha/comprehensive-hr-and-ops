@@ -10,6 +10,7 @@ import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 import '../controllers/visit_request_details_controller.dart';
+import '../widgets/details/decision_reason_card.dart';
 import '../widgets/details/patient_family_info_card.dart';
 import '../widgets/details/purpose_notes_card.dart';
 import '../widgets/details/visit_request_details_actions.dart';
@@ -161,6 +162,12 @@ class _VisitRequestDetailsPageState extends State<VisitRequestDetailsPage> {
                     const SectionHeaderRow(title: 'Purpose & Notes'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
                     PurposeNotesCard(detail: detail),
+                    if (detail.hasRejectionDecision) ...[
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                      const SectionHeaderRow(title: 'Rejection decision'),
+                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+                      DecisionReasonCard(detail: detail),
+                    ],
                     if (detail.isCancellable ||
                         detail.status == VisitRequestStatus.rescheduleRequested) ...[
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),

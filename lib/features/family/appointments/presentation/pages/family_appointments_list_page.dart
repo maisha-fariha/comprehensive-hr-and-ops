@@ -4,9 +4,10 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../family_shell.dart';
+import '../../../visit_requests/presentation/pages/visit_request_details_page.dart';
 import '../../domain/entities/family_appointment.dart';
 import '../../domain/entities/family_appointments_enums.dart';
-import '../../../visit_requests/presentation/pages/visit_request_details_page.dart';
 import '../controllers/family_appointments_controller.dart';
 import '../widgets/family_appointment_card.dart';
 import '../widgets/family_appointments_filter_pills.dart';
@@ -105,7 +106,9 @@ class _FamilyAppointmentsListPageState
     BuildContext context,
     FamilyAppointment appointment,
   ) async {
-    if (appointment.iconKind == FamilyAppointmentIconKind.familyVisit) {
+    // Rejected / settled items open details so decision fields are visible.
+    if (appointment.status == FamilyAppointmentStatus.rejected ||
+        appointment.iconKind == FamilyAppointmentIconKind.familyVisit) {
       Get.to(() => VisitRequestDetailsPage(requestId: appointment.id));
       return;
     }
@@ -190,7 +193,15 @@ class _FamilyAppointmentsListPageState
                   children: [
                     FamilyAppointmentsHeader(
                       title: 'Appointments',
-                      onBack: Get.back,
+                      onBack: () {
+                        final navigator = Navigator.of(context);
+                        if (navigator.canPop()) {
+                          navigator.pop();
+                          return;
+                        }
+                        // Embedded as a FamilyShell tab — return to Home.
+                        Get.offAll(() => const FamilyShell(initialIndex: 0));
+                      },
                     ),
                     Padding(
                       padding: ResponsiveHelper.getResponsivePadding(

@@ -90,17 +90,17 @@ class FamilyDailyUpdatesAppBar extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-            _SquareIconButton(
-              size: buttonSize,
-              radius: radius,
-              onTap: onFilterTap,
-              child: const AppSvgIcon(
-                AppAssets.filter,
-                size: 18,
-                color: _titleColor,
-              ),
-            ),
+            // SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+            // _SquareIconButton(
+            //   size: buttonSize,
+            //   radius: radius,
+            //   onTap: onFilterTap,
+            //   child: const AppSvgIcon(
+            //     AppAssets.filter,
+            //     size: 18,
+            //     color: _titleColor,
+            //   ),
+            // ),
           ],
         ),
       ),

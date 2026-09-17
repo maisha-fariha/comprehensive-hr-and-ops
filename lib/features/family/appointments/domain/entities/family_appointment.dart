@@ -20,6 +20,10 @@ class FamilyAppointment {
   final FamilyAppointmentIconKind iconKind;
   final String type;
   final DateTime? scheduledAt;
+  final String? notes;
+  final String? decidedBy;
+  final DateTime? decidedAt;
+  final String? decisionReason;
 
   const FamilyAppointment({
     required this.id,
@@ -30,5 +34,41 @@ class FamilyAppointment {
     required this.iconKind,
     this.type = '',
     this.scheduledAt,
+    this.notes,
+    this.decidedBy,
+    this.decidedAt,
+    this.decisionReason,
   });
+
+  /// True when care staff rejected the request and left a decision trail.
+  bool get hasRejectionDecision =>
+      status == FamilyAppointmentStatus.rejected &&
+      ((decisionReason != null && decisionReason!.trim().isNotEmpty) ||
+          (decidedBy != null && decidedBy!.trim().isNotEmpty) ||
+          decidedAt != null);
+
+  String get rejectionSummary {
+    final parts = <String>[];
+    final reason = decisionReason?.trim();
+    if (reason != null && reason.isNotEmpty) parts.add(reason);
+    final by = decidedBy?.trim();
+    final at = decidedAt;
+    if (by != null && by.isNotEmpty && at != null) {
+      parts.add('— $by · ${_shortDecisionTime(at)}');
+    } else if (by != null && by.isNotEmpty) {
+      parts.add('— $by');
+    } else if (at != null) {
+      parts.add('— ${_shortDecisionTime(at)}');
+    }
+    return parts.join(' ');
+  }
+
+  static String _shortDecisionTime(DateTime value) {
+    final d = value.toLocal();
+    final day = d.day.toString().padLeft(2, '0');
+    final month = d.month.toString().padLeft(2, '0');
+    final hour = d.hour.toString().padLeft(2, '0');
+    final minute = d.minute.toString().padLeft(2, '0');
+    return '$day/$month/${d.year} $hour:$minute';
+  }
 }

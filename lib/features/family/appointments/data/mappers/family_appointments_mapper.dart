@@ -15,6 +15,10 @@ abstract final class FamilyAppointmentsMapper {
     final type = (JsonCodec.string(json['type']) ?? '').toLowerCase();
     final status = _status(json['status'], json['scheduledAt']);
     final at = JsonCodec.dateTime(json['scheduledAt'] ?? json['startsAt']);
+    final decidedByRaw = json['decidedBy'];
+    final decidedBy = decidedByRaw is Map
+        ? IsoDateRange.personName(decidedByRaw)
+        : JsonCodec.string(decidedByRaw);
     return FamilyAppointment(
       id: JsonCodec.stringOr(json['id'], json['title'] ?? 'appointment'),
       dateTimeLabel: at == null
@@ -29,6 +33,10 @@ abstract final class FamilyAppointmentsMapper {
       iconKind: _icon(type, json['title']),
       type: type,
       scheduledAt: at,
+      notes: JsonCodec.string(json['notes']),
+      decidedBy: decidedBy == 'Unknown' ? null : decidedBy,
+      decidedAt: JsonCodec.dateTime(json['decidedAt']),
+      decisionReason: JsonCodec.string(json['decisionReason']),
     );
   }
 

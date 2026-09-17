@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../family_shell.dart';
 import '../../domain/entities/family_daily_update_enums.dart';
 import '../controllers/family_daily_updates_controller.dart';
 import '../widgets/family_daily_update_timeline_tile.dart';
@@ -59,6 +60,15 @@ class FamilyDailyUpdatesPage extends StatelessWidget {
               FamilyDailyUpdatesAppBar(
                 title: overview.screenTitle,
                 subtitle: overview.screenSubtitle,
+                onBack: () {
+                  final navigator = Navigator.of(context);
+                  if (navigator.canPop()) {
+                    navigator.pop();
+                    return;
+                  }
+                  // Embedded as a FamilyShell tab — return to Home.
+                  Get.offAll(() => const FamilyShell(initialIndex: 0));
+                },
               ),
               Expanded(
                 child: RefreshIndicator(

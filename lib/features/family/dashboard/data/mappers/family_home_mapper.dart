@@ -91,11 +91,15 @@ abstract final class FamilyHomeMapper {
     final items = raw is List ? raw : JsonCodec.unwrapList(raw);
     return [
       for (final item in items)
-        if (item is Map)
+        if (item is Map && _alertAllowed(JsonCodec.asMap(item), visibility))
           FamilyAttentionAlert(
-            id: JsonCodec.stringOr(JsonCodec.asMap(item)['id'], 'alert'),
+            id: JsonCodec.stringOr(
+              JsonCodec.asMap(item)['id'] ?? JsonCodec.asMap(item)['type'],
+              'alert',
+            ),
             title: JsonCodec.stringOr(
-              JsonCodec.asMap(item)['title'] ?? JsonCodec.asMap(item)['message'],
+              JsonCodec.asMap(item)['title'] ??
+                  JsonCodec.asMap(item)['message'],
               'Alert',
             ),
             subtitle: JsonCodec.stringOr(
@@ -110,6 +114,82 @@ abstract final class FamilyHomeMapper {
                 : AlertSeverity.urgent,
           ),
     ];
+  }
+
+  /// Keeps only alerts whose module is enabled in `data.visibility`.
+  static bool _alertAllowed(
+    Map<String, dynamic> json,
+    FamilyVisibility visibility,
+  ) {
+    final type = (JsonCodec.string(
+              json['type'] ?? json['category'] ?? json['kind'],
+            ) ??
+            '')
+        .toLowerCase();
+    final haystack = [
+      type,
+      JsonCodec.stringOr(json['title'], ''),
+      JsonCodec.stringOr(json['message'], ''),
+      JsonCodec.stringOr(json['subtitle'], ''),
+      JsonCodec.stringOr(json['detail'], ''),
+    ].join(' ').toLowerCase();
+
+    if (_matchesAny(haystack, const [
+      'incident',
+      'emergency',
+      'safeguard',
+    ])) {
+      return visibility.incidents;
+    }
+    if (_matchesAny(haystack, const [
+      'daily_log',
+      'daily-log',
+      'dailylog',
+      'care note',
+      'care_note',
+    ])) {
+      return visibility.dailyLogs;
+    }
+    if (_matchesAny(haystack, const ['med', 'mar', 'prescription'])) {
+      return visibility.medications;
+    }
+    if (_matchesAny(haystack, const ['shift', 'staffing', 'roster'])) {
+      return visibility.shiftUpdates;
+    }
+    if (_matchesAny(haystack, const ['activit'])) {
+      return visibility.activities;
+    }
+    if (_matchesAny(haystack, const [
+      'appointment',
+      'visit',
+      'next_visit',
+    ])) {
+      return visibility.appointments;
+    }
+    if (_matchesAny(haystack, const ['document', 'file'])) {
+      return visibility.documents;
+    }
+    if (_matchesAny(haystack, const ['message', 'conversation'])) {
+      return visibility.messages;
+    }
+    if (_matchesAny(haystack, const [
+      'medical_condition',
+      'condition',
+      'diagnosis',
+    ])) {
+      return visibility.medicalConditions;
+    }
+
+    // Unknown family-scoped alerts stay visible; facility/manager noise is
+    // already excluded by `/family/home`.
+    return true;
+  }
+
+  static bool _matchesAny(String haystack, List<String> needles) {
+    for (final needle in needles) {
+      if (haystack.contains(needle)) return true;
+    }
+    return false;
   }
 
   static List<FamilyOverviewStat> _totals(
