@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import '../../features/auth/domain/entities/mobile_profile.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../errors/app_error_mapper.dart';
+import '../push/device_registration_service.dart';
 import '../routing/app_routes.dart';
 import 'session_lifecycle.dart';
 import 'user_role.dart';
@@ -225,6 +226,10 @@ class UserSession extends GetxService {
       return false;
     }
     applyProfile(profile);
+    // Cold start: re-register the push token if FCM already delivered one.
+    try {
+      await GetIt.instance<DeviceRegistrationService>().syncAfterAuth();
+    } catch (_) {}
     return true;
   }
 
@@ -241,6 +246,10 @@ class UserSession extends GetxService {
       }
       Get.offAllNamed(AppRoutes.login);
       await SessionLifecycle.reset();
+      // Unregister before logout clears the access token.
+      try {
+        await GetIt.instance<DeviceRegistrationService>().unregisterOnLogout();
+      } catch (_) {}
       try {
         await GetIt.instance<AuthRepository>().logout();
       } catch (_) {}

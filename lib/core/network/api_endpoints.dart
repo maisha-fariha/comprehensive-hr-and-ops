@@ -16,6 +16,8 @@ abstract final class ApiEndpoints {
   static const String mobileOtpVerify = '/mobile/auth/otp/verify';
   static const String changePassword = '/auth/change-password';
   static const String devices = '/devices';
+  static String deviceByToken(String token) =>
+      '$devices/${Uri.encodeComponent(token)}';
 
   // ── Dashboard ───────────────────────────────────────────────────────────
   static const String dashboard = '/dashboard';
@@ -61,6 +63,10 @@ abstract final class ApiEndpoints {
   static const String uploads = '/uploads';
   static const String tickets = '/tickets';
   static const String notificationPreferences = '/notification-preferences';
+  static const String notificationPreferencesBulk =
+      '/notification-preferences/bulk';
+  static const String notificationPreferenceEvents =
+      '/notification-preferences/events';
 
   // ── Family (always `/family/*` — staff paths 403 for this role) ─────────
   static const String familyHome = '/family/home';

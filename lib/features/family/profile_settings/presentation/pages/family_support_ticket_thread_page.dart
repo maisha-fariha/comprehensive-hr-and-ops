@@ -8,6 +8,7 @@ import '../controllers/family_profile_settings_controller.dart';
 import '../widgets/family_profile_settings_header.dart';
 
 /// Support thread: GET /family/tickets/{id} + …/messages.
+/// Reply: POST /tickets/{id}/messages. Close: POST /tickets/{id}/close.
 class FamilySupportTicketThreadPage extends StatefulWidget {
   final String ticketId;
 
@@ -21,15 +22,29 @@ class FamilySupportTicketThreadPage extends StatefulWidget {
 class _FamilySupportTicketThreadPageState
     extends State<FamilySupportTicketThreadPage> {
   late final FamilyProfileSettingsController _controller;
+  final TextEditingController _replyController = TextEditingController();
   FamilySupportTicketThread? _thread;
   bool _loading = true;
+  bool _sending = false;
+  bool _closing = false;
   String? _error;
+
+  bool get _isClosed {
+    final status = _thread?.ticket.status.toLowerCase() ?? '';
+    return status == 'closed' || status == 'resolved';
+  }
 
   @override
   void initState() {
     super.initState();
     _controller = Get.find<FamilyProfileSettingsController>();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -47,6 +62,53 @@ class _FamilySupportTicketThreadPageState
         _error = 'Could not load this support thread.';
       }
     });
+  }
+
+  Future<void> _sendReply() async {
+    final body = _replyController.text.trim();
+    if (body.isEmpty || _sending || _isClosed) return;
+    setState(() => _sending = true);
+    final ok = await _controller.replyToSupportTicket(
+      ticketId: widget.ticketId,
+      body: body,
+    );
+    if (!mounted) return;
+    if (ok) {
+      _replyController.clear();
+      setState(() => _sending = false);
+      await _load();
+    } else if (mounted) {
+      setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _closeTicket() async {
+    if (_closing || _isClosed) return;
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Close ticket?'),
+        content: const Text(
+          'You will not be able to send more replies on this request.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('Close ticket'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _closing = true);
+    final ok = await _controller.closeSupportTicket(widget.ticketId);
+    if (!mounted) return;
+    setState(() => _closing = false);
+    if (ok) await _load();
   }
 
   @override
@@ -73,41 +135,79 @@ class _FamilySupportTicketThreadPageState
                   top: 14,
                   bottom: 8,
                 ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        thread.ticket.subject,
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
-                          fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            16,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            thread.ticket.subject,
+                            style: TextStyle(
+                              fontFamily: 'Manrope',
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                16,
+                              ),
+                              color: const Color(0xFF1A2B48),
+                            ),
                           ),
-                          color: const Color(0xFF1A2B48),
-                        ),
-                      ),
-                      SizedBox(
-                        height:
-                            ResponsiveHelper.getResponsiveHeight(context, 4),
-                      ),
-                      Text(
-                        '${thread.ticket.status} · ${thread.ticket.priority}',
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
-                          fontWeight: FontWeight.w500,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            12,
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              4,
+                            ),
                           ),
-                          color: const Color(0xFF71839B),
-                        ),
+                          Text(
+                            '${thread.ticket.status} · ${thread.ticket.priority}',
+                            style: TextStyle(
+                              fontFamily: 'Manrope',
+                              fontWeight: FontWeight.w500,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                12,
+                              ),
+                              color: const Color(0xFF71839B),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    if (!_isClosed)
+                      TextButton(
+                        onPressed: _closing ? null : _closeTicket,
+                        child: _closing
+                            ? SizedBox(
+                                width: ResponsiveHelper.getResponsiveWidth(
+                                  context,
+                                  16,
+                                ),
+                                height: ResponsiveHelper.getResponsiveHeight(
+                                  context,
+                                  16,
+                                ),
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.secondaryTeal,
+                                ),
+                              )
+                            : Text(
+                                'Close',
+                                style: TextStyle(
+                                  fontFamily: 'Manrope',
+                                  fontWeight: FontWeight.w600,
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    13,
+                                  ),
+                                  color: AppColors.secondaryTeal,
+                                ),
+                              ),
+                      ),
+                  ],
                 ),
               ),
             Expanded(
@@ -260,6 +360,78 @@ class _FamilySupportTicketThreadPageState
                           ),
                         ),
             ),
+            if (thread != null && !_loading && _error == null)
+              _isClosed
+                  ? Container(
+                      width: double.infinity,
+                      color: AppColors.surfaceWhite,
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      child: Text(
+                        'This ticket is closed.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'Manrope',
+                          fontWeight: FontWeight.w500,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            13,
+                          ),
+                          color: const Color(0xFF71839B),
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: AppColors.surfaceWhite,
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _replyController,
+                              minLines: 1,
+                              maxLines: 4,
+                              enabled: !_sending,
+                              decoration: const InputDecoration(
+                                hintText: 'Reply to the care team…',
+                                border: InputBorder.none,
+                              ),
+                              onSubmitted: (_) => _sendReply(),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _sending ? null : _sendReply,
+                            icon: _sending
+                                ? SizedBox(
+                                    width: ResponsiveHelper.getResponsiveWidth(
+                                      context,
+                                      18,
+                                    ),
+                                    height:
+                                        ResponsiveHelper.getResponsiveHeight(
+                                      context,
+                                      18,
+                                    ),
+                                    child: const CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.secondaryTeal,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.send_rounded,
+                                    color: AppColors.secondaryTeal,
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
           ],
         ),
       ),

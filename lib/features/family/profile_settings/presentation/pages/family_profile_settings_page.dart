@@ -10,7 +10,6 @@ import '../../../../../core/widgets/section_header_row.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_linked_client.dart';
-import '../../domain/entities/family_notification_preference.dart';
 import '../../domain/entities/family_preference_item.dart';
 import '../controllers/family_profile_settings_controller.dart';
 import '../widgets/family_add_client_link.dart';
@@ -19,6 +18,7 @@ import '../widgets/family_log_out_row.dart';
 import '../widgets/family_preference_tile.dart';
 import '../widgets/family_profile_card.dart';
 import '../widgets/family_profile_settings_header.dart';
+import 'family_notification_preferences_page.dart';
 import 'family_support_tickets_page.dart';
 
 /// "Profile & Settings" — the Family portal's screen for the signed-in
@@ -184,7 +184,7 @@ class FamilyProfileSettingsPage extends StatelessWidget {
       case FamilyPreferenceType.contactSupport:
         Get.to(() => const FamilySupportTicketsPage());
       case FamilyPreferenceType.notifications:
-        _openNotificationPreferences(context, controller);
+        Get.to(() => const FamilyNotificationPreferencesPage());
       case FamilyPreferenceType.changePassword:
         _openChangePassword(context, controller);
       case FamilyPreferenceType.helpCenter:
@@ -215,63 +215,6 @@ class FamilyProfileSettingsPage extends StatelessWidget {
     await controller.changePassword(
       currentPassword: result.current,
       newPassword: result.next,
-    );
-  }
-
-  Future<void> _openNotificationPreferences(
-    BuildContext context,
-    FamilyProfileSettingsController controller,
-  ) async {
-    final prefs = List<FamilyNotificationPreference>.from(
-      await controller.loadNotificationPreferences(),
-    );
-    if (prefs.isEmpty) {
-      Get.snackbar(
-        'Notification preferences',
-        'No notification settings are available for this account yet.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return;
-    }
-    if (!context.mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-            title: const Text('Notification Preferences'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (var i = 0; i < prefs.length; i++)
-                    SwitchListTile(
-                      title: Text(prefs[i].label),
-                      value: prefs[i].enabled,
-                      onChanged: (value) => setState(() {
-                        prefs[i] = prefs[i].copyWith(enabled: value);
-                      }),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await controller.saveNotificationPreferences(prefs);
-                },
-                child: const Text('Save'),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/network/app_api_client.dart';
+import '../../../../core/network/json_codec.dart';
 import '../../../../core/network/response_cache.dart';
 import '../../../../core/network/token_store.dart';
 import '../../../../core/network/tenant_store.dart';
@@ -211,11 +212,43 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Result<void>> registerDevice({
     required String token,
     required String platform,
+    String? appVersion,
   }) {
     return _voidPost(ApiEndpoints.devices, {
       'token': token,
       'platform': platform,
+      if (appVersion != null && appVersion.isNotEmpty) 'appVersion': appVersion,
     });
+  }
+
+  @override
+  Future<Result<void>> unregisterDevice(String token) async {
+    final trimmed = token.trim();
+    if (trimmed.isEmpty) {
+      return Result.success(null);
+    }
+    final result = await _api.delete(
+      ApiEndpoints.deviceByToken(trimmed),
+      silent: true,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<Map<String, dynamic>>>> listDevices() async {
+    final result = await _api.get(ApiEndpoints.devices, silent: true);
+    return result.when(
+      success: (body) async => Result.success(
+        JsonCodec.unwrapList(body)
+            .whereType<Map>()
+            .map((item) => JsonCodec.asMap(item))
+            .toList(),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
   }
 
   Future<Result<void>> _saveTokens(dynamic body) async {

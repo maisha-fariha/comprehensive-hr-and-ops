@@ -9,6 +9,7 @@ import '../../../core/network/connectivity_monitor.dart';
 import '../../../core/network/response_cache.dart';
 import '../../../core/network/tenant_store.dart';
 import '../../../core/network/token_store.dart';
+import '../../../core/push/device_registration_service.dart';
 import '../data/repositories/auth_repository_impl.dart';
 import '../domain/repositories/auth_repository.dart';
 import '../presentation/controllers/auth_controller.dart';
@@ -58,6 +59,15 @@ Future<void> setupAuthDependencies() async {
       cache: getIt<ResponseCache>(),
     ),
   );
+
+  DIHelper.registerRepository<DeviceRegistrationService>(
+    factory: () => DeviceRegistrationService(
+      auth: getIt<AuthRepository>(),
+      prefs: getIt<SharedPreferences>(),
+    ),
+    lazy: false,
+  );
+  await getIt<DeviceRegistrationService>().start();
 
   // When any API call gets HTTP 401, refresh the access token once and retry.
   getIt<AppApiClient>().tokenRefresher = () async {

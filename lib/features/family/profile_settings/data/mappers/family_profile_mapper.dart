@@ -105,6 +105,8 @@ abstract final class FamilyProfileMapper {
           channel: JsonCodec.stringOr(json['channel'], 'push'),
           eventKey: eventKey,
           enabled: JsonCodec.boolean(json['enabled']) ?? true,
+          displayLabel: JsonCodec.string(json['label']),
+          configurable: JsonCodec.boolean(json['configurable']) ?? true,
         ),
       );
     }
@@ -137,6 +139,55 @@ abstract final class FamilyProfileMapper {
       );
     });
     return prefs;
+  }
+
+  /// Builds editable rows from GET /notification-preferences/events, overlaying
+  /// saved values from GET /notification-preferences.
+  static List<FamilyNotificationPreference> mergePreferencesWithEvents({
+    required List<FamilyNotificationPreference> saved,
+    required dynamic eventsBody,
+  }) {
+    final savedByKey = <String, bool>{
+      for (final pref in saved) '${pref.eventKey}|${pref.channel}': pref.enabled,
+    };
+
+    final merged = <FamilyNotificationPreference>[];
+    for (final item in JsonCodec.unwrapList(eventsBody)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final eventKey = JsonCodec.string(json['key'] ?? json['eventKey']);
+      if (eventKey == null || eventKey.isEmpty) continue;
+
+      final configurable = JsonCodec.boolean(json['configurable']) ?? true;
+      if (!configurable) continue;
+
+      final label = JsonCodec.string(json['label']);
+      final channels = json['channels'];
+      final channelList = channels is List && channels.isNotEmpty
+          ? channels
+              .map((c) => JsonCodec.string(c))
+              .whereType<String>()
+              .where((c) => c.isNotEmpty)
+              .toList()
+          : <String>['push'];
+
+      for (final channel in channelList) {
+        final key = '$eventKey|$channel';
+        merged.add(
+          FamilyNotificationPreference(
+            channel: channel,
+            eventKey: eventKey,
+            enabled: savedByKey[key] ?? true,
+            displayLabel: label,
+            configurable: true,
+          ),
+        );
+      }
+    }
+
+    if (merged.isNotEmpty) return merged;
+    // Events missing or empty — fall back to whatever the user already saved.
+    return saved;
   }
 
   static FamilySupportTicket ticketFrom(Map<String, dynamic> json) {

@@ -32,10 +32,19 @@ abstract class AuthRepository {
 
   Future<Result<void>> logout();
 
+  /// POST /devices — register FCM/APNs token after login / token refresh.
   Future<Result<void>> registerDevice({
     required String token,
     required String platform,
+    String? appVersion,
   });
+
+  /// DELETE /devices/{token} — call on logout so this device stops receiving
+  /// push for the signed-out user.
+  Future<Result<void>> unregisterDevice(String token);
+
+  /// GET /devices — devices currently registered for this user.
+  Future<Result<List<Map<String, dynamic>>>> listDevices();
 
   bool get hasSession;
 

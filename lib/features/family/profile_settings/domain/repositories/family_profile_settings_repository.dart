@@ -19,6 +19,13 @@ abstract class FamilyProfileSettingsRepository {
     String ticketId,
   );
 
+  Future<Result<void>> replyToSupportTicket({
+    required String ticketId,
+    required String body,
+  });
+
+  Future<Result<void>> closeSupportTicket(String ticketId);
+
   Future<Result<List<FamilyNotificationPreference>>>
       getNotificationPreferences();
 

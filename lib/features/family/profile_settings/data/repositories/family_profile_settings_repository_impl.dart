@@ -105,14 +105,56 @@ class FamilyProfileSettingsRepositoryImpl
   }
 
   @override
+  Future<Result<void>> replyToSupportTicket({
+    required String ticketId,
+    required String body,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.ticketMessages(ticketId),
+      data: {'body': body},
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> closeSupportTicket(String ticketId) async {
+    final result = await _api.post(
+      ApiEndpoints.ticketClose(ticketId),
+      data: const <String, dynamic>{},
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<List<FamilyNotificationPreference>>>
       getNotificationPreferences() async {
-    final result = await _api.get(ApiEndpoints.notificationPreferences);
-    return result.when(
-      success: (body) async => Result.success(
-        FamilyProfileMapper.notificationPreferencesFrom(body),
+    final prefsResult = await _api.get(ApiEndpoints.notificationPreferences);
+    if (prefsResult.isFailure) {
+      return Result.failure(prefsResult.error!);
+    }
+
+    final saved =
+        FamilyProfileMapper.notificationPreferencesFrom(prefsResult.value);
+
+    final eventsResult =
+        await _api.get(ApiEndpoints.notificationPreferenceEvents);
+    if (eventsResult.isFailure) {
+      // Saved prefs alone are still usable when the catalog is unavailable.
+      if (saved.isNotEmpty) return Result.success(saved);
+      return Result.failure(eventsResult.error!);
+    }
+
+    return Result.success(
+      FamilyProfileMapper.mergePreferencesWithEvents(
+        saved: saved,
+        eventsBody: eventsResult.value,
       ),
-      failure: (error) async => Result.failure(error),
     );
   }
 
@@ -121,7 +163,7 @@ class FamilyProfileSettingsRepositoryImpl
     List<FamilyNotificationPreference> values,
   ) async {
     final result = await _api.put(
-      ApiEndpoints.notificationPreferences,
+      ApiEndpoints.notificationPreferencesBulk,
       data: {
         'preferences': values.map((item) => item.toJson()).toList(),
       },

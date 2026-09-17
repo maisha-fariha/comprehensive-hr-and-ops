@@ -126,6 +126,46 @@ class FamilyProfileSettingsController
     );
   }
 
+  /// POST /tickets/{id}/messages — family reply into an open ticket.
+  Future<bool> replyToSupportTicket({
+    required String ticketId,
+    required String body,
+  }) async {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return false;
+    final result = await repository.replyToSupportTicket(
+      ticketId: ticketId,
+      body: trimmed,
+    );
+    if (result.isFailure) {
+      AppErrorDialog.showResultError(
+        result.error!,
+        fallbackTitle: 'Could not send reply',
+      );
+      return false;
+    }
+    return true;
+  }
+
+  /// POST /tickets/{id}/close — marks the ticket closed.
+  Future<bool> closeSupportTicket(String ticketId) async {
+    final result = await repository.closeSupportTicket(ticketId);
+    if (result.isFailure) {
+      AppErrorDialog.showResultError(
+        result.error!,
+        fallbackTitle: 'Could not close ticket',
+      );
+      return false;
+    }
+    await loadSupportTickets();
+    Get.snackbar(
+      'Ticket closed',
+      'This support request is now closed.',
+      snackPosition: SnackPosition.BOTTOM,
+    );
+    return true;
+  }
+
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -147,28 +187,40 @@ class FamilyProfileSettingsController
     );
   }
 
-  Future<List<FamilyNotificationPreference>> loadNotificationPreferences() async {
+  Future<List<FamilyNotificationPreference>?> loadNotificationPreferences() async {
     final result = await repository.getNotificationPreferences();
     return result.when(
       success: (values) => values,
-      failure: (_) => const <FamilyNotificationPreference>[],
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not load preferences',
+        );
+        return null;
+      },
     );
   }
 
-  Future<void> saveNotificationPreferences(
+  Future<bool> saveNotificationPreferences(
     List<FamilyNotificationPreference> values,
   ) async {
     final result = await repository.updateNotificationPreferences(values);
-    result.when(
-      success: (_) => Get.snackbar(
-        'Preferences saved',
-        'Notification settings were updated.',
-        snackPosition: SnackPosition.BOTTOM,
-      ),
-      failure: (error) => AppErrorDialog.showResultError(
-        error,
-        fallbackTitle: 'Could not save',
-      ),
+    return result.when(
+      success: (_) {
+        Get.snackbar(
+          'Preferences saved',
+          'Notification settings were updated.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return true;
+      },
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not save',
+        );
+        return false;
+      },
     );
   }
 
