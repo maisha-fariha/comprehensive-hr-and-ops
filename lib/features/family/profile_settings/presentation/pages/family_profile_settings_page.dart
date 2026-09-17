@@ -206,49 +206,16 @@ class FamilyProfileSettingsPage extends StatelessWidget {
     BuildContext context,
     FamilyProfileSettingsController controller,
   ) async {
-    final current = TextEditingController();
-    final next = TextEditingController();
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<({String current, String next})>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: current,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current password'),
-            ),
-            TextField(
-              controller: next,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New password'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (context) => const _ChangePasswordDialog(),
     );
-    final currentValue = current.text;
-    final nextValue = next.text;
-    current.dispose();
-    next.dispose();
-    if (confirmed == true && currentValue.isNotEmpty && nextValue.isNotEmpty) {
-      await controller.changePassword(
-        currentPassword: currentValue,
-        newPassword: nextValue,
-      );
-    }
+    if (result == null) return;
+    if (result.current.isEmpty || result.next.isEmpty) return;
+    await controller.changePassword(
+      currentPassword: result.current,
+      newPassword: result.next,
+    );
   }
 
   Future<void> _openNotificationPreferences(
@@ -609,6 +576,67 @@ class _FamilyProfileSettingsError extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog();
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  late final TextEditingController _current;
+  late final TextEditingController _next;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = TextEditingController();
+    _next = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _next.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Change Password'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _current,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Current password'),
+          ),
+          TextField(
+            controller: _next,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'New password'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(
+            context,
+            (current: _current.text, next: _next.text),
+          ),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

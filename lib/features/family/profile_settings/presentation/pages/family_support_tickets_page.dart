@@ -28,33 +28,11 @@ class _FamilySupportTicketsPageState extends State<FamilySupportTicketsPage> {
   }
 
   Future<void> _createTicket() async {
-    final message = TextEditingController();
-    final sent = await showDialog<bool>(
+    final body = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Contact Support'),
-        content: TextField(
-          controller: message,
-          maxLines: 4,
-          decoration: const InputDecoration(
-            hintText: 'How can the care team help?',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
+      builder: (context) => const _ContactSupportDialog(),
     );
-    final body = message.text.trim();
-    message.dispose();
-    if (sent != true || body.isEmpty) return;
+    if (body == null || body.isEmpty) return;
 
     final ticketId = await _controller.submitSupportTicket(body);
     if (ticketId == null || !mounted) return;
@@ -281,6 +259,55 @@ class _TicketRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Owns its [TextEditingController] so dispose happens after the route is gone.
+class _ContactSupportDialog extends StatefulWidget {
+  const _ContactSupportDialog();
+
+  @override
+  State<_ContactSupportDialog> createState() => _ContactSupportDialogState();
+}
+
+class _ContactSupportDialogState extends State<_ContactSupportDialog> {
+  late final TextEditingController _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _message = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Contact Support'),
+      content: TextField(
+        controller: _message,
+        maxLines: 4,
+        autofocus: true,
+        decoration: const InputDecoration(
+          hintText: 'How can the care team help?',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _message.text.trim()),
+          child: const Text('Send'),
+        ),
+      ],
     );
   }
 }
