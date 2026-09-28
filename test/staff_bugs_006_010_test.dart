@@ -3,6 +3,7 @@ import 'package:comprehensive_hr_and_ops/core/roles/user_role.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/attendance/presentation/widgets/staff_attendance_filters_bar.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/attendance/presentation/widgets/staff_attendance_header.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_residence.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_shift_handover.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/repositories/staff_extras_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/presentation/pages/staff_recurring_checks_page.dart';
@@ -113,7 +114,59 @@ class _FakeExtrasRepo implements StaffExtrasRepository {
       Result.success(const []);
 
   @override
-  Future<Result<List<Map<String, String>>>> getResidences() async =>
+  Future<Result<List<StaffResidence>>> getResidences() async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<StaffResidence>> getResidenceDetail(String residenceId) async =>
+      Result.failure(const ApiError(message: 'unused'));
+
+  @override
+  Future<Result<int>> getActiveResidentCount() async => Result.success(0);
+
+  @override
+  Future<Result<StaffResidence>> updateResidence({
+    required String residenceId,
+    required Map<String, dynamic> fields,
+  }) async =>
+      Result.failure(const ApiError(message: 'unused'));
+
+  @override
+  Future<Result<StaffResidence>> deactivateResidence(String residenceId) async =>
+      Result.failure(const ApiError(message: 'unused'));
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceClients(
+    String residenceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceRooms(
+    String residenceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceStaffMembers(
+    String residenceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceShifts(
+    String residenceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceDailyLogs(
+    String residenceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<StaffResidencePerson>>> getStaffDirectoryOptions() async =>
       Result.success(const []);
 }
 

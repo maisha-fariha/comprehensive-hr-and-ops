@@ -6,8 +6,10 @@ import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entitie
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/today_shift_summary.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/presentation/widgets/staff_dashboard_header.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/presentation/widgets/today_shift_card.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_residence.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_shift_handover.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/repositories/staff_extras_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/extras/presentation/pages/staff_residence_detail_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/presentation/pages/staff_residences_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/presentation/open_staff_profile.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/presentation/pages/staff_more_menu_page.dart';
@@ -86,13 +88,131 @@ class _FakeProfileRepo implements StaffProfileSettingsRepository {
 
 class _FakeExtrasRepo implements StaffExtrasRepository {
   @override
-  Future<Result<List<Map<String, String>>>> getResidences() async =>
+  Future<Result<List<StaffResidence>>> getResidences() async =>
+      Result.success(const [
+        StaffResidence(
+          id: 'res-1',
+          name: 'Sunrise Home',
+          status: 'active',
+          residenceType: 'group_home',
+          serviceType: 'Residential care',
+          addressLine1: '12 Elm Road',
+          city: 'Dhaka',
+          stateProvince: 'Dhaka',
+          postalCode: '1207',
+          bedCapacity: 8,
+          occupiedBeds: 0,
+          availableBeds: 8,
+          geofenceRadiusMeters: 150,
+          primaryManager: StaffResidencePerson(
+            id: 'mgr-1',
+            name: 'bilkiss Preston',
+            role: 'primary_manager',
+          ),
+          assignedStaff: [
+            StaffResidencePerson(id: 's1', name: 'Maya Rahman', role: 'staff'),
+          ],
+        ),
+      ]);
+
+  @override
+  Future<Result<StaffResidence>> getResidenceDetail(String residenceId) async =>
+      Result.success(
+        const StaffResidence(
+          id: 'res-1',
+          name: 'Sunrise Home',
+          status: 'active',
+          residenceType: 'group_home',
+          serviceType: 'Residential care',
+          addressLine1: '12 Elm Road',
+          city: 'Dhaka',
+          bedCapacity: 8,
+          occupiedBeds: 0,
+          geofenceRadiusMeters: 150,
+          primaryManager: StaffResidencePerson(
+            id: 'mgr-1',
+            name: 'bilkiss Preston',
+            role: 'primary_manager',
+          ),
+          assignedStaff: [
+            StaffResidencePerson(id: 's1', name: 'Maya Rahman', role: 'staff'),
+          ],
+        ),
+      );
+
+  @override
+  Future<Result<int>> getActiveResidentCount() async => Result.success(1);
+
+  @override
+  Future<Result<StaffResidence>> updateResidence({
+    required String residenceId,
+    required Map<String, dynamic> fields,
+  }) async =>
+      getResidenceDetail(residenceId);
+
+  @override
+  Future<Result<StaffResidence>> deactivateResidence(String residenceId) async =>
+      Result.success(
+        const StaffResidence(
+          id: 'res-1',
+          name: 'Sunrise Home',
+          status: 'archived',
+        ),
+      );
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceClients(
+    String residenceId,
+  ) async =>
       Result.success(const [
         {
-          'id': 'res-1',
-          'title': 'Sunrise Home',
-          'subtitle': 'Assigned residence',
+          'id': 'c1',
+          'title': 'Ayaan Karim',
+          'subtitle': 'High',
+          'status': 'active',
         },
+      ]);
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceRooms(
+    String residenceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceStaffMembers(
+    String residenceId,
+  ) async =>
+      Result.success(const [
+        {
+          'id': 's1',
+          'title': 'Maya Rahman',
+          'subtitle': 'staff',
+          'status': 'active',
+        },
+      ]);
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceShifts(
+    String residenceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidenceDailyLogs(
+    String residenceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<StaffResidencePerson>>> getStaffDirectoryOptions() async =>
+      Result.success(const [
+        StaffResidencePerson(
+          id: 'mgr-1',
+          name: 'bilkiss Preston',
+          role: 'primary_manager',
+        ),
+        StaffResidencePerson(id: 's1', name: 'Maya Rahman', role: 'staff'),
       ]);
 
   @override
@@ -307,7 +427,7 @@ void main() {
   );
 
   testWidgets(
-    'BUG_Report002: Residence module is available from More menu',
+    'BUG_Report002: Residence tap opens detail with web-matched fields',
     (tester) async {
       tester.view.physicalSize = const Size(375, 812);
       tester.view.devicePixelRatio = 1;
@@ -324,7 +444,66 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(StaffResidencesPage), findsOneWidget);
+      expect(find.text('Residences Management'), findsOneWidget);
+      expect(find.text('Homes'), findsOneWidget);
+      expect(find.text('Beds free'), findsOneWidget);
+      expect(find.text('Residents'), findsOneWidget);
+      // Web KPI: active clients count (1), beds free = licensed - residents (8-1=7).
+      expect(find.text('1'), findsWidgets);
+      expect(find.text('7'), findsOneWidget);
       expect(find.text('Sunrise Home'), findsOneWidget);
+      expect(find.text('12 Elm Road, Dhaka, Dhaka, 1207'), findsOneWidget);
+      expect(find.text('group_home'), findsOneWidget);
+      expect(find.text('0 / 8 Beds'), findsOneWidget);
+      expect(find.text('Actions'), findsOneWidget);
+      expect(find.byKey(const Key('staff-residence-view-res-1')), findsOneWidget);
+      expect(find.byKey(const Key('staff-residence-edit-res-1')), findsOneWidget);
+      expect(
+        find.byKey(const Key('staff-residence-deactivate-res-1')),
+        findsOneWidget,
+      );
+      expect(find.text('Assigned Staff'), findsWidgets);
+      expect(find.text('Primary Manager'), findsWidgets);
+      expect(find.text('bilkiss Preston'), findsWidgets);
+      expect(find.text('150m'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('staff-residence-view-res-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StaffResidenceDetailPage), findsOneWidget);
+      expect(find.byKey(const Key('staff-residence-detail-page')), findsOneWidget);
+      expect(find.text('Overview'), findsOneWidget);
+      expect(find.text('Occupancy'), findsOneWidget);
+      expect(find.text('Contact'), findsOneWidget);
+      expect(find.text('Edit Residence'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('staff-residence-detail-edit')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('staff-residence-edit-page')), findsOneWidget);
+      expect(find.text('Edit Residence'), findsWidgets);
+      expect(find.text('Residence Preview'), findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('assisted_living_nursing_homes'),
+        120,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const Key('staff-residence-edit-page')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('assisted_living_nursing_homes'), findsOneWidget);
+      expect(find.text('group_home'), findsWidgets);
+      expect(find.text('Active'), findsWidgets);
+
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Address Details'), findsOneWidget);
+      expect(find.textContaining('GPS'), findsWidgets);
+      expect(find.text('Enable GPS Tracking'), findsOneWidget);
+      expect(find.text('Back'), findsOneWidget);
     },
   );
 
