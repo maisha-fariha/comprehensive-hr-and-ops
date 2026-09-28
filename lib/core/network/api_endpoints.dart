@@ -180,6 +180,7 @@ abstract final class ApiEndpoints {
       '$reportsExports/$exportId/download';
   static String residenceById(String id) => '$residences/$id';
   static String residenceGeofence(String id) => '$residences/$id/geofence';
+  static String residenceRooms(String id) => '$residences/$id/rooms';
   static String shiftById(String id) => '$shifts/$id';
   static String shiftOpen(String id) => '$shifts/$id/open';
   static String shiftAssignments(String id) => '$shifts/$id/assignments';
