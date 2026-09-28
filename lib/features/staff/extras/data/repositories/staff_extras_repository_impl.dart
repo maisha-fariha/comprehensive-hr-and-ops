@@ -405,7 +405,8 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
     final result = await _api.get(
       ApiEndpoints.clients,
       query: {
-        'residenceId': residenceId,
+        if (residenceId.isNotEmpty && residenceId != 'all')
+          'residenceId': residenceId,
         'page': '1',
         'limit': '50',
       },
@@ -418,14 +419,22 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
           final first = JsonCodec.stringOr(json['firstName'], '');
           final last = JsonCodec.stringOr(json['lastName'], '');
           final name = '$first $last'.trim();
+          final resolvedName = name.isEmpty
+              ? JsonCodec.stringOr(json['name'], 'Client')
+              : name;
           return <String, String>{
             'id': JsonCodec.stringOr(json['id'], ''),
-            'title': name.isEmpty ? 'Client' : name,
+            'title': resolvedName,
             'subtitle': JsonCodec.stringOr(
               json['level'] ?? json['roomNumber'],
               '',
             ),
             'status': JsonCodec.stringOr(json['status'], ''),
+            'residenceId': JsonCodec.stringOr(
+              json['residenceId'] ??
+                  JsonCodec.mapAt(json, 'residence')?['id'],
+              residenceId == 'all' ? '' : residenceId,
+            ),
           };
         }).toList(),
       ),

@@ -147,7 +147,7 @@ class StaffDashboardPage extends StatelessWidget {
                               // POST /attendance/check-in | check-out
                               controller.toggleClockInOut();
                             case 'daily-logs':
-                              // Opens Clients tab → GET /clients?assignedToMe=true
+                              // Opens Daily Logs tab (My Clients / notes).
                               Get.offAll(() => const StaffShell(initialIndex: 2));
                             case 'medication-mar':
                               // Opens MAR → GET /mar/round

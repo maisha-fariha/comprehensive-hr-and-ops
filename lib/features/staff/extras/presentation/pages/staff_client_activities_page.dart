@@ -106,54 +106,108 @@ class _StaffClientActivitiesPageState extends State<StaffClientActivitiesPage> {
   Future<void> _recordActivity() async {
     final clientId = _selectedClientId;
     if (clientId == null) return;
-    final typeController = TextEditingController(text: 'school');
-    final statusController = TextEditingController(text: 'present');
+    String activityType = 'school';
+    String status = 'present';
     final notesController = TextEditingController();
+    final descriptionController = TextEditingController();
     final ok = await Get.dialog<bool>(
       AlertDialog(
-        title: const Text('Record activity'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: typeController,
-              decoration: const InputDecoration(labelText: 'Activity type'),
-            ),
-            TextField(
-              controller: statusController,
-              decoration: const InputDecoration(labelText: 'Status'),
-            ),
-            TextField(
-              controller: notesController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Notes'),
-            ),
-          ],
+        title: const Text('Add Daily Activity'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                key: const Key('staff-daily-activity-type'),
+                initialValue: activityType,
+                decoration: const InputDecoration(labelText: 'Activity Type *'),
+                items: const [
+                  DropdownMenuItem(value: 'school', child: Text('School')),
+                  DropdownMenuItem(value: 'outing', child: Text('Outing')),
+                  DropdownMenuItem(
+                    value: 'care_activity',
+                    child: Text('Care activity'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'personal_activity',
+                    child: Text('Personal activity'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'behaviour_update',
+                    child: Text('Behaviour update'),
+                  ),
+                ],
+                onChanged: (value) => activityType = value ?? 'school',
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                key: const Key('staff-daily-activity-status'),
+                initialValue: status,
+                decoration: const InputDecoration(labelText: 'Status'),
+                items: const [
+                  DropdownMenuItem(value: 'present', child: Text('Present')),
+                  DropdownMenuItem(value: 'absent', child: Text('Absent')),
+                  DropdownMenuItem(
+                    value: 'completed',
+                    child: Text('Completed'),
+                  ),
+                  DropdownMenuItem(value: 'recorded', child: Text('Recorded')),
+                ],
+                onChanged: (value) => status = value ?? 'present',
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                key: const Key('staff-daily-activity-description'),
+                controller: descriptionController,
+                minLines: 2,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Activity Description',
+                  hintText:
+                      'Describe the activity performed or observation recorded...',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                key: const Key('staff-daily-activity-notes'),
+                controller: notesController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Additional Notes (Optional)',
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Get.back(result: false),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Get.back(result: true),
-            child: const Text('Save'),
+            child: const Text('Save Activity'),
           ),
         ],
       ),
     );
     if (ok != true) return;
+    final notes = [
+      if (descriptionController.text.trim().isNotEmpty)
+        descriptionController.text.trim(),
+      if (notesController.text.trim().isNotEmpty) notesController.text.trim(),
+    ].join('\n');
     final result = await _repository.recordClientActivity(
       clientId: clientId,
-      activityType: typeController.text.trim(),
-      status: statusController.text.trim(),
-      notes: notesController.text,
+      activityType: activityType,
+      status: status,
+      notes: notes,
     );
     result.when(
       success: (_) {
         Get.snackbar(
-          'Saved',
-          'Activity recorded.',
+          'Activity recorded',
+          'Daily activity saved.',
           snackPosition: SnackPosition.BOTTOM,
         );
         _loadActivities();
@@ -168,19 +222,22 @@ class _StaffClientActivitiesPageState extends State<StaffClientActivitiesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('staff-daily-activity-page'),
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: const Text('Client activities'),
+        title: const Text('Daily Activity'),
         backgroundColor: AppColors.surfaceWhite,
         foregroundColor: AppColors.textHeading,
         elevation: 0,
       ),
       floatingActionButton:
           _session.canAccessClientActivities && _selectedClientId != null
-              ? FloatingActionButton(
+              ? FloatingActionButton.extended(
+                  key: const Key('staff-daily-activity-add'),
                   backgroundColor: AppColors.secondaryTeal,
                   onPressed: _recordActivity,
-                  child: const Icon(Icons.add),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Record activity'),
                 )
               : null,
       body: _loading
@@ -198,11 +255,30 @@ class _StaffClientActivitiesPageState extends State<StaffClientActivitiesPage> {
                       all: 16,
                     ),
                     children: [
+                      const Text(
+                        'Client Activity Registry',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Outings, programmes and observations appear here.',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       if (_clients.isNotEmpty)
                         DropdownButtonFormField<String>(
                           initialValue: _selectedClientId,
                           decoration: const InputDecoration(
-                            labelText: 'Client',
+                            labelText: 'Choose a resident',
                             border: OutlineInputBorder(),
                           ),
                           items: [
@@ -223,7 +299,7 @@ class _StaffClientActivitiesPageState extends State<StaffClientActivitiesPage> {
                           padding: EdgeInsets.all(24),
                           child: Center(
                             child: Text(
-                              'No activities recorded yet.',
+                              'Nothing recorded this month.',
                               style: TextStyle(color: AppColors.textMuted),
                             ),
                           ),

@@ -8,6 +8,7 @@ import 'package:comprehensive_hr_and_ops/features/staff/incidents/domain/entitie
 import 'package:comprehensive_hr_and_ops/features/staff/incidents/domain/repositories/staff_incidents_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/incidents/presentation/controllers/incident_creation_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/incidents/presentation/widgets/create_incident/create_incident_people_location_section.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/presentation/pages/staff_more_menu_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/presentation/widgets/staff_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -217,7 +218,7 @@ void main() {
   });
 
   testWidgets(
-    'BUG_Report010: Daily Logs nav label opens Daily Logs module',
+    'BUG_Report010: Daily Logs nav and Clients module both appear',
     (tester) async {
       tester.view.physicalSize = const Size(375, 812);
       tester.view.devicePixelRatio = 1;
@@ -252,6 +253,30 @@ void main() {
         findsNothing,
       );
       expect(StaffBottomNavBar.items[2].label, 'Daily Logs');
+    },
+  );
+
+  testWidgets(
+    'BUG_Report010: More menu exposes Clients and Daily Activity like web',
+    (tester) async {
+      tester.view.physicalSize = const Size(375, 812);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      Get.find<UserSession>().applyPermissions(const [
+        'clients:read',
+        'client-activities:read',
+        'client-activities:write',
+        'daily-logs:read',
+      ]);
+
+      await tester.pumpWidget(_wrap(const StaffMoreMenuPage()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Clients'), findsOneWidget);
+      expect(find.text('Daily Activity'), findsOneWidget);
+      expect(find.text('Client activities'), findsNothing);
     },
   );
 

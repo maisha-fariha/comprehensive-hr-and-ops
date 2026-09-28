@@ -583,14 +583,13 @@ void main() {
   );
 
   testWidgets(
-    'BUG_Report003: Client search, residence dropdown, and Add Client exist',
+    'BUG_Report003: Client search and residence dropdown exist (no Add Client)',
     (tester) async {
       tester.view.physicalSize = const Size(375, 812);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      var addTapped = false;
       await tester.pumpWidget(
         _wrap(
           Scaffold(
@@ -604,7 +603,6 @@ void main() {
                   (id: 'r1', name: 'Sunrise Home'),
                 ],
                 onResidenceChanged: (_) {},
-                onAddClient: () => addTapped = true,
               ),
             ),
           ),
@@ -617,13 +615,9 @@ void main() {
         find.byKey(const Key('staff-clients-residence-dropdown')),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('staff-clients-add-button')), findsOneWidget);
-      expect(find.text('Add Client'), findsOneWidget);
+      expect(find.text('Add Client'), findsNothing);
+      expect(find.byKey(const Key('staff-clients-add-button')), findsNothing);
       expect(find.text('Search clients'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('staff-clients-add-button')));
-      await tester.pump();
-      expect(addTapped, isTrue);
     },
   );
 

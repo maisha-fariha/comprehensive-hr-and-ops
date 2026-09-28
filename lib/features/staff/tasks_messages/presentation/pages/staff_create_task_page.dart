@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -7,7 +8,7 @@ import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/task_creation_options.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
 
-/// Multi-step New Task wizard matching web create-task fields (BUG_Report009).
+/// Single-scroll New Task form matching web create-task modal (BUG_Report009).
 class StaffCreateTaskPage extends StatefulWidget {
   final StaffTasksMessagesRepository repository;
   final TaskCreationOptions options;
@@ -22,110 +23,191 @@ class StaffCreateTaskPage extends StatefulWidget {
   State<StaffCreateTaskPage> createState() => _StaffCreateTaskPageState();
 }
 
+class _ChecklistStep {
+  final String id;
+  String label;
+  bool required;
+
+  _ChecklistStep({
+    required this.id,
+    required this.label,
+    this.required = false,
+  });
+}
+
 class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
-  static const _steps = [
-    _WizardStep('Details', 'details'),
-    _WizardStep('Assignment', 'assignment'),
-    _WizardStep('Schedule & Review', 'review'),
-  ];
-
-  static const _taskTypes = [
-    ('administrative', 'Administrative'),
-    ('maintenance', 'Maintenance'),
-    ('inventory', 'Inventory'),
-    ('compliance', 'Compliance'),
-    ('follow_up', 'Follow-up'),
-    ('other', 'Other'),
-  ];
-
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _notesController = TextEditingController();
+  final _checklistController = TextEditingController();
+  final _staffSearchController = TextEditingController();
+  final _residentSearchController = TextEditingController();
 
-  late String _priority;
-  late String _taskType;
-  late String _shiftId;
   late String _residenceId;
+  String? _shiftId;
+  String? _roomArea;
+  String? _clientId;
   late final Set<String> _assignedStaffIds;
   DateTime? _dueAt;
-  int _currentStep = 0;
+  TimeOfDay? _dueTime;
+  bool _requiresReview = false;
+  bool _isRecurring = false;
   bool _isSubmitting = false;
+  bool _loadingLookups = false;
+
+  List<TaskCreationOption> _shifts = const [];
+  List<TaskCreationOption> _rooms = const [];
+  List<TaskCreationOption> _clients = const [];
+  List<_ChecklistStep> _checklist = [];
+  final List<String> _docNames = [];
 
   @override
   void initState() {
     super.initState();
     final options = widget.options;
-    _priority = 'medium';
-    _taskType = 'administrative';
-    _shiftId = options.shifts.isNotEmpty ? options.shifts.first.id : '';
     _residenceId =
         options.defaultResidenceId ??
         (options.residences.isNotEmpty ? options.residences.first.id : '');
-    _assignedStaffIds = {
-      if (options.defaultStaffId != null && options.defaultStaffId!.isNotEmpty)
-        options.defaultStaffId!,
-    };
+    _shifts = options.shifts;
+    _assignedStaffIds = {};
+    if (_residenceId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onResidenceChanged(_residenceId));
+    }
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _notesController.dispose();
+    _checklistController.dispose();
+    _staffSearchController.dispose();
+    _residentSearchController.dispose();
     super.dispose();
   }
 
-  TaskCreationOption? _findOption(List<TaskCreationOption> items, String id) {
-    for (final item in items) {
-      if (item.id == id) return item;
-    }
-    return null;
+  Future<void> _onResidenceChanged(String residenceId) async {
+    setState(() {
+      _residenceId = residenceId;
+      _shiftId = null;
+      _roomArea = null;
+      _clientId = null;
+      _loadingLookups = true;
+    });
+    final results = await Future.wait([
+      widget.repository.getTaskShifts(residenceId),
+      widget.repository.getTaskRooms(residenceId),
+      widget.repository.getTaskClients(residenceId),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _shifts = results[0].value ?? const [];
+      _rooms = results[1].value ?? const [];
+      _clients = results[2].value ?? const [];
+      if (_shifts.isNotEmpty) _shiftId = _shifts.first.id;
+      _loadingLookups = false;
+    });
   }
 
-  Future<void> _pickDueDate() async {
-    final picked = await showDatePicker(
+  Future<void> _pickDue() async {
+    final date = await showDatePicker(
       context: context,
       initialDate: _dueAt ?? DateTime.now(),
-      firstDate: DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked == null || !mounted) return;
-    setState(() => _dueAt = picked);
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _dueTime ?? TimeOfDay.now(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _dueAt = date;
+      _dueTime = time;
+    });
   }
 
-  bool _validateCurrentStep() {
-    if (_currentStep == 0) {
-      if (_titleController.text.trim().isEmpty) {
-        AppSnackbar.show('Title required', 'Enter a task title to continue.');
-        return false;
+  void _addChecklistStep() {
+    final label = _checklistController.text.trim();
+    if (label.isEmpty) return;
+    setState(() {
+      _checklist.add(
+        _ChecklistStep(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          label: label,
+        ),
+      );
+      _checklistController.clear();
+    });
+  }
+
+  Future<void> _pickDocs() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    setState(() {
+      for (final file in result.files) {
+        final name = file.name.trim();
+        if (name.isNotEmpty && !_docNames.contains(name)) {
+          _docNames.add(name);
+        }
       }
-      return true;
-    }
-    if (_currentStep == 1) {
-      if (_residenceId.isEmpty) {
-        AppSnackbar.show('Residence required', 'Select a residence.');
-        return false;
-      }
-      if (_shiftId.isEmpty) {
-        AppSnackbar.show('Shift required', 'Select a shift for this task.');
-        return false;
-      }
-      if (_assignedStaffIds.isEmpty) {
-        AppSnackbar.show('Assignee required', 'Add at least one staff member.');
-        return false;
-      }
-      return true;
-    }
-    return true;
+    });
+  }
+
+  DateTime? get _combinedDueAt {
+    final date = _dueAt;
+    if (date == null) return null;
+    final time = _dueTime;
+    if (time == null) return date;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  String get _dueLabel {
+    if (_dueAt == null) return 'dd/mm/yyyy, --:--';
+    final d =
+        '${_dueAt!.day.toString().padLeft(2, '0')}/'
+        '${_dueAt!.month.toString().padLeft(2, '0')}/'
+        '${_dueAt!.year}';
+    if (_dueTime == null) return '$d, --:--';
+    final t =
+        '${_dueTime!.hour.toString().padLeft(2, '0')}:'
+        '${_dueTime!.minute.toString().padLeft(2, '0')}';
+    return '$d, $t';
+  }
+
+  List<TaskCreationOption> get _filteredStaff {
+    final q = _staffSearchController.text.trim().toLowerCase();
+    if (q.isEmpty) return widget.options.staff;
+    return widget.options.staff
+        .where((item) => item.label.toLowerCase().contains(q))
+        .toList();
+  }
+
+  List<TaskCreationOption> get _filteredClients {
+    final q = _residentSearchController.text.trim().toLowerCase();
+    if (q.isEmpty) return _clients;
+    return _clients
+        .where((item) => item.label.toLowerCase().contains(q))
+        .toList();
   }
 
   Future<void> _submit() async {
     if (_isSubmitting) return;
-    if (!_validateCurrentStep()) return;
-    if (_titleController.text.trim().isEmpty ||
-        _residenceId.isEmpty ||
-        _shiftId.isEmpty ||
-        _assignedStaffIds.isEmpty) {
-      setState(() => _currentStep = 0);
-      _validateCurrentStep();
+    if (_residenceId.isEmpty) {
+      AppSnackbar.show('Residence required', 'Select a residence.');
+      return;
+    }
+    if (!_isRecurring && (_shiftId == null || _shiftId!.isEmpty)) {
+      AppSnackbar.show('Shift required', 'Pick a residence first, then a shift.');
+      return;
+    }
+    if (_titleController.text.trim().isEmpty) {
+      AppSnackbar.show('Title required', 'Enter a task title.');
       return;
     }
 
@@ -133,12 +215,21 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
     final result = await widget.repository.createTask(
       title: _titleController.text,
       description: _descriptionController.text,
-      priority: _priority,
-      dueAt: _dueAt,
-      taskType: _taskType,
+      dueAt: _combinedDueAt,
       shiftId: _shiftId,
       residenceId: _residenceId,
       assignedStaffIds: _assignedStaffIds.toList(),
+      clientId: _clientId,
+      roomArea: _roomArea,
+      checklist: [
+        for (final step in _checklist)
+          {'label': step.label, 'required': step.required},
+      ],
+      requiresReview: _requiresReview,
+      notes: _notesController.text,
+      isRecurring: _isRecurring,
+      recurrenceFrequency: 'daily',
+      recurrenceTimesOfDay: const [9 * 60],
     );
     if (!mounted) return;
     setState(() => _isSubmitting = false);
@@ -157,7 +248,6 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
 
   @override
   Widget build(BuildContext context) {
-    final step = _steps[_currentStep];
     return Scaffold(
       key: const Key('staff-create-task-page'),
       backgroundColor: AppColors.scaffoldBackground,
@@ -169,430 +259,500 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
       ),
       body: Column(
         children: [
-          _StepHeader(
-            steps: _steps,
-            currentStep: _currentStep,
-            onStepTap: (index) {
-              if (index <= _currentStep) {
-                setState(() => _currentStep = index);
-              }
-            },
-          ),
           Expanded(
             child: SingleChildScrollView(
+              key: const Key('staff-create-task-form'),
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: KeyedSubtree(
-                key: Key('staff-create-task-step-${step.key}'),
-                child: switch (_currentStep) {
-                  0 => _buildDetailsStep(),
-                  1 => _buildAssignmentStep(),
-                  _ => _buildReviewStep(),
-                },
-              ),
-            ),
-          ),
-          _Footer(
-            isFirst: _currentStep == 0,
-            isLast: _currentStep == _steps.length - 1,
-            isSubmitting: _isSubmitting,
-            onBack: () => setState(() => _currentStep -= 1),
-            onNext: () {
-              if (!_validateCurrentStep()) return;
-              setState(() => _currentStep += 1);
-            },
-            onCreate: _submit,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailsStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          key: const Key('staff-create-task-title'),
-          controller: _titleController,
-          decoration: const InputDecoration(
-            labelText: 'Title',
-            hintText: 'What needs to be done?',
-          ),
-          textCapitalization: TextCapitalization.sentences,
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          key: const Key('staff-create-task-description'),
-          controller: _descriptionController,
-          decoration: const InputDecoration(
-            labelText: 'Description (optional)',
-          ),
-          maxLines: 3,
-          textCapitalization: TextCapitalization.sentences,
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: const Key('staff-create-task-type'),
-          initialValue: _taskType,
-          decoration: const InputDecoration(labelText: 'Task type'),
-          items: [
-            for (final entry in _taskTypes)
-              DropdownMenuItem(value: entry.$1, child: Text(entry.$2)),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => _taskType = value);
-          },
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: const Key('staff-create-task-priority'),
-          initialValue: _priority,
-          decoration: const InputDecoration(labelText: 'Priority'),
-          items: const [
-            DropdownMenuItem(value: 'low', child: Text('Low')),
-            DropdownMenuItem(value: 'medium', child: Text('Medium')),
-            DropdownMenuItem(value: 'high', child: Text('High')),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => _priority = value);
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAssignmentStep() {
-    final options = widget.options;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        DropdownButtonFormField<String>(
-          key: const Key('staff-create-task-residence'),
-          initialValue: _residenceId.isEmpty ? null : _residenceId,
-          decoration: const InputDecoration(labelText: 'Residence'),
-          items: [
-            for (final item in options.residences)
-              DropdownMenuItem(value: item.id, child: Text(item.label)),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => _residenceId = value);
-          },
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: const Key('staff-create-task-shift'),
-          initialValue: _shiftId.isEmpty ? null : _shiftId,
-          decoration: const InputDecoration(labelText: 'Shift'),
-          items: [
-            for (final item in options.shifts)
-              DropdownMenuItem(
-                value: item.id,
-                child: Text(
-                  item.subtitle.isEmpty
-                      ? item.label
-                      : '${item.label} · ${item.subtitle}',
-                ),
-              ),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => _shiftId = value);
-          },
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Assignees',
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            color: AppColors.textHeading,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final staff in options.staff)
-              FilterChip(
-                key: Key('staff-create-task-assignee-${staff.id}'),
-                label: Text(staff.label),
-                selected: _assignedStaffIds.contains(staff.id),
-                onSelected: (selected) {
-                  setState(() {
-                    if (selected) {
-                      _assignedStaffIds.add(staff.id);
-                    } else {
-                      _assignedStaffIds.remove(staff.id);
-                    }
-                  });
-                },
-              ),
-          ],
-        ),
-        if (options.staff.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              'No staff available for this residence.',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                color: AppColors.textMuted,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildReviewStep() {
-    final options = widget.options;
-    final residence = _findOption(options.residences, _residenceId);
-    final shift = _findOption(options.shifts, _shiftId);
-    final assignees = options.staff
-        .where((s) => _assignedStaffIds.contains(s.id))
-        .map((s) => s.label)
-        .join(', ');
-    final typeLabel = _taskTypes
-        .firstWhere(
-          (e) => e.$1 == _taskType,
-          orElse: () => (_taskType, _taskType),
-        )
-        .$2;
-    final dueLabel = _dueAt == null
-        ? 'No due date'
-        : '${_dueAt!.year}-${_dueAt!.month.toString().padLeft(2, '0')}-${_dueAt!.day.toString().padLeft(2, '0')}';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ListTile(
-          key: const Key('staff-create-task-due'),
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Due date'),
-          subtitle: Text(dueLabel),
-          trailing: const Icon(Icons.calendar_today_outlined),
-          onTap: _pickDueDate,
-        ),
-        const SizedBox(height: 8),
-        _ReviewRow(
-          label: 'Title',
-          value: _titleController.text.trim().isEmpty
-              ? '—'
-              : _titleController.text.trim(),
-          onEdit: () => setState(() => _currentStep = 0),
-        ),
-        _ReviewRow(
-          label: 'Type / Priority',
-          value: '$typeLabel · ${_priority[0].toUpperCase()}${_priority.substring(1)}',
-          onEdit: () => setState(() => _currentStep = 0),
-        ),
-        _ReviewRow(
-          label: 'Residence',
-          value: residence?.label ?? '—',
-          onEdit: () => setState(() => _currentStep = 1),
-        ),
-        _ReviewRow(
-          label: 'Shift',
-          value: shift?.label ?? '—',
-          onEdit: () => setState(() => _currentStep = 1),
-        ),
-        _ReviewRow(
-          label: 'Assignees',
-          value: assignees.isEmpty ? '—' : assignees,
-          onEdit: () => setState(() => _currentStep = 1),
-        ),
-        if (_descriptionController.text.trim().isNotEmpty)
-          _ReviewRow(
-            label: 'Description',
-            value: _descriptionController.text.trim(),
-            onEdit: () => setState(() => _currentStep = 0),
-          ),
-      ],
-    );
-  }
-}
-
-class _WizardStep {
-  final String label;
-  final String key;
-  const _WizardStep(this.label, this.key);
-}
-
-class _StepHeader extends StatelessWidget {
-  final List<_WizardStep> steps;
-  final int currentStep;
-  final ValueChanged<int> onStepTap;
-
-  const _StepHeader({
-    required this.steps,
-    required this.currentStep,
-    required this.onStepTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.surfaceWhite,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Row(
-        children: [
-          for (var i = 0; i < steps.length; i++) ...[
-            Expanded(
-              child: InkWell(
-                onTap: () => onStepTap(i),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 12,
-                      backgroundColor: i <= currentStep
-                          ? AppColors.secondaryTeal
-                          : AppColors.searchBorder,
-                      child: Text(
-                        '${i + 1}',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: i <= currentStep
-                              ? Colors.white
-                              : AppColors.textMuted,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _HeaderBanner(),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    key: const Key('staff-create-task-residence'),
+                    initialValue: _residenceId.isEmpty ? null : _residenceId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Residence *',
+                      hintText: 'Select Residence',
+                    ),
+                    items: [
+                      for (final item in widget.options.residences)
+                        DropdownMenuItem(
+                          value: item.id,
+                          child: Text(
+                            item.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) _onResidenceChanged(value);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    key: Key('staff-create-task-room-$_residenceId'),
+                    initialValue: _roomArea,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Room / Area',
+                      hintText: _residenceId.isEmpty
+                          ? 'Pick a residence first'
+                          : 'Select room or area',
+                    ),
+                    items: [
+                      ...{
+                        for (final item in _rooms) item.label,
+                        'Kitchen',
+                        'Lounge',
+                        'Garden',
+                        'Office',
+                      }.map(
+                        (label) => DropdownMenuItem(
+                          value: label,
+                          child: Text(
+                            label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
+                    ],
+                    onChanged: _residenceId.isEmpty
+                        ? null
+                        : (value) => setState(() => _roomArea = value),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    key: Key('staff-create-task-shift-$_residenceId'),
+                    initialValue: _shiftId,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Shift *',
+                      hintText: _residenceId.isEmpty
+                          ? 'Pick a residence first'
+                          : (_loadingLookups
+                                ? 'Loading shifts…'
+                                : 'Select shift'),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      steps[i].label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: i == currentStep
-                            ? AppColors.textHeading
-                            : AppColors.textMuted,
-                      ),
+                    items: [
+                      for (final item in _shifts)
+                        DropdownMenuItem(
+                          value: item.id,
+                          child: Text(
+                            item.subtitle.isEmpty
+                                ? item.label
+                                : '${item.label} · ${item.subtitle}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: _residenceId.isEmpty
+                        ? null
+                        : (value) => setState(() => _shiftId = value),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('staff-create-task-resident-search'),
+                    controller: _residentSearchController,
+                    decoration: const InputDecoration(
+                      labelText: 'Resident',
+                      hintText: 'Search resident (optional)...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Only when the work is about one person',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  if (_filteredClients.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final client in _filteredClients.take(8))
+                          ChoiceChip(
+                            key: Key('staff-create-task-client-${client.id}'),
+                            label: Text(client.label),
+                            selected: _clientId == client.id,
+                            onSelected: (selected) {
+                              setState(() {
+                                _clientId = selected ? client.id : null;
+                              });
+                            },
+                          ),
+                      ],
                     ),
                   ],
-                ),
-              ),
-            ),
-            if (i < steps.length - 1)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 18),
-                child: Icon(
-                  Icons.chevron_right,
-                  size: 16,
-                  color: AppColors.textMuted,
-                ),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _Footer extends StatelessWidget {
-  final bool isFirst;
-  final bool isLast;
-  final bool isSubmitting;
-  final VoidCallback onBack;
-  final VoidCallback onNext;
-  final VoidCallback onCreate;
-
-  const _Footer({
-    required this.isFirst,
-    required this.isLast,
-    required this.isSubmitting,
-    required this.onBack,
-    required this.onNext,
-    required this.onCreate,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-        decoration: const BoxDecoration(
-          color: AppColors.surfaceWhite,
-          border: Border(top: BorderSide(color: AppColors.cardBorder)),
-        ),
-        child: Row(
-          children: [
-            if (!isFirst)
-              TextButton(
-                onPressed: isSubmitting ? null : onBack,
-                child: const Text('Back'),
-              ),
-            const Spacer(),
-            if (!isLast)
-              FilledButton(
-                onPressed: isSubmitting ? null : onNext,
-                child: const Text('Next'),
-              )
-            else
-              FilledButton(
-                key: const Key('staff-create-task-submit'),
-                onPressed: isSubmitting ? null : onCreate,
-                child: Text(isSubmitting ? 'Creating…' : 'Create'),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final VoidCallback onEdit;
-
-  const _ReviewRow({
-    required this.label,
-    required this.value,
-    required this.onEdit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textMuted,
+                  const SizedBox(height: 16),
+                  TextField(
+                    key: const Key('staff-create-task-staff-search'),
+                    controller: _staffSearchController,
+                    decoration: const InputDecoration(
+                      labelText: 'Add Staff',
+                      hintText: 'Add Staff',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (_) => setState(() {}),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textHeading,
+                  const SizedBox(height: 4),
+                  const Text(
+                    'A task can wait unassigned, but somebody has to pick it up',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final staff in _filteredStaff)
+                        FilterChip(
+                          key: Key('staff-create-task-assignee-${staff.id}'),
+                          label: Text(staff.label),
+                          selected: _assignedStaffIds.contains(staff.id),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _assignedStaffIds.add(staff.id);
+                              } else {
+                                _assignedStaffIds.remove(staff.id);
+                              }
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    key: const Key('staff-create-task-title'),
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Task Title *',
+                      hintText: 'e.g. Fridge Temperature Check',
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('staff-create-task-description'),
+                    controller: _descriptionController,
+                    minLines: 3,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      hintText: 'Describe what needs to be done...',
+                      alignLabelWithHint: true,
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    key: const Key('staff-create-task-due'),
+                    onPressed: _pickDue,
+                    icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                    label: Text(_dueLabel),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Checklist',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('staff-create-task-checklist-input'),
+                          controller: _checklistController,
+                          decoration: const InputDecoration(
+                            hintText:
+                                "Add a step — 'Check the fridge temperature'",
+                          ),
+                          onSubmitted: (_) => _addChecklistStep(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        key: const Key('staff-create-task-checklist-add'),
+                        onPressed: _addChecklistStep,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(44, 44),
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: const Icon(Icons.add),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    "Tick 'must be done' for a step the task cannot be closed without",
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  if (_checklist.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    for (final step in _checklist)
+                      CheckboxListTile(
+                        key: Key('staff-create-task-checklist-${step.id}'),
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        value: step.required,
+                        title: Text(step.label),
+                        secondary: IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () => setState(() => _checklist.remove(step)),
+                        ),
+                        onChanged: (value) {
+                          setState(() => step.required = value ?? false);
+                        },
+                      ),
+                  ],
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    key: const Key('staff-create-task-needs-review'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Needs a review',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Somebody with review rights has to agree it was done before it counts',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    value: _requiresReview,
+                    activeThumbColor: AppColors.secondaryTeal,
+                    onChanged: (value) => setState(() => _requiresReview = value),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Notes',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('staff-create-task-notes'),
+                    controller: _notesController,
+                    minLines: 3,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'Add a note or reminder for this task...',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Saved against the task, with your name and the time',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Docs (Optional)',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    key: const Key('staff-create-task-docs'),
+                    onTap: _pickDocs,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 22,
+                        horizontal: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.cardBorder,
+                          style: BorderStyle.solid,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: const Column(
+                        children: [
+                          Icon(
+                            Icons.cloud_upload_outlined,
+                            color: AppColors.textMuted,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Click to upload or drag & drop',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'PDF, JPG, PNG · Max 15MB',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_docNames.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final name in _docNames)
+                          Chip(
+                            label: Text(name),
+                            onDeleted: () =>
+                                setState(() => _docNames.remove(name)),
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    key: const Key('staff-create-task-recurring'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Recurring Task',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Repeat this task on a schedule and share it between staff',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    value: _isRecurring,
+                    activeThumbColor: AppColors.secondaryTeal,
+                    onChanged: (value) => setState(() => _isRecurring = value),
+                  ),
+                ],
+              ),
             ),
           ),
-          TextButton(onPressed: onEdit, child: const Text('Edit')),
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              decoration: const BoxDecoration(
+                color: AppColors.surfaceWhite,
+                border: Border(top: BorderSide(color: AppColors.cardBorder)),
+              ),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: _isSubmitting ? null : Get.back,
+                    child: const Text('Cancel'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    key: const Key('staff-create-task-submit'),
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: Text(
+                      _isSubmitting ? 'Creating…' : 'Create Task',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _HeaderBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.secondaryTeal,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.assignment_outlined,
+            color: Colors.white,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'New Task',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textHeading,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Create and assign task, add checklist, notes, and attachments.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
