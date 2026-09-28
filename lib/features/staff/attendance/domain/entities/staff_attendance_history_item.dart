@@ -10,6 +10,8 @@ class StaffAttendanceHistoryItem {
   final DateTime? occurredAt;
   final bool isOpen;
   final String status;
+  final String residenceId;
+  final String residenceName;
 
   const StaffAttendanceHistoryItem({
     required this.id,
@@ -19,5 +21,7 @@ class StaffAttendanceHistoryItem {
     this.occurredAt,
     this.isOpen = false,
     this.status = '',
+    this.residenceId = '',
+    this.residenceName = '',
   });
 }

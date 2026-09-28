@@ -188,6 +188,15 @@ abstract final class StaffAttendanceMapper {
     final minutes = JsonCodec.integer(json['workedMinutes']);
     final fromMinutes = IsoDateRange.workedMinutesLabel(minutes);
     final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
+    final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+    final residenceId = JsonCodec.stringOr(
+      json['residenceId'] ?? residence['id'],
+      '',
+    );
+    final residenceName = JsonCodec.stringOr(
+      json['residenceName'] ?? residence['name'],
+      '',
+    );
     return StaffAttendanceHistoryItem(
       id: JsonCodec.stringOr(json['id'], checkIn?.toIso8601String() ?? 'row'),
       dateLabel: checkIn == null
@@ -204,6 +213,8 @@ abstract final class StaffAttendanceMapper {
       occurredAt: checkIn?.toLocal(),
       isOpen: checkIn != null && checkOut == null,
       status: status,
+      residenceId: residenceId,
+      residenceName: residenceName,
     );
   }
 

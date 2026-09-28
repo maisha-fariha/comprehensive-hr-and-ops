@@ -555,7 +555,7 @@ void main() {
   );
 
   testWidgets(
-    'BUG_Report006: Attendance date picker and status dropdown exist',
+    'BUG_Report006: Attendance date, residence, and status filters exist',
     (tester) async {
       tester.view.physicalSize = const Size(375, 812);
       tester.view.devicePixelRatio = 1;
@@ -564,13 +564,19 @@ void main() {
 
       await tester.pumpWidget(
         _wrap(
-          const Scaffold(
+          Scaffold(
             body: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: StaffAttendanceFiltersBar(
                 selectedDate: null,
+                residenceFilter: 'all',
                 statusFilter: 'all',
+                residences: const [
+                  ManualEntryResidenceOption(id: 'res-1', name: 'Elm House'),
+                  ManualEntryResidenceOption(id: 'res-2', name: 'Mala Box'),
+                ],
                 onDateChanged: _noopDate,
+                onResidenceChanged: _noopStatus,
                 onStatusChanged: _noopStatus,
               ),
             ),
@@ -584,15 +590,30 @@ void main() {
         findsOneWidget,
       );
       expect(
+        find.byKey(const Key('staff-attendance-residence-dropdown')),
+        findsOneWidget,
+      );
+      expect(
         find.byKey(const Key('staff-attendance-status-dropdown')),
         findsOneWidget,
       );
       expect(find.text('All dates'), findsOneWidget);
-      expect(find.text('All status'), findsOneWidget);
+      expect(find.text('All Residences'), findsOneWidget);
+      expect(find.text('Any status'), findsOneWidget);
 
-      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.tap(
+        find.byKey(const Key('staff-attendance-residence-dropdown')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Elm House').hitTestable(), findsWidgets);
+      expect(find.text('Mala Box'), findsOneWidget);
+      await tester.tap(find.text('All Residences').last);
       await tester.pumpAndSettle();
 
+      await tester.tap(
+        find.byKey(const Key('staff-attendance-status-dropdown')),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Present'), findsOneWidget);
       expect(find.text('Late'), findsOneWidget);
       expect(find.text('Missed'), findsOneWidget);

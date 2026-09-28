@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
@@ -21,6 +22,10 @@ class StaffAttendanceController
   /// Live HH:MM:SS from [StaffAttendanceOverview.checkInAt].
   final RxString liveElapsedLabel = '00:00:00'.obs;
 
+  /// BUG_Report006 — residence options for "All Residences" filter.
+  final RxList<ManualEntryResidenceOption> residenceOptions =
+      <ManualEntryResidenceOption>[].obs;
+
   Timer? _ticker;
 
   StaffAttendanceController({required this.repository});
@@ -31,6 +36,7 @@ class StaffAttendanceController
   void onInit() {
     super.onInit();
     loadOverview();
+    _loadResidences();
   }
 
   @override
@@ -198,12 +204,16 @@ class StaffAttendanceController
   /// BUG_Report006 — history date filter (`null` = all dates).
   final Rxn<DateTime> historyDateFilter = Rxn<DateTime>();
 
+  /// BUG_Report006 — `all` or a residence id.
+  final RxString historyResidenceFilter = 'all'.obs;
+
   /// BUG_Report006 — `all` | `present` | `late` | `missed` | `pending_approval`.
   final RxString historyStatusFilter = 'all'.obs;
 
   List<StaffAttendanceHistoryItem> get filteredHistory {
     final items = overview?.history ?? const <StaffAttendanceHistoryItem>[];
     final date = historyDateFilter.value;
+    final residence = historyResidenceFilter.value;
     final status = historyStatusFilter.value;
     return items.where((item) {
       if (date != null) {
@@ -215,6 +225,7 @@ class StaffAttendanceController
           return false;
         }
       }
+      if (residence != 'all' && item.residenceId != residence) return false;
       if (status != 'all' && item.status != status) return false;
       return true;
     }).toList();
@@ -222,8 +233,19 @@ class StaffAttendanceController
 
   void setHistoryDateFilter(DateTime? date) => historyDateFilter.value = date;
 
+  void setHistoryResidenceFilter(String residenceId) =>
+      historyResidenceFilter.value = residenceId;
+
   void setHistoryStatusFilter(String status) =>
       historyStatusFilter.value = status;
+
+  Future<void> _loadResidences() async {
+    final result = await repository.getResidences();
+    result.when(
+      success: (items) => residenceOptions.assignAll(items),
+      failure: (_) {},
+    );
+  }
 
   Future<void> showManualEntryDialog() async {
     final saved = await Get.to<bool>(
@@ -233,5 +255,7 @@ class StaffAttendanceController
   }
 
   @override
-  Future<void> refresh() => loadOverview();
+  Future<void> refresh() async {
+    await Future.wait([loadOverview(), _loadResidences()]);
+  }
 }
