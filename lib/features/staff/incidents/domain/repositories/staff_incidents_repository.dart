@@ -55,6 +55,11 @@ abstract class StaffIncidentsRepository {
     bool assignedToMe = true,
   });
 
+  /// `GET /staff` for Reported By / Supervisor / Investigator / Assigned To.
+  Future<Result<List<StaffIncidentStaffOption>>> getStaffOptions({
+    String? residenceId,
+  });
+
   /// `POST /incidents` — always `status: open` (no draft).
   Future<Result<String>> createIncident({
     required String residenceId,
@@ -71,6 +76,12 @@ abstract class StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   });
 
   /// `PATCH /incidents/{incidentId}` — edit later; omit unchanged checklist.

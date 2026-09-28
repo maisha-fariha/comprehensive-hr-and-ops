@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
+import '../../domain/entities/staff_incident_options.dart';
 import '../../domain/repositories/staff_incidents_repository.dart';
 import '../controllers/incident_creation_controller.dart';
 import '../widgets/create_incident/create_incident_form_fields.dart';
@@ -125,28 +126,19 @@ class CreateIncidentPage extends StatelessWidget {
                               onTap: controller.pickCategory,
                             ),
                           ),
-                          Obx(() {
-                            if (controller.cirTemplates.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                fieldGap,
-                                const CreateIncidentFieldLabel('CIR Template'),
-                                CreateIncidentDropdownField(
-                                  value: controller.cirTemplateLabel,
-                                  placeholder: 'Select template...',
-                                  onTap: controller.pickCirTemplate,
-                                ),
-                              ],
-                            );
-                          }),
-                    fieldGap,
+                          fieldGap,
                           const CreateIncidentFieldLabel('Incident Title', required: true),
                     CreateIncidentTextField(
                       controller: controller.incidentTitleController,
-                            hint: 'e.g. Fall – No Injury',
+                            hint: 'e.g. Client refused morning medication',
+                    ),
+                    fieldGap,
+                    const CreateIncidentFieldLabel('Category Details (optional)'),
+                    CreateIncidentTextField(
+                      key: const Key('staff-incident-category-details'),
+                      controller: controller.categoryDetailsController,
+                      hint: 'Add category-specific context…',
+                      maxLines: 2,
                     ),
                     fieldGap,
                     Row(
@@ -157,7 +149,7 @@ class CreateIncidentPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                                    const CreateIncidentFieldLabel('Date', required: true),
+                                    const CreateIncidentFieldLabel('Incident Date', required: true),
                                     GestureDetector(
                                       onTap: () => controller.pickDate(context),
                                       behavior: HitTestBehavior.opaque,
@@ -176,7 +168,7 @@ class CreateIncidentPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                                    const CreateIncidentFieldLabel('Time', required: true),
+                                    const CreateIncidentFieldLabel('Incident Time', required: true),
                                     GestureDetector(
                                       onTap: () => controller.pickTime(context),
                                       behavior: HitTestBehavior.opaque,
@@ -192,11 +184,24 @@ class CreateIncidentPage extends StatelessWidget {
                       ],
                     ),
                     fieldGap,
-                          const CreateIncidentFieldLabel('Detected During', required: true),
+                    const CreateIncidentFieldLabel('Time Ended (optional)'),
+                    GestureDetector(
+                      onTap: () => controller.pickEndTime(context),
+                      behavior: HitTestBehavior.opaque,
+                      child: AbsorbPointer(
+                        child: CreateIncidentTextField(
+                          key: const Key('staff-incident-end-time'),
+                          controller: controller.endTimeController,
+                          hint: 'e.g. 4:30 PM',
+                        ),
+                      ),
+                    ),
+                    fieldGap,
+                          const CreateIncidentFieldLabel('Detected During (optional)'),
                     Obx(
                       () => CreateIncidentDropdownField(
                         value: controller.detectedDuring.value,
-                        placeholder: 'Select context...',
+                        placeholder: 'Select context',
                               onTap: controller.pickDetectedDuring,
                             ),
                           ),
@@ -219,7 +224,7 @@ class CreateIncidentPage extends StatelessWidget {
                     sectionGap,
                     const NumberedSectionHeader(
                       number: 3,
-                      title: 'PEOPLE & LOCATION',
+                      title: 'LOCATION & PEOPLE',
                       required: true,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
@@ -240,7 +245,7 @@ class CreateIncidentPage extends StatelessWidget {
                     sectionGap,
                     const NumberedSectionHeader(
                       number: 6,
-                      title: 'EVIDENCE',
+                      title: 'EVIDENCE & SUBMISSION',
                       required: true,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
@@ -444,173 +449,182 @@ class _EvidenceSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Obx(() {
-            final tab = controller.evidenceTabIndex.value;
-            return Container(
-              key: const Key('staff-incident-evidence-tabs'),
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEEF2F6),
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 12),
+          Text(
+            'Attach evidence, add final notes, and confirm who\'s been notified.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: AppColors.textMuted,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+          const CreateIncidentFieldLabel('Evidence (photos, documents)'),
+          GestureDetector(
+            key: const Key('staff-incident-evidence-upload'),
+            onTap: controller.pickEvidence,
+            behavior: HitTestBehavior.opaque,
+            child: CustomPaint(
+              painter: _DashedBorderPainter(
+                color: _dash,
+                radius: dashRadius,
+                strokeWidth: 1.4,
+                dashWidth: 5,
+                dashGap: 4,
+              ),
+              child: Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  vertical: 22,
+                  horizontal: 16,
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: iconBox,
+                      height: iconBox,
+                      decoration: BoxDecoration(
+                        color: _mint,
+                        borderRadius: BorderRadius.circular(
+                          ResponsiveHelper.getResponsiveRadius(context, 12),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: const AppSvgIcon(
+                        _uploadAsset,
+                        size: 20,
+                        color: _teal,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                    ),
+                    Text(
+                      'Tap to upload photo or file',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          13.5,
+                        ),
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ),
+                    Text(
+                      'Image, PDF or document · up to 15MB each',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          11.5,
+                        ),
+                        color: _meta,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _EvidenceTabChip(
-                      label: 'Files',
-                      selected: tab == 0,
-                      onTap: () => controller.evidenceTabIndex.value = 0,
-                    ),
+            ),
+          ),
+          Obx(() {
+            final files = controller.evidenceFiles;
+            if (files.isEmpty) return const SizedBox.shrink();
+            return Column(
+              children: [
+                SizedBox(
+                  height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                ),
+                for (final file in files) ...[
+                  _EvidenceFileRow(
+                    extension: file.extensionLabel,
+                    name: file.fileName,
+                    sizeLabel: file.sizeLabel,
+                    badgeColor: file.extensionLabel == 'PDF'
+                        ? const Color(0xFFE5484D)
+                        : const Color(0xFF2A5DA6),
+                    onRemove: () => controller.removeEvidence(file),
                   ),
-                  Expanded(
-                    child: _EvidenceTabChip(
-                      key: const Key('staff-incident-evidence-notes-tab'),
-                      label: 'Notes',
-                      selected: tab == 1,
-                      onTap: () => controller.evidenceTabIndex.value = 1,
-                    ),
+                  SizedBox(
+                    height: ResponsiveHelper.getResponsiveHeight(context, 8),
                   ),
                 ],
-              ),
+              ],
             );
           }),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-          Obx(() {
-            if (controller.evidenceTabIndex.value == 1) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const CreateIncidentFieldLabel(
-                    'Additional Notes',
-                    required: true,
-                  ),
-                  CreateIncidentTextField(
-                    key: const Key('staff-incident-additional-notes'),
-                    controller: controller.additionalNotesController,
-                    hint:
-                        'Add any final notes for the reviewing supervisor...',
-                    maxLines: 4,
-                  ),
-                ],
-              );
-            }
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+          const CreateIncidentFieldLabel('Transcription / Additional Notes'),
+          CreateIncidentTextField(
+            key: const Key('staff-incident-additional-notes'),
+            controller: controller.transcriptionController,
+            hint: 'Transcription / additional notes will appear here…',
+            maxLines: 4,
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+          _PartiesNotifiedCard(controller: controller),
+        ],
+      ),
+    );
+  }
+}
 
+class _PartiesNotifiedCard extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _PartiesNotifiedCard({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('staff-incident-parties-notified'),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 14),
+        ),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Parties Notified',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+              color: AppColors.textHeading,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+          Text(
+            'Track who has been informed of this incident and when.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: AppColors.textMuted,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          Obx(() {
+            final parties = controller.partyNotifications;
             return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const CreateIncidentFieldLabel('Upload Evidence'),
-                GestureDetector(
-                  onTap: controller.pickEvidence,
-                  behavior: HitTestBehavior.opaque,
-                  child: CustomPaint(
-                    painter: _DashedBorderPainter(
-                      color: _dash,
-                      radius: dashRadius,
-                      strokeWidth: 1.4,
-                      dashWidth: 5,
-                      dashGap: 4,
-                    ),
-                    child: Padding(
-                      padding: ResponsiveHelper.getResponsivePadding(
-                        context,
-                        vertical: 22,
-                        horizontal: 16,
-                      ),
-                      child: Column(
-                        children: [
-                          Container(
-                            width: iconBox,
-                            height: iconBox,
-                            decoration: BoxDecoration(
-                              color: _mint,
-                              borderRadius: BorderRadius.circular(
-                                ResponsiveHelper.getResponsiveRadius(
-                                  context,
-                                  12,
-                                ),
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: const AppSvgIcon(
-                              _uploadAsset,
-                              size: 20,
-                              color: _teal,
-                            ),
-                          ),
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsiveHeight(
-                              context,
-                              12,
-                            ),
-                          ),
-                          Text(
-                            'Tap to upload photo or file',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w700,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                context,
-                                13.5,
-                              ),
-                              color: AppColors.textHeading,
-                            ),
-                          ),
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsiveHeight(
-                              context,
-                              4,
-                            ),
-                          ),
-                          Text(
-                            'Images, PDF · uploaded as incidents',
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w400,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                context,
-                                11.5,
-                              ),
-                              color: _meta,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                for (var i = 0; i < parties.length; i++) ...[
+                  _PartyNotificationRow(
+                    index: i,
+                    party: parties[i],
+                    controller: controller,
                   ),
-                ),
-                Obx(() {
-                  final files = controller.evidenceFiles;
-                  if (files.isEmpty) return const SizedBox.shrink();
-                  return Column(
-                    children: [
-                      SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(
-                          context,
-                          12,
-                        ),
-                      ),
-                      for (final file in files) ...[
-                        _EvidenceFileRow(
-                          extension: file.extensionLabel,
-                          name: file.fileName,
-                          sizeLabel: file.sizeLabel,
-                          badgeColor: file.extensionLabel == 'PDF'
-                              ? const Color(0xFFE5484D)
-                              : const Color(0xFF2A5DA6),
-                          onRemove: () => controller.removeEvidence(file),
-                        ),
-                        SizedBox(
-                          height: ResponsiveHelper.getResponsiveHeight(
-                            context,
-                            8,
-                          ),
-                        ),
-                      ],
-                    ],
-                  );
-                }),
+                  if (i < parties.length - 1)
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 10),
+                    ),
+                ],
               ],
             );
           }),
@@ -620,51 +634,88 @@ class _EvidenceSection extends StatelessWidget {
   }
 }
 
-class _EvidenceTabChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+class _PartyNotificationRow extends StatelessWidget {
+  final int index;
+  final StaffIncidentPartyNotification party;
+  final IncidentCreationController controller;
 
-  const _EvidenceTabChip({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.onTap,
+  const _PartyNotificationRow({
+    required this.index,
+    required this.party,
+    required this.controller,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.surfaceWhite : Colors.transparent,
-          borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 10),
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: AppColors.shadowNavy.withValues(alpha: 0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 10),
+        ),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  party.party,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    color: AppColors.textHeading,
                   ),
-                ]
-              : null,
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w700,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-            color: selected ? AppColors.textHeading : AppColors.textMuted,
+                ),
+              ),
+              Switch(
+                value: party.notified,
+                onChanged: (value) => controller.updatePartyNotification(
+                  index,
+                  notified: value,
+                ),
+                activeThumbColor: Colors.white,
+                activeTrackColor: AppColors.secondaryTeal,
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: AppColors.cardBorder,
+                trackOutlineColor:
+                    const WidgetStatePropertyAll(Colors.transparent),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ],
           ),
-        ),
+          if (party.notified) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            TextFormField(
+              initialValue: party.contactName,
+              decoration: const InputDecoration(
+                hintText: 'Contact name (optional)',
+                isDense: true,
+              ),
+              onChanged: (value) => controller.updatePartyNotification(
+                index,
+                contactName: value,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            TextFormField(
+              initialValue: party.dateNotified,
+              decoration: const InputDecoration(
+                hintText: 'Date notified (yyyy-mm-dd)',
+                isDense: true,
+              ),
+              onChanged: (value) => controller.updatePartyNotification(
+                index,
+                dateNotified: value,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

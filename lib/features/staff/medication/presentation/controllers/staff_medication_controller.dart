@@ -9,6 +9,7 @@ import '../../domain/entities/due_dose.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/entities/staff_medication_overview.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
+import '../widgets/staff_administer_dose_dialog.dart';
 
 /// GetX controller for the Staff Medication MAR screen.
 class StaffMedicationController extends BaseController<StaffMedicationOverview> {
@@ -16,6 +17,15 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
 
   final Rx<StaffMedicationTab> selectedTab = StaffMedicationTab.due.obs;
   final RxBool isRecording = false.obs;
+
+  /// Web Not Given reason → API status mapping (BUG_Report018/019 nested).
+  static const List<({String label, String status})> notGivenReasons = [
+    (label: 'Resident refused', status: 'refused'),
+    (label: 'Asleep / unavailable', status: 'missed'),
+    (label: 'Away / hospital appointment', status: 'missed'),
+    (label: 'Withheld on clinical advice', status: 'missed'),
+    (label: 'Other / missed', status: 'missed'),
+  ];
 
   StaffMedicationController({required this.repository}) {
     loadOverview();
@@ -48,7 +58,34 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       );
       return;
     }
-    await _record(dose, status: 'administered');
+
+    final dialogContext = Get.overlayContext ?? Get.context;
+    if (dialogContext == null) return;
+    final wizard = await StaffAdministerDoseDialog.show(
+      dialogContext,
+      dose: dose,
+    );
+    if (wizard == null) return;
+
+    await _record(
+      dose,
+      status: 'administered',
+      clinicalNotes: wizard.notes.isEmpty ? null : wizard.notes,
+      safetyChecks: {
+        'safetyConfirmed': wizard.safetyConfirmed,
+        'identityVerified': wizard.identityVerified,
+        'medicationVerified': wizard.medicationVerified,
+        'dosageVerified': wizard.dosageVerified,
+        'routeVerified': wizard.routeVerified,
+        'timeVerified': wizard.timeVerified,
+      },
+      vitals: {
+        'bloodPressure': wizard.bloodPressure,
+        'heartRate': wizard.heartRate,
+        'temperature': wizard.temperature,
+        'bloodSugar': wizard.bloodSugar,
+      },
+    );
   }
 
   Future<void> markNotGiven(String doseId) async {
@@ -77,7 +114,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     if (dialogContext == null) return null;
 
     final notes = TextEditingController();
-    var status = 'refused';
+    var reasonIndex = 0;
 
     final saved = await showDialog<bool>(
       context: dialogContext,
@@ -86,39 +123,41 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
           builder: (context, setLocal) {
             return AlertDialog(
               title: const Text('Not given'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  DropdownButtonFormField<String>(
-                    key: ValueKey(status),
-                    initialValue: status,
-                    decoration: const InputDecoration(labelText: 'Status'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'refused',
-                        child: Text('Refused'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<int>(
+                      key: ValueKey(reasonIndex),
+                      initialValue: reasonIndex,
+                      decoration: const InputDecoration(
+                        labelText: 'Reason',
                       ),
-                      DropdownMenuItem(
-                        value: 'missed',
-                        child: Text('Missed'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setLocal(() => status = value);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: notes,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Reason / notes',
-                      hintText: 'Why was this dose not given?',
+                      items: [
+                        for (var i = 0; i < notGivenReasons.length; i++)
+                          DropdownMenuItem(
+                            value: i,
+                            child: Text(notGivenReasons[i].label),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setLocal(() => reasonIndex = value);
+                      },
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: const Key('staff-mar-not-given-notes'),
+                      controller: notes,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Details / notes',
+                        hintText: 'Add any extra context for the record…',
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -126,6 +165,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
                   child: const Text('Cancel'),
                 ),
                 TextButton(
+                  key: const Key('staff-mar-not-given-save'),
                   onPressed: () => Navigator.of(ctx).pop(true),
                   child: const Text('Save'),
                 ),
@@ -137,20 +177,23 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     );
 
     final text = notes.text.trim();
+    final reason = notGivenReasons[reasonIndex];
     // Defer dispose until after dialog route teardown.
     Future<void>.delayed(Duration.zero, notes.dispose);
     if (saved != true) return null;
-    if (text.isEmpty) {
-      AppSnackbar.show('Reason required', 'Add a note explaining why.');
-      return null;
-    }
-    return _NotGivenOutcome(status: status, notes: text);
+    final composed = text.isEmpty
+        ? reason.label
+        : '${reason.label}: $text';
+    return _NotGivenOutcome(status: reason.status, notes: composed);
   }
 
   Future<void> _record(
     DueDose dose, {
     required String status,
     String? notes,
+    String? clinicalNotes,
+    Map<String, bool>? safetyChecks,
+    Map<String, String>? vitals,
   }) async {
     if (isRecording.value) return;
     final residenceId = dose.residenceId.isNotEmpty
@@ -173,7 +216,10 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       medicationId: dose.medicationId,
       status: status,
       notes: notes,
+      clinicalNotes: clinicalNotes,
       isPrn: dose.isPrn,
+      safetyChecks: safetyChecks,
+      vitals: vitals,
     );
     isRecording.value = false;
 

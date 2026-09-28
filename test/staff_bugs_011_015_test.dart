@@ -119,6 +119,19 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
       Result.failure(const ApiError(message: 'unused'));
 
   @override
+  Future<Result<List<StaffIncidentStaffOption>>> getStaffOptions({
+    String? residenceId,
+  }) async =>
+      Result.success(const [
+        StaffIncidentStaffOption(id: 's1', name: 'Sam Jones', subtitle: 'Nurse'),
+        StaffIncidentStaffOption(
+          id: 's2',
+          name: 'Jordan Lee',
+          subtitle: 'Supervisor',
+        ),
+      ]);
+
+  @override
   Future<Result<String>> createIncident({
     required String residenceId,
     required String clientId,
@@ -134,6 +147,12 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   }) async =>
       Result.success('inc-1');
 
@@ -311,38 +330,46 @@ void main() {
       expect(find.byKey(const Key('staff-incident-residence')), findsOneWidget);
       expect(find.textContaining('Residence'), findsWidgets);
 
-      // BUG_Report012 — Client Search
+      // BUG_Report012 — Related Client search
       expect(
         find.byKey(const Key('staff-incident-client-search')),
         findsOneWidget,
       );
-      expect(find.textContaining('Client Search'), findsOneWidget);
+      expect(find.textContaining('Related Client'), findsOneWidget);
       expect(find.text('Search client...'), findsOneWidget);
 
-      // BUG_Report013 — CFS Details
+      // BUG_Report013 — CFS Details (optional)
       expect(
         find.byKey(const Key('staff-incident-cfs-details')),
         findsOneWidget,
       );
       expect(find.text('CFS Details'), findsOneWidget);
       expect(find.byKey(const Key('staff-incident-cfs-status')), findsOneWidget);
-      expect(find.textContaining('Child Last Name'), findsOneWidget);
-      expect(find.textContaining('Child First Name'), findsOneWidget);
+      expect(find.textContaining("Child's I.D. Number"), findsWidgets);
+      expect(
+        find.textContaining('Child Intervention Practitioner'),
+        findsWidgets,
+      );
+      expect(find.textContaining('CIP Office'), findsWidgets);
 
-      // BUG_Report014 — required fields + toggles
-      expect(find.textContaining('Location'), findsWidgets);
-      expect(find.textContaining('Staff Involved'), findsOneWidget);
-      expect(find.textContaining('Witness Information'), findsOneWidget);
+      // BUG_Report014 — web Location & People controls
+      expect(find.textContaining('Reported By Staff'), findsOneWidget);
+      expect(find.textContaining('Supervisor'), findsWidgets);
+      expect(
+        find.textContaining('Witnesses — staff or residents present'),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('staff-incident-add-witness')),
         findsOneWidget,
       );
+      expect(find.textContaining('Immediate Action Taken'), findsOneWidget);
       expect(
-        find.byKey(const Key('staff-incident-cfs-notified')),
+        find.byKey(const Key('staff-incident-emergency-services')),
         findsOneWidget,
       );
       expect(
-        find.byKey(const Key('staff-incident-police-notified')),
+        find.byKey(const Key('staff-incident-family-notified')),
         findsOneWidget,
       );
 
@@ -366,15 +393,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.selectedClient.value?.name, 'Blake Client');
 
-      // Toggles are present and flip state
-      expect(
-        find.byKey(const Key('staff-incident-cfs-notified')),
-        findsOneWidget,
-      );
-      controller.cfsNotified.value = true;
-      expect(controller.cfsNotified.value, isTrue);
-      controller.policeNotified.value = true;
-      expect(controller.policeNotified.value, isTrue);
+      // Emergency + family toggles flip
+      controller.emergencyServicesContacted.value = true;
+      expect(controller.emergencyServicesContacted.value, isTrue);
+      controller.familyGuardianNotified.value = true;
+      expect(controller.familyGuardianNotified.value, isTrue);
     },
   );
 }
