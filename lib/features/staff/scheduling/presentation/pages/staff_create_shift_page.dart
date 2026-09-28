@@ -7,8 +7,8 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/scheduling/domain/entities/create_shift_draft.dart';
 import '../../../../hr/scheduling/domain/entities/shift_break_duration_option.dart';
-import '../../../../hr/scheduling/domain/entities/shift_reminder_option.dart';
 import '../../../../hr/scheduling/domain/entities/shift_type_option.dart';
 import '../../../../hr/scheduling/presentation/widgets/create_shift/create_shift_fields.dart';
 import '../../../../hr/scheduling/presentation/widgets/create_shift/create_shift_header.dart';
@@ -70,7 +70,16 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
   final _titleController = TextEditingController();
   final _notesController = TextEditingController();
   final _messageController = TextEditingController();
+  final _requiredStaffCountController = TextEditingController();
+  final _maxBidsController = TextEditingController();
+  final _noteToBiddersController = TextEditingController();
+  final _occurrenceController = TextEditingController();
   final _checklistDraftControllers = <String, TextEditingController>{};
+
+  /// Open Shift, Recurring and Notifications values; shares the HR wizard's
+  /// defaults, validation and `POST /shifts` shape.
+  late final CreateShiftDraft _options;
+  Map<String, String> _errors = const {};
 
   final List<StaffShiftResidenceOption> _residences = [];
   final List<StaffShiftStaffOption> _staffPool = [];
@@ -80,7 +89,6 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
   ShiftTypeOption _selectedShiftType = ShiftTypeOption.predefined.first;
   ShiftBreakDurationOption _selectedBreak =
       ShiftBreakDurationOption.defaultOption;
-  ShiftReminderOption _selectedReminder = ShiftReminderOption.defaultOption;
 
   DateTime _shiftDate = DateTime.now();
   TimeOfDay _startTime = const TimeOfDay(hour: 7, minute: 0);
@@ -90,9 +98,6 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
   bool _isLoadingResidences = false;
   bool _isLoadingStaff = false;
   bool _isSubmitting = false;
-  bool _isOpenShift = false;
-  bool _isRecurring = false;
-  bool _notifyAssignedStaff = true;
 
   @override
   void initState() {
@@ -102,6 +107,10 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
       widget.initialDate.month,
       widget.initialDate.day,
     );
+    _options = CreateShiftDraft(shiftDate: _shiftDate);
+    _requiredStaffCountController.text = _options.requiredStaffCount;
+    _maxBidsController.text = _options.maxBids;
+    _occurrenceController.text = _options.occurrenceCount;
     _applyShiftTypeTimes(_selectedShiftType);
     _seedResidenceFromSession();
     _loadResidences();
@@ -112,6 +121,10 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
     _titleController.dispose();
     _notesController.dispose();
     _messageController.dispose();
+    _requiredStaffCountController.dispose();
+    _maxBidsController.dispose();
+    _noteToBiddersController.dispose();
+    _occurrenceController.dispose();
     for (final draft in _assignments.values) {
       draft.dispose();
     }
@@ -473,51 +486,110 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
     final notes = _notesController.text.trim();
     final message = _messageController.text.trim();
 
-    final payload = <String, dynamic>{
+    _syncOptions();
+    final shared = _options.toCreateBody();
+    final reminder = shared['reminderMinutesBefore'];
+
+    return <String, dynamic>{
       'residenceId': _selectedResidence!.id,
       'startsAt': startsAt.toUtc().toIso8601String(),
       'endsAt': endsAt.toUtc().toIso8601String(),
       'shiftType': _selectedShiftType.id,
       'breakMinutes': _selectedBreak.minutes,
-      'requiredStaffCount': staffIds.isEmpty ? 1 : staffIds.length,
+      'requiredStaffCount': _options.isOpenShift
+          ? shared['requiredStaffCount']
+          : (staffIds.isEmpty ? 1 : staffIds.length),
       'staffIds': staffIds,
-      'notifyAssignedStaff': _notifyAssignedStaff,
+      'notifyAssignedStaff': _options.notifyAssignedStaff,
       if (title.isNotEmpty) 'title': title,
       if (notes.isNotEmpty) 'notes': notes,
-      if (_selectedReminder.minutesBefore != null)
-        'reminderMinutesBefore': _selectedReminder.minutesBefore,
+      'reminderMinutesBefore': ?reminder,
       if (message.isNotEmpty) 'notificationMessage': message,
       if (assignments.isNotEmpty) 'assignments': assignments,
+      if (shared['biddingConfig'] != null)
+        'biddingConfig': shared['biddingConfig'],
+      if (shared['recurrence'] != null) 'recurrence': shared['recurrence'],
     };
-
-    if (_isOpenShift) {
-      final closesAt = DateTime(
-        _shiftDate.year,
-        _shiftDate.month,
-        _shiftDate.day,
-      ).subtract(const Duration(minutes: 1));
-      payload['biddingConfig'] = {
-        'biddingClosesAt': closesAt.toUtc().toIso8601String(),
-        'maxBids': 5,
-        'priority': 'medium',
-        'awardMethod': 'manual',
-        'noteToBidders': 'Open to all qualified care workers.',
-      };
-    }
-
-    if (_isRecurring) {
-      payload['recurrence'] = {
-        'occurrences': 4,
-        'intervalDays': 7,
-        'weekdays': [_shiftDate.weekday],
-      };
-    }
-
-    return payload;
   }
 
+  void _syncOptions() {
+    _options
+      ..residenceId = _selectedResidence?.id ?? ''
+      ..shiftType = _selectedShiftType.id
+      ..shiftDate = _shiftDate
+      ..startMinutes = _startTime.hour * 60 + _startTime.minute
+      ..endMinutes = _endTime.hour * 60 + _endTime.minute
+      ..breakMinutes = _selectedBreak.minutes
+      ..requiredStaffCount = _requiredStaffCountController.text
+      ..maxBids = _maxBidsController.text
+      ..noteToBidders = _noteToBiddersController.text
+      ..occurrenceCount = _occurrenceController.text
+      ..notificationMessage = _messageController.text;
+  }
+
+  /// Recurring-step errors (end date / occurrence count) that block submit.
+  bool _validateOptions() {
+    _syncOptions();
+    final errors = {
+      for (final entry in _options.validate().entries)
+        if (entry.key == CreateShiftField.endDate ||
+            entry.key == CreateShiftField.occurrenceCount)
+          entry.key: entry.value,
+    };
+    setState(() => _errors = errors);
+    if (errors.isEmpty) return true;
+    setState(() => _currentStep = 3);
+    AppSnackbar.show('Missing details', errors.values.first);
+    return false;
+  }
+
+  Future<DateTime?> _pickOptionDate(DateTime? initial) async {
+    final now = DateTime.now();
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: initial ?? _shiftDate,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+    );
+    if (selected == null) return null;
+    return DateTime(selected.year, selected.month, selected.day);
+  }
+
+  Future<int?> _pickOptionTime(int? minutes) async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: minutes == null
+          ? const TimeOfDay(hour: 18, minute: 0)
+          : TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
+    );
+    if (selected == null) return null;
+    return selected.hour * 60 + selected.minute;
+  }
+
+  Future<void> _pickChoice<T>(
+    String title,
+    List<ShiftFormChoice<T>> options,
+    ValueChanged<T> onSelected,
+  ) {
+    return _pickFromSheet<ShiftFormChoice<T>>(
+      title: title,
+      options: options,
+      labelOf: (o) => o.label,
+      onSelected: (o) => setState(() => onSelected(o.value)),
+    );
+  }
+
+  String? _formatOptionDate(DateTime? date) =>
+      date == null ? null : _formatDate(date);
+
+  String? _formatOptionTime(int? minutes) => minutes == null
+      ? null
+      : _formatTime(TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60));
+
   Future<void> _createShift() async {
-    if (_isSubmitting || !_validateCurrentStep()) return;
+    if (_isSubmitting || !_validateCurrentStep() || !_validateOptions()) {
+      return;
+    }
     setState(() => _isSubmitting = true);
     final result = await widget.repository.createShift(_buildPayload());
     if (!mounted) return;
@@ -592,28 +664,102 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
     return switch (_currentStep) {
       0 => _buildShiftInformation(),
       1 => _buildStaffAssignment(),
-      2 => CreateShiftOpenShiftForm(
-          isOpenShift: _isOpenShift,
-          onChanged: (value) => setState(() => _isOpenShift = value),
-        ),
-      3 => CreateShiftRecurringForm(
-          isRecurring: _isRecurring,
-          onChanged: (value) => setState(() => _isRecurring = value),
-        ),
+      2 => _buildOpenShift(),
+      3 => _buildRecurring(),
       _ => CreateShiftNotificationsForm(
-          notifyAssignedStaff: _notifyAssignedStaff,
+          notifyAssignedStaff: _options.notifyAssignedStaff,
           onNotifyAssignedStaffChanged: (value) =>
-              setState(() => _notifyAssignedStaff = value),
-          selectedReminder: _selectedReminder,
-          onReminderTap: () => _pickFromSheet<ShiftReminderOption>(
-            title: 'Reminder',
-            options: ShiftReminderOption.predefined,
-            labelOf: (o) => o.label,
-            onSelected: (o) => setState(() => _selectedReminder = o),
+              setState(() => _options.notifyAssignedStaff = value),
+          reminderValue: _options.reminderMinutes == null
+              ? null
+              : CreateShiftChoices.labelOf(
+                  CreateShiftChoices.reminders,
+                  _options.reminderMinutes,
+                ),
+          onReminderTap: () => _pickChoice<int?>(
+            'Reminder',
+            CreateShiftChoices.reminders,
+            (value) => _options.reminderMinutes = value,
           ),
           messageController: _messageController,
         ),
     };
+  }
+
+  Widget _buildOpenShift() {
+    return CreateShiftOpenShiftForm(
+      isOpenShift: _options.isOpenShift,
+      onChanged: (value) => setState(() => _options.isOpenShift = value),
+      requiredStaffCountController: _requiredStaffCountController,
+      maxBidsController: _maxBidsController,
+      noteToBiddersController: _noteToBiddersController,
+      deadlineDateValue: _formatOptionDate(_options.biddingDeadlineDate),
+      onDeadlineDateTap: () async {
+        final date = await _pickOptionDate(_options.biddingDeadlineDate);
+        if (date != null && mounted) {
+          setState(() => _options.biddingDeadlineDate = date);
+        }
+      },
+      deadlineTimeValue: _formatOptionTime(_options.biddingDeadlineMinutes),
+      onDeadlineTimeTap: () async {
+        final time = await _pickOptionTime(_options.biddingDeadlineMinutes);
+        if (time != null && mounted) {
+          setState(() => _options.biddingDeadlineMinutes = time);
+        }
+      },
+      priorityValue: CreateShiftChoices.labelOf(
+        CreateShiftChoices.priorities,
+        _options.priority,
+      ),
+      onPriorityTap: () => _pickChoice<String>(
+        'Priority',
+        CreateShiftChoices.priorities,
+        (value) => _options.priority = value,
+      ),
+      awardMethodValue: CreateShiftChoices.labelOf(
+        CreateShiftChoices.awardMethods,
+        _options.awardMethod,
+      ),
+      onAwardMethodTap: () => _pickChoice<String>(
+        'Award Method',
+        CreateShiftChoices.awardMethods,
+        (value) => _options.awardMethod = value,
+      ),
+    );
+  }
+
+  Widget _buildRecurring() {
+    _syncOptions();
+    return CreateShiftRecurringForm(
+      isRecurring: _options.isRecurring,
+      onChanged: (value) => setState(() => _options.isRecurring = value),
+      frequencyValue: CreateShiftChoices.labelOf(
+        CreateShiftChoices.frequencies,
+        _options.recurrenceFrequency,
+      ),
+      onFrequencyTap: () => _pickChoice<int>(
+        'Frequency',
+        CreateShiftChoices.frequencies,
+        (value) => _options.recurrenceFrequency = value,
+      ),
+      repeatOnDays: _options.repeatOnDays,
+      onToggleDay: (day) => setState(() {
+        if (!_options.repeatOnDays.remove(day)) _options.repeatOnDays.add(day);
+      }),
+      ends: _options.ends,
+      onEndsChanged: (value) => setState(() => _options.ends = value),
+      endDateValue: _formatOptionDate(_options.endDate),
+      onEndDateTap: () async {
+        final date = await _pickOptionDate(_options.endDate);
+        if (date != null && mounted) {
+          setState(() => _options.endDate = date);
+        }
+      },
+      occurrenceController: _occurrenceController,
+      onTextChanged: (_) => setState(() {}),
+      plannedOccurrences: _options.plannedOccurrences(),
+      errors: _errors,
+    );
   }
 
   Widget _buildShiftInformation() {

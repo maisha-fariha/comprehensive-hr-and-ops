@@ -760,7 +760,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Notify assigned staff'), findsOneWidget);
-      expect(find.text('No reminder'), findsOneWidget);
+      expect(find.text('Select an option'), findsOneWidget);
       expect(
         find.textContaining('A second notification this long before'),
         findsOneWidget,
