@@ -56,4 +56,14 @@ abstract class StaffDailyLogsRepository {
     bool flagForAttention = false,
     bool submit = true,
   });
+
+  /// `POST /clients` — add a client at a residence (BUG_Report003).
+  Future<Result<String>> createClient({
+    required String name,
+    required String residenceId,
+    String? room,
+  });
+
+  /// Distinct residence options for the Clients filter dropdown.
+  Future<Result<List<({String id, String name})>>> getResidenceOptions();
 }

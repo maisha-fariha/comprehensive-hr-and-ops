@@ -11,10 +11,10 @@ import 'presentation/widgets/staff_bottom_nav_bar.dart';
 import 'scheduling/presentation/pages/staff_schedule_page.dart';
 
 /// Root shell for the Staff portal. Owns the bottom navigation bar and
-/// switches between its 5 tabs: Home (Dashboard), Schedule, Clients (Daily
-/// Logs), MAR/Tasks and More.
+/// switches between its 5 tabs: Home (Dashboard), Schedule, Daily Logs,
+/// MAR/Tasks and More.
 ///
-/// The Clients slot stays in the bar so nav indices remain stable, but the
+/// The Daily Logs slot stays in the bar so nav indices remain stable, but the
 /// body is replaced when `/mobile/home` permissions do not include clients
 /// (housekeeper).
 class StaffShell extends StatefulWidget {
@@ -50,9 +50,9 @@ class _StaffShellState extends State<StaffShell> {
         session.canAccessClients
             ? const StaffDailyLogsPage()
             : const StaffUnavailablePage(
-                title: 'Clients',
+                title: 'Daily Logs',
                 message:
-                    'Client records and daily logs are not part of this role.',
+                    'Daily logs and client records are not part of this role.',
               ),
         const StaffMarTasksMenuPage(),
         const StaffMoreMenuPage(),

@@ -26,6 +26,14 @@ abstract class StaffTasksMessagesRepository {
   /// `PATCH /tasks/{id}` with `{ "status": "completed" }`
   Future<Result<void>> completeTask(String taskId);
 
+  /// `POST /tasks` — create a task for the staff member's residence.
+  Future<Result<void>> createTask({
+    required String title,
+    String? description,
+    String priority = 'medium',
+    DateTime? dueAt,
+  });
+
   /// `POST /tasks/{id}/notes`
   Future<Result<void>> addTaskNote({
     required String taskId,

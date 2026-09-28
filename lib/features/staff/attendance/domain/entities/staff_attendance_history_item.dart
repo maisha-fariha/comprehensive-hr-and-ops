@@ -7,11 +7,15 @@ class StaffAttendanceHistoryItem {
   final String dateLabel;
   final String timeRange;
   final String durationLabel;
+  final DateTime? occurredAt;
+  final bool isOpen;
 
   const StaffAttendanceHistoryItem({
     required this.id,
     required this.dateLabel,
     required this.timeRange,
     required this.durationLabel,
+    this.occurredAt,
+    this.isOpen = false,
   });
 }

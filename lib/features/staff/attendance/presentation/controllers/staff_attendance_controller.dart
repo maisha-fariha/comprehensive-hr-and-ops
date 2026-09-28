@@ -6,8 +6,11 @@ import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 
@@ -186,6 +189,185 @@ class StaffAttendanceController extends BaseController<StaffAttendanceOverview> 
     Get.snackbar(
       'Attendance',
       successMessage,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.white,
+    );
+    await loadOverview();
+  }
+
+  /// BUG_Report006 — history date filter (`null` = all dates).
+  final Rxn<DateTime> historyDateFilter = Rxn<DateTime>();
+
+  /// BUG_Report006 — `all` | `completed` | `in_progress`.
+  final RxString historyStatusFilter = 'all'.obs;
+
+  List<StaffAttendanceHistoryItem> get filteredHistory {
+    final items = overview?.history ?? const <StaffAttendanceHistoryItem>[];
+    final date = historyDateFilter.value;
+    final status = historyStatusFilter.value;
+    return items.where((item) {
+      if (date != null) {
+        final at = item.occurredAt;
+        if (at == null ||
+            at.year != date.year ||
+            at.month != date.month ||
+            at.day != date.day) {
+          return false;
+        }
+      }
+      if (status == 'completed' && item.isOpen) return false;
+      if (status == 'in_progress' && !item.isOpen) return false;
+      return true;
+    }).toList();
+  }
+
+  void setHistoryDateFilter(DateTime? date) => historyDateFilter.value = date;
+
+  void setHistoryStatusFilter(String status) =>
+      historyStatusFilter.value = status;
+
+  Future<void> showManualEntryDialog() async {
+    final session = Get.find<UserSession>();
+    var checkIn = DateTime.now().subtract(const Duration(hours: 8));
+    var checkOut = DateTime.now();
+    final notesController = TextEditingController();
+    var includeCheckOut = true;
+
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Manual Entry'),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            String label(DateTime dt) =>
+                '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
+                '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+            Future<void> pickIn() async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: checkIn,
+                firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                lastDate: DateTime.now(),
+              );
+              if (date == null || !context.mounted) return;
+              final time = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay.fromDateTime(checkIn),
+              );
+              if (time == null) return;
+              setState(() {
+                checkIn = DateTime(
+                  date.year,
+                  date.month,
+                  date.day,
+                  time.hour,
+                  time.minute,
+                );
+              });
+            }
+
+            Future<void> pickOut() async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: checkOut,
+                firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                lastDate: DateTime.now(),
+              );
+              if (date == null || !context.mounted) return;
+              final time = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay.fromDateTime(checkOut),
+              );
+              if (time == null) return;
+              setState(() {
+                checkOut = DateTime(
+                  date.year,
+                  date.month,
+                  date.day,
+                  time.hour,
+                  time.minute,
+                );
+              });
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  key: const Key('staff-manual-entry-check-in'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Check in'),
+                  subtitle: Text(label(checkIn)),
+                  trailing: const Icon(Icons.edit_calendar_outlined),
+                  onTap: pickIn,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Include check out'),
+                  value: includeCheckOut,
+                  onChanged: (v) => setState(() => includeCheckOut = v),
+                ),
+                if (includeCheckOut)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Check out'),
+                    subtitle: Text(label(checkOut)),
+                    trailing: const Icon(Icons.edit_calendar_outlined),
+                    onTap: pickOut,
+                  ),
+                TextField(
+                  controller: notesController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                  ),
+                ),
+                if ((session.residenceId ?? '').isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Assign a residence before submitting.',
+                      style: TextStyle(color: AppColors.criticalRed),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const Key('staff-manual-entry-submit'),
+            onPressed: () => Get.back(result: true),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+
+    final notes = notesController.text.trim();
+    notesController.dispose();
+    if (confirmed != true) return;
+
+    setLoading(true);
+    final result = await repository.recordManualAttendance(
+      checkInAtIso: checkIn.toUtc().toIso8601String(),
+      checkOutAtIso:
+          includeCheckOut ? checkOut.toUtc().toIso8601String() : null,
+      notes: notes.isEmpty ? null : notes,
+    );
+    setLoading(false);
+    if (result.isFailure) {
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not save manual entry',
+      );
+      return;
+    }
+    Get.snackbar(
+      'Manual entry saved',
+      'Attendance record submitted for review.',
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: Colors.white,
     );

@@ -12,9 +12,11 @@ import '../../extras/presentation/pages/staff_admissions_page.dart';
 import '../../extras/presentation/pages/staff_client_activities_page.dart';
 import '../../extras/presentation/pages/staff_emergency_page.dart';
 import '../../extras/presentation/pages/staff_inventory_page.dart';
+import '../../extras/presentation/pages/staff_recurring_checks_page.dart';
+import '../../extras/presentation/pages/staff_residences_page.dart';
 import '../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
-import '../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
+import '../open_staff_profile.dart';
 import '../widgets/staff_menu_entry.dart';
 
 class StaffMoreMenuPage extends StatelessWidget {
@@ -42,6 +44,20 @@ class StaffMoreMenuPage extends StatelessWidget {
       body: SafeArea(
         child: Obx(() {
           final entries = <StaffMenuEntry>[
+            const StaffMenuEntry(
+              icon: Icons.home_work_outlined,
+              iconBackground: AppColors.activeBackground,
+              iconColor: AppColors.activeGreen,
+              title: 'Residence',
+              subtitle: 'Your assigned home and residence details',
+            ),
+            const StaffMenuEntry(
+              icon: Icons.fact_check_outlined,
+              iconBackground: AppColors.urgentBackground,
+              iconColor: AppColors.urgentAmber,
+              title: 'Recurring Checks',
+              subtitle: 'Due recurring checks assigned to you',
+            ),
             if (session.canReadEmergency)
               const StaffMenuEntry(
                 icon: Icons.warning_amber_rounded,
@@ -132,6 +148,10 @@ class StaffMoreMenuPage extends StatelessWidget {
 
   void _open(String title) {
     switch (title) {
+      case 'Residence':
+        Get.to(() => const StaffResidencesPage());
+      case 'Recurring Checks':
+        Get.to(() => const StaffRecurringChecksPage());
       case 'Emergency':
         Get.to(() => const StaffEmergencyPage());
       case 'Shift handovers':
@@ -147,7 +167,7 @@ class StaffMoreMenuPage extends StatelessWidget {
       case 'Incidents':
         Get.to(() => const StaffIncidentsListPage());
       case 'Profile & Settings':
-        Get.to(() => const StaffProfileSettingsPage());
+        openStaffProfile();
     }
   }
 }

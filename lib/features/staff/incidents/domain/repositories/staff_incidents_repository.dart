@@ -46,6 +46,9 @@ abstract class StaffIncidentsRepository {
   /// `GET /incidents/cir-templates`
   Future<Result<List<StaffCirTemplateOption>>> getCirTemplates();
 
+  /// `GET /residences` — residence picker on Create Incident.
+  Future<Result<List<StaffIncidentResidenceOption>>> getResidences();
+
   /// `GET /clients?assignedToMe=true` or `?search=`
   Future<Result<List<StaffIncidentClientOption>>> getClients({
     String? search,

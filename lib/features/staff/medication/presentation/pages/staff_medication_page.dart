@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../extras/presentation/pages/staff_residences_page.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../../domain/entities/staff_medication_enums.dart';
@@ -151,6 +152,8 @@ class _StaffMedicationError extends StatelessWidget {
 
   const _StaffMedicationError({required this.message, required this.onRetry});
 
+  bool get _isNoResidence => message.toLowerCase().contains('residence');
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -171,9 +174,39 @@ class _StaffMedicationError extends StatelessWidget {
               ),
             ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+            if (_isNoResidence) ...[
+              ElevatedButton(
+                key: const Key('staff-mar-view-residence'),
+                onPressed: () => Get.to(() => const StaffResidencesPage()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.secondaryTeal,
+                  foregroundColor: Colors.white,
+                  minimumSize: Size(
+                    ResponsiveHelper.getResponsiveWidth(context, 200),
+                    ResponsiveHelper.getResponsiveHeight(context, 44),
+                  ),
+                ),
+                child: const Text('View Residence'),
+              ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            ],
             ElevatedButton(
+              key: const Key('staff-mar-retry'),
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isNoResidence
+                    ? AppColors.surfaceWhite
+                    : AppColors.secondaryTeal,
+                foregroundColor:
+                    _isNoResidence ? AppColors.secondaryTeal : Colors.white,
+                side: _isNoResidence
+                    ? const BorderSide(color: AppColors.secondaryTeal)
+                    : BorderSide.none,
+                minimumSize: Size(
+                  ResponsiveHelper.getResponsiveWidth(context, 200),
+                  ResponsiveHelper.getResponsiveHeight(context, 44),
+                ),
+              ),
               child: const Text('Retry'),
             ),
           ],

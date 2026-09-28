@@ -100,18 +100,92 @@ TextStyle _fieldTextStyle(BuildContext context, {required bool isPlaceholder}) {
   );
 }
 
-/// Editable filled text field (title / location).
+/// Editable filled text field (title / location / notes).
 class CreateIncidentTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
+  final int maxLines;
 
-  const CreateIncidentTextField({super.key, required this.controller, required this.hint});
+  const CreateIncidentTextField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    this.maxLines = 1,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (maxLines > 1) {
+      return Container(
+        width: double.infinity,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 14,
+          vertical: 14,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4F7F9),
+          borderRadius: BorderRadius.circular(
+            ResponsiveHelper.getResponsiveRadius(context, 12),
+          ),
+        ),
+        child: TextField(
+          controller: controller,
+          maxLines: maxLines,
+          minLines: 3,
+          style: _fieldTextStyle(context, isPlaceholder: false),
+          decoration: InputDecoration(
+            isDense: true,
+            border: InputBorder.none,
+            hintText: hint,
+            hintStyle: _fieldTextStyle(context, isPlaceholder: true),
+          ),
+        ),
+      );
+    }
+    return _FieldShell(
+      child: TextField(
+        controller: controller,
+        maxLines: 1,
+        style: _fieldTextStyle(context, isPlaceholder: false),
+        decoration: InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          hintText: hint,
+          hintStyle: _fieldTextStyle(context, isPlaceholder: true),
+        ),
+      ),
+    );
+  }
+}
+
+/// Search field with trailing search icon (BUG_Report012).
+class CreateIncidentSearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String>? onChanged;
+  final Key? fieldKey;
+
+  const CreateIncidentSearchField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    this.onChanged,
+    this.fieldKey,
+  });
 
   @override
   Widget build(BuildContext context) {
     return _FieldShell(
+      trailing: const AppSvgIcon(
+        AppAssets.search,
+        size: 17,
+        color: Color(0xFF94A3B8),
+      ),
       child: TextField(
+        key: fieldKey,
         controller: controller,
+        onChanged: onChanged,
         style: _fieldTextStyle(context, isPlaceholder: false),
         decoration: InputDecoration(
           isDense: true,

@@ -373,6 +373,70 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
     );
   }
 
+  @override
+  Future<Result<String>> createClient({
+    required String name,
+    required String residenceId,
+    String? room,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.clients,
+      data: {
+        'preferredName': name,
+        'name': name,
+        'residenceId': residenceId,
+        if (room != null && room.trim().isNotEmpty) 'room': room.trim(),
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        final id = JsonCodec.string(json['id']) ?? '';
+        return Result.success(id);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<({String id, String name})>>> getResidenceOptions() async {
+    final result = await _api.get(ApiEndpoints.residences, silent: true);
+    return result.when(
+      success: (body) async {
+        final options = <({String id, String name})>[];
+        for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
+          final json = JsonCodec.asMap(item);
+          final id = JsonCodec.string(json['id']);
+          final name = JsonCodec.string(json['name'] ?? json['title']);
+          if (id == null || id.isEmpty || name == null || name.isEmpty) continue;
+          options.add((id: id, name: name));
+        }
+        final sessionId = _session.residenceId;
+        final sessionName = _session.residenceName;
+        if (sessionId != null &&
+            sessionId.isNotEmpty &&
+            sessionName != null &&
+            sessionName.isNotEmpty &&
+            !options.any((o) => o.id == sessionId)) {
+          options.insert(0, (id: sessionId, name: sessionName));
+        }
+        return Result.success(options);
+      },
+      failure: (error) async {
+        final sessionId = _session.residenceId;
+        final sessionName = _session.residenceName;
+        if (sessionId != null &&
+            sessionId.isNotEmpty &&
+            sessionName != null &&
+            sessionName.isNotEmpty) {
+          return Result.success([(id: sessionId, name: sessionName)]);
+        }
+        return Result.failure(error);
+      },
+    );
+  }
+
   static String _fileTypeFromName(String fileName) {
     final lower = fileName.toLowerCase();
     if (lower.endsWith('.png')) return 'image/png';

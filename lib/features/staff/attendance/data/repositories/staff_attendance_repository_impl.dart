@@ -221,4 +221,49 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       failure: (error) async => Result.failure(error),
     );
   }
+
+  @override
+  Future<Result<String>> recordManualAttendance({
+    required String checkInAtIso,
+    String? checkOutAtIso,
+    String? residenceId,
+    String? staffId,
+    String? notes,
+    String reasonCategory = 'other',
+  }) async {
+    final resolvedStaff = staffId ?? _session.staffId;
+    final resolvedResidence = residenceId ?? _session.residenceId;
+    if (resolvedStaff == null || resolvedStaff.isEmpty) {
+      return Result.failure(
+        const ApiError(message: 'Staff profile is required for manual entry.'),
+      );
+    }
+    if (resolvedResidence == null || resolvedResidence.isEmpty) {
+      return Result.failure(
+        const ApiError(message: 'Residence is required for manual entry.'),
+      );
+    }
+    final result = await _api.post(
+      ApiEndpoints.attendanceManual,
+      data: {
+        'staffId': resolvedStaff,
+        'residenceId': resolvedResidence,
+        'checkInAt': checkInAtIso,
+        if (checkOutAtIso != null && checkOutAtIso.isNotEmpty)
+          'checkOutAt': checkOutAtIso,
+        'status': 'pending_approval',
+        'reasonCategory': reasonCategory,
+        'breakMinutes': 0,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        return Result.success(JsonCodec.string(json['id']) ?? '');
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
 }

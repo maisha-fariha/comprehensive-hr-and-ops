@@ -367,6 +367,47 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   }
 
   @override
+  Future<Result<List<StaffIncidentResidenceOption>>> getResidences() async {
+    final result = await _api.get(ApiEndpoints.residences, silent: true);
+    return result.when(
+      success: (body) async {
+        final options = StaffIncidentsMapper.residencesFrom(body);
+        final sessionId = _session.residenceId;
+        final sessionName = _session.residenceName;
+        if (sessionName != null &&
+            sessionName.isNotEmpty &&
+            !options.any(
+              (o) =>
+                  o.id == (sessionId ?? '') ||
+                  o.name == sessionName,
+            )) {
+          options.insert(
+            0,
+            StaffIncidentResidenceOption(
+              id: sessionId ?? sessionName,
+              name: sessionName,
+            ),
+          );
+        }
+        return Result.success(options);
+      },
+      failure: (error) async {
+        final sessionName = _session.residenceName;
+        final sessionId = _session.residenceId;
+        if (sessionName != null && sessionName.isNotEmpty) {
+          return Result.success([
+            StaffIncidentResidenceOption(
+              id: sessionId ?? sessionName,
+              name: sessionName,
+            ),
+          ]);
+        }
+        return Result.failure(error);
+      },
+    );
+  }
+
+  @override
   Future<Result<List<StaffIncidentClientOption>>> getClients({
     String? search,
     bool assignedToMe = true,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -45,24 +47,77 @@ class IncidentCreationController extends GetxController {
   // Section 2
   final Rx<IncidentSeverity> severity = IncidentSeverity.medium.obs;
 
-  // Section 3
+  // Section 3 — People & Location (BUG_Report011–014)
+  final RxList<StaffIncidentResidenceOption> residences =
+      <StaffIncidentResidenceOption>[].obs;
+  final Rxn<StaffIncidentResidenceOption> selectedResidence =
+      Rxn<StaffIncidentResidenceOption>();
   final RxList<StaffIncidentClientOption> clients =
       <StaffIncidentClientOption>[].obs;
   final Rxn<StaffIncidentClientOption> selectedClient =
       Rxn<StaffIncidentClientOption>();
+  final TextEditingController clientSearchController = TextEditingController();
+  final RxList<StaffIncidentClientOption> clientSuggestions =
+      <StaffIncidentClientOption>[].obs;
+  final RxBool showClientSuggestions = false.obs;
+  final RxBool isSearchingClients = false.obs;
   final TextEditingController locationController = TextEditingController();
+  final TextEditingController staffInvolvedController = TextEditingController();
+  final RxList<String> witnesses = <String>[].obs;
   final RxString reporterName = ''.obs;
   final RxString reporterMeta = ''.obs;
   final RxString reporterInitials = ''.obs;
 
+  // CFS Details (BUG_Report013)
+  static const List<(String, String)> cfsStatusOptions = [
+    ('cag', 'CAG'),
+    ('cay', 'CAY'),
+    ('ico', 'ICO'),
+    ('tgo', 'TGO'),
+    ('pgo', 'PGO'),
+    ('sfp', 'SFP'),
+  ];
+  final RxnString cfsStatus = RxnString();
+  final TextEditingController childLastNameController = TextEditingController();
+  final TextEditingController childFirstNameController = TextEditingController();
+  final TextEditingController childDobController = TextEditingController();
+  final TextEditingController childIdController = TextEditingController();
+  final TextEditingController cipController = TextEditingController();
+  final TextEditingController cipOfficeController = TextEditingController();
+
+  // People & Location toggles (BUG_Report014)
+  final RxBool cfsNotified = false.obs;
+  final RxBool policeNotified = false.obs;
+
   // Section 4
   final TextEditingController descriptionController = TextEditingController();
 
-  // Section 5
+  // Investigation (BUG_Report015)
+  final TextEditingController immediateActionController = TextEditingController();
+  final TextEditingController investigationNotesController =
+      TextEditingController();
+  final RxBool followUpRequired = false.obs;
+  final TextEditingController followUpDateController = TextEditingController();
+  final TextEditingController supervisorAssignmentController =
+      TextEditingController();
+
+  // Evidence (BUG_Report016)
   final RxList<StaffIncidentEvidenceFile> evidenceFiles =
       <StaffIncidentEvidenceFile>[].obs;
+  final TextEditingController additionalNotesController =
+      TextEditingController();
+  final RxInt evidenceTabIndex = 0.obs;
 
-  // Section 6 — tri-state checklist (null = unanswered)
+  // Report Form (BUG_Report017)
+  final TextEditingController personsInvolvedController =
+      TextEditingController();
+  final TextEditingController incidentLocationDescriptionController =
+      TextEditingController();
+  final TextEditingController incidentTypeNotesController =
+      TextEditingController();
+  final TextEditingController endReturnTimeController = TextEditingController();
+
+  // Follow-up checklist — tri-state (null = unanswered)
   final RxnBool residentChecked = RxnBool();
   final RxnBool supervisorNotified = RxnBool();
   final RxnBool familyNotified = RxnBool();
@@ -74,6 +129,19 @@ class IncidentCreationController extends GetxController {
   String? get incidentCategoryLabel => selectedCategory.value?.name;
   String? get cirTemplateLabel => selectedCirTemplate.value?.name;
   String? get residentLabel => selectedClient.value?.name;
+  String? get residenceLabel => selectedResidence.value?.name;
+
+  String? get cfsStatusLabel {
+    final value = cfsStatus.value;
+    if (value == null) return null;
+    for (final option in cfsStatusOptions) {
+      if (option.$1 == value) return option.$2;
+    }
+    return value;
+  }
+
+  Timer? _clientSearchDebounce;
+  int _clientSearchRequestId = 0;
 
   @override
   void onInit() {
@@ -104,6 +172,15 @@ class IncidentCreationController extends GetxController {
       if (session.avatarInitials.trim().isNotEmpty) {
         reporterInitials.value = session.avatarInitials.trim();
       }
+      if (session.residenceId != null &&
+          session.residenceId!.isNotEmpty &&
+          session.residenceName != null &&
+          session.residenceName!.isNotEmpty) {
+        selectedResidence.value = StaffIncidentResidenceOption(
+          id: session.residenceId!,
+          name: session.residenceName!,
+        );
+      }
     } catch (_) {
       reporterName.value = 'You';
       reporterInitials.value = 'YO';
@@ -115,6 +192,7 @@ class IncidentCreationController extends GetxController {
     isLoadingOptions.value = true;
     final cats = await repository.getCategories();
     final templates = await repository.getCirTemplates();
+    final residenceResult = await repository.getResidences();
     final assigned = await repository.getClients(assignedToMe: true);
     isLoadingOptions.value = false;
 
@@ -124,6 +202,22 @@ class IncidentCreationController extends GetxController {
     );
     templates.when(
       success: cirTemplates.assignAll,
+      failure: (_) {},
+    );
+    residenceResult.when(
+      success: (list) {
+        residences.assignAll(list);
+        if (selectedResidence.value == null && list.length == 1) {
+          selectedResidence.value = list.first;
+        } else if (selectedResidence.value != null) {
+          final match = list.where(
+            (r) => r.id == selectedResidence.value!.id,
+          );
+          if (match.isNotEmpty) {
+            selectedResidence.value = match.first;
+          }
+        }
+      },
       failure: (_) {},
     );
     assigned.when(
@@ -165,6 +259,104 @@ class IncidentCreationController extends GetxController {
     if (selected != null) detectedDuring.value = selected;
   }
 
+  Future<void> pickResidence() async {
+    if (residences.isEmpty) {
+      final result = await repository.getResidences();
+      result.when(
+        success: residences.assignAll,
+        failure: (error) => AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not load residences',
+        ),
+      );
+    }
+    final selected = await _pickOption<StaffIncidentResidenceOption>(
+      title: 'Residence',
+      options: residences.toList(),
+      labelOf: (o) => o.name,
+    );
+    if (selected == null) return;
+    selectedResidence.value = selected;
+    if (selectedClient.value != null &&
+        selectedClient.value!.residenceId != null &&
+        selectedClient.value!.residenceId != selected.id) {
+      selectedClient.value = null;
+      clientSearchController.clear();
+    }
+  }
+
+  void onClientQueryChanged(String query) {
+    final selected = selectedClient.value;
+    if (selected != null && query.trim() != selected.name) {
+      selectedClient.value = null;
+    }
+    _clientSearchDebounce?.cancel();
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      _clientSearchRequestId++;
+      isSearchingClients.value = false;
+      clientSuggestions.clear();
+      showClientSuggestions.value = false;
+      return;
+    }
+    showClientSuggestions.value = true;
+    _clientSearchDebounce = Timer(
+      const Duration(milliseconds: 320),
+      () => _searchClients(trimmed),
+    );
+  }
+
+  Future<void> _searchClients(String query) async {
+    final requestId = ++_clientSearchRequestId;
+    isSearchingClients.value = true;
+    final result = await repository.getClients(
+      search: query,
+      assignedToMe: false,
+    );
+    if (requestId != _clientSearchRequestId) return;
+    isSearchingClients.value = false;
+    result.when(
+      success: (list) {
+        final residenceId = selectedResidence.value?.id;
+        final filtered = residenceId == null
+            ? list
+            : list
+                .where(
+                  (c) =>
+                      c.residenceId == null ||
+                      c.residenceId == residenceId ||
+                      c.residenceId!.isEmpty,
+                )
+                .toList();
+        clientSuggestions.assignAll(filtered);
+      },
+      failure: (_) => clientSuggestions.clear(),
+    );
+  }
+
+  void selectClientFromSearch(StaffIncidentClientOption client) {
+    _clientSearchDebounce?.cancel();
+    _clientSearchRequestId++;
+    selectedClient.value = client;
+    clientSearchController.text = client.name;
+    showClientSuggestions.value = false;
+    clientSuggestions.clear();
+    isSearchingClients.value = false;
+    if (client.residenceId != null &&
+        client.residenceId!.isNotEmpty &&
+        client.residenceName != null &&
+        client.residenceName!.isNotEmpty) {
+      selectedResidence.value = StaffIncidentResidenceOption(
+        id: client.residenceId!,
+        name: client.residenceName!,
+      );
+    }
+    if (locationController.text.trim().isEmpty &&
+        (client.roomLabel?.isNotEmpty ?? false)) {
+      locationController.text = client.roomLabel!;
+    }
+  }
+
   Future<void> pickResident() async {
     if (clients.isEmpty) {
       final result = await repository.getClients(assignedToMe: true);
@@ -176,19 +368,68 @@ class IncidentCreationController extends GetxController {
         ),
       );
     }
+    var options = clients.toList();
+    final residenceId = selectedResidence.value?.id;
+    if (residenceId != null) {
+      final scoped = options
+          .where(
+            (c) =>
+                c.residenceId == null ||
+                c.residenceId == residenceId ||
+                c.residenceId!.isEmpty,
+          )
+          .toList();
+      if (scoped.isNotEmpty) options = scoped;
+    }
     final selected = await _pickOption<StaffIncidentClientOption>(
       title: 'Resident / Client',
-      options: clients.toList(),
+      options: options,
       labelOf: (o) => o.name,
       subtitleOf: (o) => o.subtitle,
     );
     if (selected == null) return;
-    selectedClient.value = selected;
-    if (locationController.text.trim().isEmpty &&
-        (selected.roomLabel?.isNotEmpty ?? false)) {
-      locationController.text = selected.roomLabel!;
-    }
+    selectClientFromSearch(selected);
   }
+
+  Future<void> pickCfsStatus() async {
+    final selected = await _pickOption<(String, String)>(
+      title: 'CFS Status',
+      options: cfsStatusOptions,
+      labelOf: (o) => o.$2,
+    );
+    if (selected != null) cfsStatus.value = selected.$1;
+  }
+
+  Future<void> promptAddWitness() async {
+    final input = TextEditingController();
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Add witness'),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Witness name'),
+          textCapitalization: TextCapitalization.words,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    final name = input.text.trim();
+    input.dispose();
+    if (confirmed != true || name.isEmpty) return;
+    if (!witnesses.contains(name)) witnesses.add(name);
+  }
+
+  void removeWitness(String name) => witnesses.remove(name);
 
   Future<void> pickDate(BuildContext context) async {
     final now = DateTime.now();
@@ -275,13 +516,14 @@ class IncidentCreationController extends GetxController {
 
     final client = selectedClient.value!;
     final category = selectedCategory.value!;
-    final residenceId = client.residenceId ??
+    final residenceId = selectedResidence.value?.id ??
+        client.residenceId ??
         Get.find<UserSession>().residenceId ??
         '';
     if (residenceId.isEmpty) {
       AppErrorDialog.showPageError(
         title: 'Missing residence',
-        message: 'This client has no residence linked for the report.',
+        message: 'Select a residence for this incident report.',
       );
       return;
     }
@@ -295,6 +537,44 @@ class IncidentCreationController extends GetxController {
       if (location.isNotEmpty) 'location': location,
       if (detectedDuring.value != null)
         'detectedDuring': detectedDuring.value,
+      if (staffInvolvedController.text.trim().isNotEmpty)
+        'staffInvolvedName': staffInvolvedController.text.trim(),
+      if (witnesses.isNotEmpty) 'witnesses': witnesses.toList(),
+      if (cfsStatus.value != null) 'cfsStatus': cfsStatus.value,
+      if (childLastNameController.text.trim().isNotEmpty)
+        'childLastName': childLastNameController.text.trim(),
+      if (childFirstNameController.text.trim().isNotEmpty)
+        'childFirstName': childFirstNameController.text.trim(),
+      if (childDobController.text.trim().isNotEmpty)
+        'childDateOfBirth': childDobController.text.trim(),
+      if (childIdController.text.trim().isNotEmpty)
+        'childIdNumber': childIdController.text.trim(),
+      if (cipController.text.trim().isNotEmpty)
+        'childInterventionPractitioner': cipController.text.trim(),
+      if (cipOfficeController.text.trim().isNotEmpty)
+        'cipOffice': cipOfficeController.text.trim(),
+      'cfsNotified': cfsNotified.value,
+      'policeNotified': policeNotified.value,
+      if (immediateActionController.text.trim().isNotEmpty)
+        'immediateAction': immediateActionController.text.trim(),
+      if (investigationNotesController.text.trim().isNotEmpty)
+        'investigationNotes': investigationNotesController.text.trim(),
+      'followUpRequired': followUpRequired.value,
+      if (followUpDateController.text.trim().isNotEmpty)
+        'followUpDate': followUpDateController.text.trim(),
+      if (supervisorAssignmentController.text.trim().isNotEmpty)
+        'supervisorAssignment': supervisorAssignmentController.text.trim(),
+      if (additionalNotesController.text.trim().isNotEmpty)
+        'additionalNotes': additionalNotesController.text.trim(),
+      if (personsInvolvedController.text.trim().isNotEmpty)
+        'personsInvolved': personsInvolvedController.text.trim(),
+      if (incidentLocationDescriptionController.text.trim().isNotEmpty)
+        'incidentLocationDescription':
+            incidentLocationDescriptionController.text.trim(),
+      if (incidentTypeNotesController.text.trim().isNotEmpty)
+        'incidentTypeNotes': incidentTypeNotesController.text.trim(),
+      if (endReturnTimeController.text.trim().isNotEmpty)
+        'endReturnTime': endReturnTimeController.text.trim(),
     };
 
     isSubmitting.value = true;
@@ -366,8 +646,14 @@ class IncidentCreationController extends GetxController {
     if (detectedDuring.value == null || detectedDuring.value!.isEmpty) {
       return 'Select when the incident was detected.';
     }
+    if (selectedResidence.value == null) {
+      return 'Select a residence.';
+    }
     if (selectedClient.value == null) {
       return 'Select a resident / client.';
+    }
+    if (locationController.text.trim().isEmpty) {
+      return 'Enter the incident location.';
     }
     if (descriptionController.text.trim().isEmpty) {
       return 'Describe what happened.';
@@ -494,11 +780,29 @@ class IncidentCreationController extends GetxController {
 
   @override
   void onClose() {
+    _clientSearchDebounce?.cancel();
     incidentTitleController.dispose();
     incidentDateController.dispose();
     incidentTimeController.dispose();
+    clientSearchController.dispose();
     locationController.dispose();
+    staffInvolvedController.dispose();
+    childLastNameController.dispose();
+    childFirstNameController.dispose();
+    childDobController.dispose();
+    childIdController.dispose();
+    cipController.dispose();
+    cipOfficeController.dispose();
     descriptionController.dispose();
+    immediateActionController.dispose();
+    investigationNotesController.dispose();
+    followUpDateController.dispose();
+    supervisorAssignmentController.dispose();
+    additionalNotesController.dispose();
+    personsInvolvedController.dispose();
+    incidentLocationDescriptionController.dispose();
+    incidentTypeNotesController.dispose();
+    endReturnTimeController.dispose();
     super.onClose();
   }
 }

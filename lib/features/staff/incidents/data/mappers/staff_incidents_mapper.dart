@@ -315,6 +315,34 @@ abstract final class StaffIncidentsMapper {
     return options;
   }
 
+  static List<StaffIncidentResidenceOption> residencesFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final options = <StaffIncidentResidenceOption>[];
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final name = JsonCodec.string(
+            json['name'] ??
+                json['label'] ??
+                json['title'] ??
+                json['residenceName'] ??
+                json['displayName'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      options.add(
+        StaffIncidentResidenceOption(
+          id: JsonCodec.stringOr(
+            json['id'] ?? json['residenceId'] ?? name,
+            name,
+          ),
+          name: name,
+        ),
+      );
+    }
+    return options;
+  }
+
   static List<StaffIncidentClientOption> clientsFrom(dynamic body) {
     final source = JsonCodec.unwrapList(body);
     final options = <StaffIncidentClientOption>[];

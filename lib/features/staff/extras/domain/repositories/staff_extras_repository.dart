@@ -4,7 +4,12 @@ import '../entities/staff_shift_handover.dart';
 
 /// Staff APIs that exist outside the main Figma flows (B10).
 abstract class StaffExtrasRepository {
-  Future<Result<List<StaffShiftHandover>>> getHandovers({String? residenceId});
+  Future<Result<List<StaffShiftHandover>>> getHandovers({
+    String? residenceId,
+    DateTime? from,
+    DateTime? to,
+    String? status,
+  });
 
   Future<Result<StaffShiftHandover>> getHandoverDetail(String handoverId);
 
@@ -52,4 +57,7 @@ abstract class StaffExtrasRepository {
   });
 
   Future<Result<List<Map<String, String>>>> getTrainingCertificates();
+
+  /// `GET /residences` — residences available to the signed-in staff member.
+  Future<Result<List<Map<String, String>>>> getResidences();
 }

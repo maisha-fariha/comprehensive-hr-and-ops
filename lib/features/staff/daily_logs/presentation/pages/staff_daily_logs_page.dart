@@ -106,18 +106,25 @@ class StaffDailyLogsPage extends StatelessWidget {
                   child: switch (controller.selectedTab.value) {
                     StaffDailyLogsTab.myClients => MyClientsTabView(
                         stats: overview.stats,
-                        myClients: overview.myClients,
+                        myClients: controller.filteredMyClients,
                         myClientsTotalCount: overview.myClientsTotalCount,
                         onClientTap: _openDailyNote,
+                        searchQuery: controller.searchQuery.value,
+                        onSearchChanged: controller.setSearchQuery,
+                        selectedResidenceId:
+                            controller.selectedResidenceId.value,
+                        residenceOptions: controller.residenceOptions.toList(),
+                        onResidenceChanged: controller.setResidenceFilter,
+                        onAddClient: controller.showAddClientDialog,
                       ),
                     StaffDailyLogsTab.inProgress => InProgressTabView(
                         stats: overview.stats,
-                        inProgressClients: overview.inProgressClients,
+                        inProgressClients: controller.filteredInProgressClients,
                         onClientTap: _openDailyNote,
                       ),
                     StaffDailyLogsTab.submitted => SubmittedTabView(
                         stats: overview.stats,
-                        submittedClients: overview.submittedClients,
+                        submittedClients: controller.filteredSubmittedClients,
                         submittedTotalCount: overview.submittedTotalCount,
                         onClientTap: _openDailyNote,
                       ),

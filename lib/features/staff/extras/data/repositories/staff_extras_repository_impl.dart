@@ -22,23 +22,50 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
   @override
   Future<Result<List<StaffShiftHandover>>> getHandovers({
     String? residenceId,
+    DateTime? from,
+    DateTime? to,
+    String? status,
   }) async {
     final rid = residenceId ?? _session.residenceId;
     final result = await _api.get(
       ApiEndpoints.shiftHandovers,
       query: {
         if (rid != null && rid.isNotEmpty) 'residenceId': rid,
+        if (from != null) 'from': from.toUtc().toIso8601String(),
+        if (to != null) 'to': to.toUtc().toIso8601String(),
+        if (status != null && status.isNotEmpty && status != 'all')
+          'status': status,
       },
       silent: true,
     );
     return result.when(
-      success: (body) async => Result.success(
-        JsonCodec.unwrapList(body)
+      success: (body) async {
+        var items = JsonCodec.unwrapList(body)
             .whereType<Map>()
             .map((item) => StaffShiftHandover.fromJson(JsonCodec.asMap(item)))
             .where((item) => item.id.isNotEmpty)
-            .toList(),
-      ),
+            .toList();
+        // Local fallback filters when API ignores query params.
+        if (from != null || to != null || (status != null && status != 'all')) {
+          items = items.where((item) {
+            final created = item.createdAt;
+            if (from != null && created != null && created.isBefore(from)) {
+              return false;
+            }
+            if (to != null && created != null && created.isAfter(to)) {
+              return false;
+            }
+            if (status != null &&
+                status.isNotEmpty &&
+                status != 'all' &&
+                item.status.toLowerCase() != status.toLowerCase()) {
+              return false;
+            }
+            return true;
+          }).toList();
+        }
+        return Result.success(items);
+      },
       failure: (error) async => Result.failure(error),
     );
   }
@@ -244,6 +271,52 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
         ),
       ),
       failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<Map<String, String>>>> getResidences() async {
+    final result = await _api.get(ApiEndpoints.residences, silent: true);
+    return result.when(
+      success: (body) async {
+        final rows = StaffExtrasMapper.rowsFrom(
+          body,
+          titleKeys: 'name,title',
+          subtitleKeys: 'address,city,status,code',
+        );
+        // Always surface the session residence so the module is never empty
+        // when the directory call is scoped/empty for this role.
+        final sessionId = _session.residenceId;
+        final sessionName = _session.residenceName;
+        if (sessionName != null &&
+            sessionName.isNotEmpty &&
+            !rows.any(
+              (row) =>
+                  (row['id'] ?? '') == (sessionId ?? '') ||
+                  (row['title'] ?? '') == sessionName,
+            )) {
+          rows.insert(0, {
+            'id': sessionId ?? sessionName,
+            'title': sessionName,
+            'subtitle': 'Assigned residence',
+          });
+        }
+        return Result.success(rows);
+      },
+      failure: (error) async {
+        final sessionName = _session.residenceName;
+        final sessionId = _session.residenceId;
+        if (sessionName != null && sessionName.isNotEmpty) {
+          return Result.success([
+            {
+              'id': sessionId ?? sessionName,
+              'title': sessionName,
+              'subtitle': 'Assigned residence',
+            },
+          ]);
+        }
+        return Result.failure(error);
+      },
     );
   }
 }

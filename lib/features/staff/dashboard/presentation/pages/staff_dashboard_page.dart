@@ -15,7 +15,7 @@ import '../../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../../extras/presentation/widgets/staff_raise_emergency_dialog.dart';
 import '../../../incidents/presentation/pages/staff_incidents_list_page.dart';
 import '../../../medication/presentation/pages/staff_medication_page.dart';
-import '../../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
+import '../../../presentation/open_staff_profile.dart';
 import '../../../staff_shell.dart';
 import '../../../tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
 import '../controllers/staff_dashboard_controller.dart';
@@ -100,8 +100,7 @@ class StaffDashboardPage extends StatelessWidget {
                       onNotificationsTap: () =>
                           Get.to(() => const PortalNotificationsPage()),
                       onPanicTap: () => StaffRaiseEmergencyDialog.show(),
-                      onAvatarTap: () =>
-                          Get.to(() => const StaffProfileSettingsPage()),
+                      onAvatarTap: openStaffProfile,
                     ),
                     Positioned(
                       left: horizontal,

@@ -204,4 +204,35 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
       failure: (error) async => Result.failure(error),
     );
   }
+
+  @override
+  Future<Result<String>> createShift({
+    required String residenceId,
+    required String shiftDate,
+    required String startTime,
+    required String endTime,
+    String shiftType = 'day',
+    String? title,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shifts,
+      data: {
+        'residenceId': residenceId,
+        'shiftDate': shiftDate,
+        'startTime': startTime,
+        'endTime': endTime,
+        'shiftType': shiftType,
+        if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+        'peopleNeeded': 1,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        return Result.success(JsonCodec.string(json['id']) ?? '');
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
 }

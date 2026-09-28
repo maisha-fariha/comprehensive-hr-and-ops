@@ -144,6 +144,49 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   }
 
   @override
+  Future<Result<void>> createTask({
+    required String title,
+    String? description,
+    String priority = 'medium',
+    DateTime? dueAt,
+  }) async {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Task title is required.'),
+      );
+    }
+    final residenceId = _session.residenceId?.trim() ?? '';
+    if (residenceId.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Residence is required to create a task.'),
+      );
+    }
+
+    final result = await _api.post(
+      ApiEndpoints.tasks,
+      data: {
+        'title': trimmed,
+        'residenceId': residenceId,
+        'priority': priority.toLowerCase(),
+        'taskType': 'general',
+        'requiresReview': false,
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
+        if (dueAt != null) 'dueAt': dueAt.toUtc().toIso8601String(),
+        if (_session.staffId != null && _session.staffId!.isNotEmpty)
+          'assignedStaffIds': [_session.staffId],
+      },
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<void>> addTaskNote({
     required String taskId,
     required String body,

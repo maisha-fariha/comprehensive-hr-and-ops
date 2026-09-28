@@ -2,7 +2,8 @@ import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
-
+import '../../../../../core/roles/user_session.dart';
+import '../../data/mappers/staff_profile_mapper.dart';
 import '../../domain/entities/staff_profile_settings_overview.dart';
 import '../../domain/repositories/staff_profile_settings_repository.dart';
 
@@ -10,7 +11,24 @@ class StaffProfileSettingsController extends BaseController<StaffProfileSettings
   final StaffProfileSettingsRepository repository;
 
   StaffProfileSettingsController({required this.repository}) {
+    // BUG_Report001: seed from the signed-in session so Profile always opens
+    // immediately (even when `/mobile/me` or clients are slow/offline).
+    _seedFromSession();
     loadOverview();
+  }
+
+  void _seedFromSession() {
+    try {
+      final session = Get.find<UserSession>();
+      setSuccess(
+        StaffProfileMapper.compose(
+          session: session,
+          clientsBody: const <dynamic>[],
+        ),
+      );
+    } catch (_) {
+      // Session not ready yet — [loadOverview] will populate shortly.
+    }
   }
 
   final RxBool pushNotificationsEnabled = false.obs;
@@ -27,7 +45,13 @@ class StaffProfileSettingsController extends BaseController<StaffProfileSettings
         darkModeEnabled.value = overview.darkModeEnabled;
         setSuccess(overview);
       },
-      failure: (error) => setError(error.message),
+      failure: (error) {
+        // Keep session-seeded profile if network refresh fails so the
+        // Profile screen still opens with usable content (BUG_Report001).
+        if (state.value.data == null) {
+          setError(error.message);
+        }
+      },
     );
     setLoading(false);
   }

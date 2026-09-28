@@ -26,7 +26,9 @@ abstract final class StaffAttendanceMapper {
     final checkIn = JsonCodec.dateTime(
       open?['checkInAt'] ?? open?['clockInAt'] ?? open?['checkIn'],
     );
-    final onShift = open != null && checkIn != null;
+    // Open attendance without a parsed check-in still counts as on-shift so
+    // Clock Out remains available (BUG_Report020).
+    final onShift = open != null;
     final onBreak = JsonCodec.boolean(open?['onBreak']) ??
         (JsonCodec.dateTime(open?['breakStartedAt']) != null);
     final breakStartedAt = JsonCodec.dateTime(open?['breakStartedAt']);
@@ -153,9 +155,16 @@ abstract final class StaffAttendanceMapper {
     for (final item in records) {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
-      final checkOut =
+      final checkOutRaw =
           json['checkOutAt'] ?? json['clockOutAt'] ?? json['checkOut'];
-      if (checkOut == null) return json;
+      final checkOutEmpty = checkOutRaw == null ||
+          (checkOutRaw is String && checkOutRaw.trim().isEmpty);
+      final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
+      final closed = status == 'completed' ||
+          status == 'closed' ||
+          status == 'checked_out' ||
+          status == 'checkout';
+      if (checkOutEmpty && !closed) return json;
     }
     return null;
   }
@@ -185,6 +194,8 @@ abstract final class StaffAttendanceMapper {
               : IsoDateRange.workedMinutesLabel(
                   checkOut.difference(checkIn).inMinutes,
                 )),
+      occurredAt: checkIn?.toLocal(),
+      isOpen: checkIn != null && checkOut == null,
     );
   }
 

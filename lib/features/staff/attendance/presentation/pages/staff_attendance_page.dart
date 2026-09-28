@@ -15,6 +15,7 @@ import '../widgets/clock_out_button.dart';
 import '../widgets/on_shift_banner.dart';
 import '../widgets/selfie_verification_row.dart';
 import '../widgets/shift_details_card.dart';
+import '../widgets/staff_attendance_filters_bar.dart';
 import '../widgets/staff_attendance_header.dart';
 
 /// "Attendance" — the Staff (care-worker) portal's clock-in/out screen.
@@ -76,7 +77,10 @@ class StaffAttendancePage extends StatelessWidget {
               color: AppColors.surfaceWhite,
               child: SafeArea(
                 bottom: false,
-                child: StaffAttendanceHeader(onBackTap: () => Navigator.maybePop(context)),
+                child: StaffAttendanceHeader(
+                  onBackTap: () => Navigator.maybePop(context),
+                  onManualEntryTap: controller.showManualEntryDialog,
+                ),
               ),
             ),
             Expanded(
@@ -92,6 +96,14 @@ class StaffAttendancePage extends StatelessWidget {
                   ),
                   children: [
                     OnShiftBanner(isOnShift: overview.isOnShift, startedLabel: overview.shiftStartedLabel),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                    ClockOutButton(
+                      label: overview.isOnShift ? 'Clock Out' : 'Clock In',
+                      isClockOut: overview.isOnShift,
+                      onTap: overview.isOnShift
+                          ? controller.clockOut
+                          : controller.clockIn,
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
                     const SectionHeaderRow(title: 'Shift Details'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
@@ -116,14 +128,14 @@ class StaffAttendancePage extends StatelessWidget {
                       onToggleBreak: controller.toggleBreak,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
-                    ClockOutButton(
-                      label: overview.isOnShift ? 'Clock Out' : 'Clock In',
-                      onTap: overview.isOnShift
-                          ? controller.clockOut
-                          : controller.clockIn,
+                    StaffAttendanceFiltersBar(
+                      selectedDate: controller.historyDateFilter.value,
+                      statusFilter: controller.historyStatusFilter.value,
+                      onDateChanged: controller.setHistoryDateFilter,
+                      onStatusChanged: controller.setHistoryStatusFilter,
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
-                    AttendanceHistorySection(items: overview.history),
+                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+                    AttendanceHistorySection(items: controller.filteredHistory),
                   ],
                 ),
               ),

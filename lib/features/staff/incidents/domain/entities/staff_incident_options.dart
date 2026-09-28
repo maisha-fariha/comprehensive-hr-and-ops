@@ -18,6 +18,15 @@ class StaffCirTemplateOption {
   const StaffCirTemplateOption({required this.id, required this.name});
 }
 
+/// Option from `GET /residences` for Create Incident (BUG_Report011).
+@immutable
+class StaffIncidentResidenceOption {
+  final String id;
+  final String name;
+
+  const StaffIncidentResidenceOption({required this.id, required this.name});
+}
+
 /// Client/resident from `GET /clients?assignedToMe=true` or `?search=`.
 @immutable
 class StaffIncidentClientOption {

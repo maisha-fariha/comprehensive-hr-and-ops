@@ -99,7 +99,12 @@ class StaffTasksMessagesPage extends StatelessWidget {
               ColoredBox(color: AppColors.surfaceWhite, child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const TasksMessagesHeader(title: 'Tasks & Messages'),
+                  TasksMessagesHeader(
+                    title: 'Tasks & Messages',
+                    onNewTaskTap: selectedTab == TasksMessagesTab.tasks
+                        ? controller.showCreateTaskDialog
+                        : null,
+                  ),
                   Padding(
                     padding: ResponsiveHelper.getResponsivePadding(
                       context,

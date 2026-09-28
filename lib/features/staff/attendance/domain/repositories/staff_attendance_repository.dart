@@ -37,4 +37,14 @@ abstract class StaffAttendanceRepository {
 
   /// `POST /attendance/break/end`
   Future<Result<void>> endBreak({String? residenceId});
+
+  /// `POST /attendance/manual` — staff self-service manual entry (BUG_Report005).
+  Future<Result<String>> recordManualAttendance({
+    required String checkInAtIso,
+    String? checkOutAtIso,
+    String? residenceId,
+    String? staffId,
+    String? notes,
+    String reasonCategory = 'other',
+  });
 }

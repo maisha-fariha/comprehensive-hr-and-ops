@@ -33,4 +33,14 @@ abstract class StaffScheduleRepository {
 
   /// `POST /shift-swaps/{swapId}/cancel`
   Future<Result<void>> cancelSwap(String swapId);
+
+  /// `POST /shifts` — create a shift (BUG_Report004).
+  Future<Result<String>> createShift({
+    required String residenceId,
+    required String shiftDate,
+    required String startTime,
+    required String endTime,
+    String shiftType = 'day',
+    String? title,
+  });
 }

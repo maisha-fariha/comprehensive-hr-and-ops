@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../domain/entities/staff_client_log_entry.dart';
 import '../../domain/entities/staff_daily_log_summary_stat.dart';
 import 'my_client_row.dart';
+import 'staff_clients_toolbar.dart';
 import 'staff_daily_log_stats_row.dart';
 
 /// Content of the "My Clients" tab: summary stats, section header with
@@ -15,6 +16,12 @@ class MyClientsTabView extends StatelessWidget {
   final List<StaffClientLogEntry> myClients;
   final int myClientsTotalCount;
   final ValueChanged<StaffClientLogEntry> onClientTap;
+  final String searchQuery;
+  final ValueChanged<String> onSearchChanged;
+  final String? selectedResidenceId;
+  final List<({String id, String name})> residenceOptions;
+  final ValueChanged<String?> onResidenceChanged;
+  final VoidCallback onAddClient;
 
   static const Color _totalPillBg = Color(0xFFE6F4F3);
   static const Color _totalPillFg = Color(0xFF0E7C7B);
@@ -25,6 +32,12 @@ class MyClientsTabView extends StatelessWidget {
     required this.myClients,
     required this.myClientsTotalCount,
     required this.onClientTap,
+    required this.searchQuery,
+    required this.onSearchChanged,
+    required this.selectedResidenceId,
+    required this.residenceOptions,
+    required this.onResidenceChanged,
+    required this.onAddClient,
   });
 
   @override
@@ -37,7 +50,16 @@ class MyClientsTabView extends StatelessWidget {
         ResponsiveHelper.getResponsiveHeight(context, 32),
       ),
       children: [
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+        StaffClientsToolbar(
+          searchQuery: searchQuery,
+          onSearchChanged: onSearchChanged,
+          selectedResidenceId: selectedResidenceId,
+          residenceOptions: residenceOptions,
+          onResidenceChanged: onResidenceChanged,
+          onAddClient: onAddClient,
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
         StaffDailyLogStatsRow(stats: stats),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
         Row(
@@ -67,7 +89,7 @@ class MyClientsTabView extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                '$myClientsTotalCount total',
+                '${myClients.length} shown · $myClientsTotalCount total',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,

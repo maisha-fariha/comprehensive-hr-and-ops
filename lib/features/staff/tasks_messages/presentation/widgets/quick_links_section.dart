@@ -5,7 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
-import '../../../profile_settings/presentation/pages/staff_profile_settings_page.dart';
+import '../../../presentation/open_staff_profile.dart';
 import '../pages/staff_quick_link_list_page.dart';
 
 /// "Quick Links" grid: Profile / Training / Documents / Notifications.
@@ -92,7 +92,7 @@ class _QuickLinkCard extends StatelessWidget {
   void _open() {
     switch (item.action) {
       case _QuickLinkAction.profile:
-        Get.to(() => const StaffProfileSettingsPage());
+        openStaffProfile();
       case _QuickLinkAction.training:
         Get.to(
           () => const StaffQuickLinkListPage(kind: StaffQuickLinkKind.training),
