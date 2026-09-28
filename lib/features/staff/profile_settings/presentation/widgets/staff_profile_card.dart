@@ -24,107 +24,124 @@ class StaffProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 20);
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: double.infinity,
-        padding: ResponsiveHelper.getResponsivePadding(
-          context,
-          horizontal: 16,
-          vertical: 16,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(radius),
-          border: Border.all(color: _cardBorder),
-          boxShadow: [
-            BoxShadow(
-              color: _shadow.withValues(alpha: 0.04),
-              offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
-            ),
-            BoxShadow(
-              color: _shadow.withValues(alpha: 0.05),
-              offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
-              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            StaffInitialsAvatar(
-              initials: profile.initials,
-              size: 50,
-              background: StaffProfileSettingsConstants.profileAvatarBackground,
-              foreground: StaffProfileSettingsConstants.profileAvatarForeground,
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 14)),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    profile.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16.5),
-                      color: _nameColor,
-                      height: 1.25,
-                    ),
-                  ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                  Text(
-                    profile.role,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                      color: _roleColor,
-                      height: 1.3,
-                    ),
-                  ),
-                  if ((profile.residenceName ?? '').isNotEmpty)
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius),
+        child: Ink(
+          width: double.infinity,
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 16,
+            vertical: 16,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: _cardBorder),
+            boxShadow: [
+              BoxShadow(
+                color: _shadow.withValues(alpha: 0.04),
+                offset:
+                    Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
+                blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
+              ),
+              BoxShadow(
+                color: _shadow.withValues(alpha: 0.05),
+                offset:
+                    Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
+                blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              StaffInitialsAvatar(
+                initials: profile.initials,
+                size: 50,
+                background:
+                    StaffProfileSettingsConstants.profileAvatarBackground,
+                foreground:
+                    StaffProfileSettingsConstants.profileAvatarForeground,
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 14)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      profile.residenceName!,
+                      profile.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          16.5,
+                        ),
+                        color: _nameColor,
+                        height: 1.25,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 2),
+                    ),
+                    Text(
+                      profile.role,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w500,
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 13),
+                        color: _roleColor,
+                        height: 1.3,
+                      ),
+                    ),
+                    if ((profile.residenceName ?? '').isNotEmpty)
+                      Text(
+                        profile.residenceName!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w400,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            12.5,
+                          ),
+                          color: _emailColor,
+                          height: 1.3,
+                        ),
+                      ),
+                    Text(
+                      profile.email,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w400,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 13),
                         color: _emailColor,
                         height: 1.3,
                       ),
                     ),
-                  Text(
-                    profile.email,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w400,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                      color: _emailColor,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-            const AppSvgIcon(
-              AppAssets.chevronRight,
-              size: 18,
-              color: _chevronColor,
-            ),
-          ],
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              const AppSvgIcon(
+                AppAssets.chevronRight,
+                size: 18,
+                color: _chevronColor,
+              ),
+            ],
+          ),
         ),
       ),
     );

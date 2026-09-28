@@ -16,6 +16,7 @@ import '../widgets/staff_log_out_row.dart';
 import '../widgets/staff_preference_tile.dart';
 import '../widgets/staff_profile_card.dart';
 import '../widgets/staff_profile_settings_header.dart';
+import 'staff_profile_detail_page.dart';
 
 /// Profile & Settings for the Staff portal — same visual design as Family.
 class StaffProfileSettingsPage extends StatefulWidget {
@@ -254,7 +255,13 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                     ResponsiveHelper.getResponsiveHeight(context, 32),
                   ),
                   children: [
-                    StaffProfileCard(profile: overview.profile),
+                    StaffProfileCard(
+                      key: const Key('staff-profile-upper-card'),
+                      profile: overview.profile,
+                      onTap: () => Get.to(
+                        () => StaffProfileDetailPage(profile: overview.profile),
+                      ),
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
                     const SectionHeaderRow(title: 'Assigned Clients'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),

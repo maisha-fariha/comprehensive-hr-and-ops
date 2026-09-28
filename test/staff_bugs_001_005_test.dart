@@ -2,6 +2,10 @@ import 'package:comprehensive_hr_and_ops/core/constants/app_colors.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_role.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/daily_logs/presentation/widgets/staff_clients_toolbar.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/staff_dashboard_overview.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/today_shift_summary.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/dashboard/presentation/widgets/staff_dashboard_header.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/dashboard/presentation/widgets/today_shift_card.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_shift_handover.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/repositories/staff_extras_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/presentation/pages/staff_residences_page.dart';
@@ -12,7 +16,9 @@ import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/domain/
 import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/domain/entities/staff_profile_settings_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/domain/repositories/staff_profile_settings_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/presentation/controllers/staff_profile_settings_controller.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/presentation/pages/staff_profile_detail_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/presentation/pages/staff_profile_settings_page.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/presentation/widgets/staff_profile_card.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/scheduling/presentation/widgets/staff_schedule_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -209,7 +215,7 @@ void main() {
   });
 
   testWidgets(
-    'BUG_Report001: Profile opens and shows staff profile info',
+    'BUG_Report001: Profile card tap opens My Profile detail',
     (tester) async {
       tester.view.physicalSize = const Size(375, 812);
       tester.view.devicePixelRatio = 1;
@@ -221,15 +227,82 @@ void main() {
         permanent: true,
       );
 
-      await tester.pumpWidget(_wrap(const SizedBox.shrink()));
-      openStaffProfile();
+      const overview = StaffDashboardOverview(
+        organizationName: 'Sunrise Care',
+        dateLabel: 'Mon · Sep 28',
+        greetingLine: 'Good morning, Sam',
+        greetingSubtitle: 'Ready for your shift',
+        unreadNotificationCount: 0,
+        todayShift: TodayShiftSummary(
+          statusLabel: 'Scheduled',
+          dateLabel: 'Mon, Sep 28',
+          timeRange: '8:00 AM – 4:00 PM',
+        ),
+        overviewStats: [],
+        alertCount: 0,
+        alertLabel: '',
+        quickActions: [],
+      );
+
+      var avatarTapped = false;
+
+      await tester.pumpWidget(
+        _wrap(
+          Scaffold(
+            body: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                StaffDashboardHeader(
+                  overview: overview,
+                  onAvatarTap: () {
+                    avatarTapped = true;
+                    openStaffProfile();
+                  },
+                ),
+                const Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: -70,
+                  child: IgnorePointer(
+                    child: TodayShiftCard(
+                      shift: TodayShiftSummary(
+                        statusLabel: 'Scheduled',
+                        dateLabel: 'Mon, Sep 28',
+                        timeRange: '8:00 AM – 4:00 PM',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final avatar = find.byKey(const Key('staff-home-profile-avatar'));
+      expect(avatar, findsOneWidget);
+      await tester.tap(avatar);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
+      expect(avatarTapped, isTrue);
       expect(find.byType(StaffProfileSettingsPage), findsOneWidget);
       expect(find.text('Profile & Settings'), findsOneWidget);
       expect(find.text('Sam Jones'), findsOneWidget);
       expect(find.text('sam@example.com'), findsOneWidget);
+
+      final profileCard = find.byKey(const Key('staff-profile-upper-card'));
+      expect(profileCard, findsOneWidget);
+      expect(find.byType(StaffProfileCard), findsOneWidget);
+      await tester.ensureVisible(profileCard);
+      await tester.tap(profileCard);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StaffProfileDetailPage), findsOneWidget);
+      expect(find.byKey(const Key('staff-profile-detail-page')), findsOneWidget);
+      expect(find.text('My Profile'), findsOneWidget);
+      expect(find.text('Email'), findsOneWidget);
     },
   );
 

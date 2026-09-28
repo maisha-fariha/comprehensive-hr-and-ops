@@ -100,13 +100,19 @@ class StaffDashboardPage extends StatelessWidget {
                       onNotificationsTap: () =>
                           Get.to(() => const PortalNotificationsPage()),
                       onPanicTap: () => StaffRaiseEmergencyDialog.show(),
-                      onAvatarTap: openStaffProfile,
+                      onAvatarTap: () {
+                        openStaffProfile();
+                      },
                     ),
+                    // Overlaps the header visually. IgnorePointer so it cannot
+                    // steal taps from the avatar / bell (BUG_Report001).
                     Positioned(
                       left: horizontal,
                       right: horizontal,
                       bottom: -overlap,
-                      child: TodayShiftCard(shift: overview.todayShift),
+                      child: IgnorePointer(
+                        child: TodayShiftCard(shift: overview.todayShift),
+                      ),
                     ),
                   ],
                 ),
