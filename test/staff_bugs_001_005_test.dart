@@ -21,6 +21,11 @@ import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/present
 import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/presentation/pages/staff_profile_detail_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/presentation/pages/staff_profile_settings_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/profile_settings/presentation/widgets/staff_profile_card.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/scheduling/domain/entities/staff_schedule_overview.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/scheduling/domain/entities/staff_shift.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/scheduling/domain/entities/staff_shift_form_option.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/scheduling/domain/repositories/staff_schedule_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/scheduling/presentation/pages/staff_create_shift_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/scheduling/presentation/widgets/staff_schedule_header.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -292,6 +297,75 @@ class _FakeExtrasRepo implements StaffExtrasRepository {
   @override
   Future<Result<List<Map<String, String>>>> getTrainingCertificates() async =>
       Result.success(const []);
+}
+
+class _FakeScheduleRepo implements StaffScheduleRepository {
+  @override
+  Future<Result<StaffScheduleOverview>> getOverview({
+    DateTime? weekStart,
+    DateTime? selectedDate,
+  }) async =>
+      Result.success(
+        const StaffScheduleOverview(
+          weekRangeLabel: 'Sep 28 – Oct 4',
+          weekDays: [],
+          shiftsThisWeekLabel: '0 shifts',
+          shifts: [],
+        ),
+      );
+
+  @override
+  Future<Result<StaffShift>> getShiftDetail(String shiftId) async =>
+      Result.failure(const ApiError(message: 'unused'));
+
+  @override
+  Future<Result<void>> bidOnShift(String shiftId, {String? note}) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> requestSwap({
+    required String fromShiftId,
+    String? note,
+    String? targetStaffId,
+    String? toShiftId,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> respondToSwap({
+    required String swapId,
+    required bool accepted,
+    String? note,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> cancelSwap(String swapId) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<String>> createShift(Map<String, dynamic> payload) async =>
+      Result.success('shift-created');
+
+  @override
+  Future<Result<List<StaffShiftResidenceOption>>> getResidences() async =>
+      Result.success(const [
+        StaffShiftResidenceOption(id: 'res-1', name: 'Sunrise Home'),
+      ]);
+
+  @override
+  Future<Result<List<StaffShiftStaffOption>>> searchStaff({
+    String? search,
+    String? residenceId,
+  }) async =>
+      Result.success(const [
+        StaffShiftStaffOption(
+          id: 'staff-1',
+          name: 'Sam Jones',
+          detail: 'PSW',
+          initials: 'SJ',
+        ),
+      ]);
 }
 
 Widget _wrap(Widget child) {
@@ -591,6 +665,124 @@ void main() {
 
       expect(filterTapped, isTrue);
       expect(createTapped, isTrue);
+    },
+  );
+
+  testWidgets(
+    'BUG_Report004: Create Shift wizard exposes all nested steps',
+    (tester) async {
+      tester.view.physicalSize = const Size(375, 812);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      GetIt.I.registerSingleton<StaffScheduleRepository>(_FakeScheduleRepo());
+
+      await tester.pumpWidget(
+        _wrap(
+          StaffCreateShiftPage(
+            repository: GetIt.I<StaffScheduleRepository>(),
+            initialDate: DateTime(2026, 9, 28),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('staff-create-shift-page')), findsOneWidget);
+      expect(find.text('Add New Shift'), findsOneWidget);
+      expect(
+        find.textContaining('Set the timing, assign staff'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Shift Information'), findsWidgets);
+      expect(find.textContaining('Staff Assignment'), findsWidgets);
+      expect(find.textContaining('Open Shift'), findsWidgets);
+      expect(find.textContaining('Recurring'), findsWidgets);
+      expect(find.textContaining('Notifications'), findsWidgets);
+      expect(find.text('COMPLETION'), findsOneWidget);
+      expect(
+        find.textContaining('Set the timing, residence, and role coverage'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Sunrise Home'), findsWidgets);
+      expect(find.textContaining('Morning'), findsWidgets);
+      expect(
+        find.textContaining('Earlier than the start means it runs overnight'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Optional — e.g. Weekend cover'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('handover notes or special instructions'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('staff-create-shift-title')), findsOneWidget);
+      expect(find.byKey(const Key('staff-create-shift-notes')), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('staff-create-shift-step-staff-assignment')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Assigned Staff'), findsWidgets);
+      expect(find.text('Add staff...'), findsOneWidget);
+      expect(
+        find.byKey(const Key('staff-create-shift-add-staff')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('No staff assigned yet'),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(
+        find.byKey(const Key('staff-create-shift-step-open-shift')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('staff-create-shift-step-open-shift')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Make this an open shift'), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.byKey(const Key('staff-create-shift-step-recurring')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('staff-create-shift-step-recurring')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Repeat this shift'), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.byKey(const Key('staff-create-shift-step-notifications')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('staff-create-shift-step-notifications')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Notify assigned staff'), findsOneWidget);
+      expect(find.text('No reminder'), findsOneWidget);
+      expect(
+        find.textContaining('A second notification this long before'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Add a note included in the notification'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Settings'),
+        findsWidgets,
+      );
+      expect(
+        find.byKey(const Key('staff-create-shift-submit')),
+        findsOneWidget,
+      );
+      expect(find.text('Create shift'), findsOneWidget);
     },
   );
 }

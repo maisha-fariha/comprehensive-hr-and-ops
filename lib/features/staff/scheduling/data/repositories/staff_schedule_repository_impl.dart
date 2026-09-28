@@ -7,6 +7,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_schedule_overview.dart';
 import '../../domain/entities/staff_shift.dart';
+import '../../domain/entities/staff_shift_form_option.dart';
 import '../../domain/repositories/staff_schedule_repository.dart';
 import '../mappers/staff_schedule_mapper.dart';
 
@@ -19,8 +20,8 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
   StaffScheduleRepositoryImpl({
     required AppApiClient api,
     required UserSession session,
-  })  : _api = api,
-        _session = session;
+  }) : _api = api,
+       _session = session;
 
   @override
   Future<Result<StaffScheduleOverview>> getOverview({
@@ -47,11 +48,7 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
       // B2: Open Shift Requests
       _api.get(
         ApiEndpoints.shifts,
-        query: {
-          'status': 'open',
-          'page': 1,
-          'limit': _pageLimit,
-        },
+        query: {'status': 'open', 'page': 1, 'limit': _pageLimit},
       ),
       // B2: my swap list — active requests only (not settled history)
       _api.get(
@@ -70,10 +67,7 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
       futures.add(
         _api.get(
           ApiEndpoints.appointments,
-          query: {
-            'page': 1,
-            'limit': _pageLimit,
-          },
+          query: {'page': 1, 'limit': _pageLimit},
         ),
       );
     }
@@ -143,10 +137,7 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
       if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
     };
-    final result = await _api.post(
-      ApiEndpoints.shiftBids(shiftId),
-      data: data,
-    );
+    final result = await _api.post(ApiEndpoints.shiftBids(shiftId), data: data);
     return result.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
@@ -206,33 +197,63 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
   }
 
   @override
-  Future<Result<String>> createShift({
-    required String residenceId,
-    required String shiftDate,
-    required String startTime,
-    required String endTime,
-    String shiftType = 'day',
-    String? title,
-  }) async {
+  Future<Result<String>> createShift(Map<String, dynamic> payload) async {
     final result = await _api.post(
       ApiEndpoints.shifts,
-      data: {
-        'residenceId': residenceId,
-        'shiftDate': shiftDate,
-        'startTime': startTime,
-        'endTime': endTime,
-        'shiftType': shiftType,
-        if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
-        'peopleNeeded': 1,
-      },
+      data: payload,
       allowQueue: false,
     );
     return result.when(
       success: (body) async {
-        final json = JsonCodec.unwrapMap(body);
-        return Result.success(JsonCodec.string(json['id']) ?? '');
+        return Result.success(_extractId(body) ?? '');
       },
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  @override
+  Future<Result<List<StaffShiftResidenceOption>>> getResidences() async {
+    final result = await _api.get(ApiEndpoints.residences, silent: true);
+    return result.when(
+      success: (body) async =>
+          Result.success(StaffScheduleMapper.residencesFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<StaffShiftStaffOption>>> searchStaff({
+    String? search,
+    String? residenceId,
+  }) async {
+    final trimmed = search?.trim() ?? '';
+    final scopedResidenceId = residenceId ?? _session.residenceId;
+    final result = await _api.get(
+      ApiEndpoints.staff,
+      query: {
+        'page': 1,
+        'limit': _pageLimit,
+        if (trimmed.isNotEmpty) 'search': trimmed,
+        'residenceId': ?scopedResidenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(StaffScheduleMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  String? _extractId(dynamic body) {
+    if (body is Map) {
+      final map = Map<String, dynamic>.from(body);
+      final data = map['data'];
+      if (data is Map) {
+        return data['id']?.toString() ?? data['shiftId']?.toString();
+      }
+      return map['id']?.toString() ?? map['shiftId']?.toString();
+    }
+    return null;
   }
 }

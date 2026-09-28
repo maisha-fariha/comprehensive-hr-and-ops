@@ -6,6 +6,7 @@ import '../entities/message_thread.dart';
 import '../entities/recurring_check_instance.dart';
 import '../entities/staff_task.dart';
 import '../entities/staff_task_detail.dart';
+import '../entities/task_creation_options.dart';
 import '../entities/task_stats.dart';
 import '../entities/tasks_messages_overview.dart';
 
@@ -26,12 +27,19 @@ abstract class StaffTasksMessagesRepository {
   /// `PATCH /tasks/{id}` with `{ "status": "completed" }`
   Future<Result<void>> completeTask(String taskId);
 
-  /// `POST /tasks` — create a task for the staff member's residence.
+  /// API-backed options for the staff task creation form.
+  Future<Result<TaskCreationOptions>> getTaskCreationOptions();
+
+  /// `POST /tasks` — create a task with API-required shift/residence/staff ids.
   Future<Result<void>> createTask({
     required String title,
     String? description,
     String priority = 'medium',
     DateTime? dueAt,
+    required String taskType,
+    required String shiftId,
+    required String residenceId,
+    List<String> assignedStaffIds = const [],
   });
 
   /// `POST /tasks/{id}/notes`
@@ -40,7 +48,7 @@ abstract class StaffTasksMessagesRepository {
     required String body,
   });
 
-  /// `GET /recurring-checks/instances?from&to&mine=true`
+  /// `GET /recurring-checks/instances` for pending/actionable checks.
   Future<Result<List<RecurringCheckInstance>>> getMyRecurringChecks();
 
   /// `PATCH /recurring-checks/instances/{id}`

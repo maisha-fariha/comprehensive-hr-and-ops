@@ -23,8 +23,18 @@ class StaffAttendanceFiltersBar extends StatelessWidget {
   String _dateLabel(DateTime? date) {
     if (date == null) return 'All dates';
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -120,13 +130,12 @@ class StaffAttendanceFiltersBar extends StatelessWidget {
                 value: statusFilter,
                 items: const [
                   DropdownMenuItem(value: 'all', child: Text('All status')),
+                  DropdownMenuItem(value: 'present', child: Text('Present')),
+                  DropdownMenuItem(value: 'late', child: Text('Late')),
+                  DropdownMenuItem(value: 'missed', child: Text('Missed')),
                   DropdownMenuItem(
-                    value: 'completed',
-                    child: Text('Completed'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'in_progress',
-                    child: Text('In progress'),
+                    value: 'pending_approval',
+                    child: Text('Pending approval'),
                   ),
                 ],
                 onChanged: (value) {

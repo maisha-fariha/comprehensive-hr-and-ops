@@ -6,6 +6,8 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/attendance/data/mappers/attendance_mapper.dart';
+import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../mappers/staff_attendance_mapper.dart';
@@ -20,8 +22,8 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
   StaffAttendanceRepositoryImpl({
     required AppApiClient api,
     required UserSession session,
-  })  : _api = api,
-        _session = session;
+  }) : _api = api,
+       _session = session;
 
   @override
   Future<Result<StaffAttendanceOverview>> getOverview() async {
@@ -78,8 +80,7 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
 
     return Result.success(
       StaffAttendanceMapper.compose(
-        todayAttendanceBody:
-            results[0].isSuccess ? results[0].value : const [],
+        todayAttendanceBody: results[0].isSuccess ? results[0].value : const [],
         historyBody: results[1].isSuccess ? results[1].value : const [],
         shiftsBody: results[2].isSuccess ? results[2].value : const [],
         residenceBody: results.length > 3 && results[3].isSuccess
@@ -179,6 +180,89 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     return _breakAction(ApiEndpoints.attendanceBreakEnd, residenceId);
   }
 
+  @override
+  Future<Result<List<ManualEntryResidenceOption>>> getResidences() async {
+    final result = await _api.get(ApiEndpoints.residences, silent: true);
+    return result.when(
+      success: (body) async =>
+          Result.success(AttendanceMapper.residencesFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<ManualEntryShiftOption>>> getRosteredShifts({
+    String? residenceId,
+    DateTime? around,
+  }) async {
+    final day = IsoDateRange.startOfLocalDay(around);
+    final from = day.subtract(const Duration(days: 3));
+    final to = day.add(const Duration(days: 4));
+    final scopedResidenceId = residenceId ?? _session.residenceId;
+
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'mine': true,
+        'page': 1,
+        'limit': _pageLimit,
+        'from': from.toUtc().toIso8601String(),
+        'to': to.toUtc().toIso8601String(),
+        'residenceId': ?scopedResidenceId,
+      },
+      silent: true,
+    );
+
+    return result.when(
+      success: (body) async =>
+          Result.success(AttendanceMapper.shiftsForStaff(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<ManualEntryEvidenceFile>> uploadEvidenceFile(
+    ManualEntryEvidenceFile file,
+  ) async {
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.localPath,
+          filename: file.fileName,
+        ),
+      });
+      final result = await _api.post(
+        ApiEndpoints.uploads,
+        data: form,
+        query: const {'category': 'documents'},
+        allowQueue: false,
+      );
+      return result.when(
+        success: (body) async {
+          final map = JsonCodec.unwrapMap(body);
+          final url = JsonCodec.string(
+            map['fileUrl'] ?? map['url'] ?? map['publicUrl'],
+          );
+          if (url == null || url.isEmpty) {
+            return Result.failure(
+              const ApiError(
+                message: 'Upload succeeded but file URL was missing.',
+              ),
+            );
+          }
+          return Result.success(
+            file.copyWith(fileUrl: url, isUploading: false, clearError: true),
+          );
+        },
+        failure: (error) async => Result.failure(error),
+      );
+    } catch (error) {
+      return Result.failure(
+        ApiError(message: 'Could not upload ${file.fileName}: $error'),
+      );
+    }
+  }
+
   Future<Result<void>> _clockAction(
     String path, {
     String? shiftId,
@@ -228,8 +312,12 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     String? checkOutAtIso,
     String? residenceId,
     String? staffId,
-    String? notes,
+    String? shiftId,
+    int breakMinutes = 0,
     String reasonCategory = 'other',
+    String status = 'pending_approval',
+    String? notes,
+    List<Map<String, dynamic>> evidence = const [],
   }) async {
     final resolvedStaff = staffId ?? _session.staffId;
     final resolvedResidence = residenceId ?? _session.residenceId;
@@ -251,10 +339,12 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
         'checkInAt': checkInAtIso,
         if (checkOutAtIso != null && checkOutAtIso.isNotEmpty)
           'checkOutAt': checkOutAtIso,
-        'status': 'pending_approval',
+        if (shiftId != null && shiftId.isNotEmpty) 'shiftId': shiftId,
+        'status': status,
         'reasonCategory': reasonCategory,
-        'breakMinutes': 0,
+        'breakMinutes': breakMinutes,
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (evidence.isNotEmpty) 'evidence': evidence,
       },
       allowQueue: false,
     );

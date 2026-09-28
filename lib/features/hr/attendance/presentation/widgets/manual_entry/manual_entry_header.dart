@@ -5,20 +5,15 @@ import '../../../../../../core/constants/app_assets.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/widgets/app_svg_icon.dart';
 
-enum ManualEntryTab {
-  attendanceDetails,
-  timeCorrection,
-  evidence,
-  approval,
-}
+enum ManualEntryTab { attendanceDetails, timeCorrection, evidence, approval }
 
 extension ManualEntryTabX on ManualEntryTab {
   String get label => switch (this) {
-        ManualEntryTab.attendanceDetails => 'Details',
-        ManualEntryTab.timeCorrection => 'Time Correction',
-        ManualEntryTab.evidence => 'Reason & Evidence',
-        ManualEntryTab.approval => 'Approval',
-      };
+    ManualEntryTab.attendanceDetails => 'Attendance Details',
+    ManualEntryTab.timeCorrection => 'Time Correction',
+    ManualEntryTab.evidence => 'Evidence',
+    ManualEntryTab.approval => 'Approval',
+  };
 }
 
 /// Top header: navy clock badge, title, subtitle, circular close.
@@ -65,8 +60,10 @@ class ManualEntryHeader extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 20),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      20,
+                    ),
                     color: AppColors.textHeading,
                     height: 1.2,
                   ),
@@ -79,8 +76,10 @@ class ManualEntryHeader extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w400,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      12.5,
+                    ),
                     color: AppColors.textSecondary,
                     height: 1.4,
                   ),
@@ -160,8 +159,10 @@ class ManualEntryWarningBanner extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w500,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(
+                    context,
+                    12.5,
+                  ),
                   color: AppColors.urgentAmber,
                   height: 1.4,
                 ),
@@ -220,11 +221,7 @@ class _TabChip extends StatelessWidget {
   final bool selected;
   final VoidCallback? onTap;
 
-  const _TabChip({
-    required this.tab,
-    required this.selected,
-    this.onTap,
-  });
+  const _TabChip({required this.tab, required this.selected, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -257,8 +254,10 @@ class _TabChip extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(
+                    context,
+                    12.5,
+                  ),
                   color: selected ? Colors.white : AppColors.textHeading,
                 ),
               ),
@@ -398,8 +397,7 @@ class ManualEntryCompletionBar extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w600,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 11),
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
                   letterSpacing: 0.6,
                   color: AppColors.textMuted,
                 ),
@@ -410,8 +408,7 @@ class ManualEntryCompletionBar extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w600,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 11),
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
                   letterSpacing: 0.6,
                   color: AppColors.textMuted,
                 ),

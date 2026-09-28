@@ -11,6 +11,7 @@ import '../../domain/entities/message_thread.dart';
 import '../../domain/entities/recurring_check_instance.dart';
 import '../../domain/entities/staff_task.dart';
 import '../../domain/entities/staff_task_detail.dart';
+import '../../domain/entities/task_creation_options.dart';
 import '../../domain/entities/task_stats.dart';
 import '../../domain/entities/tasks_messages_overview.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
@@ -23,8 +24,8 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   StaffTasksMessagesRepositoryImpl({
     required AppApiClient api,
     required UserSession session,
-  })  : _api = api,
-        _session = session;
+  }) : _api = api,
+       _session = session;
 
   @override
   Future<Result<TasksMessagesOverview>> getOverview() async {
@@ -49,14 +50,14 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
 
     final conversations = conversationsResult.isSuccess
         ? JsonCodec.unwrapList(conversationsResult.value)
-            .whereType<Map>()
-            .map(
-              (item) => StaffTasksMessagesMapper.conversationFrom(
-                JsonCodec.asMap(item),
-                currentUserId: _session.userId,
-              ),
-            )
-            .toList()
+              .whereType<Map>()
+              .map(
+                (item) => StaffTasksMessagesMapper.conversationFrom(
+                  JsonCodec.asMap(item),
+                  currentUserId: _session.userId,
+                ),
+              )
+              .toList()
         : const <ConversationPreview>[];
 
     // Prefer counts from the loaded task list so chips always match rows.
@@ -82,11 +83,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   Future<Result<List<StaffTask>>> getMyTasks() async {
     final result = await _api.get(
       ApiEndpoints.tasks,
-      query: {
-        'page': 1,
-        'limit': 50,
-        'residenceId': ?_session.residenceId,
-      },
+      query: {'page': 1, 'limit': 50, 'residenceId': ?_session.residenceId},
     );
     return result.when(
       success: (body) async =>
@@ -99,9 +96,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   Future<Result<TaskStats>> getTaskStats() async {
     final result = await _api.get(
       ApiEndpoints.tasksStats,
-      query: {
-        'residenceId': ?_session.residenceId,
-      },
+      query: {'residenceId': ?_session.residenceId},
       silent: true,
     );
     return result.when(
@@ -144,11 +139,88 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   }
 
   @override
+  Future<Result<TaskCreationOptions>> getTaskCreationOptions() async {
+    final now = DateTime.now();
+    final start = IsoDateRange.startOfLocalDay(
+      now,
+    ).subtract(const Duration(days: 1)).toUtc().toIso8601String();
+    final end = IsoDateRange.startOfLocalDay(
+      now,
+    ).add(const Duration(days: 31)).toUtc().toIso8601String();
+    final residenceId = _session.residenceId?.trim();
+
+    final results = await Future.wait([
+      _api.get(
+        ApiEndpoints.shifts,
+        query: {'mine': true, 'from': start, 'to': end, 'page': 1, 'limit': 50},
+        silent: true,
+      ),
+      _api.get(
+        ApiEndpoints.residences,
+        query: const {'page': 1, 'limit': 100},
+        silent: true,
+      ),
+      _api.get(
+        ApiEndpoints.staff,
+        query: {
+          if (residenceId != null && residenceId.isNotEmpty)
+            'residenceId': residenceId,
+          'page': 1,
+          'limit': 100,
+        },
+        silent: true,
+      ),
+    ]);
+
+    final shiftsResult = results[0];
+    if (shiftsResult.isFailure) {
+      return Result.failure(
+        shiftsResult.error ??
+            const ApiError(message: 'Could not load your shifts.'),
+      );
+    }
+
+    final defaultStaffId = await _resolveCurrentStaffId();
+    final residences = _taskOptionsFrom(
+      results[1].isSuccess ? results[1].value : const [],
+      titleKeys: const ['name', 'title'],
+    );
+    final sessionResidenceName = _session.residenceName?.trim();
+    if (residenceId != null &&
+        residenceId.isNotEmpty &&
+        !residences.any((option) => option.id == residenceId)) {
+      residences.insert(
+        0,
+        TaskCreationOption(
+          id: residenceId,
+          label: sessionResidenceName?.isNotEmpty == true
+              ? sessionResidenceName!
+              : 'Current residence',
+        ),
+      );
+    }
+
+    return Result.success(
+      TaskCreationOptions(
+        shifts: _shiftOptionsFrom(shiftsResult.value),
+        residences: residences,
+        staff: _staffOptionsFrom(results[2].isSuccess ? results[2].value : []),
+        defaultResidenceId: residenceId,
+        defaultStaffId: defaultStaffId,
+      ),
+    );
+  }
+
+  @override
   Future<Result<void>> createTask({
     required String title,
     String? description,
     String priority = 'medium',
     DateTime? dueAt,
+    required String taskType,
+    required String shiftId,
+    required String residenceId,
+    List<String> assignedStaffIds = const [],
   }) async {
     final trimmed = title.trim();
     if (trimmed.isEmpty) {
@@ -156,10 +228,34 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
         const ValidationError(message: 'Task title is required.'),
       );
     }
-    final residenceId = _session.residenceId?.trim() ?? '';
-    if (residenceId.isEmpty) {
+    final normalizedResidenceId = residenceId.trim();
+    if (normalizedResidenceId.isEmpty) {
       return Result.failure(
-        const ValidationError(message: 'Residence is required to create a task.'),
+        const ValidationError(
+          message: 'Residence is required to create a task.',
+        ),
+      );
+    }
+    final normalizedShiftId = shiftId.trim();
+    if (normalizedShiftId.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Shift is required to create a task.'),
+      );
+    }
+    final staffIds = assignedStaffIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    if (staffIds.isEmpty) {
+      final staffId = await _resolveCurrentStaffId();
+      if (staffId != null && staffId.isNotEmpty) staffIds.add(staffId);
+    }
+    if (staffIds.isEmpty) {
+      return Result.failure(
+        const ValidationError(
+          message: 'A staff assignee is required to create a task.',
+        ),
       );
     }
 
@@ -167,15 +263,14 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
       ApiEndpoints.tasks,
       data: {
         'title': trimmed,
-        'residenceId': residenceId,
+        'residenceId': normalizedResidenceId,
         'priority': priority.toLowerCase(),
-        'taskType': 'general',
-        'requiresReview': false,
+        'taskType': _normalizeTaskType(taskType),
+        'shiftId': normalizedShiftId,
+        'assignedStaffIds': staffIds,
         if (description != null && description.trim().isNotEmpty)
           'description': description.trim(),
         if (dueAt != null) 'dueAt': dueAt.toUtc().toIso8601String(),
-        if (_session.staffId != null && _session.staffId!.isNotEmpty)
-          'assignedStaffIds': [_session.staffId],
       },
       silent: true,
       allowQueue: false,
@@ -203,16 +298,28 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
 
   @override
   Future<Result<List<RecurringCheckInstance>>> getMyRecurringChecks() async {
-    final day = IsoDateRange.todayDate;
-    final result = await _api.get(
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month, 1).toUtc().toIso8601String();
+    final to = DateTime(now.year, now.month + 1, 1).toUtc().toIso8601String();
+    var result = await _api.get(
       ApiEndpoints.recurringCheckInstances,
       query: {
-        'from': day,
-        'to': day,
-        'mine': true,
+        'status': 'pending',
+        'from': from,
+        'to': to,
+        'page': 1,
+        'limit': 100,
       },
       silent: true,
     );
+    if (result.isSuccess &&
+        StaffTasksMessagesMapper.recurringFrom(result.value).isEmpty) {
+      result = await _api.get(
+        ApiEndpoints.recurringCheckInstances,
+        query: const {'status': 'pending', 'page': 1, 'limit': 100},
+        silent: true,
+      );
+    }
     return result.when(
       success: (body) async =>
           Result.success(StaffTasksMessagesMapper.recurringFrom(body)),
@@ -448,5 +555,138 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  Future<String?> _resolveCurrentStaffId() async {
+    final sessionStaffId = _session.staffId?.trim();
+    if (sessionStaffId != null && sessionStaffId.isNotEmpty) {
+      return sessionStaffId;
+    }
+    final email = _session.email.trim();
+    if (email.isEmpty) return null;
+
+    final result = await _api.get(
+      ApiEndpoints.staff,
+      query: {'email': email, 'page': 1, 'limit': 10},
+      silent: true,
+    );
+    if (result.isFailure) return null;
+
+    final lowerEmail = email.toLowerCase();
+    for (final item in JsonCodec.unwrapList(result.value).whereType<Map>()) {
+      final json = JsonCodec.asMap(item);
+      final rowEmail = JsonCodec.stringOr(json['email'], '').toLowerCase();
+      if (rowEmail == lowerEmail) {
+        final id = JsonCodec.string(json['id']);
+        if (id != null) {
+          _session.applyStaffContext(staffId: id);
+          return id;
+        }
+      }
+    }
+    for (final item in JsonCodec.unwrapList(result.value).whereType<Map>()) {
+      final id = JsonCodec.string(JsonCodec.asMap(item)['id']);
+      if (id != null) {
+        _session.applyStaffContext(staffId: id);
+        return id;
+      }
+    }
+    return null;
+  }
+
+  static String _normalizeTaskType(String value) {
+    final raw = value.trim().toLowerCase();
+    return switch (raw) {
+      'administrative' ||
+      'maintenance' ||
+      'inventory' ||
+      'compliance' ||
+      'follow_up' ||
+      'other' => raw,
+      'follow up' || 'follow-up' => 'follow_up',
+      _ => 'other',
+    };
+  }
+
+  static List<TaskCreationOption> _shiftOptionsFrom(dynamic body) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) {
+          final json = JsonCodec.asMap(item);
+          final start = JsonCodec.dateTime(
+            json['startAt'] ??
+                json['startsAt'] ??
+                json['startTime'] ??
+                json['from'],
+          );
+          final end = JsonCodec.dateTime(
+            json['endAt'] ?? json['endsAt'] ?? json['endTime'] ?? json['to'],
+          );
+          final title = JsonCodec.stringOr(
+            json['title'] ??
+                json['name'] ??
+                json['shiftType'] ??
+                json['period'],
+            'Shift',
+          );
+          final time = IsoDateRange.rangeLabel(start, end);
+          final date = start == null
+              ? ''
+              : IsoDateRange.formatShortDate(start.toLocal());
+          return TaskCreationOption(
+            id: JsonCodec.stringOr(json['id'], title),
+            label: title,
+            subtitle: [
+              if (date.isNotEmpty) date,
+              if (time.isNotEmpty) time,
+            ].join(' · '),
+          );
+        })
+        .where((option) => option.id.isNotEmpty)
+        .toList();
+  }
+
+  static List<TaskCreationOption> _staffOptionsFrom(dynamic body) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) {
+          final json = JsonCodec.asMap(item);
+          final name = IsoDateRange.personName(json);
+          return TaskCreationOption(
+            id: JsonCodec.stringOr(json['id'], ''),
+            label: name == 'Unknown'
+                ? JsonCodec.stringOr(json['email'], 'Staff')
+                : name,
+            subtitle: JsonCodec.stringOr(
+              JsonCodec.mapAt(json, 'category')?['name'] ??
+                  json['employmentType'] ??
+                  json['email'],
+              '',
+            ),
+          );
+        })
+        .where((option) => option.id.isNotEmpty)
+        .toList();
+  }
+
+  static List<TaskCreationOption> _taskOptionsFrom(
+    dynamic body, {
+    required List<String> titleKeys,
+  }) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) {
+          final json = JsonCodec.asMap(item);
+          String? title;
+          for (final key in titleKeys) {
+            title ??= JsonCodec.string(json[key]);
+          }
+          return TaskCreationOption(
+            id: JsonCodec.stringOr(json['id'], title ?? ''),
+            label: title ?? 'Option',
+          );
+        })
+        .where((option) => option.id.isNotEmpty)
+        .toList();
   }
 }

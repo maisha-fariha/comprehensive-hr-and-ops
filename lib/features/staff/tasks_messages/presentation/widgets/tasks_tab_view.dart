@@ -18,6 +18,7 @@ class TasksTabView extends StatelessWidget {
   final ValueChanged<TaskFilter> onFilterSelected;
   final ValueChanged<StaffTask>? onTaskTap;
   final ValueChanged<RecurringCheckInstance>? onRecurringTap;
+  final ValueChanged<RecurringCheckInstance>? onRecurringSkip;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _divider = Color(0xFFEEF2F6);
@@ -31,6 +32,7 @@ class TasksTabView extends StatelessWidget {
     this.recurringChecks = const [],
     this.onTaskTap,
     this.onRecurringTap,
+    this.onRecurringSkip,
   });
 
   @override
@@ -80,8 +82,10 @@ class TasksTabView extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: AppColors.shadowNavy.withValues(alpha: 0.04),
-                  offset:
-                      Offset(0, ResponsiveHelper.getResponsiveHeight(context, 4)),
+                  offset: Offset(
+                    0,
+                    ResponsiveHelper.getResponsiveHeight(context, 4),
+                  ),
                   blurRadius: ResponsiveHelper.getResponsiveHeight(context, 12),
                 ),
               ],
@@ -93,8 +97,9 @@ class TasksTabView extends StatelessWidget {
                     const Divider(height: 1, thickness: 1, color: _divider),
                   TaskRowTile(
                     task: tasks[i],
-                    onTap:
-                        onTaskTap == null ? null : () => onTaskTap!(tasks[i]),
+                    onTap: onTaskTap == null
+                        ? null
+                        : () => onTaskTap!(tasks[i]),
                   ),
                 ],
               ],
@@ -147,11 +152,23 @@ class TasksTabView extends StatelessWidget {
                       ),
                     ),
                     trailing: recurringChecks[i].isOpen
-                        ? TextButton(
-                            onPressed: onRecurringTap == null
-                                ? null
-                                : () => onRecurringTap!(recurringChecks[i]),
-                            child: const Text('Done'),
+                        ? Wrap(
+                            spacing: 4,
+                            children: [
+                              TextButton(
+                                onPressed: onRecurringSkip == null
+                                    ? null
+                                    : () =>
+                                          onRecurringSkip!(recurringChecks[i]),
+                                child: const Text('Skip'),
+                              ),
+                              TextButton(
+                                onPressed: onRecurringTap == null
+                                    ? null
+                                    : () => onRecurringTap!(recurringChecks[i]),
+                                child: const Text('Complete'),
+                              ),
+                            ],
                           )
                         : null,
                   ),

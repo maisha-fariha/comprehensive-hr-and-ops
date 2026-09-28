@@ -37,7 +37,7 @@ class CreateShiftOpenShiftForm extends StatelessWidget {
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
           Text(
-            'Leave this shift open for eligible staff to bid on.',
+            'Leave this shift open for staff to bid on.',
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w400,
@@ -109,7 +109,7 @@ class _OpenShiftToggleCard extends StatelessWidget {
                       height: ResponsiveHelper.getResponsiveHeight(context, 4),
                     ),
                     Text(
-                      'Eligible staff can submit bids until the deadline.',
+                      'Anyone at this home can submit a bid until the deadline.',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w400,

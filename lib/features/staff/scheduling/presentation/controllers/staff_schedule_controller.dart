@@ -5,19 +5,18 @@ import 'package:get/get.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
-import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_schedule_overview.dart';
 import '../../domain/entities/staff_shift.dart';
 import '../../domain/entities/week_day.dart';
 import '../../domain/repositories/staff_schedule_repository.dart';
+import '../pages/staff_create_shift_page.dart';
 
 /// GetX controller for the "My Schedule" screen.
 class StaffScheduleController extends BaseController<StaffScheduleOverview> {
   final StaffScheduleRepository repository;
 
   /// Monday of the week currently displayed.
-  final Rx<DateTime> weekStart =
-      IsoDateRange.startOfWeek(DateTime.now()).obs;
+  final Rx<DateTime> weekStart = IsoDateRange.startOfWeek(DateTime.now()).obs;
 
   /// Selected day chip within [weekStart]'s week.
   final Rx<DateTime> selectedDate = DateTime(
@@ -121,7 +120,8 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
         weekDays: [
           for (final d in current.weekDays)
             d.copyWith(
-              isSelected: d.date.year == date.year &&
+              isSelected:
+                  d.date.year == date.year &&
                   d.date.month == date.month &&
                   d.date.day == date.day,
             ),
@@ -236,8 +236,9 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
   }
 
   void setStatusFilter(String? status) {
-    statusFilter.value =
-        (status == null || status.isEmpty || status == 'all') ? null : status;
+    statusFilter.value = (status == null || status.isEmpty || status == 'all')
+        ? null
+        : status;
   }
 
   Future<void> showFilterSheet() async {
@@ -277,7 +278,10 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
                         : option[0].toUpperCase() + option.substring(1),
                   ),
                   trailing: current == option
-                      ? const Icon(Icons.check_rounded, color: Color(0xFF0E7C7B))
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: Color(0xFF0E7C7B),
+                        )
                       : null,
                   onTap: () => Get.back(result: option),
                 ),
@@ -291,107 +295,13 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
   }
 
   Future<void> showCreateShiftDialog() async {
-    final session = Get.find<UserSession>();
-    final residenceId = session.residenceId;
-    if (residenceId == null || residenceId.isEmpty) {
-      AppSnackbar.show(
-        'Residence required',
-        'Assign a residence before creating a shift.',
-      );
-      return;
-    }
-
-    final titleController = TextEditingController(text: 'Coverage shift');
-    final date = selectedDate.value;
-    final dateLabel =
-        '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    var startTime = '09:00';
-    var endTime = '17:00';
-
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
-        title: const Text('Create Shift'),
-        content: StatefulBuilder(
-          builder: (context, setState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  key: const Key('staff-create-shift-title'),
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Title'),
-                ),
-                const SizedBox(height: 8),
-                Text('Date: $dateLabel'),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  key: const Key('staff-create-shift-start'),
-                  initialValue: startTime,
-                  decoration: const InputDecoration(labelText: 'Start'),
-                  items: const [
-                    DropdownMenuItem(value: '07:00', child: Text('07:00')),
-                    DropdownMenuItem(value: '09:00', child: Text('09:00')),
-                    DropdownMenuItem(value: '14:00', child: Text('14:00')),
-                    DropdownMenuItem(value: '22:00', child: Text('22:00')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => startTime = value);
-                  },
-                ),
-                DropdownButtonFormField<String>(
-                  key: const Key('staff-create-shift-end'),
-                  initialValue: endTime,
-                  decoration: const InputDecoration(labelText: 'End'),
-                  items: const [
-                    DropdownMenuItem(value: '15:00', child: Text('15:00')),
-                    DropdownMenuItem(value: '17:00', child: Text('17:00')),
-                    DropdownMenuItem(value: '22:00', child: Text('22:00')),
-                    DropdownMenuItem(value: '07:00', child: Text('07:00')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => endTime = value);
-                  },
-                ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            key: const Key('staff-create-shift-submit'),
-            onPressed: () => Get.back(result: true),
-            child: const Text('Create'),
-          ),
-        ],
+    final created = await Get.to<bool>(
+      () => StaffCreateShiftPage(
+        repository: repository,
+        initialDate: selectedDate.value,
       ),
     );
-
-    final title = titleController.text.trim();
-    titleController.dispose();
-    if (confirmed != true) return;
-
-    setLoading(true);
-    final result = await repository.createShift(
-      residenceId: residenceId,
-      shiftDate: dateLabel,
-      startTime: startTime,
-      endTime: endTime,
-      title: title.isEmpty ? null : title,
-    );
-    setLoading(false);
-    if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not create shift',
-      );
-      return;
-    }
-    AppSnackbar.show('Shift created', 'Your shift was added to the schedule.');
-    await loadOverview();
+    if (created == true) await loadOverview();
   }
 
   Future<String?> _promptNote({
