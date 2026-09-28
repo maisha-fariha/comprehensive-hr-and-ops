@@ -10,6 +10,9 @@ class ShiftStaffOption {
   final String? role;
   final String? categoryId;
 
+  /// First residence on the staff record (`residences[0].name`).
+  final String? residenceLabel;
+
   const ShiftStaffOption({
     required this.id,
     required this.name,
@@ -17,5 +20,6 @@ class ShiftStaffOption {
     required this.initials,
     this.role,
     this.categoryId,
+    this.residenceLabel,
   });
 }

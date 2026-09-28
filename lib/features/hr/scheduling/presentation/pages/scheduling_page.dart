@@ -33,7 +33,12 @@ class SchedulingPage extends StatelessWidget {
   }
 
   Future<void> _openCreateShift(SchedulingController controller) async {
-    final created = await Get.to<bool>(() => const CreateShiftPage());
+    final created = await Get.to<bool>(
+      () => CreateShiftPage(
+        initialResidenceId: controller.residenceFilter.value,
+        initialShiftDate: controller.selectedDay.value,
+      ),
+    );
     if (created == true) {
       await controller.refresh();
     }

@@ -7,7 +7,6 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
-import '../../domain/entities/shift_qualification_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
@@ -195,46 +194,10 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
-  Future<Result<List<ShiftQualificationOption>>> getQualifications({
-    String? residenceId,
-  }) async {
-    final scopedResidenceId = residenceId ?? _session.residenceId;
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions() async {
     final result = await _api.get(
       ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': _pageSize,
-        'residenceId': ?scopedResidenceId,
-      },
-      silent: true,
-    );
-    return result.when(
-      success: (body) async =>
-          Result.success(SchedulingMapper.qualificationsFrom(body)),
-      failure: (error) async => Result.failure(error),
-    );
-  }
-
-  @override
-  Future<Result<List<ShiftStaffOption>>> searchStaff({
-    String? search,
-    String? residenceId,
-    String? categoryId,
-  }) async {
-    final trimmed = search?.trim() ?? '';
-    final scopedResidenceId = residenceId ?? _session.residenceId;
-    final scopedCategoryId = categoryId?.trim();
-
-    final result = await _api.get(
-      ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': _pageSize,
-        if (trimmed.isNotEmpty) 'search': trimmed,
-        'residenceId': ?scopedResidenceId,
-        if (scopedCategoryId != null && scopedCategoryId.isNotEmpty)
-          'categoryId': scopedCategoryId,
-      },
+      query: {'page': 1, 'limit': _pageSize},
       silent: true,
     );
     return result.when(
@@ -245,17 +208,14 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
-  Future<Result<String>> createShift(Map<String, dynamic> payload) async {
+  Future<Result<int>> createShift(Map<String, dynamic> payload) async {
     final result = await _api.post(
       ApiEndpoints.shifts,
       data: payload,
       allowQueue: false,
     );
     return result.when(
-      success: (body) async {
-        final id = _extractId(body);
-        return Result.success(id ?? '');
-      },
+      success: (body) async => Result.success(_createdCount(body)),
       failure: (error) async => Result.failure(error),
     );
   }
@@ -278,15 +238,14 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     );
   }
 
-  String? _extractId(dynamic body) {
-    if (body is Map) {
-      final map = Map<String, dynamic>.from(body);
-      final data = map['data'];
-      if (data is Map) {
-        return data['id']?.toString() ?? data['shiftId']?.toString();
-      }
-      return map['id']?.toString() ?? map['shiftId']?.toString();
+  /// `POST /shifts` answers with one shift, or a list for a recurring series.
+  int _createdCount(dynamic body) {
+    final data = body is Map ? body['data'] ?? body : body;
+    if (data is List) return data.isEmpty ? 1 : data.length;
+    if (data is Map && data['items'] is List) {
+      final items = data['items'] as List;
+      return items.isEmpty ? 1 : items.length;
     }
-    return null;
+    return 1;
   }
 }

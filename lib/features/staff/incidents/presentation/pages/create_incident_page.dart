@@ -847,7 +847,7 @@ class _FollowUpChecklistSection extends StatelessWidget {
         vertical: 4,
       ),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
+                color: AppColors.surfaceWhite,
         borderRadius: BorderRadius.circular(
           ResponsiveHelper.getResponsiveRadius(context, 16),
         ),
@@ -927,7 +927,7 @@ class _ChecklistRow extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
+              child: Padding(
         padding: ResponsiveHelper.getResponsivePadding(context, vertical: 14),
         child: Row(
           children: [

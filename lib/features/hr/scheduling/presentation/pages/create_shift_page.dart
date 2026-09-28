@@ -1,20 +1,15 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
-import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/shift_break_duration_option.dart';
-import '../../domain/entities/shift_coverage_level_option.dart';
-import '../../domain/entities/shift_qualification_option.dart';
-import '../../domain/entities/shift_reminder_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/shift_type_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
+import '../widgets/create_shift/create_shift_footer.dart';
 import '../widgets/create_shift/create_shift_header.dart';
 import '../widgets/create_shift/create_shift_info_form.dart';
 import '../widgets/create_shift/create_shift_notifications_form.dart';
@@ -22,997 +17,737 @@ import '../widgets/create_shift/create_shift_open_shift_form.dart';
 import '../widgets/create_shift/create_shift_recurring_form.dart';
 import '../widgets/create_shift/create_shift_staff_assignment_form.dart';
 
-/// "Add New Shift" screen matching the design reference.
+/// "Add New Shift" wizard — same steps, fields, validation and
+/// `POST /shifts` body as the web scheduling dialog.
 class CreateShiftPage extends StatefulWidget {
-  const CreateShiftPage({super.key});
+  /// Pre-selected residence (the scheduling page's residence filter).
+  final String? initialResidenceId;
+
+  /// Pre-filled shift date (the scheduling page's selected day).
+  final DateTime? initialShiftDate;
+
+  const CreateShiftPage({
+    super.key,
+    this.initialResidenceId,
+    this.initialShiftDate,
+  });
 
   @override
   State<CreateShiftPage> createState() => _CreateShiftPageState();
 }
 
 class _CreateShiftPageState extends State<CreateShiftPage> {
-  CreateShiftTab _tab = CreateShiftTab.shiftInformation;
-  late final TextEditingController _peopleNeededController;
-  late final TextEditingController _titleController;
-  late final TextEditingController _staffSearchController;
-  late final TextEditingController _notificationMessageController;
-
   late final SchedulingRepository _repository;
-  late final UserSession _session;
+  late final CreateShiftDraft _draft;
+  late final String _initialSnapshot;
+
+  late final TextEditingController _titleController;
+  late final TextEditingController _notesController;
+  late final TextEditingController _requiredStaffCountController;
+  late final TextEditingController _maxBidsController;
+  late final TextEditingController _noteToBiddersController;
+  late final TextEditingController _occurrenceController;
+  late final TextEditingController _messageController;
+  final ScrollController _scrollController = ScrollController();
+
+  CreateShiftStep _step = CreateShiftStep.shiftInformation;
+  Map<String, String> _errors = const {};
+  String? _submitError;
   bool _isSubmitting = false;
 
   final List<ShiftResidenceOption> _residences = [];
-  ShiftResidenceOption? _selectedResidence;
   bool _isLoadingResidences = false;
 
-  static const List<ShiftTypeOption> _shiftTypes = ShiftTypeOption.predefined;
-  ShiftTypeOption? _selectedShiftType = ShiftTypeOption.predefined.first;
-
-  final List<ShiftQualificationOption> _qualifications = [];
-  ShiftQualificationOption? _selectedQualification;
-  bool _isLoadingQualifications = false;
-
-  static const List<ShiftBreakDurationOption> _breakDurations =
-      ShiftBreakDurationOption.predefined;
-  ShiftBreakDurationOption? _selectedBreakDuration =
-      ShiftBreakDurationOption.defaultOption;
-
-  static const List<ShiftCoverageLevelOption> _coverageLevels =
-      ShiftCoverageLevelOption.predefined;
-  ShiftCoverageLevelOption? _selectedCoverageLevel =
-      ShiftCoverageLevelOption.defaultOption;
-
-  final List<ShiftStaffOption> _staff = [];
-  final Set<String> _selectedStaffIds = {};
+  final List<ShiftStaffOption> _staffOptions = [];
   bool _isLoadingStaff = false;
-  String _staffSearchError = '';
-  Timer? _staffSearchDebounce;
-  int _staffSearchRequestId = 0;
-  static const Duration _staffSearchDebounceDuration =
-      Duration(milliseconds: 350);
-
-  DateTime _shiftDate = DateTime.now();
-  TimeOfDay _startTime = const TimeOfDay(hour: 7, minute: 0);
-  TimeOfDay _endTime = const TimeOfDay(hour: 15, minute: 0);
-
-  bool _isOpenShift = false;
-  bool _isRecurring = false;
-  bool _notifyAssignedStaff = true;
-  ShiftReminderOption _selectedReminder = ShiftReminderOption.defaultOption;
-  static const List<ShiftReminderOption> _reminders =
-      ShiftReminderOption.predefined;
+  String? _staffError;
+  String? _expandedStaffId;
 
   @override
   void initState() {
     super.initState();
-    _peopleNeededController = TextEditingController(text: '1');
-    _titleController = TextEditingController();
-    _staffSearchController = TextEditingController();
-    _notificationMessageController = TextEditingController();
     _repository = GetIt.instance<SchedulingRepository>();
-    _session = Get.find<UserSession>();
-    final now = DateTime.now();
-    _shiftDate = DateTime(now.year, now.month, now.day);
-    _applyShiftTypeTimes(_selectedShiftType);
-    _seedResidenceFromSession();
+    final residenceId = widget.initialResidenceId?.trim();
+    _draft = CreateShiftDraft(
+      residenceId: residenceId == null || residenceId.isEmpty ? null : residenceId,
+      shiftDate: widget.initialShiftDate ?? DateTime.now(),
+    );
+    _titleController = TextEditingController(text: _draft.title);
+    _notesController = TextEditingController(text: _draft.notes);
+    _requiredStaffCountController =
+        TextEditingController(text: _draft.requiredStaffCount);
+    _maxBidsController = TextEditingController(text: _draft.maxBids);
+    _noteToBiddersController =
+        TextEditingController(text: _draft.noteToBidders);
+    _occurrenceController =
+        TextEditingController(text: _draft.occurrenceCount);
+    _messageController =
+        TextEditingController(text: _draft.notificationMessage);
+    _initialSnapshot = _draft.snapshot();
     _loadResidences();
-    _loadQualifications();
     _loadStaff();
   }
 
-  void _applyShiftTypeTimes(ShiftTypeOption? option) {
-    if (option == null || !option.hasPresetTimes) return;
-    _startTime = TimeOfDay(
-      hour: option.startHour!,
-      minute: option.startMinute!,
-    );
-    _endTime = TimeOfDay(
-      hour: option.endHour!,
-      minute: option.endMinute!,
-    );
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _notesController.dispose();
+    _requiredStaffCountController.dispose();
+    _maxBidsController.dispose();
+    _noteToBiddersController.dispose();
+    _occurrenceController.dispose();
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
-  void _seedResidenceFromSession() {
-    final name = _session.residenceName;
-    final id = _session.residenceId;
-    if (name == null || name.isEmpty) return;
-    _selectedResidence = ShiftResidenceOption(
-      id: id ?? name,
-      name: name,
-    );
-  }
+  bool get _isDirty => _draft.snapshot() != _initialSnapshot;
 
   Future<void> _loadResidences() async {
     if (_isLoadingResidences) return;
     setState(() => _isLoadingResidences = true);
     final result = await _repository.getResidences();
     if (!mounted) return;
-    setState(() => _isLoadingResidences = false);
-
     result.when(
-      success: (data) {
-        setState(() {
-          _residences
-            ..clear()
-            ..addAll(data);
-          final currentId = _selectedResidence?.id;
-          if (currentId != null) {
-            for (final option in data) {
-              if (option.id == currentId) {
-                _selectedResidence = option;
-                break;
-              }
-            }
-          }
-        });
-      },
+      success: (data) => setState(() {
+        _isLoadingResidences = false;
+        _residences
+          ..clear()
+          ..addAll(data);
+      }),
       failure: (error) {
+        setState(() => _isLoadingResidences = false);
         AppSnackbar.show('Could not load residences', error.message);
       },
     );
   }
 
-  Future<void> _pickResidence() async {
-    if (_residences.isEmpty && !_isLoadingResidences) {
-      await _loadResidences();
-    }
-    if (!mounted) return;
-
-    final selected = await showModalBottomSheet<ShiftResidenceOption>(
-      context: context,
-      backgroundColor: AppColors.surfaceWhite,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: StatefulBuilder(
-            builder: (context, setSheetState) {
-              if (_isLoadingResidences && _residences.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.secondaryTeal,
-                    ),
-                  ),
-                );
-              }
-              if (_residences.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'No residences available.',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () async {
-                          await _loadResidences();
-                          if (context.mounted) setSheetState(() {});
-                        },
-                        child: const Text('Try again'),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return ListView(
-                shrinkWrap: true,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                    child: Text(
-                      'Select residence',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: AppColors.textHeading,
-                      ),
-                    ),
-                  ),
-                  for (final option in _residences)
-                    ListTile(
-                      title: Text(
-                        option.name,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textHeading,
-                        ),
-                      ),
-                      trailing: _selectedResidence?.id == option.id
-                          ? const Icon(
-                              Icons.check_rounded,
-                              color: AppColors.secondaryTeal,
-                            )
-                          : null,
-                      onTap: () => Navigator.of(sheetContext).pop(option),
-                    ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-
-    if (selected != null && mounted) {
-      setState(() {
-        _selectedResidence = selected;
-        _selectedQualification = null;
-        _qualifications.clear();
-      });
-      _loadQualifications();
-      _loadStaff();
-    }
-  }
-
-  Future<void> _loadQualifications() async {
-    if (_isLoadingQualifications) return;
-    setState(() => _isLoadingQualifications = true);
-    final result = await _repository.getQualifications(
-      residenceId: _selectedResidence?.id,
-    );
-    if (!mounted) return;
-    setState(() => _isLoadingQualifications = false);
-
-    result.when(
-      success: (data) {
-        setState(() {
-          _qualifications
-            ..clear()
-            ..addAll(data);
-          final currentId = _selectedQualification?.id;
-          if (currentId != null) {
-            ShiftQualificationOption? matched;
-            for (final option in data) {
-              if (option.id == currentId) {
-                matched = option;
-                break;
-              }
-            }
-            _selectedQualification = matched;
-          }
-        });
-      },
-      failure: (error) {
-        AppSnackbar.show('Could not load qualifications', error.message);
-      },
-    );
-  }
-
-  Future<void> _pickShiftType() async {
-    final selected = await showModalBottomSheet<ShiftTypeOption>(
-      context: context,
-      backgroundColor: AppColors.surfaceWhite,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  'Select shift type',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              for (final option in _shiftTypes)
-                ListTile(
-                  title: Text(
-                    option.label,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  trailing: _selectedShiftType?.id == option.id
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.secondaryTeal,
-                        )
-                      : null,
-                  onTap: () => Navigator.of(sheetContext).pop(option),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (selected != null && mounted) {
-      setState(() {
-        _selectedShiftType = selected;
-        _applyShiftTypeTimes(selected);
-      });
-    }
-  }
-
-  Future<void> _pickQualification() async {
-    if (_qualifications.isEmpty && !_isLoadingQualifications) {
-      await _loadQualifications();
-    }
-    if (!mounted) return;
-
-    final selected = await showModalBottomSheet<ShiftQualificationOption>(
-      context: context,
-      backgroundColor: AppColors.surfaceWhite,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: StatefulBuilder(
-            builder: (context, setSheetState) {
-              if (_isLoadingQualifications && _qualifications.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.secondaryTeal,
-                    ),
-                  ),
-                );
-              }
-              if (_qualifications.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'No qualifications available.',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () async {
-                          await _loadQualifications();
-                          if (context.mounted) setSheetState(() {});
-                        },
-                        child: const Text('Try again'),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return ListView(
-                shrinkWrap: true,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                    child: Text(
-                      'Select qualification',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        color: AppColors.textHeading,
-                      ),
-                    ),
-                  ),
-                  for (final option in _qualifications)
-                    ListTile(
-                      title: Text(
-                        option.label,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textHeading,
-                        ),
-                      ),
-                      trailing: _selectedQualification?.id == option.id
-                          ? const Icon(
-                              Icons.check_rounded,
-                              color: AppColors.secondaryTeal,
-                            )
-                          : null,
-                      onTap: () => Navigator.of(sheetContext).pop(option),
-                    ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-
-    if (selected != null && mounted) {
-      setState(() => _selectedQualification = selected);
-      _loadStaff();
-    }
-  }
-
-  Future<void> _pickBreakDuration() async {
-    final selected = await showModalBottomSheet<ShiftBreakDurationOption>(
-      context: context,
-      backgroundColor: AppColors.surfaceWhite,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  'Select break duration',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              for (final option in _breakDurations)
-                ListTile(
-                  title: Text(
-                    option.label,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  trailing: _selectedBreakDuration?.id == option.id
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.secondaryTeal,
-                        )
-                      : null,
-                  onTap: () => Navigator.of(sheetContext).pop(option),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (selected != null && mounted) {
-      setState(() => _selectedBreakDuration = selected);
-    }
-  }
-
-  Future<void> _pickCoverageLevel() async {
-    final selected = await showModalBottomSheet<ShiftCoverageLevelOption>(
-      context: context,
-      backgroundColor: AppColors.surfaceWhite,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  'Select coverage level',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              for (final option in _coverageLevels)
-                ListTile(
-                  title: Text(
-                    option.label,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  trailing: _selectedCoverageLevel?.id == option.id
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.secondaryTeal,
-                        )
-                      : null,
-                  onTap: () => Navigator.of(sheetContext).pop(option),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (selected != null && mounted) {
-      setState(() => _selectedCoverageLevel = selected);
-    }
-  }
-
-  void _onStaffSearchChanged(String value) {
-    _staffSearchDebounce?.cancel();
-    _staffSearchDebounce = Timer(
-      _staffSearchDebounceDuration,
-      () => _loadStaff(value),
-    );
-  }
-
-  Future<void> _loadStaff([String? query]) async {
-    final requestId = ++_staffSearchRequestId;
+  Future<void> _loadStaff() async {
+    if (_isLoadingStaff) return;
     setState(() {
       _isLoadingStaff = true;
-      _staffSearchError = '';
+      _staffError = null;
     });
-
-    final result = await _repository.searchStaff(
-      search: query ?? _staffSearchController.text,
-      residenceId: _selectedResidence?.id,
-      categoryId: _selectedQualification?.id,
-    );
-    if (!mounted || requestId != _staffSearchRequestId) return;
-
-    setState(() => _isLoadingStaff = false);
+    final result = await _repository.getStaffOptions();
+    if (!mounted) return;
     result.when(
-      success: (data) {
-        setState(() {
-          _staff
-            ..clear()
-            ..addAll(data);
-          _staffSearchError = '';
-        });
-      },
-      failure: (error) {
-        setState(() {
-          _staff.clear();
-          _staffSearchError = error.message;
-        });
-        AppSnackbar.show('Could not load staff', error.message);
-      },
+      success: (data) => setState(() {
+        _isLoadingStaff = false;
+        _staffOptions
+          ..clear()
+          ..addAll(data);
+      }),
+      failure: (error) => setState(() {
+        _isLoadingStaff = false;
+        _staffError = error.message;
+      }),
     );
   }
 
-  void _toggleStaff(String id) {
+  /// Applies a change, then re-checks only the fields already showing an
+  /// error so messages clear (or update) as the user fixes them.
+  void _update(VoidCallback change) {
     setState(() {
-      if (_selectedStaffIds.contains(id)) {
-        _selectedStaffIds.remove(id);
-      } else {
-        _selectedStaffIds.add(id);
+      change();
+      if (_errors.isNotEmpty) {
+        final current = _draft.validate();
+        _errors = {
+          for (final key in _errors.keys)
+            if (current.containsKey(key)) key: current[key]!,
+        };
       }
     });
   }
 
-  Future<void> _pickShiftDate() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: _shiftDate.isBefore(today) ? today : _shiftDate,
-      firstDate: today,
-      lastDate: today.add(const Duration(days: 365)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: AppColors.secondaryTeal,
-                ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (selected == null || !mounted) return;
-    setState(() => _shiftDate = selected);
-  }
-
-  Future<void> _pickStartTime() async {
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: _startTime,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: AppColors.secondaryTeal,
-                ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (selected == null || !mounted) return;
-    setState(() {
-      _startTime = selected;
-      _selectedShiftType = const ShiftTypeOption(
-        id: 'custom',
-        name: 'Custom',
-        label: 'Custom',
-      );
+  void _onTextChanged(String _) {
+    _update(() {
+      _draft
+        ..title = _titleController.text
+        ..notes = _notesController.text
+        ..requiredStaffCount = _requiredStaffCountController.text
+        ..maxBids = _maxBidsController.text
+        ..noteToBidders = _noteToBiddersController.text
+        ..occurrenceCount = _occurrenceController.text
+        ..notificationMessage = _messageController.text;
     });
   }
 
-  Future<void> _pickEndTime() async {
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: _endTime,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: AppColors.secondaryTeal,
-                ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (selected == null || !mounted) return;
-    setState(() {
-      _endTime = selected;
-      _selectedShiftType = const ShiftTypeOption(
-        id: 'custom',
-        name: 'Custom',
-        label: 'Custom',
-      );
-    });
+  void _goTo(CreateShiftStep step) {
+    FocusScope.of(context).unfocus();
+    setState(() => _step = step);
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
-  String _formatShiftDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  }
-
-  String _formatShiftTime(TimeOfDay time) {
-    final hour12 = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
-    return '${hour12.toString().padLeft(2, '0')}:$minute $period';
-  }
-
-  Future<void> _pickReminder() async {
-    final selected = await showModalBottomSheet<ShiftReminderOption>(
-      context: context,
-      backgroundColor: AppColors.surfaceWhite,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  'Select reminder',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              for (final option in _reminders)
-                ListTile(
-                  title: Text(
-                    option.label,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  trailing: _selectedReminder.id == option.id
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.secondaryTeal,
-                        )
-                      : null,
-                  onTap: () => Navigator.of(sheetContext).pop(option),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (selected != null && mounted) {
-      setState(() => _selectedReminder = selected);
+  void _next() {
+    final stepErrors = _draft.validateStep(_step);
+    if (stepErrors.isNotEmpty) {
+      setState(() => _errors = {..._errors, ...stepErrors});
+      return;
+    }
+    final index = _step.index;
+    if (index < CreateShiftStep.values.length - 1) {
+      _goTo(CreateShiftStep.values[index + 1]);
     }
   }
 
-  DateTime _combineDateAndTime(DateTime date, TimeOfDay time) {
-    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  void _back() {
+    final index = _step.index;
+    if (index > 0) _goTo(CreateShiftStep.values[index - 1]);
   }
 
-  Map<String, dynamic> _buildCreatePayload() {
-    final startsAt = _combineDateAndTime(_shiftDate, _startTime);
-    var endsAt = _combineDateAndTime(_shiftDate, _endTime);
-    if (!endsAt.isAfter(startsAt)) {
-      endsAt = endsAt.add(const Duration(days: 1));
-    }
-
-    final requiredStaffCount =
-        int.tryParse(_peopleNeededController.text.trim()) ?? 1;
-    final title = _titleController.text.trim().isNotEmpty
-        ? _titleController.text.trim()
-        : '${_selectedShiftType?.name ?? 'Shift'} Care Shift';
-    final notificationMessage = _notificationMessageController.text.trim();
-    final reminderMinutes = _selectedReminder.minutesBefore;
-    final categoryId = _selectedQualification?.id;
-
-    final payload = <String, dynamic>{
-      'residenceId': _selectedResidence!.id,
-      'startsAt': startsAt.toUtc().toIso8601String(),
-      'endsAt': endsAt.toUtc().toIso8601String(),
-      'title': title,
-      'shiftType': _selectedShiftType?.id ?? 'custom',
-      'coverageLevel': _selectedCoverageLevel?.id ?? 'standard',
-      'breakMinutes': _selectedBreakDuration?.minutes ?? 0,
-      'requiredStaffCount': requiredStaffCount,
-      if (categoryId != null && categoryId.isNotEmpty)
-        'requiredCategoryId': categoryId,
-      'staffIds': _selectedStaffIds.toList(),
-      'notifyAssignedStaff': _notifyAssignedStaff,
-      'reminderMinutesBefore': ?reminderMinutes,
-      if (notificationMessage.isNotEmpty)
-        'notificationMessage': notificationMessage,
-    };
-
-    if (_isOpenShift) {
-      final closesAt = DateTime(
-        _shiftDate.year,
-        _shiftDate.month,
-        _shiftDate.day,
-      ).subtract(const Duration(minutes: 1));
-      payload['biddingConfig'] = {
-        'eligibleCategoryIds': [
-          if (categoryId != null && categoryId.isNotEmpty) categoryId,
-        ],
-        'biddingClosesAt': closesAt.toUtc().toIso8601String(),
-        'maxBids': 5,
-        'priority': 'medium',
-        'awardMethod': 'manual',
-        'noteToBidders': 'Open to all qualified care workers.',
-      };
-    }
-
-    if (_isRecurring) {
-      payload['recurrence'] = {
-        'occurrences': 4,
-        'intervalDays': 7,
-        'weekdays': [_shiftDate.weekday],
-      };
-    }
-
-    return payload;
-  }
-
-  Future<void> _createShift() async {
+  Future<void> _submit() async {
     if (_isSubmitting) return;
-
-    final residenceId = _selectedResidence?.id.trim() ?? '';
-    if (residenceId.isEmpty) {
-      AppSnackbar.show('Missing details', 'Please select a residence.');
-      setState(() => _tab = CreateShiftTab.shiftInformation);
+    final errors = _draft.validate();
+    if (errors.isNotEmpty) {
+      setState(() => _errors = errors);
+      _goTo(CreateShiftDraft.stepOf(errors.keys.first));
       return;
     }
 
-    if (_selectedShiftType == null) {
-      AppSnackbar.show('Missing details', 'Please select a shift type.');
-      setState(() => _tab = CreateShiftTab.shiftInformation);
-      return;
-    }
-
-    final requiredStaffCount =
-        int.tryParse(_peopleNeededController.text.trim());
-    if (requiredStaffCount == null || requiredStaffCount < 1) {
-      AppSnackbar.show(
-        'Missing details',
-        'People needed must be at least 1.',
-      );
-      setState(() => _tab = CreateShiftTab.shiftInformation);
-      return;
-    }
-
-    final startsAt = _combineDateAndTime(_shiftDate, _startTime);
-    var endsAt = _combineDateAndTime(_shiftDate, _endTime);
-    if (!endsAt.isAfter(startsAt)) {
-      endsAt = endsAt.add(const Duration(days: 1));
-    }
-    if (!endsAt.isAfter(startsAt)) {
-      AppSnackbar.show('Invalid times', 'End time must be after start time.');
-      setState(() => _tab = CreateShiftTab.shiftInformation);
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-    try {
-      final result = await _repository.createShift(_buildCreatePayload());
-      if (!mounted) return;
-
-      final created = result.when(
-        success: (_) => true,
-        failure: (error) {
-          AppSnackbar.show('Could not create shift', error.message);
-          return false;
-        },
-      );
-      if (created && mounted) {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isSubmitting = true;
+      _submitError = null;
+    });
+    final result = await _repository.createShift(_draft.toCreateBody());
+    if (!mounted) return;
+    result.when(
+      success: (count) {
         Navigator.of(context).pop(true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           AppSnackbar.show(
-            'Shift created',
-            'The shift was created successfully.',
+            count == 1 ? 'Shift created' : '$count shifts created',
+            '',
           );
         });
-      }
-    } catch (error) {
-      if (!mounted) return;
-      AppSnackbar.show(
-        'Could not create shift',
-        error.toString(),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
+      },
+      failure: (error) {
+        setState(() {
+          _isSubmitting = false;
+          _submitError = error.message;
+        });
+        if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      },
+    );
+  }
+
+  Future<void> _requestClose() async {
+    if (_isSubmitting) return;
+    if (!_isDirty) {
+      Navigator.of(context).pop();
+      return;
     }
-  }
-
-  @override
-  void dispose() {
-    _staffSearchDebounce?.cancel();
-    _peopleNeededController.dispose();
-    _titleController.dispose();
-    _staffSearchController.dispose();
-    _notificationMessageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                color: AppColors.surfaceWhite,
-                child: Column(
-                  children: [
-                    CreateShiftHeader(
-                      onClose: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    ),
-                    CreateShiftStepTabs(
-                      selected: _tab,
-                      onSelected: _isSubmitting
-                          ? null
-                          : (tab) {
-                              setState(() => _tab = tab);
-                              if (tab == CreateShiftTab.staffAssignment &&
-                                  _staff.isEmpty &&
-                                  !_isLoadingStaff) {
-                                _loadStaff();
-                              }
-                            },
-                    ),
-                    CreateShiftCompletionBar(
-                      currentStep: _tab.index + 1,
-                      totalSteps: CreateShiftTab.values.length,
-                      percent: ((_tab.index + 1) /
-                              CreateShiftTab.values.length) *
-                          100,
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: _bodyForTab(),
-                      ),
-                    ),
-                  ],
-                ),
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surfaceWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Discard unsaved changes?',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: AppColors.textHeading,
+          ),
+        ),
+        content: const Text(
+          "You have unsaved edits on this form. If you leave now, they'll be lost.",
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w400,
+            fontSize: 14,
+            color: AppColors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(
+              'Keep editing',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                color: AppColors.textHeading,
               ),
             ),
-            CreateShiftFooter(
-              isSubmitting: _isSubmitting,
-              onCancel:
-                  _isSubmitting ? null : () => Navigator.of(context).pop(),
-              onCreate: _isSubmitting ? null : () => _createShift(),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Discard',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                color: AppColors.criticalRed,
+              ),
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) Navigator.of(context).pop();
+  }
+
+  Future<T?> _pickOption<T>({
+    required String title,
+    required List<ShiftFormChoice<T>> options,
+    required T? selected,
+    required bool hasSelection,
+  }) {
+    return showModalBottomSheet<T>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              for (final option in options)
+                ListTile(
+                  title: Text(
+                    option.label,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  trailing: hasSelection && option.value == selected
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: AppColors.secondaryTeal,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(option.value),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _bodyForTab() {
-    switch (_tab) {
-      case CreateShiftTab.shiftInformation:
+  Future<void> _pickResidence() async {
+    if (_residences.isEmpty && !_isLoadingResidences) await _loadResidences();
+    if (!mounted) return;
+    if (_residences.isEmpty) {
+      AppSnackbar.show('No residences', 'No residences are available.');
+      return;
+    }
+    final id = await _pickOption<String>(
+      title: 'Residence',
+      options: [
+        for (final residence in _residences)
+          ShiftFormChoice(residence.id, residence.name),
+      ],
+      selected: _draft.residenceId,
+      hasSelection: _draft.residenceId.isNotEmpty,
+    );
+    if (id != null) _update(() => _draft.residenceId = id);
+  }
+
+  Future<void> _pickShiftType() async {
+    final id = await _pickOption<String>(
+      title: 'Shift Type',
+      options: [
+        for (final option in ShiftTypeOption.predefined)
+          ShiftFormChoice(option.id, option.label),
+      ],
+      selected: _draft.shiftType,
+      hasSelection: _draft.shiftType.isNotEmpty,
+    );
+    if (id == null) return;
+    final option = ShiftTypeOption.predefined.firstWhere((o) => o.id == id);
+    _update(() => _draft.applyShiftType(option));
+  }
+
+  Future<void> _pickBreak() async {
+    final minutes = await _pickOption<int>(
+      title: 'Break Duration',
+      options: [
+        for (final option in ShiftBreakDurationOption.predefined)
+          ShiftFormChoice(option.minutes, option.label),
+      ],
+      selected: _draft.breakMinutes,
+      hasSelection: true,
+    );
+    if (minutes != null) _update(() => _draft.breakMinutes = minutes);
+  }
+
+  Future<DateTime?> _pickDate(DateTime? current) {
+    final now = DateTime.now();
+    final initial = current ?? DateTime(now.year, now.month, now.day);
+    return showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 3, 12, 31),
+      builder: _pickerTheme,
+    );
+  }
+
+  Future<int?> _pickTime(int? current) async {
+    final minutes = current ?? 0;
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: _pickerTheme(context, child),
+      ),
+    );
+    if (selected == null) return null;
+    return selected.hour * 60 + selected.minute;
+  }
+
+  Widget _pickerTheme(BuildContext context, Widget? child) {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: AppColors.secondaryTeal,
+            ),
+      ),
+      child: child!,
+    );
+  }
+
+  Future<void> _openStaffPicker() async {
+    if (_staffOptions.isEmpty && !_isLoadingStaff) await _loadStaff();
+    if (!mounted) return;
+    await showCreateShiftStaffPicker(
+      context: context,
+      options: _staffOptions,
+      selectedIds: {for (final staff in _draft.assignedStaff) staff.staffId},
+      errorMessage: _staffError,
+      onRetry: _loadStaff,
+      onToggle: _toggleStaff,
+    );
+  }
+
+  void _toggleStaff(ShiftStaffOption option) {
+    _update(() {
+      final index =
+          _draft.assignedStaff.indexWhere((s) => s.staffId == option.id);
+      if (index >= 0) {
+        _draft.assignedStaff.removeAt(index);
+        if (_expandedStaffId == option.id) _expandedStaffId = null;
+      } else {
+        _draft.assignedStaff.add(AssignedShiftStaff.fromOption(option));
+        _expandedStaffId = option.id;
+      }
+    });
+  }
+
+  void _removeStaff(String staffId) {
+    _update(() {
+      _draft.assignedStaff.removeWhere((s) => s.staffId == staffId);
+      if (_expandedStaffId == staffId) _expandedStaffId = null;
+    });
+  }
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String? _formatDate(DateTime? date) {
+    if (date == null) return null;
+    return '${_months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  String? _formatTime(int? minutes) {
+    if (minutes == null) return null;
+    final h = (minutes ~/ 60).toString().padLeft(2, '0');
+    final m = (minutes % 60).toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  String? get _residenceLabel {
+    if (_draft.residenceId.isEmpty) return null;
+    for (final residence in _residences) {
+      if (residence.id == _draft.residenceId) return residence.name;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = {
+      for (final step in CreateShiftStep.values)
+        if (_draft.isStepComplete(step)) step,
+    };
+    final isFirst = _step == CreateShiftStep.values.first;
+    final isLast = _step == CreateShiftStep.values.last;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _requestClose();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.surfaceWhite,
+        body: SafeArea(
+          child: Column(
+            children: [
+              CreateShiftHeader(
+                onClose: _isSubmitting ? null : _requestClose,
+              ),
+              CreateShiftStepTabs(
+                selected: _step,
+                completed: completed,
+                onSelected: _isSubmitting ? null : _goTo,
+              ),
+              CreateShiftCompletionBar(
+                currentStep: _draft.completedSteps,
+                totalSteps: CreateShiftStep.values.length,
+                percent: _draft.completionPercent.toDouble(),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_submitError != null) _SubmitErrorBanner(_submitError!),
+                      _bodyForStep(),
+                    ],
+                  ),
+                ),
+              ),
+              CreateShiftFooter(
+                isFirstStep: isFirst,
+                isLastStep: isLast,
+                isSubmitting: _isSubmitting,
+                plannedOccurrences: _draft.plannedOccurrences(),
+                onCancel: _requestClose,
+                onBack: _back,
+                onNext: _next,
+                onSubmit: _submit,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bodyForStep() {
+    switch (_step) {
+      case CreateShiftStep.shiftInformation:
         return CreateShiftInfoForm(
-          peopleNeededController: _peopleNeededController,
           titleController: _titleController,
-          residenceValue: _selectedResidence?.name,
-          isLoadingResidences: _isLoadingResidences,
+          notesController: _notesController,
+          residenceValue: _residenceLabel,
+          isLoadingResidences:
+              _isLoadingResidences && _draft.residenceId.isNotEmpty,
           onResidenceTap: _pickResidence,
-          shiftTypeValue: _selectedShiftType?.label,
+          shiftTypeValue: _draft.shiftTypeOption?.label,
           onShiftTypeTap: _pickShiftType,
-          shiftDateValue: _formatShiftDate(_shiftDate),
-          onShiftDateTap: _pickShiftDate,
-          startTimeValue: _formatShiftTime(_startTime),
-          onStartTimeTap: _pickStartTime,
-          endTimeValue: _formatShiftTime(_endTime),
-          onEndTimeTap: _pickEndTime,
-          qualificationValue: _selectedQualification?.label,
-          isLoadingQualifications: _isLoadingQualifications,
-          onQualificationTap: _pickQualification,
-          breakDurationValue: _selectedBreakDuration?.label,
-          onBreakDurationTap: _pickBreakDuration,
-          coverageLevelValue: _selectedCoverageLevel?.label,
-          onCoverageLevelTap: _pickCoverageLevel,
+          shiftDateValue: _formatDate(_draft.shiftDate),
+          onShiftDateTap: () async {
+            final date = await _pickDate(_draft.shiftDate);
+            if (date != null) _update(() => _draft.shiftDate = date);
+          },
+          startTimeValue: _formatTime(_draft.startMinutes),
+          onStartTimeTap: () async {
+            final time = await _pickTime(_draft.startMinutes);
+            if (time != null) _update(() => _draft.startMinutes = time);
+          },
+          endTimeValue: _formatTime(_draft.endMinutes),
+          onEndTimeTap: () async {
+            final time = await _pickTime(_draft.endMinutes);
+            if (time != null) _update(() => _draft.endMinutes = time);
+          },
+          breakDurationValue: CreateShiftChoices.labelOf(
+            [
+              for (final option in ShiftBreakDurationOption.predefined)
+                ShiftFormChoice(option.minutes, option.label),
+            ],
+            _draft.breakMinutes,
+          ),
+          onBreakDurationTap: _pickBreak,
+          onTextChanged: _onTextChanged,
+          errors: _errors,
         );
-      case CreateShiftTab.staffAssignment:
+      case CreateShiftStep.staffAssignment:
         return CreateShiftStaffAssignmentForm(
-          searchController: _staffSearchController,
-          staff: _staff,
-          selectedIds: _selectedStaffIds,
-          isLoading: _isLoadingStaff,
-          errorMessage: _staffSearchError.isEmpty ? null : _staffSearchError,
-          onSearchChanged: _onStaffSearchChanged,
-          onToggleStaff: _toggleStaff,
-          onRetry: _loadStaff,
+          assignedStaff: _draft.assignedStaff,
+          expandedStaffId: _expandedStaffId,
+          isLoadingStaff: _isLoadingStaff,
+          onAddStaff: _openStaffPicker,
+          onRemoveStaff: _removeStaff,
+          onToggleExpand: (id) => setState(
+            () => _expandedStaffId = _expandedStaffId == id ? null : id,
+          ),
+          onChanged: () => setState(() {}),
         );
-      case CreateShiftTab.openShift:
+      case CreateShiftStep.openShift:
         return CreateShiftOpenShiftForm(
-          isOpenShift: _isOpenShift,
-          onChanged: (value) => setState(() => _isOpenShift = value),
+          isOpenShift: _draft.isOpenShift,
+          onChanged: (value) => _update(() => _draft.isOpenShift = value),
+          requiredStaffCountController: _requiredStaffCountController,
+          maxBidsController: _maxBidsController,
+          noteToBiddersController: _noteToBiddersController,
+          deadlineDateValue: _formatDate(_draft.biddingDeadlineDate),
+          onDeadlineDateTap: () async {
+            final date = await _pickDate(_draft.biddingDeadlineDate);
+            if (date != null) _update(() => _draft.biddingDeadlineDate = date);
+          },
+          deadlineTimeValue: _formatTime(_draft.biddingDeadlineMinutes),
+          onDeadlineTimeTap: () async {
+            final time = await _pickTime(_draft.biddingDeadlineMinutes);
+            if (time != null) {
+              _update(() => _draft.biddingDeadlineMinutes = time);
+            }
+          },
+          priorityValue: CreateShiftChoices.labelOf(
+            CreateShiftChoices.priorities,
+            _draft.priority,
+          ),
+          onPriorityTap: () async {
+            final value = await _pickOption<String>(
+              title: 'Priority',
+              options: CreateShiftChoices.priorities,
+              selected: _draft.priority,
+              hasSelection: true,
+            );
+            if (value != null) _update(() => _draft.priority = value);
+          },
+          awardMethodValue: CreateShiftChoices.labelOf(
+            CreateShiftChoices.awardMethods,
+            _draft.awardMethod,
+          ),
+          onAwardMethodTap: () async {
+            final value = await _pickOption<String>(
+              title: 'Award Method',
+              options: CreateShiftChoices.awardMethods,
+              selected: _draft.awardMethod,
+              hasSelection: true,
+            );
+            if (value != null) _update(() => _draft.awardMethod = value);
+          },
+          onTextChanged: _onTextChanged,
         );
-      case CreateShiftTab.recurring:
+      case CreateShiftStep.recurring:
         return CreateShiftRecurringForm(
-          isRecurring: _isRecurring,
-          onChanged: (value) => setState(() => _isRecurring = value),
+          isRecurring: _draft.isRecurring,
+          onChanged: (value) => _update(() => _draft.isRecurring = value),
+          frequencyValue: CreateShiftChoices.labelOf(
+            CreateShiftChoices.frequencies,
+            _draft.recurrenceFrequency,
+          ),
+          onFrequencyTap: () async {
+            final value = await _pickOption<int>(
+              title: 'Frequency',
+              options: CreateShiftChoices.frequencies,
+              selected: _draft.recurrenceFrequency,
+              hasSelection: true,
+            );
+            if (value != null) {
+              _update(() => _draft.recurrenceFrequency = value);
+            }
+          },
+          repeatOnDays: _draft.repeatOnDays,
+          onToggleDay: (day) => _update(() {
+            if (!_draft.repeatOnDays.remove(day)) _draft.repeatOnDays.add(day);
+          }),
+          ends: _draft.ends,
+          onEndsChanged: (value) => _update(() => _draft.ends = value),
+          endDateValue: _formatDate(_draft.endDate),
+          onEndDateTap: () async {
+            final date = await _pickDate(_draft.endDate ?? _draft.shiftDate);
+            if (date != null) _update(() => _draft.endDate = date);
+          },
+          occurrenceController: _occurrenceController,
+          onTextChanged: _onTextChanged,
+          plannedOccurrences:
+              _draft.shiftDate == null ? 0 : _draft.plannedOccurrences(),
+          errors: _errors,
         );
-      case CreateShiftTab.notifications:
+      case CreateShiftStep.notifications:
         return CreateShiftNotificationsForm(
-          notifyAssignedStaff: _notifyAssignedStaff,
+          notifyAssignedStaff: _draft.notifyAssignedStaff,
           onNotifyAssignedStaffChanged: (value) =>
-              setState(() => _notifyAssignedStaff = value),
-          selectedReminder: _selectedReminder,
+              _update(() => _draft.notifyAssignedStaff = value),
+          reminderValue: _draft.reminderMinutes == null
+              ? null
+              : CreateShiftChoices.labelOf(
+                  CreateShiftChoices.reminders,
+                  _draft.reminderMinutes,
+                ),
           onReminderTap: _pickReminder,
-          messageController: _notificationMessageController,
+          messageController: _messageController,
+          onTextChanged: _onTextChanged,
         );
     }
+  }
+
+  Future<void> _pickReminder() async {
+    const noReminder = -1;
+    final value = await _pickOption<int>(
+      title: 'Reminder',
+      options: [
+        for (final option in CreateShiftChoices.reminders)
+          ShiftFormChoice(option.value ?? noReminder, option.label),
+      ],
+      selected: _draft.reminderMinutes,
+      hasSelection: _draft.reminderMinutes != null,
+    );
+    if (value == null) return;
+    _update(
+      () => _draft.reminderMinutes = value == noReminder ? null : value,
+    );
+  }
+}
+
+class _SubmitErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _SubmitErrorBanner(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('create-shift-submit-error'),
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.criticalRed.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Semantics(
+        liveRegion: true,
+        child: Text(
+          message,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 13.5,
+            color: AppColors.criticalRed,
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -4,22 +4,23 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../../core/constants/app_assets.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/widgets/app_svg_icon.dart';
+import '../../../domain/entities/create_shift_draft.dart';
 
-enum CreateShiftTab {
-  shiftInformation,
-  staffAssignment,
-  openShift,
-  recurring,
-  notifications,
-}
-
-extension CreateShiftTabX on CreateShiftTab {
+extension CreateShiftStepX on CreateShiftStep {
   String get label => switch (this) {
-        CreateShiftTab.shiftInformation => 'Shift Information',
-        CreateShiftTab.staffAssignment => 'Staff Assignment',
-        CreateShiftTab.openShift => 'Open Shift',
-        CreateShiftTab.recurring => 'Recurring',
-        CreateShiftTab.notifications => 'Notifications',
+        CreateShiftStep.shiftInformation => 'Shift Information',
+        CreateShiftStep.staffAssignment => 'Staff Assignment',
+        CreateShiftStep.openShift => 'Open Shift',
+        CreateShiftStep.recurring => 'Recurring',
+        CreateShiftStep.notifications => 'Notifications',
+      };
+
+  String get description => switch (this) {
+        CreateShiftStep.shiftInformation => 'Timing & residence',
+        CreateShiftStep.staffAssignment => 'Assign or leave open',
+        CreateShiftStep.openShift => 'Bidding & eligibility',
+        CreateShiftStep.recurring => 'Repeat pattern',
+        CreateShiftStep.notifications => 'Alerts & reminders',
       };
 }
 
@@ -164,30 +165,60 @@ class _RequiredFieldsHint extends StatelessWidget {
   }
 }
 
-class CreateShiftStepTabs extends StatelessWidget {
-  final CreateShiftTab selected;
-  final ValueChanged<CreateShiftTab>? onSelected;
+class CreateShiftStepTabs extends StatefulWidget {
+  final CreateShiftStep selected;
+  final Set<CreateShiftStep> completed;
+  final ValueChanged<CreateShiftStep>? onSelected;
 
   const CreateShiftStepTabs({
     super.key,
     required this.selected,
+    this.completed = const {},
     this.onSelected,
   });
 
   @override
+  State<CreateShiftStepTabs> createState() => _CreateShiftStepTabsState();
+}
+
+class _CreateShiftStepTabsState extends State<CreateShiftStepTabs> {
+  final Map<CreateShiftStep, GlobalKey> _keys = {
+    for (final step in CreateShiftStep.values) step: GlobalKey(),
+  };
+
+  @override
+  void didUpdateWidget(covariant CreateShiftStepTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selected == widget.selected) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final tabContext = _keys[widget.selected]?.currentContext;
+      if (tabContext == null || !tabContext.mounted) return;
+      Scrollable.ensureVisible(
+        tabContext,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 200),
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final selected = widget.selected;
+    final onSelected = widget.onSelected;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
       child: Row(
         children: [
-          for (final tab in CreateShiftTab.values) ...[
+          for (final tab in CreateShiftStep.values) ...[
             _TabChip(
+              key: _keys[tab],
               tab: tab,
               selected: tab == selected,
-              onTap: onSelected == null ? null : () => onSelected!(tab),
+              completed: widget.completed.contains(tab),
+              onTap: onSelected == null ? null : () => onSelected(tab),
             ),
-            if (tab != CreateShiftTab.values.last)
+            if (tab != CreateShiftStep.values.last)
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
           ],
         ],
@@ -197,19 +228,26 @@ class CreateShiftStepTabs extends StatelessWidget {
 }
 
 class _TabChip extends StatelessWidget {
-  final CreateShiftTab tab;
+  final CreateShiftStep tab;
   final bool selected;
+  final bool completed;
   final VoidCallback? onTap;
 
   const _TabChip({
+    super.key,
     required this.tab,
     required this.selected,
+    required this.completed,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? AppColors.primaryNavy : AppColors.textMuted;
+    final fg = selected
+        ? AppColors.primaryNavy
+        : completed
+            ? AppColors.successGreen
+            : AppColors.textMuted;
     return Material(
       color: selected ? AppColors.surfaceWhite : Colors.transparent,
       shape: RoundedRectangleBorder(
@@ -234,16 +272,60 @@ class _TabChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _TabIcon(tab: tab, color: fg),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              Text(
-                tab.label,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                  color: fg,
-                ),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _TabIcon(tab: tab, color: fg),
+                  if (completed)
+                    Positioned(
+                      right: -5,
+                      bottom: -5,
+                      child: Container(
+                        key: ValueKey('create-shift-step-done-${tab.name}'),
+                        width: ResponsiveHelper.getResponsiveSize(context, 12),
+                        height: ResponsiveHelper.getResponsiveSize(context, 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.successGreen,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.check_rounded,
+                          size: ResponsiveHelper.getResponsiveSize(context, 8),
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    tab.label,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight:
+                          selected ? FontWeight.w600 : FontWeight.w500,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                      color: selected ? AppColors.primaryNavy : AppColors.textHeading,
+                    ),
+                  ),
+                  Text(
+                    tab.description,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w400,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 11),
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -254,7 +336,7 @@ class _TabChip extends StatelessWidget {
 }
 
 class _TabIcon extends StatelessWidget {
-  final CreateShiftTab tab;
+  final CreateShiftStep tab;
   final Color color;
 
   const _TabIcon({required this.tab, required this.color});
@@ -262,23 +344,23 @@ class _TabIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     switch (tab) {
-      case CreateShiftTab.shiftInformation:
+      case CreateShiftStep.shiftInformation:
         return AppSvgIcon(AppAssets.calendarCheck, size: 16, color: color);
-      case CreateShiftTab.staffAssignment:
+      case CreateShiftStep.staffAssignment:
         return AppSvgIcon(AppAssets.users, size: 16, color: color);
-      case CreateShiftTab.openShift:
+      case CreateShiftStep.openShift:
         return Icon(
           Icons.cell_tower_rounded,
           size: ResponsiveHelper.getResponsiveSize(context, 16),
           color: color,
         );
-      case CreateShiftTab.recurring:
+      case CreateShiftStep.recurring:
         return Icon(
           Icons.sync_rounded,
           size: ResponsiveHelper.getResponsiveSize(context, 16),
           color: color,
         );
-      case CreateShiftTab.notifications:
+      case CreateShiftStep.notifications:
         return AppSvgIcon(AppAssets.bell, size: 16, color: color);
     }
   }

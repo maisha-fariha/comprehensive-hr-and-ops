@@ -2,7 +2,6 @@ import 'package:gems_core/gems_core.dart';
 
 import '../entities/scheduling_enums.dart';
 import '../entities/scheduling_overview.dart';
-import '../entities/shift_qualification_option.dart';
 import '../entities/shift_residence_option.dart';
 import '../entities/shift_staff_option.dart';
 
@@ -27,20 +26,13 @@ abstract class SchedulingRepository {
   /// Residences for the Create Shift "Residence" dropdown (`GET /residences`).
   Future<Result<List<ShiftResidenceOption>>> getResidences();
 
-  /// Qualification options from unique staff `categoryId` names (`GET /staff`).
-  Future<Result<List<ShiftQualificationOption>>> getQualifications({
-    String? residenceId,
-  });
+  /// Tenant staff for the Create Shift "Assigned Staff" picker
+  /// (`GET /staff?page=1&limit=100`, searched client-side like the web).
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions();
 
-  /// Staff for Create Shift assignment search (`GET /staff?search=`).
-  Future<Result<List<ShiftStaffOption>>> searchStaff({
-    String? search,
-    String? residenceId,
-    String? categoryId,
-  });
-
-  /// Creates a shift via `POST /shifts`. Returns the new shift id when provided.
-  Future<Result<String>> createShift(Map<String, dynamic> payload);
+  /// Creates a shift (or a recurring series) via `POST /shifts`.
+  /// Returns how many shifts were created.
+  Future<Result<int>> createShift(Map<String, dynamic> payload);
 
   /// Manager decision on a pending shift-swap request.
   Future<Result<void>> decideShiftSwap({
