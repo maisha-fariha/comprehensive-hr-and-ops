@@ -6,20 +6,25 @@ import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/network/iso_date_range.dart';
-import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
+import '../pages/staff_manual_attendance_entry_page.dart';
 
 /// GetX controller for the "Attendance" screen.
-class StaffAttendanceController extends BaseController<StaffAttendanceOverview> {
+class StaffAttendanceController
+    extends BaseController<StaffAttendanceOverview> {
   final StaffAttendanceRepository repository;
 
   /// Live HH:MM:SS from [StaffAttendanceOverview.checkInAt].
   final RxString liveElapsedLabel = '00:00:00'.obs;
+
+  /// BUG_Report006 — residence options for "All Residences" filter.
+  final RxList<ManualEntryResidenceOption> residenceOptions =
+      <ManualEntryResidenceOption>[].obs;
 
   Timer? _ticker;
 
@@ -31,6 +36,7 @@ class StaffAttendanceController extends BaseController<StaffAttendanceOverview> 
   void onInit() {
     super.onInit();
     loadOverview();
+    _loadResidences();
   }
 
   @override
@@ -198,12 +204,16 @@ class StaffAttendanceController extends BaseController<StaffAttendanceOverview> 
   /// BUG_Report006 — history date filter (`null` = all dates).
   final Rxn<DateTime> historyDateFilter = Rxn<DateTime>();
 
-  /// BUG_Report006 — `all` | `completed` | `in_progress`.
+  /// BUG_Report006 — `all` or a residence id.
+  final RxString historyResidenceFilter = 'all'.obs;
+
+  /// BUG_Report006 — `all` | `present` | `late` | `missed` | `pending_approval`.
   final RxString historyStatusFilter = 'all'.obs;
 
   List<StaffAttendanceHistoryItem> get filteredHistory {
     final items = overview?.history ?? const <StaffAttendanceHistoryItem>[];
     final date = historyDateFilter.value;
+    final residence = historyResidenceFilter.value;
     final status = historyStatusFilter.value;
     return items.where((item) {
       if (date != null) {
@@ -215,165 +225,37 @@ class StaffAttendanceController extends BaseController<StaffAttendanceOverview> 
           return false;
         }
       }
-      if (status == 'completed' && item.isOpen) return false;
-      if (status == 'in_progress' && !item.isOpen) return false;
+      if (residence != 'all' && item.residenceId != residence) return false;
+      if (status != 'all' && item.status != status) return false;
       return true;
     }).toList();
   }
 
   void setHistoryDateFilter(DateTime? date) => historyDateFilter.value = date;
 
+  void setHistoryResidenceFilter(String residenceId) =>
+      historyResidenceFilter.value = residenceId;
+
   void setHistoryStatusFilter(String status) =>
       historyStatusFilter.value = status;
 
+  Future<void> _loadResidences() async {
+    final result = await repository.getResidences();
+    result.when(
+      success: (items) => residenceOptions.assignAll(items),
+      failure: (_) {},
+    );
+  }
+
   Future<void> showManualEntryDialog() async {
-    final session = Get.find<UserSession>();
-    var checkIn = DateTime.now().subtract(const Duration(hours: 8));
-    var checkOut = DateTime.now();
-    final notesController = TextEditingController();
-    var includeCheckOut = true;
-
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
-        title: const Text('Manual Entry'),
-        content: StatefulBuilder(
-          builder: (context, setState) {
-            String label(DateTime dt) =>
-                '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
-                '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-            Future<void> pickIn() async {
-              final date = await showDatePicker(
-                context: context,
-                initialDate: checkIn,
-                firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                lastDate: DateTime.now(),
-              );
-              if (date == null || !context.mounted) return;
-              final time = await showTimePicker(
-                context: context,
-                initialTime: TimeOfDay.fromDateTime(checkIn),
-              );
-              if (time == null) return;
-              setState(() {
-                checkIn = DateTime(
-                  date.year,
-                  date.month,
-                  date.day,
-                  time.hour,
-                  time.minute,
-                );
-              });
-            }
-
-            Future<void> pickOut() async {
-              final date = await showDatePicker(
-                context: context,
-                initialDate: checkOut,
-                firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                lastDate: DateTime.now(),
-              );
-              if (date == null || !context.mounted) return;
-              final time = await showTimePicker(
-                context: context,
-                initialTime: TimeOfDay.fromDateTime(checkOut),
-              );
-              if (time == null) return;
-              setState(() {
-                checkOut = DateTime(
-                  date.year,
-                  date.month,
-                  date.day,
-                  time.hour,
-                  time.minute,
-                );
-              });
-            }
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  key: const Key('staff-manual-entry-check-in'),
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Check in'),
-                  subtitle: Text(label(checkIn)),
-                  trailing: const Icon(Icons.edit_calendar_outlined),
-                  onTap: pickIn,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Include check out'),
-                  value: includeCheckOut,
-                  onChanged: (v) => setState(() => includeCheckOut = v),
-                ),
-                if (includeCheckOut)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Check out'),
-                    subtitle: Text(label(checkOut)),
-                    trailing: const Icon(Icons.edit_calendar_outlined),
-                    onTap: pickOut,
-                  ),
-                TextField(
-                  controller: notesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Notes (optional)',
-                  ),
-                ),
-                if ((session.residenceId ?? '').isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: Text(
-                      'Assign a residence before submitting.',
-                      style: TextStyle(color: AppColors.criticalRed),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            key: const Key('staff-manual-entry-submit'),
-            onPressed: () => Get.back(result: true),
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
+    final saved = await Get.to<bool>(
+      () => const StaffManualAttendanceEntryPage(),
     );
-
-    final notes = notesController.text.trim();
-    notesController.dispose();
-    if (confirmed != true) return;
-
-    setLoading(true);
-    final result = await repository.recordManualAttendance(
-      checkInAtIso: checkIn.toUtc().toIso8601String(),
-      checkOutAtIso:
-          includeCheckOut ? checkOut.toUtc().toIso8601String() : null,
-      notes: notes.isEmpty ? null : notes,
-    );
-    setLoading(false);
-    if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not save manual entry',
-      );
-      return;
-    }
-    Get.snackbar(
-      'Manual entry saved',
-      'Attendance record submitted for review.',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.white,
-    );
-    await loadOverview();
+    if (saved == true) await loadOverview();
   }
 
   @override
-  Future<void> refresh() => loadOverview();
+  Future<void> refresh() async {
+    await Future.wait([loadOverview(), _loadResidences()]);
+  }
 }

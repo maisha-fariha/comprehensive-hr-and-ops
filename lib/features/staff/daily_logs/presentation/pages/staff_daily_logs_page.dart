@@ -115,7 +115,6 @@ class StaffDailyLogsPage extends StatelessWidget {
                             controller.selectedResidenceId.value,
                         residenceOptions: controller.residenceOptions.toList(),
                         onResidenceChanged: controller.setResidenceFilter,
-                        onAddClient: controller.showAddClientDialog,
                       ),
                     StaffDailyLogsTab.inProgress => InProgressTabView(
                         stats: overview.stats,

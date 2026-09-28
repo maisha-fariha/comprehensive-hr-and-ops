@@ -10,6 +10,7 @@ import '../../../../core/roles/user_session.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../extras/presentation/pages/staff_admissions_page.dart';
 import '../../extras/presentation/pages/staff_client_activities_page.dart';
+import '../../extras/presentation/pages/staff_clients_page.dart';
 import '../../extras/presentation/pages/staff_emergency_page.dart';
 import '../../extras/presentation/pages/staff_inventory_page.dart';
 import '../../extras/presentation/pages/staff_recurring_checks_page.dart';
@@ -51,6 +52,14 @@ class StaffMoreMenuPage extends StatelessWidget {
               title: 'Residence',
               subtitle: 'Your assigned home and residence details',
             ),
+            if (session.canAccessClients)
+              const StaffMenuEntry(
+                icon: Icons.groups_outlined,
+                iconBackground: AppColors.infoBackground,
+                iconColor: AppColors.infoBlue,
+                title: 'Clients',
+                subtitle: 'Client directory, profiles, and admissions',
+              ),
             const StaffMenuEntry(
               icon: Icons.fact_check_outlined,
               iconBackground: AppColors.urgentBackground,
@@ -79,8 +88,8 @@ class StaffMoreMenuPage extends StatelessWidget {
                 icon: Icons.directions_walk_outlined,
                 iconBackground: AppColors.activeBackground,
                 iconColor: AppColors.activeGreen,
-                title: 'Client activities',
-                subtitle: 'Record outings, school, and programs',
+                title: 'Daily Activity',
+                subtitle: 'Outings, school, programmes, and observations',
               ),
             if (session.canAccessInventory)
               const StaffMenuEntry(
@@ -150,13 +159,15 @@ class StaffMoreMenuPage extends StatelessWidget {
     switch (title) {
       case 'Residence':
         Get.to(() => const StaffResidencesPage());
+      case 'Clients':
+        Get.to(() => const StaffClientsPage());
       case 'Recurring Checks':
         Get.to(() => const StaffRecurringChecksPage());
       case 'Emergency':
         Get.to(() => const StaffEmergencyPage());
       case 'Shift handovers':
         Get.to(() => const StaffShiftHandoversPage());
-      case 'Client activities':
+      case 'Daily Activity':
         Get.to(() => const StaffClientActivitiesPage());
       case 'Inventory':
         Get.to(() => const StaffInventoryPage());

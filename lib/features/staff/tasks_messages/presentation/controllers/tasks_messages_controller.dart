@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
@@ -12,6 +11,7 @@ import '../../domain/entities/staff_task.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
 import '../../domain/entities/tasks_messages_overview.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
+import '../pages/staff_create_task_page.dart';
 import '../widgets/staff_task_detail_sheet.dart';
 
 /// GetX controller for the "Tasks & Messages" list screen.
@@ -77,10 +77,7 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
   Future<void> loadContacts() async {
     isLoadingContacts.value = true;
     final result = await repository.getContacts();
-    result.when(
-      success: (items) => contacts.assignAll(items),
-      failure: (_) {},
-    );
+    result.when(success: (items) => contacts.assignAll(items), failure: (_) {});
     isLoadingContacts.value = false;
   }
 
@@ -88,9 +85,7 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     final current = overview;
     if (current == null) return;
     final updated = current.conversations
-        .map(
-          (c) => c.id == conversationId ? c.copyWith(unreadCount: 0) : c,
-        )
+        .map((c) => c.id == conversationId ? c.copyWith(unreadCount: 0) : c)
         .toList();
     setSuccess(current.copyWith(conversations: updated));
   }
@@ -179,116 +174,23 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     await loadOverview();
   }
 
-  /// Opens New Task dialog (BUG_Report009).
+  /// Opens New Task wizard (BUG_Report009).
   Future<void> showCreateTaskDialog() async {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    var priority = 'medium';
-    DateTime? dueAt;
-
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
-        title: const Text('New Task'),
-        content: StatefulBuilder(
-          builder: (context, setState) {
-            String dueLabel() {
-              if (dueAt == null) return 'Optional due date';
-              return '${dueAt!.year}-${dueAt!.month.toString().padLeft(2, '0')}-${dueAt!.day.toString().padLeft(2, '0')}';
-            }
-
-            return SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title',
-                      hintText: 'What needs to be done?',
-                    ),
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Description (optional)',
-                    ),
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: priority,
-                    decoration: const InputDecoration(labelText: 'Priority'),
-                    items: const [
-                      DropdownMenuItem(value: 'low', child: Text('Low')),
-                      DropdownMenuItem(value: 'medium', child: Text('Medium')),
-                      DropdownMenuItem(value: 'high', child: Text('High')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) setState(() => priority = value);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(dueLabel()),
-                    trailing: const Icon(Icons.calendar_today_outlined),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: dueAt ?? DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (picked != null) setState(() => dueAt = picked);
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-
-    final title = titleController.text;
-    final description = descriptionController.text;
-    titleController.dispose();
-    descriptionController.dispose();
-
-    if (confirmed != true) return;
-    if (title.trim().isEmpty) {
-      AppSnackbar.show('Title required', 'Enter a task title to continue.');
-      return;
-    }
-
-    final result = await repository.createTask(
-      title: title,
-      description: description,
-      priority: priority,
-      dueAt: dueAt,
-    );
-    if (result.isFailure) {
+    final optionsResult = await repository.getTaskCreationOptions();
+    if (optionsResult.isFailure || optionsResult.value == null) {
       AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not create task',
+        optionsResult.error,
+        fallbackTitle: 'Could not load task options',
       );
       return;
     }
-    AppSnackbar.show('Task created', title.trim());
-    await loadOverview();
+    final created = await Get.to<bool>(
+      () => StaffCreateTaskPage(
+        repository: repository,
+        options: optionsResult.value!,
+      ),
+    );
+    if (created == true) await loadOverview();
   }
 
   Future<void> addTaskNote({
@@ -311,24 +213,34 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
   Future<void> completeRecurringCheck(RecurringCheckInstance check) async {
     final result = await repository.updateRecurringCheck(
       instanceId: check.id,
-      status: 'completed',
+      status: 'requires_review',
       statusNote: 'Completed from Tasks tab',
     );
     if (result.isFailure) {
-      final skip = await repository.updateRecurringCheck(
-        instanceId: check.id,
-        status: 'skipped',
-        statusNote: 'Recorded from Tasks tab',
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not update check',
       );
-      if (skip.isFailure) {
-        AppErrorDialog.showResultError(
-          result.error ?? skip.error,
-          fallbackTitle: 'Could not update check',
-        );
-        return;
-      }
+      return;
     }
     AppSnackbar.show('Check updated', check.title);
+    await loadOverview();
+  }
+
+  Future<void> skipRecurringCheck(RecurringCheckInstance check) async {
+    final result = await repository.updateRecurringCheck(
+      instanceId: check.id,
+      status: 'skipped',
+      statusNote: 'Skipped from Tasks tab',
+    );
+    if (result.isFailure) {
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not skip check',
+      );
+      return;
+    }
+    AppSnackbar.show('Check skipped', check.title);
     await loadOverview();
   }
 

@@ -171,7 +171,13 @@ class StaffExtrasListScaffold extends StatelessWidget {
                                         ],
                                       ),
                                     ),
-                                    if (trailing != null) trailing,
+                                    if (trailing != null)
+                                      trailing
+                                    else if (onItemTap != null)
+                                      const Icon(
+                                        Icons.chevron_right_rounded,
+                                        color: AppColors.iconChevron,
+                                      ),
                                   ],
                                 ),
                               ),

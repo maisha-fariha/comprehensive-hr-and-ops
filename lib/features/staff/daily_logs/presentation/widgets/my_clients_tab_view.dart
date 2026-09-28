@@ -21,7 +21,6 @@ class MyClientsTabView extends StatelessWidget {
   final String? selectedResidenceId;
   final List<({String id, String name})> residenceOptions;
   final ValueChanged<String?> onResidenceChanged;
-  final VoidCallback onAddClient;
 
   static const Color _totalPillBg = Color(0xFFE6F4F3);
   static const Color _totalPillFg = Color(0xFF0E7C7B);
@@ -37,7 +36,6 @@ class MyClientsTabView extends StatelessWidget {
     required this.selectedResidenceId,
     required this.residenceOptions,
     required this.onResidenceChanged,
-    required this.onAddClient,
   });
 
   @override
@@ -57,7 +55,6 @@ class MyClientsTabView extends StatelessWidget {
           selectedResidenceId: selectedResidenceId,
           residenceOptions: residenceOptions,
           onResidenceChanged: onResidenceChanged,
-          onAddClient: onAddClient,
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
         StaffDailyLogStatsRow(stats: stats),

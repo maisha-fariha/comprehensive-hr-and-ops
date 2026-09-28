@@ -28,7 +28,10 @@ class StaffTasksMessagesPage extends StatelessWidget {
     try {
       return Get.find<TasksMessagesController>();
     } catch (_) {
-      return Get.put(GetIt.instance<TasksMessagesController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<TasksMessagesController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -80,7 +83,9 @@ class StaffTasksMessagesPage extends StatelessWidget {
           final overview = response.data;
 
           if (overview == null && controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+            );
           }
 
           if (overview == null) {
@@ -96,68 +101,78 @@ class StaffTasksMessagesPage extends StatelessWidget {
 
           return Column(
             children: [
-              ColoredBox(color: AppColors.surfaceWhite, child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TasksMessagesHeader(
-                    title: 'Tasks & Messages',
-                    onNewTaskTap: selectedTab == TasksMessagesTab.tasks
-                        ? controller.showCreateTaskDialog
-                        : null,
-                  ),
-                  Padding(
-                    padding: ResponsiveHelper.getResponsivePadding(
-                      context,
-                      horizontal: AppDimens.screenPaddingHorizontal,
-                      top: 16,
-                      bottom: 16,
+              ColoredBox(
+                color: AppColors.surfaceWhite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TasksMessagesHeader(
+                      title: 'Tasks & Messages',
+                      onNewTaskTap: selectedTab == TasksMessagesTab.tasks
+                          ? controller.showCreateTaskDialog
+                          : null,
                     ),
-                    child: TasksMessagesSegmentedTabs(
-                      selectedTab: selectedTab,
-                      tasksCount: overview.stats.all > 0
-                          ? overview.stats.all
-                          : overview.tasks.length,
-                      messagesCount: overview.conversations.length,
-                      onTabSelected: controller.selectTab,
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: AppDimens.screenPaddingHorizontal,
+                        top: 16,
+                        bottom: 16,
+                      ),
+                      child: TasksMessagesSegmentedTabs(
+                        selectedTab: selectedTab,
+                        tasksCount: overview.stats.all > 0
+                            ? overview.stats.all
+                            : overview.tasks.length,
+                        messagesCount: overview.conversations.length,
+                        onTabSelected: controller.selectTab,
+                      ),
                     ),
-                  ),
-                ],
-              )),
+                  ],
+                ),
+              ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: ListView(
                     padding: EdgeInsets.fromLTRB(
-                      ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+                      ResponsiveHelper.getResponsiveWidth(
+                        context,
+                        AppDimens.screenPaddingHorizontal,
+                      ),
                       ResponsiveHelper.getResponsiveHeight(context, 16),
-                      ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+                      ResponsiveHelper.getResponsiveWidth(
+                        context,
+                        AppDimens.screenPaddingHorizontal,
+                      ),
                       ResponsiveHelper.getResponsiveHeight(context, 24),
                     ),
                     children: [
                       switch (selectedTab) {
                         TasksMessagesTab.tasks => TasksTabView(
-                            tasks: controller.filteredTasks,
-                            recurringChecks: controller.recurringChecks,
-                            selectedFilter: controller.selectedFilter.value,
-                            countFor: controller.countFor,
-                            onFilterSelected: controller.selectFilter,
-                            onTaskTap: controller.openTask,
-                            onRecurringTap: controller.completeRecurringCheck,
-                          ),
+                          tasks: controller.filteredTasks,
+                          recurringChecks: controller.recurringChecks,
+                          selectedFilter: controller.selectedFilter.value,
+                          countFor: controller.countFor,
+                          onFilterSelected: controller.selectFilter,
+                          onTaskTap: controller.openTask,
+                          onRecurringTap: controller.completeRecurringCheck,
+                          onRecurringSkip: controller.skipRecurringCheck,
+                        ),
                         TasksMessagesTab.messages => MessagesTabView(
-                            conversations: overview.conversations,
-                            onMarkAllRead: controller.markAllConversationsRead,
-                            onNewMessage: () =>
-                                _openNewMessage(context, controller),
-                            onConversationTap: (conversation) {
-                              _openConversation(
-                                controller,
-                                conversation.id,
-                                conversation.name,
-                              );
-                            },
-                          ),
+                          conversations: overview.conversations,
+                          onMarkAllRead: controller.markAllConversationsRead,
+                          onNewMessage: () =>
+                              _openNewMessage(context, controller),
+                          onConversationTap: (conversation) {
+                            _openConversation(
+                              controller,
+                              conversation.id,
+                              conversation.name,
+                            );
+                          },
+                        ),
                       },
                     ],
                   ),
@@ -185,7 +200,11 @@ class _TasksMessagesError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.criticalRed, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.criticalRed,
+              size: 40,
+            ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Text(
               message,
@@ -199,7 +218,9 @@ class _TasksMessagesError extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+              ),
               child: const Text('Retry'),
             ),
           ],

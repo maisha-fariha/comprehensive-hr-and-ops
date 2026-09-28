@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../domain/entities/staff_residence.dart';
 import '../../domain/entities/staff_shift_handover.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
 import '../widgets/staff_record_handover_dialog.dart';
@@ -24,18 +25,46 @@ class StaffShiftHandoversPage extends StatefulWidget {
 class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
   late final StaffExtrasRepository _repository;
   late final UserSession _session;
+
   bool _loading = true;
   String? _error;
   List<StaffShiftHandover> _items = const [];
-  DateTime? _selectedDate;
+  List<StaffResidence> _residences = const [];
+  List<StaffResidencePerson> _staffOptions = const [];
+
+  /// Web parity filters: Any status / Anyone / start / end / All Residences.
   String _statusFilter = 'all';
+  String _authorFilter = 'all';
+  String _residenceFilter = 'all';
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
     super.initState();
     _repository = GetIt.instance<StaffExtrasRepository>();
     _session = Get.find<UserSession>();
-    _load();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await Future.wait([_loadFilterOptions(), _load()]);
+  }
+
+  Future<void> _loadFilterOptions() async {
+    final residencesResult = await _repository.getResidences();
+    final staffResult = await _repository.getStaffDirectoryOptions();
+    if (!mounted) return;
+    setState(() {
+      residencesResult.when(
+        success: (items) => _residences = items,
+        failure: (_) {},
+      );
+      staffResult.when(
+        success: (items) => _staffOptions = items,
+        failure: (_) {},
+      );
+    });
   }
 
   Future<void> _load() async {
@@ -43,20 +72,37 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
       _loading = true;
       _error = null;
     });
-    DateTime? from;
+
+    DateTime? from = _startDate;
     DateTime? to;
-    if (_selectedDate != null) {
-      from = DateTime(
-        _selectedDate!.year,
-        _selectedDate!.month,
-        _selectedDate!.day,
+    if (_endDate != null) {
+      to = DateTime(
+        _endDate!.year,
+        _endDate!.month,
+        _endDate!.day,
+        23,
+        59,
+        59,
+        999,
       );
-      to = from.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+    } else if (_startDate != null) {
+      to = DateTime(
+        _startDate!.year,
+        _startDate!.month,
+        _startDate!.day,
+        23,
+        59,
+        59,
+        999,
+      );
     }
+
     final result = await _repository.getHandovers(
       from: from,
       to: to,
       status: _statusFilter,
+      residenceId: _residenceFilter,
+      authorId: _authorFilter,
     );
     if (!mounted) return;
     result.when(
@@ -71,16 +117,31 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
     );
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickDate({required bool isStart}) async {
     final now = DateTime.now();
+    final initial = isStart
+        ? (_startDate ?? now)
+        : (_endDate ?? _startDate ?? now);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? now,
-      firstDate: now.subtract(const Duration(days: 365)),
-      lastDate: now,
+      initialDate: initial,
+      firstDate: now.subtract(const Duration(days: 365 * 2)),
+      lastDate: now.add(const Duration(days: 365)),
     );
     if (picked == null) return;
-    setState(() => _selectedDate = picked);
+    setState(() {
+      if (isStart) {
+        _startDate = DateTime(picked.year, picked.month, picked.day);
+        if (_endDate != null && _endDate!.isBefore(_startDate!)) {
+          _endDate = _startDate;
+        }
+      } else {
+        _endDate = DateTime(picked.year, picked.month, picked.day);
+        if (_startDate != null && _endDate!.isBefore(_startDate!)) {
+          _startDate = _endDate;
+        }
+      }
+    });
     await _load();
   }
 
@@ -148,14 +209,11 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
     );
   }
 
-  String _dateLabel() {
-    final date = _selectedDate;
-    if (date == null) return 'All dates';
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  String _mmDdYyyy(DateTime? date) {
+    if (date == null) return 'mm/dd/yyyy';
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$m/$d/${date.year}';
   }
 
   @override
@@ -164,14 +222,26 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: const Text('Shift handovers'),
+        title: const Text('Shift Handovers'),
         backgroundColor: AppColors.surfaceWhite,
         foregroundColor: AppColors.textHeading,
         elevation: 0,
+        actions: [
+          if (canWrite)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: TextButton.icon(
+                key: const Key('staff-handover-record-button'),
+                onPressed: _createHandover,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Record Handover'),
+              ),
+            ),
+        ],
       ),
       floatingActionButton: canWrite
           ? FloatingActionButton(
-              backgroundColor: AppColors.secondaryTeal,
+              backgroundColor: AppColors.primaryNavy,
               onPressed: _createHandover,
               child: const Icon(Icons.add),
             )
@@ -185,62 +255,18 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
               top: 12,
               bottom: 8,
             ),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: Material(
-                    color: AppColors.surfaceWhite,
-                    borderRadius: BorderRadius.circular(14),
-                    child: InkWell(
-                      key: const Key('staff-handover-date-picker'),
-                      onTap: _pickDate,
-                      onLongPress: () async {
-                        setState(() => _selectedDate = null);
-                        await _load();
-                      },
-                      borderRadius: BorderRadius.circular(14),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.searchBorder),
-                        ),
-                        child: Row(
-                          children: [
-                            const AppSvgIcon(
-                              AppAssets.navCalendar,
-                              size: 16,
-                              color: AppColors.textMuted,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(_dateLabel())),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Container(
-                    key: const Key('staff-handover-status-dropdown'),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceWhite,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.searchBorder),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
+                Row(
+                  children: [
+                    Expanded(
+                      child: _FilterDropdown(
+                        keyName: 'staff-handover-status-dropdown',
                         value: _statusFilter,
                         items: const [
                           DropdownMenuItem(
                             value: 'all',
-                            child: Text('All status'),
+                            child: Text('Any status'),
                           ),
                           DropdownMenuItem(
                             value: 'draft',
@@ -262,7 +288,79 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
                         },
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _FilterDropdown(
+                        keyName: 'staff-handover-anyone-dropdown',
+                        value: _authorFilter,
+                        items: [
+                          const DropdownMenuItem(
+                            value: 'all',
+                            child: Text('Anyone'),
+                          ),
+                          for (final staff in _staffOptions)
+                            DropdownMenuItem(
+                              value: staff.id,
+                              child: Text(staff.name),
+                            ),
+                        ],
+                        onChanged: (value) async {
+                          if (value == null) return;
+                          setState(() => _authorFilter = value);
+                          await _load();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DateFilterField(
+                        keyName: 'staff-handover-start-date-picker',
+                        label: _mmDdYyyy(_startDate),
+                        onTap: () => _pickDate(isStart: true),
+                        onClear: () async {
+                          setState(() => _startDate = null);
+                          await _load();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _DateFilterField(
+                        keyName: 'staff-handover-end-date-picker',
+                        label: _mmDdYyyy(_endDate),
+                        onTap: () => _pickDate(isStart: false),
+                        onClear: () async {
+                          setState(() => _endDate = null);
+                          await _load();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _FilterDropdown(
+                  keyName: 'staff-handover-residence-dropdown',
+                  value: _residenceFilter,
+                  items: [
+                    const DropdownMenuItem(
+                      value: 'all',
+                      child: Text('All Residences'),
+                    ),
+                    for (final residence in _residences)
+                      DropdownMenuItem(
+                        value: residence.id,
+                        child: Text(residence.name),
+                      ),
+                  ],
+                  onChanged: (value) async {
+                    if (value == null) return;
+                    setState(() => _residenceFilter = value);
+                    await _load();
+                  },
                 ),
               ],
             ),
@@ -307,36 +405,40 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
                                 children: const [
                                   SizedBox(height: 120),
                                   Center(
-                                    child: Text(
-                                      'No shift handovers yet.',
-                                      style: TextStyle(
-                                        fontFamily: 'Outfit',
-                                        color: AppColors.textMuted,
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                      ),
+                                      child: Text(
+                                        'No handovers yet. What one shift tells the next will appear here.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          color: AppColors.textMuted,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ],
                               )
                             : ListView.separated(
-                                physics: const AlwaysScrollableScrollPhysics(),
                                 padding: ResponsiveHelper.getResponsivePadding(
                                   context,
-                                  horizontal: 16,
-                                  top: 8,
-                                  bottom: 88,
+                                  all: 16,
                                 ),
                                 itemCount: _items.length,
                                 separatorBuilder: (_, _) => SizedBox(
                                   height: ResponsiveHelper.getResponsiveHeight(
                                     context,
-                                    12,
+                                    10,
                                   ),
                                 ),
                                 itemBuilder: (context, index) {
                                   final handover = _items[index];
                                   return StaffShiftHandoverCard(
                                     handover: handover,
-                                    residenceFallback: _session.residenceName,
+                                    residenceFallback:
+                                        _session.residenceName ?? '',
                                     onAcknowledge: canWrite
                                         ? () => _acknowledge(handover)
                                         : null,
@@ -349,6 +451,102 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
                       ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FilterDropdown extends StatelessWidget {
+  final String keyName;
+  final String value;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String?> onChanged;
+
+  const _FilterDropdown({
+    required this.keyName,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final resolved = items.any((item) => item.value == value) ? value : 'all';
+    return Container(
+      key: Key(keyName),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.searchBorder),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: resolved,
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _DateFilterField extends StatelessWidget {
+  final String keyName;
+  final String label;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  const _DateFilterField({
+    required this.keyName,
+    required this.label,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceWhite,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        key: Key(keyName),
+        onTap: onTap,
+        onLongPress: onClear,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.searchBorder),
+          ),
+          child: Row(
+            children: [
+              const AppSvgIcon(
+                AppAssets.navCalendar,
+                size: 16,
+                color: AppColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 13,
+                    color: label == 'mm/dd/yyyy'
+                        ? AppColors.textMuted
+                        : AppColors.textHeading,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

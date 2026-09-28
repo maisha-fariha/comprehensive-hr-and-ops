@@ -5,14 +5,13 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// Search bar + residence dropdown + Add Client (BUG_Report003).
+/// Search bar + residence filter for Daily Logs My Clients (web has no Add Client).
 class StaffClientsToolbar extends StatefulWidget {
   final String searchQuery;
   final ValueChanged<String> onSearchChanged;
   final String? selectedResidenceId;
   final List<({String id, String name})> residenceOptions;
   final ValueChanged<String?> onResidenceChanged;
-  final VoidCallback onAddClient;
 
   const StaffClientsToolbar({
     super.key,
@@ -21,7 +20,6 @@ class StaffClientsToolbar extends StatefulWidget {
     required this.selectedResidenceId,
     required this.residenceOptions,
     required this.onResidenceChanged,
-    required this.onAddClient,
   });
 
   @override
@@ -93,90 +91,38 @@ class _StaffClientsToolbarState extends State<StaffClientsToolbar> {
           ),
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                key: const Key('staff-clients-residence-dropdown'),
-                padding: ResponsiveHelper.getResponsivePadding(
-                  context,
-                  horizontal: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceWhite,
-                  borderRadius: BorderRadius.circular(
-                    ResponsiveHelper.getResponsiveRadius(context, 14),
-                  ),
-                  border: Border.all(color: AppColors.searchBorder),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String?>(
-                    isExpanded: true,
-                    value: widget.selectedResidenceId,
-                    hint: const Text('All residences'),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('All residences'),
-                      ),
-                      for (final option in widget.residenceOptions)
-                        DropdownMenuItem<String?>(
-                          value: option.id,
-                          child: Text(option.name),
-                        ),
-                    ],
-                    onChanged: widget.onResidenceChanged,
-                  ),
-                ),
-              ),
+        Container(
+          key: const Key('staff-clients-residence-dropdown'),
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 12,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceWhite,
+            borderRadius: BorderRadius.circular(
+              ResponsiveHelper.getResponsiveRadius(context, 14),
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-            Material(
-              color: AppColors.secondaryTeal,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 14),
-              ),
-              child: InkWell(
-                key: const Key('staff-clients-add-button'),
-                onTap: widget.onAddClient,
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 14),
+            border: Border.all(color: AppColors.searchBorder),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              isExpanded: true,
+              value: widget.selectedResidenceId,
+              hint: const Text('All residences'),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('All residences'),
                 ),
-                child: Padding(
-                  padding: ResponsiveHelper.getResponsivePadding(
-                    context,
-                    horizontal: 14,
-                    vertical: 12,
+                for (final option in widget.residenceOptions)
+                  DropdownMenuItem<String?>(
+                    value: option.id,
+                    child: Text(option.name),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.add_rounded,
-                        size: ResponsiveHelper.getResponsiveSize(context, 18),
-                        color: Colors.white,
-                      ),
-                      SizedBox(
-                        width: ResponsiveHelper.getResponsiveWidth(context, 4),
-                      ),
-                      Text(
-                        'Add Client',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w600,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            13,
-                          ),
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              ],
+              onChanged: widget.onResidenceChanged,
             ),
-          ],
+          ),
         ),
       ],
     );

@@ -40,7 +40,9 @@ class ManualEntryDetailsForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 16),
+    );
 
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
@@ -60,9 +62,7 @@ class ManualEntryDetailsForm extends StatelessWidget {
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           const ManualEntryFieldLabel('Residence', required: true),
           ManualEntryDropdownField(
-            value: isLoadingResidences
-                ? 'Loading residences…'
-                : residenceValue,
+            value: isLoadingResidences ? 'Loading residences…' : residenceValue,
             placeholder: 'Select residence',
             onTap: isLoadingResidences ? null : onResidenceTap,
             enabled: !isLoadingResidences,
@@ -103,9 +103,7 @@ class ManualEntryDetailsForm extends StatelessWidget {
           gap,
           const ManualEntryFieldLabel('Rostered Shift'),
           ManualEntryDropdownField(
-            value: isLoadingShifts
-                ? 'Loading shifts…'
-                : rosteredShiftValue,
+            value: isLoadingShifts ? 'Loading shifts…' : rosteredShiftValue,
             placeholder: canPickShift
                 ? 'Select rostered shift'
                 : 'Choose a staff member first',
@@ -185,8 +183,10 @@ class _StaffResultTile extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 11),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      11,
+                    ),
                     color: AppColors.infoBlue,
                   ),
                 ),
@@ -242,6 +242,7 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
   final VoidCallback? onOriginalCheckOutTap;
   final String? correctedCheckInValue;
   final VoidCallback? onCorrectedCheckInTap;
+  final Key? correctedCheckInKey;
   final String? correctedCheckOutValue;
   final VoidCallback? onCorrectedCheckOutTap;
   final String unpaidBreakValue;
@@ -256,6 +257,7 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
     this.onOriginalCheckOutTap,
     this.correctedCheckInValue,
     this.onCorrectedCheckInTap,
+    this.correctedCheckInKey,
     this.correctedCheckOutValue,
     this.onCorrectedCheckOutTap,
     this.unpaidBreakValue = 'None',
@@ -265,7 +267,9 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 16),
+    );
 
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
@@ -292,6 +296,7 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
           gap,
           const ManualEntryFieldLabel('Corrected clock-in', required: true),
           ManualEntryDateTimeField(
+            key: correctedCheckInKey,
             value: correctedCheckInValue,
             placeholder: dateTimePlaceholder,
             onTap: onCorrectedCheckInTap,
@@ -316,7 +321,8 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
           const ManualEntryHelperText('Subtracted from worked time.'),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           _PaySummaryBanner(
-            text: paySummaryText ??
+            text:
+                paySummaryText ??
                 'Enter both times to see what this entry will pay.',
             emphasized: paySummaryText != null,
           ),
@@ -394,10 +400,7 @@ class _PaySummaryBanner extends StatelessWidget {
   final String text;
   final bool emphasized;
 
-  const _PaySummaryBanner({
-    required this.text,
-    this.emphasized = false,
-  });
+  const _PaySummaryBanner({required this.text, this.emphasized = false});
 
   @override
   Widget build(BuildContext context) {
@@ -449,7 +452,9 @@ class ManualEntryEvidenceForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 16),
+    );
 
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
@@ -492,7 +497,9 @@ class ManualEntryEvidenceForm extends StatelessWidget {
                     ? null
                     : () => onRemoveEvidence!(file),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 8),
+              ),
             ],
           ],
         ],
@@ -541,15 +548,19 @@ class _EvidenceUploadZone extends StatelessWidget {
                   color: AppColors.infoBlue,
                 ),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 12),
+              ),
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w400,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      13.5,
+                    ),
                     color: AppColors.textSecondary,
                   ),
                   children: const [
@@ -564,15 +575,19 @@ class _EvidenceUploadZone extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 6),
+              ),
               Text(
                 'A rota screenshot, a signed sheet. PDF, DOCX, PNG - up to 15MB each',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w400,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(
+                    context,
+                    11.5,
+                  ),
                   color: AppColors.textMuted,
                   height: 1.35,
                 ),
@@ -589,24 +604,22 @@ class _EvidenceFileChip extends StatelessWidget {
   final ManualEntryEvidenceFile file;
   final VoidCallback? onRemove;
 
-  const _EvidenceFileChip({
-    required this.file,
-    this.onRemove,
-  });
+  const _EvidenceFileChip({required this.file, this.onRemove});
 
   @override
   Widget build(BuildContext context) {
     final statusColor = file.uploadError != null
         ? AppColors.criticalRed
         : file.isReady
-            ? AppColors.activeGreen
-            : AppColors.textMuted;
-    final statusText = file.uploadError ??
+        ? AppColors.activeGreen
+        : AppColors.textMuted;
+    final statusText =
+        file.uploadError ??
         (file.isUploading
             ? 'Uploading…'
             : file.isReady
-                ? 'Uploaded'
-                : 'Pending upload');
+            ? 'Uploaded'
+            : 'Pending upload');
 
     return Container(
       width: double.infinity,
@@ -651,8 +664,10 @@ class _EvidenceFileChip extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w500,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      13,
+                    ),
                     color: AppColors.textHeading,
                   ),
                 ),
@@ -661,8 +676,10 @@ class _EvidenceFileChip extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w400,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 11),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      11,
+                    ),
                     color: statusColor,
                   ),
                 ),
@@ -689,10 +706,7 @@ class _DashedRRectPainter extends CustomPainter {
   final Color color;
   final double radius;
 
-  const _DashedRRectPainter({
-    required this.color,
-    required this.radius,
-  });
+  const _DashedRRectPainter({required this.color, required this.radius});
 
   static const double _strokeWidth = 1.5;
   static const double _dashWidth = 6;
@@ -846,7 +860,9 @@ class _ApprovalSummaryCard extends StatelessWidget {
           for (var i = 0; i < rows.length; i++) ...[
             rows[i],
             if (i != rows.length - 1)
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
           ],
         ],
       ),
@@ -858,10 +874,7 @@ class _ApprovalSummaryRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _ApprovalSummaryRow({
-    required this.label,
-    required this.value,
-  });
+  const _ApprovalSummaryRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

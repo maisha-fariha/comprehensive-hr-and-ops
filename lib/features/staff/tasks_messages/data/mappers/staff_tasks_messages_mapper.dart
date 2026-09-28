@@ -5,6 +5,7 @@ import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/message_contact.dart';
 import '../../domain/entities/message_thread.dart';
 import '../../domain/entities/recurring_check_instance.dart';
+import '../../domain/entities/recurring_check_schedule.dart';
 import '../../domain/entities/staff_task.dart';
 import '../../domain/entities/staff_task_detail.dart';
 import '../../domain/entities/task_stats.dart';
@@ -36,10 +37,9 @@ abstract final class StaffTasksMessagesMapper {
   }
 
   static List<StaffTask> tasksFrom(dynamic body) {
-    return JsonCodec.unwrapList(body)
-        .whereType<Map>()
-        .map((item) => taskFrom(JsonCodec.asMap(item)))
-        .toList();
+    return JsonCodec.unwrapList(
+      body,
+    ).whereType<Map>().map((item) => taskFrom(JsonCodec.asMap(item))).toList();
   }
 
   /// Chip counts from the loaded list so they always match visible rows.
@@ -77,52 +77,198 @@ abstract final class StaffTasksMessagesMapper {
     // status=pending filter / Pending rows in the design mock).
     final overdue = JsonCodec.integerOr(status['overdue'], 0);
     final pending = JsonCodec.integerOr(status['pending'], 0);
-    final done = JsonCodec.integerOr(
-      status['completed'] ?? status['done'],
-      0,
-    );
+    final done = JsonCodec.integerOr(status['completed'] ?? status['done'], 0);
     final all = JsonCodec.integerOr(
       json['total'] ?? json['all'],
       overdue + pending + done,
     );
 
-    return TaskStats(
-      all: all,
-      overdue: overdue,
-      dueToday: pending,
-      done: done,
-    );
+    return TaskStats(all: all, overdue: overdue, dueToday: pending, done: done);
   }
 
   static List<RecurringCheckInstance> recurringFrom(dynamic body) {
     if (body == null) return const [];
     return JsonCodec.unwrapList(body).whereType<Map>().map((item) {
       final json = JsonCodec.asMap(item);
+      final client = JsonCodec.mapAt(json, 'client');
+      final residence = JsonCodec.mapAt(json, 'residence');
       final due = JsonCodec.dateTime(
         json['dueAt'] ?? json['scheduledAt'] ?? json['windowStart'],
       );
       final name = JsonCodec.stringOr(
-        json['name'] ??
+        json['checkName'] ??
+            json['name'] ??
             json['title'] ??
             JsonCodec.mapAt(json, 'schedule')?['name'] ??
             json['checkType'],
         'Room check',
       );
+      final clientName = JsonCodec.stringOr(
+        json['clientName'] ??
+            client?['name'] ??
+            [
+              client?['firstName'],
+              client?['lastName'],
+            ].where((part) => part != null).join(' '),
+        '',
+      );
+      final residenceName = JsonCodec.stringOr(
+        json['residenceName'] ?? residence?['name'] ?? json['location'],
+        '',
+      );
+      final room = JsonCodec.stringOr(
+        json['roomNumber'] ?? client?['roomNumber'] ?? json['room'],
+        '',
+      );
+      final dueText = due == null
+          ? JsonCodec.stringOr(json['dueLabel'], '')
+          : 'due ${_ddMmYyyy(due.toLocal())} '
+                '${IsoDateRange.timeLabel(due.toLocal())}';
       return RecurringCheckInstance(
         id: JsonCodec.stringOr(json['id'] ?? json['instanceId'], name),
-        title: name,
-        statusRaw: JsonCodec.stringOr(json['status'], ''),
-        dueLabel: due == null
-            ? JsonCodec.stringOr(json['dueLabel'], '')
-            : IsoDateRange.timeLabel(due.toLocal()),
-        location: JsonCodec.stringOr(
-          json['residenceName'] ??
-              JsonCodec.mapAt(json, 'residence')?['name'] ??
-              json['location'],
+        scheduleId: JsonCodec.stringOr(json['scheduleId'], ''),
+        clientId: JsonCodec.stringOr(json['clientId'] ?? client?['id'], ''),
+        clientName: clientName,
+        roomLabel: room.isEmpty
+            ? ''
+            : (room.toLowerCase().startsWith('room') ? room : 'Room $room'),
+        residenceId: JsonCodec.stringOr(
+          json['residenceId'] ?? residence?['id'],
           '',
         ),
+        residenceName: residenceName,
+        title: name,
+        statusRaw: JsonCodec.stringOr(json['status'], ''),
+        dueLabel: dueText,
+        location: residenceName,
+        assignedStaffName: JsonCodec.stringOr(json['assignedStaffName'], ''),
+        assignedRole: JsonCodec.stringOr(json['assignedRole'], ''),
+        statusNote: JsonCodec.stringOr(json['statusNote'], ''),
+        hasEntry: json['entry'] != null,
       );
     }).toList();
+  }
+
+  /// Rows from `GET /recurring-checks/entries`.
+  static List<RecurringCheckInstance> recurringEntriesFrom(dynamic body) {
+    if (body == null) return const [];
+    return JsonCodec.unwrapList(body).whereType<Map>().map((item) {
+      final json = JsonCodec.asMap(item);
+      final client = JsonCodec.mapAt(json, 'client');
+      final residence = JsonCodec.mapAt(json, 'residence');
+      final staff = JsonCodec.mapAt(json, 'staff') ??
+          JsonCodec.mapAt(json, 'recordedBy');
+      final checkedAt = JsonCodec.dateTime(
+        json['checkedAt'] ?? json['recordedAt'] ?? json['createdAt'],
+      );
+      final name = JsonCodec.stringOr(
+        json['checkName'] ?? json['name'] ?? json['title'],
+        'Check',
+      );
+      final clientName = JsonCodec.stringOr(
+        json['clientName'] ??
+            client?['name'] ??
+            [
+              client?['firstName'],
+              client?['lastName'],
+            ].where((part) => part != null).join(' '),
+        '',
+      );
+      final residenceName = JsonCodec.stringOr(
+        json['residenceName'] ?? residence?['name'] ?? json['location'],
+        '',
+      );
+      final staffName = JsonCodec.stringOr(
+        json['recordedByName'] ??
+            staff?['name'] ??
+            [
+              staff?['firstName'],
+              staff?['lastName'],
+            ].where((part) => part != null).join(' '),
+        '',
+      );
+      final outcome = JsonCodec.stringOr(
+        json['outcome'] ?? json['result'] ?? json['status'],
+        'recorded',
+      );
+      final whenLabel = checkedAt == null
+          ? ''
+          : '${_ddMmYyyy(checkedAt.toLocal())} '
+                '${IsoDateRange.timeLabel(checkedAt.toLocal())}';
+      return RecurringCheckInstance(
+        id: JsonCodec.stringOr(json['id'], name),
+        scheduleId: JsonCodec.stringOr(json['scheduleId'], ''),
+        clientId: JsonCodec.stringOr(json['clientId'] ?? client?['id'], ''),
+        clientName: clientName,
+        roomLabel: JsonCodec.stringOr(
+          json['roomNumber'] ?? client?['roomNumber'] ?? json['room'],
+          '',
+        ),
+        residenceId: JsonCodec.stringOr(
+          json['residenceId'] ?? residence?['id'],
+          '',
+        ),
+        residenceName: residenceName,
+        title: name.isEmpty ? 'Welfare observation' : name,
+        statusRaw: outcome,
+        dueLabel: whenLabel,
+        location: residenceName,
+        assignedStaffName: staffName,
+        assignedRole: '',
+        statusNote: JsonCodec.stringOr(json['note'], ''),
+        hasEntry: true,
+      );
+    }).toList();
+  }
+
+  static List<RecurringCheckSchedule> recurringSchedulesFrom(dynamic body) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) {
+          final json = JsonCodec.asMap(item);
+          final client = JsonCodec.mapAt(json, 'client');
+          final residence = JsonCodec.mapAt(json, 'residence');
+          final clientName = JsonCodec.stringOr(
+            json['clientName'] ??
+                client?['name'] ??
+                [
+                  client?['firstName'],
+                  client?['lastName'],
+                ].where((part) => part != null).join(' '),
+            '',
+          );
+          return RecurringCheckSchedule(
+            id: JsonCodec.stringOr(json['id'], ''),
+            name: JsonCodec.stringOr(
+              json['name'] ?? json['checkName'] ?? json['checkType'],
+              'Recurring check',
+            ),
+            checkType: JsonCodec.stringOr(json['checkType'], ''),
+            instructions: JsonCodec.stringOr(json['instructions'], ''),
+            clientId: JsonCodec.stringOr(json['clientId'] ?? client?['id'], ''),
+            clientName: clientName,
+            residenceId: JsonCodec.stringOr(
+              json['residenceId'] ?? residence?['id'],
+              '',
+            ),
+            residenceName: JsonCodec.stringOr(
+              json['residenceName'] ?? residence?['name'],
+              '',
+            ),
+            intervalMinutes: JsonCodec.integer(json['intervalMinutes']),
+            frequency: JsonCodec.stringOr(json['frequency'], ''),
+            assignedStaffId: JsonCodec.stringOr(json['assignedStaffId'], ''),
+            assignedStaffName: JsonCodec.stringOr(
+              json['assignedStaffName'],
+              '',
+            ),
+            assignedRole: JsonCodec.stringOr(json['assignedRole'], ''),
+            alertEnabled: JsonCodec.boolean(json['alertEnabled']) ?? false,
+            isActive: JsonCodec.boolean(json['isActive']) ?? true,
+          );
+        })
+        .where((item) => item.id.isNotEmpty)
+        .toList();
   }
 
   static StaffTask taskFrom(Map<String, dynamic> json) {
@@ -285,7 +431,8 @@ abstract final class StaffTasksMessagesMapper {
     );
     final members = JsonCodec.listAt(json, 'members').whereType<Map>().toList();
     final peerName = _otherMemberName(members, currentUserId);
-    final isDirect = type.contains('direct') ||
+    final isDirect =
+        type.contains('direct') ||
         type == 'dm' ||
         json['directKey'] != null ||
         (members.length <= 2 &&
@@ -308,10 +455,7 @@ abstract final class StaffTasksMessagesMapper {
     return 'Conversation';
   }
 
-  static String? _otherMemberName(
-    List<Map> members,
-    String? currentUserId,
-  ) {
+  static String? _otherMemberName(List<Map> members, String? currentUserId) {
     final selfId = (currentUserId ?? '').trim();
     for (final raw in members) {
       final member = JsonCodec.asMap(raw);
@@ -362,14 +506,14 @@ abstract final class StaffTasksMessagesMapper {
     String? selfInitials,
   }) {
     String? peerFromMessages;
-    final rows = JsonCodec.unwrapList(messagesBody).whereType<Map>().map((item) {
+    final rows = JsonCodec.unwrapList(messagesBody).whereType<Map>().map((
+      item,
+    ) {
       final json = JsonCodec.asMap(item);
       final sender = JsonCodec.mapAt(json, 'sender') ?? const {};
-      final senderId = JsonCodec.string(
-        json['senderId'] ?? sender['id'],
-      );
-      final senderEmail =
-          (JsonCodec.string(sender['email']) ?? '').toLowerCase();
+      final senderId = JsonCodec.string(json['senderId'] ?? sender['id']);
+      final senderEmail = (JsonCodec.string(sender['email']) ?? '')
+          .toLowerCase();
       final outgoing = _isMine(
         senderId: senderId,
         senderEmail: senderEmail,
@@ -390,8 +534,9 @@ abstract final class StaffTasksMessagesMapper {
             json['body'] ?? json['text'] ?? json['content'],
             '',
           ),
-          direction:
-              outgoing ? MessageDirection.outgoing : MessageDirection.incoming,
+          direction: outgoing
+              ? MessageDirection.outgoing
+              : MessageDirection.incoming,
           timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
           // Per-message Seen/Delivered is not available — only lastReadAt.
           receiptStatus: null,
@@ -401,8 +546,7 @@ abstract final class StaffTasksMessagesMapper {
         ),
         sortKey: at?.millisecondsSinceEpoch ?? 0,
       );
-    }).toList()
-      ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
+    }).toList()..sort((a, b) => a.sortKey.compareTo(b.sortKey));
 
     final trimmed = contactName.trim();
     final resolvedName = (trimmed.isNotEmpty && trimmed != 'Conversation')
@@ -460,10 +604,7 @@ abstract final class StaffTasksMessagesMapper {
 
   /// Filters the loaded task list for a chip (API status values are
   /// open / in_progress / done — not pending / completed / overdue).
-  static List<StaffTask> filterTasks(
-    List<StaffTask> tasks,
-    TaskFilter filter,
-  ) {
+  static List<StaffTask> filterTasks(List<StaffTask> tasks, TaskFilter filter) {
     return switch (filter) {
       TaskFilter.all => tasks,
       TaskFilter.overdue =>
@@ -473,6 +614,12 @@ abstract final class StaffTasksMessagesMapper {
       TaskFilter.done =>
         tasks.where((t) => t.status == TaskStatus.done).toList(),
     };
+  }
+
+  static String _ddMmYyyy(DateTime date) {
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    return '$d/$m/${date.year}';
   }
 
   const StaffTasksMessagesMapper._();

@@ -116,6 +116,9 @@ class _QuickLinkCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        key: item.action == _QuickLinkAction.profile
+            ? const Key('staff-quick-link-profile')
+            : null,
         onTap: _open,
         borderRadius: BorderRadius.circular(radius),
         child: Ink(

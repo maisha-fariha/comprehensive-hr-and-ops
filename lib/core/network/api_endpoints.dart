@@ -48,7 +48,9 @@ abstract final class ApiEndpoints {
   static const String attendanceBreakStart = '/attendance/break/start';
   static const String attendanceBreakEnd = '/attendance/break/end';
   static const String appointments = '/appointments';
+  static const String recurringCheckSchedules = '/recurring-checks/schedules';
   static const String recurringCheckInstances = '/recurring-checks/instances';
+  static const String recurringCheckEntries = '/recurring-checks/entries';
 
   // ── Daily logs ──────────────────────────────────────────────────────────
   static const String dailyLogs = '/daily-logs';
@@ -102,8 +104,7 @@ abstract final class ApiEndpoints {
     required String tenantId,
     required String category,
     required String fileName,
-  }) =>
-      '/files/$tenantId/$category/$fileName';
+  }) => '/files/$tenantId/$category/$fileName';
 
   /// Short-lived open link for a stored file (`…/link`).
   static String fileObjectLink({
@@ -182,6 +183,7 @@ abstract final class ApiEndpoints {
       '$reportsExports/$exportId/download';
   static String residenceById(String id) => '$residences/$id';
   static String residenceGeofence(String id) => '$residences/$id/geofence';
+  static String residenceRooms(String id) => '$residences/$id/rooms';
   static String shiftById(String id) => '$shifts/$id';
   static String shiftOpen(String id) => '$shifts/$id/open';
   static String shiftAssignments(String id) => '$shifts/$id/assignments';
@@ -239,6 +241,8 @@ abstract final class ApiEndpoints {
       '/training/courses/$courseId/attempts';
   static String recurringCheckInstanceById(String id) =>
       '$recurringCheckInstances/$id';
+  static String recurringCheckScheduleById(String id) =>
+      '$recurringCheckSchedules/$id';
 
   const ApiEndpoints._();
 }

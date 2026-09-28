@@ -130,8 +130,11 @@ class StaffAttendancePage extends StatelessWidget {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
                     StaffAttendanceFiltersBar(
                       selectedDate: controller.historyDateFilter.value,
+                      residenceFilter: controller.historyResidenceFilter.value,
                       statusFilter: controller.historyStatusFilter.value,
+                      residences: controller.residenceOptions.toList(),
                       onDateChanged: controller.setHistoryDateFilter,
+                      onResidenceChanged: controller.setHistoryResidenceFilter,
                       onStatusChanged: controller.setHistoryStatusFilter,
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),

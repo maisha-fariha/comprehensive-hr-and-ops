@@ -47,7 +47,7 @@ class _StaffShellState extends State<StaffShell> {
       final tabs = <Widget>[
         const StaffDashboardPage(),
         const StaffSchedulePage(),
-        session.canAccessClients
+        session.canAccessDailyLogs || session.canAccessClients
             ? const StaffDailyLogsPage()
             : const StaffUnavailablePage(
                 title: 'Daily Logs',
