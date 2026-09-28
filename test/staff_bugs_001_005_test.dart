@@ -226,6 +226,7 @@ class _FakeExtrasRepo implements StaffExtrasRepository {
     DateTime? from,
     DateTime? to,
     String? status,
+    String? authorId,
   }) async =>
       Result.success(const []);
 

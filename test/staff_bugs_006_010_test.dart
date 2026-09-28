@@ -92,6 +92,7 @@ class _FakeExtrasRepo implements StaffExtrasRepository {
     DateTime? from,
     DateTime? to,
     String? status,
+    String? authorId,
   }) async => Result.success(const []);
 
   @override
@@ -160,7 +161,14 @@ class _FakeExtrasRepo implements StaffExtrasRepository {
 
   @override
   Future<Result<List<StaffResidence>>> getResidences() async =>
-      Result.success(const []);
+      Result.success(const [
+        StaffResidence(
+          id: 'res-1',
+          name: 'Elm House',
+          status: 'active',
+          addressLine1: '1 Elm St',
+        ),
+      ]);
 
   @override
   Future<Result<StaffResidence>> getResidenceDetail(String residenceId) async =>
@@ -207,7 +215,9 @@ class _FakeExtrasRepo implements StaffExtrasRepository {
 
   @override
   Future<Result<List<StaffResidencePerson>>> getStaffDirectoryOptions() async =>
-      Result.success(const []);
+      Result.success(const [
+        StaffResidencePerson(id: 'staff-1', name: 'Jamal Uddin', role: 'staff'),
+      ]);
 }
 
 class _FakeTasksRepo implements StaffTasksMessagesRepository {
@@ -623,26 +633,59 @@ void main() {
     },
   );
 
-  testWidgets('BUG_Report007: Handover date picker and status dropdown exist', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(375, 812);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'BUG_Report007: Handover filters match web (status, anyone, dates, residence)',
+    (tester) async {
+      tester.view.physicalSize = const Size(375, 812);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    GetIt.I.registerSingleton<StaffExtrasRepository>(_FakeExtrasRepo());
+      GetIt.I.registerSingleton<StaffExtrasRepository>(_FakeExtrasRepo());
 
-    await tester.pumpWidget(_wrap(const StaffShiftHandoversPage()));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(_wrap(const StaffShiftHandoversPage()));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('staff-handover-date-picker')), findsOneWidget);
-    expect(
-      find.byKey(const Key('staff-handover-status-dropdown')),
-      findsOneWidget,
-    );
-    expect(find.text('All status'), findsOneWidget);
-  });
+      expect(
+        find.byKey(const Key('staff-handover-status-dropdown')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('staff-handover-anyone-dropdown')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('staff-handover-start-date-picker')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('staff-handover-end-date-picker')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('staff-handover-residence-dropdown')),
+        findsOneWidget,
+      );
+      expect(find.text('Any status'), findsOneWidget);
+      expect(find.text('Anyone'), findsOneWidget);
+      expect(find.text('mm/dd/yyyy'), findsWidgets);
+      expect(find.text('All Residences'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('staff-handover-residence-dropdown')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Elm House'), findsWidgets);
+      await tester.tap(find.text('All Residences').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('staff-handover-anyone-dropdown')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Jamal Uddin'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'BUG_Report007: Record handover dialog shows nested form controls',

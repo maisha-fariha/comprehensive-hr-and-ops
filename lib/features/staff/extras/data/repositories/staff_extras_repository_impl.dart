@@ -26,16 +26,21 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
     DateTime? from,
     DateTime? to,
     String? status,
+    String? authorId,
   }) async {
-    final rid = residenceId ?? _session.residenceId;
     final result = await _api.get(
       ApiEndpoints.shiftHandovers,
       query: {
-        if (rid != null && rid.isNotEmpty) 'residenceId': rid,
+        if (residenceId != null &&
+            residenceId.isNotEmpty &&
+            residenceId != 'all')
+          'residenceId': residenceId,
         if (from != null) 'from': from.toUtc().toIso8601String(),
         if (to != null) 'to': to.toUtc().toIso8601String(),
         if (status != null && status.isNotEmpty && status != 'all')
           'status': status,
+        if (authorId != null && authorId.isNotEmpty && authorId != 'all')
+          'createdByStaffId': authorId,
       },
       silent: true,
     );
@@ -47,7 +52,13 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
             .where((item) => item.id.isNotEmpty)
             .toList();
         // Local fallback filters when API ignores query params.
-        if (from != null || to != null || (status != null && status != 'all')) {
+        if (from != null ||
+            to != null ||
+            (status != null && status != 'all') ||
+            (residenceId != null &&
+                residenceId.isNotEmpty &&
+                residenceId != 'all') ||
+            (authorId != null && authorId.isNotEmpty && authorId != 'all')) {
           items = items.where((item) {
             final created = item.createdAt;
             if (from != null && created != null && created.isBefore(from)) {
@@ -60,6 +71,18 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
                 status.isNotEmpty &&
                 status != 'all' &&
                 item.status.toLowerCase() != status.toLowerCase()) {
+              return false;
+            }
+            if (residenceId != null &&
+                residenceId.isNotEmpty &&
+                residenceId != 'all' &&
+                item.residenceId != residenceId) {
+              return false;
+            }
+            if (authorId != null &&
+                authorId.isNotEmpty &&
+                authorId != 'all' &&
+                item.authorId != authorId) {
               return false;
             }
             return true;

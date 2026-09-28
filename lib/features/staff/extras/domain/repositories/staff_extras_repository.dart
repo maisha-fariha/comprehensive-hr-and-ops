@@ -10,6 +10,7 @@ abstract class StaffExtrasRepository {
     DateTime? from,
     DateTime? to,
     String? status,
+    String? authorId,
   });
 
   Future<Result<StaffShiftHandover>> getHandoverDetail(String handoverId);
