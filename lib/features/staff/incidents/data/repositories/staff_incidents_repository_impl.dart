@@ -432,6 +432,47 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   }
 
   @override
+  Future<Result<List<StaffIncidentStaffOption>>> getStaffOptions({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.staff,
+      query: {
+        'page': 1,
+        'limit': 100,
+        if (residenceId != null &&
+            residenceId.isNotEmpty &&
+            residenceId != 'all')
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final rows = JsonCodec.unwrapList(body).whereType<Map>().map((item) {
+          final json = JsonCodec.asMap(item);
+          final first = JsonCodec.stringOr(json['firstName'], '');
+          final last = JsonCodec.stringOr(json['lastName'], '');
+          final name = '$first $last'.trim();
+          final category = JsonCodec.mapAt(json, 'category');
+          return StaffIncidentStaffOption(
+            id: JsonCodec.stringOr(json['id'], ''),
+            name: name.isEmpty
+                ? JsonCodec.stringOr(json['email'], 'Staff')
+                : name,
+            subtitle: JsonCodec.stringOr(
+              category?['name'] ?? json['employmentType'] ?? json['email'],
+              '',
+            ),
+          );
+        }).where((item) => item.id.isNotEmpty).toList();
+        return Result.success(rows);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<String>> createIncident({
     required String residenceId,
     required String clientId,
@@ -447,6 +488,12 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   }) async {
     final data = <String, dynamic>{
       'residenceId': residenceId,
@@ -468,6 +515,20 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
       'supervisorNotified': supervisorNotified,
       'familyNotified': familyNotified,
       'carePlanReviewed': carePlanReviewed,
+      if (immediateAction != null && immediateAction.trim().isNotEmpty)
+        'immediateAction': immediateAction.trim(),
+      if (emergencyServicesContacted != null)
+        'emergencyServicesContacted': emergencyServicesContacted,
+      if (externalAgencyType != null && externalAgencyType.isNotEmpty)
+        'externalAgencyType': externalAgencyType,
+      if (externalAgencyReference != null &&
+          externalAgencyReference.trim().isNotEmpty)
+        'externalAgencyReference': externalAgencyReference.trim(),
+      if (externalAgencyResponder != null &&
+          externalAgencyResponder.trim().isNotEmpty)
+        'externalAgencyResponder': externalAgencyResponder.trim(),
+      if (reportedByStaffId != null && reportedByStaffId.isNotEmpty)
+        'reportedByStaffId': reportedByStaffId,
     };
 
     final result = await _api.post(

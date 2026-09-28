@@ -6,7 +6,7 @@ import '../../../../../../core/constants/app_colors.dart';
 import '../../controllers/incident_creation_controller.dart';
 import 'create_incident_form_fields.dart';
 
-/// People & Location section for Staff Create Incident (BUG_Report011–014).
+/// Location & People — web create-incident step (BUG_Report011–014).
 class CreateIncidentPeopleLocationSection extends StatelessWidget {
   final IncidentCreationController controller;
 
@@ -45,17 +45,26 @@ class CreateIncidentPeopleLocationSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Link the incident to a location, the people involved, and immediate response.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: AppColors.textMuted,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
           const CreateIncidentFieldLabel('Residence', required: true),
           Obx(
             () => CreateIncidentDropdownField(
               key: const Key('staff-incident-residence'),
               value: controller.residenceLabel,
-              placeholder: 'Select residence...',
+              placeholder: 'Select residence',
               onTap: controller.pickResidence,
             ),
           ),
           fieldGap,
-          const CreateIncidentFieldLabel('Client Search', required: true),
+          const CreateIncidentFieldLabel('Related Client', required: true),
           CreateIncidentSearchField(
             fieldKey: const Key('staff-incident-client-search'),
             controller: controller.clientSearchController,
@@ -68,62 +77,179 @@ class CreateIncidentPeopleLocationSection extends StatelessWidget {
             }
             return _ClientSuggestions(controller: controller);
           }),
+          Obx(() {
+            final selected = controller.selectedClient.value;
+            if (selected == null) return const SizedBox.shrink();
+            return Padding(
+              padding: EdgeInsets.only(
+                top: ResponsiveHelper.getResponsiveHeight(context, 8),
+              ),
+              child: CreateIncidentDropdownField(
+                value: selected.name,
+                placeholder: 'Related client',
+                onTap: controller.pickResident,
+              ),
+            );
+          }),
           fieldGap,
-          const CreateIncidentFieldLabel('Resident / Client', required: true),
+          _CfsDetailsCard(controller: controller),
+          fieldGap,
+          const CreateIncidentFieldLabel('Reported By Staff'),
           Obx(
             () => CreateIncidentDropdownField(
-              value: controller.residentLabel,
-              placeholder: 'Select resident...',
-              onTap: controller.pickResident,
+              key: const Key('staff-incident-reported-by-staff'),
+              value: controller.reportedByStaffLabel ??
+                  controller.reporterName.value,
+              placeholder: 'Select staff...',
+              onTap: controller.pickReportedByStaff,
             ),
           ),
           fieldGap,
-          Text(
-            'CFS Details',
-            key: const Key('staff-incident-cfs-details'),
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-              color: AppColors.textHeading,
+          const CreateIncidentFieldLabel('Supervisor'),
+          Obx(
+            () => CreateIncidentDropdownField(
+              key: const Key('staff-incident-supervisor-staff'),
+              value: controller.supervisorStaffLabel,
+              placeholder: 'Select supervisor...',
+              onTap: controller.pickSupervisorStaff,
             ),
           ),
+          fieldGap,
+          const CreateIncidentFieldLabel(
+            'Witnesses — staff or residents present',
+          ),
+          Obx(
+            () => _WitnessChipRow(
+              witnesses: controller.witnesses.toList(),
+              onAdd: controller.promptAddWitness,
+              onRemove: controller.removeWitness,
+            ),
+          ),
+          fieldGap,
+          const CreateIncidentFieldLabel('Immediate Action Taken'),
+          CreateIncidentTextField(
+            key: const Key('staff-incident-immediate-action'),
+            controller: controller.immediateActionController,
+            hint: 'What was done right away in response to this incident?',
+            maxLines: 4,
+          ),
+          fieldGap,
+          Obx(
+            () => _PeopleToggle(
+              key: const Key('staff-incident-emergency-services'),
+              title: 'Emergency Services Contacted',
+              subtitle: 'Ambulance, police or fire services',
+              value: controller.emergencyServicesContacted.value,
+              onChanged: (v) =>
+                  controller.emergencyServicesContacted.value = v,
+            ),
+          ),
+          Obx(() {
+            if (!controller.emergencyServicesContacted.value) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: EdgeInsets.only(
+                top: ResponsiveHelper.getResponsiveHeight(context, 12),
+              ),
+              child: _EmergencyDetails(controller: controller),
+            );
+          }),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          const CreateIncidentFieldLabel('CFS Status'),
           Obx(
-            () => CreateIncidentDropdownField(
-              key: const Key('staff-incident-cfs-status'),
-              value: controller.cfsStatusLabel,
-              placeholder: 'Select CFS status...',
-              onTap: controller.pickCfsStatus,
+            () => _PeopleToggle(
+              key: const Key('staff-incident-family-notified'),
+              title: 'Family / Guardian Notified',
+              subtitle: 'Primary contact informed of the incident',
+              value: controller.familyGuardianNotified.value,
+              onChanged: (v) =>
+                  controller.familyGuardianNotified.value = v,
             ),
           ),
-          fieldGap,
-          const CreateIncidentFieldLabel('Child Last Name'),
-          CreateIncidentTextField(
-            controller: controller.childLastNameController,
-            hint: 'Last name',
-          ),
-          fieldGap,
-          const CreateIncidentFieldLabel('Child First Name'),
-          CreateIncidentTextField(
-            controller: controller.childFirstNameController,
-            hint: 'First name',
-          ),
-          fieldGap,
-          const CreateIncidentFieldLabel('Date of Birth'),
-          CreateIncidentTextField(
-            controller: controller.childDobController,
-            hint: 'MM/DD/YYYY',
+        ],
+      ),
+    );
+  }
+}
+
+class _CfsDetailsCard extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _CfsDetailsCard({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final fieldGap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 12),
+    );
+    return Container(
+      key: const Key('staff-incident-cfs-details'),
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 14),
+        ),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'CFS Details',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                  color: AppColors.textHeading,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '(optional)',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
           ),
           fieldGap,
           const CreateIncidentFieldLabel("Child's I.D. Number"),
           CreateIncidentTextField(
             controller: controller.childIdController,
-            hint: 'I.D. number',
+            hint: "Child's I.D. Number",
           ),
           fieldGap,
-          const CreateIncidentFieldLabel('CIP (Child Intervention Practitioner)'),
+          const CreateIncidentFieldLabel('CFS Status'),
+          Obx(
+            () => Wrap(
+              key: const Key('staff-incident-cfs-status'),
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final option in IncidentCreationController.cfsStatusOptions)
+                  FilterChip(
+                    label: Text(option.$2),
+                    selected: controller.cfsStatuses.contains(option.$1),
+                    onSelected: (_) => controller.toggleCfsStatus(option.$1),
+                  ),
+                ActionChip(
+                  label: const Text('Add status'),
+                  onPressed: controller.pickCfsStatus,
+                ),
+              ],
+            ),
+          ),
+          fieldGap,
+          const CreateIncidentFieldLabel(
+            'Child Intervention Practitioner (CIP)',
+          ),
           CreateIncidentTextField(
             controller: controller.cipController,
             hint: 'CIP name',
@@ -134,56 +260,57 @@ class CreateIncidentPeopleLocationSection extends StatelessWidget {
             controller: controller.cipOfficeController,
             hint: 'Office',
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmergencyDetails extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _EmergencyDetails({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final fieldGap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 12),
+    );
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 12),
+        ),
+        border: Border.all(
+          color: AppColors.cardBorder,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CreateIncidentFieldLabel('Which service'),
+          Obx(
+            () => CreateIncidentDropdownField(
+              key: const Key('staff-incident-agency-type'),
+              value: controller.externalAgencyTypeLabel,
+              placeholder: 'Choose a service',
+              onTap: controller.pickExternalAgencyType,
+            ),
+          ),
           fieldGap,
-          const CreateIncidentFieldLabel('Staff Involved'),
+          const CreateIncidentFieldLabel('Agency reference'),
           CreateIncidentTextField(
-            key: const Key('staff-incident-staff-involved'),
-            controller: controller.staffInvolvedController,
-            hint: 'Staff name(s)',
+            controller: controller.agencyReferenceController,
+            hint: 'CAD / incident number, as they gave it',
           ),
           fieldGap,
-          const CreateIncidentFieldLabel('Location', required: true),
+          const CreateIncidentFieldLabel('Responding station or officer'),
           CreateIncidentTextField(
-            controller: controller.locationController,
-            hint: 'e.g. Bathroom 2',
-          ),
-          fieldGap,
-          const CreateIncidentFieldLabel('Witness Information'),
-          Obx(
-            () => _WitnessChipRow(
-              witnesses: controller.witnesses.toList(),
-              onAdd: controller.promptAddWitness,
-              onRemove: controller.removeWitness,
-            ),
-          ),
-          fieldGap,
-          const CreateIncidentFieldLabel('Reported By'),
-          Obx(
-            () => _ReportedByField(
-              name: controller.reporterName.value,
-              meta: controller.reporterMeta.value,
-              initials: controller.reporterInitials.value,
-            ),
-          ),
-          fieldGap,
-          Obx(
-            () => _PeopleLocationToggle(
-              key: const Key('staff-incident-cfs-notified'),
-              title: 'CFS notified',
-              subtitle: 'Children and Family Services has been informed',
-              value: controller.cfsNotified.value,
-              onChanged: (v) => controller.cfsNotified.value = v,
-            ),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          Obx(
-            () => _PeopleLocationToggle(
-              key: const Key('staff-incident-police-notified'),
-              title: 'Police / authorities notified',
-              subtitle: 'Emergency services were contacted',
-              value: controller.policeNotified.value,
-              onChanged: (v) => controller.policeNotified.value = v,
-            ),
+            controller: controller.agencyResponderController,
+            hint: 'Name or station, as given',
           ),
         ],
       ),
@@ -313,13 +440,13 @@ class _WitnessChipRow extends StatelessWidget {
   }
 }
 
-class _PeopleLocationToggle extends StatelessWidget {
+class _PeopleToggle extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _PeopleLocationToggle({
+  const _PeopleToggle({
     super.key,
     required this.title,
     required this.subtitle,
@@ -383,80 +510,6 @@ class _PeopleLocationToggle extends StatelessWidget {
             inactiveTrackColor: AppColors.cardBorder,
             trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReportedByField extends StatelessWidget {
-  final String name;
-  final String meta;
-  final String initials;
-
-  const _ReportedByField({
-    required this.name,
-    required this.meta,
-    required this.initials,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 14,
-        vertical: 12,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F7F9),
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 12),
-        ),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: ResponsiveHelper.getResponsiveSize(context, 18),
-            backgroundColor: AppColors.secondaryTeal.withValues(alpha: 0.15),
-            child: Text(
-              initials,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                color: AppColors.secondaryTeal,
-              ),
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                    color: AppColors.textHeading,
-                  ),
-                ),
-                Text(
-                  meta.isEmpty ? 'Auto' : meta,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

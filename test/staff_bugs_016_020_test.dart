@@ -14,6 +14,9 @@ import 'package:comprehensive_hr_and_ops/features/staff/incidents/domain/reposit
 import 'package:comprehensive_hr_and_ops/features/staff/incidents/presentation/controllers/incident_creation_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/incidents/presentation/widgets/create_incident/create_incident_investigation_section.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/incidents/presentation/widgets/create_incident/create_incident_report_form_section.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/medication/domain/entities/due_dose.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/medication/domain/entities/staff_medication_enums.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/medication/presentation/widgets/staff_administer_dose_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -29,11 +32,72 @@ Future<void> _loadOutfitFont() async {
   await loader.load();
 }
 
+/// Minimal Evidence & Submission harness matching web nested fields.
+class _EvidenceHarness extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _EvidenceHarness({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('staff-incident-evidence'),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Evidence (photos, documents)'),
+          const SizedBox(height: 12),
+          const Text('Transcription / Additional Notes'),
+          TextField(
+            key: const Key('staff-incident-additional-notes'),
+            controller: controller.transcriptionController,
+          ),
+          const SizedBox(height: 12),
+          Container(
+            key: const Key('staff-incident-parties-notified'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Parties Notified'),
+                for (final party in controller.partyNotifications)
+                  Text(party.party),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FakeIncidentsRepo implements StaffIncidentsRepository {
   @override
   Future<Result<List<StaffCirTemplateOption>>> getCirTemplates() async =>
       Result.success(const [
-        StaffCirTemplateOption(id: 'cir-1', name: 'Standard CIR'),
+        StaffCirTemplateOption(
+          id: 'cir-1',
+          name: 'Standard CIR',
+          version: '1',
+          sections: [
+            StaffCirTemplateSection(
+              key: 'people',
+              title: 'People & place',
+              fields: [
+                StaffCirTemplateField(
+                  key: 'personsInvolved',
+                  label: 'Persons Involved / Witnesses',
+                  type: 'textarea',
+                ),
+                StaffCirTemplateField(
+                  key: 'incidentLocationDescription',
+                  label: 'Incident Location Description',
+                  type: 'textarea',
+                ),
+              ],
+            ),
+          ],
+        ),
       ]);
 
   @override
@@ -100,6 +164,14 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
       Result.failure(const ApiError(message: 'unused'));
 
   @override
+  Future<Result<List<StaffIncidentStaffOption>>> getStaffOptions({
+    String? residenceId,
+  }) async =>
+      Result.success(const [
+        StaffIncidentStaffOption(id: 's1', name: 'Sam Jones'),
+      ]);
+
+  @override
   Future<Result<String>> createIncident({
     required String residenceId,
     required String clientId,
@@ -115,6 +187,12 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   }) async =>
       Result.success('inc-1');
 
@@ -366,24 +444,28 @@ void main() {
         find.byKey(const Key('staff-incident-investigation')),
         findsOneWidget,
       );
-      expect(find.textContaining('Immediate Action Taken'), findsOneWidget);
+      expect(find.textContaining('Investigation Status'), findsOneWidget);
+      expect(find.textContaining('Investigator'), findsOneWidget);
       expect(find.textContaining('Investigation Notes'), findsOneWidget);
+      expect(find.textContaining('Root Cause'), findsOneWidget);
+      expect(find.textContaining('Corrective Action'), findsOneWidget);
       expect(
         find.byKey(const Key('staff-incident-follow-up-toggle')),
         findsOneWidget,
       );
-      expect(find.textContaining('Follow-up Date'), findsOneWidget);
+      expect(find.textContaining('Follow-up Required'), findsOneWidget);
+      expect(find.text('Debrief'), findsOneWidget);
       expect(
-        find.byKey(const Key('staff-incident-supervisor')),
+        find.byKey(const Key('staff-incident-debrief-completed')),
         findsOneWidget,
       );
     },
   );
 
   testWidgets(
-    'BUG_Report016: Evidence has Notes tab and Additional Notes field',
+    'BUG_Report016: Evidence & Submission has upload, notes, parties notified',
     (tester) async {
-      tester.view.physicalSize = const Size(375, 900);
+      tester.view.physicalSize = const Size(375, 1200);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -392,64 +474,37 @@ void main() {
           IncidentCreationController(repository: _FakeIncidentsRepo());
       Get.put(controller);
 
-      // Use a minimal evidence shell mirroring page tabs
       await tester.pumpWidget(
         _wrap(
           Scaffold(
-            body: Padding(
+            body: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Container(
-                    key: const Key('staff-incident-evidence-tabs'),
-                    child: Row(
-                      children: [
-                        TextButton(
-                          onPressed: () =>
-                              controller.evidenceTabIndex.value = 0,
-                          child: const Text('Files'),
-                        ),
-                        TextButton(
-                          key: const Key('staff-incident-evidence-notes-tab'),
-                          onPressed: () =>
-                              controller.evidenceTabIndex.value = 1,
-                          child: const Text('Notes'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Obx(() {
-                    if (controller.evidenceTabIndex.value != 1) {
-                      return const Text('Upload Evidence');
-                    }
-                    return TextField(
-                      key: const Key('staff-incident-additional-notes'),
-                      controller: controller.additionalNotesController,
-                      decoration: const InputDecoration(
-                        labelText: 'Additional Notes',
-                      ),
-                    );
-                  }),
-                ],
-              ),
+              child: _EvidenceHarness(controller: controller),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
+      expect(find.byKey(const Key('staff-incident-evidence')), findsOneWidget);
       expect(
-        find.byKey(const Key('staff-incident-evidence-tabs')),
+        find.textContaining('Evidence (photos, documents)'),
         findsOneWidget,
       );
-      expect(find.text('Notes'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('staff-incident-evidence-notes-tab')));
-      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Transcription / Additional Notes'),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('staff-incident-additional-notes')),
         findsOneWidget,
       );
-      expect(find.textContaining('Additional Notes'), findsOneWidget);
+      expect(
+        find.byKey(const Key('staff-incident-parties-notified')),
+        findsOneWidget,
+      );
+      expect(find.text('Parties Notified'), findsOneWidget);
+      expect(find.textContaining("Child's Family"), findsOneWidget);
     },
   );
 
@@ -465,6 +520,10 @@ void main() {
           IncidentCreationController(repository: _FakeIncidentsRepo());
       Get.put(controller);
       await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+
+      // Web: CIR picker + dynamic template fields after selection.
+      controller.selectedCirTemplate.value = controller.cirTemplates.first;
 
       await tester.pumpWidget(
         _wrap(
@@ -487,11 +546,121 @@ void main() {
         find.byKey(const Key('staff-incident-report-cir')),
         findsOneWidget,
       );
-      expect(find.textContaining('Persons Involved'), findsOneWidget);
+      expect(find.textContaining('Persons Involved'), findsWidgets);
       expect(
         find.textContaining('Incident Location Description'),
+        findsWidgets,
+      );
+    },
+  );
+
+  testWidgets(
+    'BUG_Report021: Incident Details has Category Details and Time Ended',
+    (tester) async {
+      tester.view.physicalSize = const Size(375, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final controller =
+          IncidentCreationController(repository: _FakeIncidentsRepo());
+      Get.put(controller);
+
+      await tester.pumpWidget(
+        _wrap(
+          Scaffold(
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Category Details (optional)'),
+                  TextField(
+                    key: const Key('staff-incident-category-details'),
+                    controller: controller.categoryDetailsController,
+                  ),
+                  const Text('Time Ended (optional)'),
+                  TextField(
+                    key: const Key('staff-incident-end-time'),
+                    controller: controller.endTimeController,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('staff-incident-category-details')),
         findsOneWidget,
       );
+      expect(find.byKey(const Key('staff-incident-end-time')), findsOneWidget);
+      expect(find.textContaining('Category Details'), findsOneWidget);
+      expect(find.textContaining('Time Ended'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'BUG_Report018/019: Administer wizard shows Medicines / Safety / Documentation',
+    (tester) async {
+      tester.view.physicalSize = const Size(375, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const dose = DueDose(
+        id: 'd1',
+        residentName: 'Ayaan Karim',
+        residentInitials: 'AK',
+        avatarColor: AvatarPalette.green,
+        medicationName: 'Paracetamol',
+        dose: '500mg',
+        route: MedicationRoute.tabletOral,
+        timeLabel: '08:00',
+        section: DueDoseSection.dueNow,
+        clientId: 'c1',
+        residenceId: 'r1',
+        medicationId: 'm1',
+      );
+
+      await tester.pumpWidget(
+        _wrap(
+          Builder(
+            builder: (context) {
+              return Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    key: const Key('open-admin'),
+                    onPressed: () => StaffAdministerDoseDialog.show(
+                      context,
+                      dose: dose,
+                    ),
+                    child: const Text('Open'),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open-admin')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Record administration'), findsOneWidget);
+      expect(find.text('Medicines'), findsOneWidget);
+      expect(find.text('Safety Check'), findsOneWidget);
+      expect(find.text('Documentation'), findsOneWidget);
+      expect(find.textContaining('Ayaan Karim'), findsOneWidget);
+      expect(find.textContaining('Paracetamol'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('staff-mar-admin-next')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Pre-administration'), findsOneWidget);
+      expect(find.textContaining('Patient identity'), findsOneWidget);
+      expect(find.textContaining('Blood pressure'), findsOneWidget);
     },
   );
 

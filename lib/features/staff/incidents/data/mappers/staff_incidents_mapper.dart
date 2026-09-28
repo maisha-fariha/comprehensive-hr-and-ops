@@ -309,10 +309,60 @@ abstract final class StaffIncidentsMapper {
         StaffCirTemplateOption(
           id: JsonCodec.stringOr(json['id'] ?? json['cirTemplateId'], name),
           name: name,
+          version: JsonCodec.string(json['version']),
+          sections: _cirSectionsFrom(json['fields'] ?? json['sections']),
         ),
       );
     }
     return options;
+  }
+
+  static List<StaffCirTemplateSection> _cirSectionsFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final sections = <StaffCirTemplateSection>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final title = JsonCodec.stringOr(
+        json['title'] ?? json['label'] ?? json['name'],
+        '',
+      );
+      if (title.isEmpty) continue;
+      final fieldsRaw = json['fields'] ?? json['subFields'];
+      final fields = <StaffCirTemplateField>[];
+      if (fieldsRaw is List) {
+        for (final fieldItem in fieldsRaw) {
+          if (fieldItem is! Map) continue;
+          final field = JsonCodec.asMap(fieldItem);
+          final key = JsonCodec.stringOr(field['key'] ?? field['id'], '');
+          final label = JsonCodec.stringOr(
+            field['label'] ?? field['title'] ?? field['name'],
+            '',
+          );
+          if (key.isEmpty || label.isEmpty) continue;
+          fields.add(
+            StaffCirTemplateField(
+              key: key,
+              label: label,
+              type: JsonCodec.stringOr(field['type'], 'text'),
+              required: JsonCodec.boolean(field['required']) ?? false,
+              helpText: JsonCodec.stringOr(
+                field['helpText'] ?? field['placeholder'],
+                '',
+              ),
+            ),
+          );
+        }
+      }
+      sections.add(
+        StaffCirTemplateSection(
+          key: JsonCodec.stringOr(json['key'] ?? json['id'], title),
+          title: title,
+          fields: fields,
+        ),
+      );
+    }
+    return sections;
   }
 
   static List<StaffIncidentResidenceOption> residencesFrom(dynamic body) {

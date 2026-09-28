@@ -52,9 +52,19 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
     required String medicationId,
     required String status,
     String? notes,
+    String? clinicalNotes,
     bool isPrn = false,
+    Map<String, bool>? safetyChecks,
+    Map<String, String>? vitals,
   }) async {
     final staffId = _session.staffId?.trim();
+    final cleanedVitals = <String, String>{};
+    if (vitals != null) {
+      for (final entry in vitals.entries) {
+        final value = entry.value.trim();
+        if (value.isNotEmpty) cleanedVitals[entry.key] = value;
+      }
+    }
     final data = <String, dynamic>{
       'source': isPrn ? 'prn' : 'prescribed',
       'clientId': clientId,
@@ -67,6 +77,11 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
         'medicationId': medicationId,
       if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
       if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      if (clinicalNotes != null && clinicalNotes.trim().isNotEmpty)
+        'clinicalNotes': clinicalNotes.trim(),
+      if (safetyChecks != null && safetyChecks.isNotEmpty)
+        'safetyChecks': safetyChecks,
+      if (cleanedVitals.isNotEmpty) 'vitals': cleanedVitals,
     };
 
     final result = await _api.post(

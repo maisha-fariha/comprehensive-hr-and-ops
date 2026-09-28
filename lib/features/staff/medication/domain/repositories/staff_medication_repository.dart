@@ -15,7 +15,10 @@ abstract class StaffMedicationRepository {
     required String medicationId,
     required String status,
     String? notes,
+    String? clinicalNotes,
     bool isPrn = false,
+    Map<String, bool>? safetyChecks,
+    Map<String, String>? vitals,
   });
 
   /// `GET /medications?clientId=`
