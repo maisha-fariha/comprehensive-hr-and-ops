@@ -9,6 +9,7 @@ import 'hr_initials_avatar.dart';
 
 class HrProfileCard extends StatelessWidget {
   final HrProfile profile;
+  final String? avatarUrl;
   final VoidCallback? onTap;
 
   static const Color _nameColor = Color(0xFF1A2B48);
@@ -18,7 +19,12 @@ class HrProfileCard extends StatelessWidget {
   static const Color _cardBorder = Color(0xFFEEF1F4);
   static const Color _shadow = Color(0xFF142846);
 
-  const HrProfileCard({super.key, required this.profile, this.onTap});
+  const HrProfileCard({
+    super.key,
+    required this.profile,
+    this.avatarUrl,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +61,7 @@ class HrProfileCard extends StatelessWidget {
           children: [
             HrInitialsAvatar(
               initials: profile.initials,
+              imageUrl: avatarUrl,
               size: 50,
               background: HrProfileSettingsConstants.profileAvatarBackground,
               foreground: HrProfileSettingsConstants.profileAvatarForeground,

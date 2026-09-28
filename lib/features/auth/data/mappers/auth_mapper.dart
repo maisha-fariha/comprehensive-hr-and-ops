@@ -94,6 +94,15 @@ abstract final class AuthMapper {
           JsonCodec.string(json['relationship']) ??
           JsonCodec.string(user['relation']),
       avatarInitials: _initials(displayName, email),
+      avatarUrl: JsonCodec.string(
+        user['avatarUrl'] ??
+            user['avatar'] ??
+            user['photoUrl'] ??
+            user['profileImageUrl'] ??
+            json['avatarUrl'] ??
+            staff?['photoUrl'] ??
+            staff?['avatarUrl'],
+      ),
       medAdminCertified: JsonCodec.boolean(
             user['medAdminCertified'] ??
                 json['medAdminCertified'] ??

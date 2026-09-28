@@ -1,87 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/surface_card.dart';
-import '../../daily_logs/presentation/pages/daily_logs_page.dart';
-import '../../medication/presentation/pages/medication_page.dart';
-import '../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
-import '../../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
-import '../../team_reports/presentation/pages/team_reports_page.dart';
+import '../manager_destinations.dart';
 
 /// "More" tab of the HR bottom navigation — a simple navigation hub for the
 /// Manager feature areas that don't have a dedicated bottom-nav slot in the
 /// Figma bottom bar (Home/Schedule/Attendance/Alerts/More only has 5 slots).
 ///
 /// This menu itself isn't a distinct Figma frame; it's a pragmatic way to
-/// make the Daily Logs, Medication, Tasks & Compliance, Team & Reports and
-/// Profile & Settings screens reachable end-to-end.
+/// make the Residences, Clients, Daily Logs, Medication, Tasks & Compliance,
+/// Team & Reports and Profile & Settings screens reachable end-to-end.
 class HrMoreMenuPage extends StatelessWidget {
   const HrMoreMenuPage({super.key});
 
-  static const _entries = <_MoreMenuEntry>[
-    _MoreMenuEntry(
-      icon: Icons.assignment_outlined,
-      iconBackground: AppColors.infoBackground,
-      iconColor: AppColors.infoBlue,
-      title: 'Daily Logs',
-      subtitle: 'Shift logs, missing entries & handovers',
-    ),
-    _MoreMenuEntry(
-      icon: Icons.medication_outlined,
-      iconBackground: AppColors.activeBackground,
-      iconColor: AppColors.activeGreen,
-      title: 'Medication',
-      subtitle: 'MAR oversight across all residences',
-    ),
-    _MoreMenuEntry(
-      icon: Icons.fact_check_outlined,
-      iconBackground: AppColors.urgentBackground,
-      iconColor: AppColors.urgentAmber,
-      title: 'Tasks & Compliance',
-      subtitle: 'Due tasks, compliance checks & corrective actions',
-    ),
-    _MoreMenuEntry(
-      icon: Icons.groups_outlined,
-      iconBackground: AppColors.nightBackground,
-      iconColor: AppColors.nightPurple,
-      title: 'Team & Reports',
-      subtitle: 'Staff roster, reports & messages',
-    ),
-    _MoreMenuEntry(
-      icon: Icons.person_outline_rounded,
-      iconBackground: AppColors.criticalBackgroundSoft,
-      iconColor: AppColors.criticalRed,
-      title: 'Profile & Settings',
-      subtitle: 'Account, residences & preferences',
-    ),
-  ];
-
-  void _open(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        Get.to(() => const DailyLogsPage());
-        break;
-      case 1:
-        Get.to(() => const MedicationPage());
-        break;
-      case 2:
-        Get.to(() => const TasksCompliancePage());
-        break;
-      case 3:
-        Get.to(() => const TeamReportsPage());
-        break;
-      case 4:
-        Get.to(() => const HrProfileSettingsPage());
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final entries =
+        managerDestinations().where((d) => d.inMoreMenu).toList();
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
@@ -104,15 +43,12 @@ class HrMoreMenuPage extends StatelessWidget {
             horizontal: AppDimens.screenPaddingHorizontal,
             vertical: 20,
           ),
-          itemCount: _entries.length,
+          itemCount: entries.length,
           separatorBuilder: (context, index) =>
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
           itemBuilder: (context, index) {
-            final entry = _entries[index];
-            return _MoreMenuTile(
-              entry: entry,
-              onTap: () => _open(context, index),
-            );
+            final entry = entries[index];
+            return _MoreMenuTile(entry: entry, onTap: entry.open);
           },
         ),
       ),
@@ -120,24 +56,8 @@ class HrMoreMenuPage extends StatelessWidget {
   }
 }
 
-class _MoreMenuEntry {
-  final IconData icon;
-  final Color iconBackground;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-
-  const _MoreMenuEntry({
-    required this.icon,
-    required this.iconBackground,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-  });
-}
-
 class _MoreMenuTile extends StatelessWidget {
-  final _MoreMenuEntry entry;
+  final ManagerDestination entry;
   final VoidCallback onTap;
 
   const _MoreMenuTile({required this.entry, required this.onTap});

@@ -15,6 +15,8 @@ abstract final class ApiEndpoints {
   static const String mobileOtpRequest = '/mobile/auth/otp/request';
   static const String mobileOtpVerify = '/mobile/auth/otp/verify';
   static const String changePassword = '/auth/change-password';
+  static const String authAvatar = '/auth/avatar';
+  static const String authMe = '/auth/me';
   static const String devices = '/devices';
   static String deviceByToken(String token) =>
       '$devices/${Uri.encodeComponent(token)}';

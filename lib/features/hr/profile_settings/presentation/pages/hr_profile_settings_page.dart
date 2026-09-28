@@ -5,17 +5,20 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../hr_shell.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../domain/entities/hr_linked_item.dart';
 import '../../domain/entities/hr_preference_item.dart';
 import '../controllers/hr_profile_settings_controller.dart';
+import '../widgets/hr_change_password_dialog.dart';
 import '../widgets/hr_linked_item_row.dart';
 import '../widgets/hr_log_out_row.dart';
 import '../widgets/hr_preference_tile.dart';
 import '../widgets/hr_profile_card.dart';
 import '../widgets/hr_profile_settings_header.dart';
+import 'hr_my_profile_page.dart';
 
 /// Profile & Settings for the Hr portal — same visual design as Family.
 class HrProfileSettingsPage extends StatelessWidget {
@@ -33,6 +36,17 @@ class HrProfileSettingsPage extends StatelessWidget {
 
   void _onBottomNavTap(int index) {
     Get.offAll(() => HrShell(initialIndex: index));
+  }
+
+  void _openMyProfile() => Get.to(() => const HrMyProfilePage());
+
+  /// Read inside `Obx` so a photo change repaints the card and header.
+  String? get _avatarUrl {
+    try {
+      return Get.find<UserSession>().avatarUrl;
+    } catch (_) {
+      return null;
+    }
   }
 
   void _onPreferenceTap(
@@ -92,45 +106,8 @@ class HrProfileSettingsPage extends StatelessWidget {
   Future<void> _openChangePassword(
     BuildContext context,
     HrProfileSettingsController controller,
-  ) async {
-    final current = TextEditingController();
-    final next = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: current,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current password'),
-            ),
-            TextField(
-              controller: next,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New password'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
-        ],
-      ),
-    );
-    final currentValue = current.text;
-    final nextValue = next.text;
-    current.dispose();
-    next.dispose();
-    if (confirmed == true && currentValue.isNotEmpty && nextValue.isNotEmpty) {
-      await controller.changePassword(
-        currentPassword: currentValue,
-        newPassword: nextValue,
-      );
-    }
-  }
+  ) =>
+      showHrChangePasswordDialog(context, controller);
 
   Future<void> _openNotificationPreferences(
     BuildContext context,
@@ -221,7 +198,9 @@ class HrProfileSettingsPage extends StatelessWidget {
                 bottom: false,
                 child: HrProfileSettingsHeader(
                   onBackTap: () => Navigator.maybePop(context),
+                  onAvatarTap: _openMyProfile,
                   initials: overview.profile.initials,
+                  avatarUrl: _avatarUrl,
                 ),
               ),
             ),
@@ -237,7 +216,11 @@ class HrProfileSettingsPage extends StatelessWidget {
                     ResponsiveHelper.getResponsiveHeight(context, 32),
                   ),
                   children: [
-                    HrProfileCard(profile: overview.profile),
+                    HrProfileCard(
+                      profile: overview.profile,
+                      avatarUrl: _avatarUrl,
+                      onTap: _openMyProfile,
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
                     const SectionHeaderRow(title: 'Managed Residences'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),

@@ -9,6 +9,7 @@ import '../controllers/scheduling_controller.dart';
 import '../widgets/board_tab_view.dart';
 import '../widgets/calendar_tab_view.dart';
 import '../widgets/requests_tab_view.dart';
+import '../widgets/scheduling_filter_bar.dart';
 import '../widgets/scheduling_segmented_tabs.dart';
 import '../widgets/scheduling_top_bar.dart';
 import 'create_shift_page.dart';
@@ -36,6 +37,41 @@ class SchedulingPage extends StatelessWidget {
     if (created == true) {
       await controller.refresh();
     }
+  }
+
+  Future<void> _pickDate(
+    BuildContext context,
+    SchedulingController controller,
+  ) async {
+    final selected = controller.selectedDay.value;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: selected,
+      firstDate: DateTime(selected.year - 2),
+      lastDate: DateTime(selected.year + 2, 12, 31),
+      helpText: 'Jump to week',
+    );
+    if (date == null) return;
+    await controller.jumpToDate(date);
+  }
+
+  Future<void> _openFilters(
+    BuildContext context,
+    SchedulingController controller,
+  ) async {
+    await controller.loadResidences();
+    if (!context.mounted) return;
+    final selection = await showSchedulingFiltersSheet(
+      context,
+      residences: controller.residences,
+      residenceId: controller.residenceFilter.value,
+      status: controller.statusFilter.value,
+    );
+    if (selection == null) return;
+    await controller.applyFilters(
+      residenceId: selection.residenceId,
+      status: selection.status,
+    );
   }
 
   @override
@@ -71,6 +107,12 @@ class SchedulingPage extends StatelessWidget {
                   children: [
                     SchedulingTopBar(
                       onCreateShiftTap: () => _openCreateShift(controller),
+                    ),
+                    SchedulingFilterBar(
+                      weekOf: controller.weekOf.value,
+                      activeFilterCount: controller.activeFilterCount,
+                      onDateTap: () => _pickDate(context, controller),
+                      onFiltersTap: () => _openFilters(context, controller),
                     ),
                     SchedulingSegmentedTabs(
                       selectedTab: controller.selectedTab.value,

@@ -13,3 +13,20 @@ enum OpenPositionUrgency { urgent, open }
 
 /// Lifecycle state of a shift-swap request on the Requests tab.
 enum RequestStatus { pending, approved, declined }
+
+/// Shift lifecycle filter on the Scheduling "Filters" sheet. [apiValues]
+/// lists every raw `status` the API may return for that bucket.
+enum ShiftStatusFilter {
+  draft('Draft', {'draft'}),
+  scheduled('Scheduled', {'scheduled'}),
+  published('Published', {'published', 'confirmed'}),
+  openForBids('Open for bids', {'open', 'bid_pending', 'bidding'}),
+  filled('Filled', {'filled', 'assigned'}),
+  completed('Completed', {'completed'}),
+  cancelled('Cancelled', {'cancelled', 'canceled'});
+
+  final String label;
+  final Set<String> apiValues;
+
+  const ShiftStatusFilter(this.label, this.apiValues);
+}

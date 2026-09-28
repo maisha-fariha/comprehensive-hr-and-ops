@@ -1,5 +1,6 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../entities/scheduling_enums.dart';
 import '../entities/scheduling_overview.dart';
 import '../entities/shift_qualification_option.dart';
 import '../entities/shift_residence_option.dart';
@@ -12,9 +13,15 @@ abstract class SchedulingRepository {
   ///
   /// [selectedDay] controls which day is marked selected on the calendar
   /// week strip (and which day's shifts feed the calendar timeline).
+  ///
+  /// [residenceId] scopes every query to one home (defaults to the session
+  /// residence). [status] narrows calendar/board shifts to one lifecycle
+  /// state.
   Future<Result<SchedulingOverview>> getOverview({
     DateTime? weekOf,
     DateTime? selectedDay,
+    String? residenceId,
+    ShiftStatusFilter? status,
   });
 
   /// Residences for the Create Shift "Residence" dropdown (`GET /residences`).

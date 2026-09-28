@@ -4,10 +4,13 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import 'hr_initials_avatar.dart';
 
 class HrProfileSettingsHeader extends StatelessWidget {
   final VoidCallback? onBackTap;
+  final VoidCallback? onAvatarTap;
   final String initials;
+  final String? avatarUrl;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _buttonBorder = Color(0xFFE2E8EE);
@@ -18,13 +21,14 @@ class HrProfileSettingsHeader extends StatelessWidget {
   const HrProfileSettingsHeader({
     super.key,
     this.onBackTap,
+    this.onAvatarTap,
     this.initials = 'SM',
+    this.avatarUrl,
   });
 
   @override
   Widget build(BuildContext context) {
     final buttonSize = ResponsiveHelper.getResponsiveSize(context, 42);
-    final avatarSize = ResponsiveHelper.getResponsiveSize(context, 42);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
     return ColoredBox(
@@ -79,25 +83,15 @@ class HrProfileSettingsHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(
-                width: avatarSize,
-                height: avatarSize,
-                decoration: const BoxDecoration(
-                  color: _avatarBg,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  initials,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                    color: _avatarFg,
-                    height: 1,
-                  ),
+              GestureDetector(
+                onTap: onAvatarTap,
+                behavior: HitTestBehavior.opaque,
+                child: HrInitialsAvatar(
+                  initials: initials,
+                  imageUrl: avatarUrl,
+                  size: 42,
+                  background: _avatarBg,
+                  foreground: _avatarFg,
                 ),
               ),
             ],

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
@@ -111,6 +112,86 @@ class HrProfileSettingsRepositoryImpl implements HrProfileSettingsRepository {
     return result.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<String?>> updateAvatar({
+    required String filePath,
+    required String fileName,
+  }) async {
+    try {
+      final upload = await _api.post(
+        ApiEndpoints.uploads,
+        data: FormData.fromMap({
+          'file': await MultipartFile.fromFile(filePath, filename: fileName),
+        }),
+        query: const {'category': 'avatars'},
+        allowQueue: false,
+        silent: true,
+      );
+
+      if (upload.isSuccess) {
+        final map = JsonCodec.unwrapMap(upload.value);
+        final fileUrl = JsonCodec.string(
+          map['fileUrl'] ?? map['url'] ?? map['publicUrl'],
+        );
+        if (fileUrl == null) {
+          return Result.failure(
+            const ApiError(message: 'Upload succeeded but the photo URL was missing.'),
+          );
+        }
+        final patched = await _api.patch(
+          ApiEndpoints.authAvatar,
+          data: {'avatarUrl': fileUrl},
+          allowQueue: false,
+        );
+        return patched.when(
+          success: (body) async => Result.success(_avatarUrlFrom(body) ?? fileUrl),
+          failure: (error) async => Result.failure(error),
+        );
+      }
+
+      // Accounts without upload permission: send the file to the avatar
+      // endpoint directly.
+      final direct = await _api.patch(
+        ApiEndpoints.authAvatar,
+        data: FormData.fromMap({
+          'file': await MultipartFile.fromFile(filePath, filename: fileName),
+        }),
+        allowQueue: false,
+        silent: true,
+      );
+      return direct.when(
+        success: (body) async => Result.success(_avatarUrlFrom(body)),
+        failure: (_) async => Result.failure(
+          upload.error ?? const ApiError(message: 'Could not upload the photo.'),
+        ),
+      );
+    } catch (_) {
+      return Result.failure(
+        const ApiError(message: 'Could not read the selected photo.'),
+      );
+    }
+  }
+
+  @override
+  Future<Result<void>> removeAvatar() async {
+    final result = await _api.patch(
+      ApiEndpoints.authAvatar,
+      data: const {'avatarUrl': null},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  String? _avatarUrlFrom(dynamic body) {
+    final map = JsonCodec.unwrapMap(body);
+    return JsonCodec.string(
+      map['avatarUrl'] ?? JsonCodec.mapAt(map, 'user')?['avatarUrl'],
     );
   }
 }

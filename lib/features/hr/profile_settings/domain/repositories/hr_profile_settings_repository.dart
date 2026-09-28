@@ -18,4 +18,14 @@ abstract class HrProfileSettingsRepository {
     required String currentPassword,
     required String newPassword,
   });
+
+  /// Uploads [filePath] and sets it as the profile photo
+  /// (`POST /uploads` → `PATCH /auth/avatar`). Returns the new avatar URL.
+  Future<Result<String?>> updateAvatar({
+    required String filePath,
+    required String fileName,
+  });
+
+  /// Clears the profile photo (`PATCH /auth/avatar` with `avatarUrl: null`).
+  Future<Result<void>> removeAvatar();
 }

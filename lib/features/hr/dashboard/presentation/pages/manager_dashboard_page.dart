@@ -6,13 +6,16 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../communication/presentation/pages/communication_page.dart';
 import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../../../hr_shell.dart';
 import '../../../presentation/open_manager_portal_search.dart';
+import '../../../presentation/widgets/manager_page_search_sheet.dart';
 import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
+import '../../../profile_settings/presentation/widgets/hr_initials_avatar.dart';
 import '../../../scheduling/presentation/controllers/scheduling_controller.dart';
 import '../../../scheduling/presentation/pages/create_shift_page.dart';
 import '../../domain/entities/attention_alert.dart';
@@ -79,22 +82,28 @@ class ManagerDashboardPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // The search bar straddles the header's bottom edge. The
+                // Stack must contain the whole bar: taps on any part that
+                // overflows a Stack are never hit-tested.
                 Stack(
-                  clipBehavior: Clip.none,
                   children: [
-                    _DashboardHeader(
-                      overview: overview,
-                      onNotificationsTap: () =>
-                          Get.to(() => const PortalNotificationsPage()),
-                      onAvatarTap: () =>
-                          Get.to(() => const HrProfileSettingsPage()),
+                    Padding(
+                      padding: EdgeInsets.only(bottom: searchOverlap),
+                      child: _DashboardHeader(
+                        overview: overview,
+                        onNotificationsTap: () =>
+                            Get.to(() => const PortalNotificationsPage()),
+                        onAvatarTap: () =>
+                            Get.to(() => const HrProfileSettingsPage()),
+                      ),
                     ),
                     Positioned(
                       left: horizontalPad,
                       right: horizontalPad,
-                      bottom: -searchOverlap,
+                      bottom: 0,
                       child: _DashboardSearchBar(
                         onTap: openManagerPortalSearch,
+                        onFilterTap: () => showManagerPageSearchSheet(context),
                       ),
                     ),
                   ],
@@ -102,7 +111,7 @@ class ManagerDashboardPage extends StatelessWidget {
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     horizontalPad,
-                    searchOverlap + ResponsiveHelper.getResponsiveHeight(context, 18),
+                    ResponsiveHelper.getResponsiveHeight(context, 18),
                     horizontalPad,
                     ResponsiveHelper.getResponsiveHeight(context, 24),
                   ),
@@ -458,13 +467,15 @@ class _AvatarButton extends StatelessWidget {
         ],
       ),
       alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: TextStyle(
-          fontFamily: 'Outfit',
-          fontWeight: FontWeight.w700,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-          color: AppColors.secondaryTeal,
+      child: Obx(
+        () => HrInitialsAvatar(
+          initials: initials,
+          imageUrl: Get.isRegistered<UserSession>()
+              ? Get.find<UserSession>().avatarUrl
+              : null,
+          size: 42,
+          background: AppColors.surfaceWhite,
+          foreground: AppColors.secondaryTeal,
         ),
       ),
       ),
@@ -478,8 +489,9 @@ class _AvatarButton extends StatelessWidget {
 
 class _DashboardSearchBar extends StatelessWidget {
   final VoidCallback? onTap;
+  final VoidCallback? onFilterTap;
 
-  const _DashboardSearchBar({this.onTap});
+  const _DashboardSearchBar({this.onTap, this.onFilterTap});
 
   @override
   Widget build(BuildContext context) {
@@ -487,6 +499,7 @@ class _DashboardSearchBar extends StatelessWidget {
     final filterSize = ResponsiveHelper.getResponsiveSize(context, 34);
 
     return GestureDetector(
+      key: const Key('manager-dashboard-search'),
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -528,23 +541,32 @@ class _DashboardSearchBar extends StatelessWidget {
             color: AppColors.dividerLight,
           ),
           SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          Container(
-            width: filterSize,
-            height: filterSize,
-            decoration: BoxDecoration(
-              color: AppColors.filterButtonBackground,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 10),
+          Semantics(
+            button: true,
+            label: 'Search pages',
+            child: GestureDetector(
+              key: const Key('manager-dashboard-filter'),
+              onTap: onFilterTap,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                width: filterSize,
+                height: filterSize,
+                decoration: BoxDecoration(
+                  color: AppColors.filterButtonBackground,
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(context, 10),
+                  ),
+                  border: Border.all(
+                    color: AppColors.secondaryTeal.withValues(alpha: 0.18),
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: const AppSvgIcon(
+                  AppAssets.filter,
+                  size: 16,
+                  color: AppColors.secondaryTeal,
+                ),
               ),
-              border: Border.all(
-                color: AppColors.secondaryTeal.withValues(alpha: 0.18),
-              ),
-            ),
-            alignment: Alignment.center,
-            child: const AppSvgIcon(
-              AppAssets.filter,
-              size: 16,
-              color: AppColors.secondaryTeal,
             ),
           ),
         ],

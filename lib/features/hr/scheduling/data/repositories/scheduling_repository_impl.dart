@@ -5,6 +5,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/entities/shift_qualification_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
@@ -29,30 +30,38 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   Future<Result<SchedulingOverview>> getOverview({
     DateTime? weekOf,
     DateTime? selectedDay,
+    String? residenceId,
+    ShiftStatusFilter? status,
   }) async {
-    final residenceId = _session.residenceId;
+    final scopedResidenceId = residenceId ?? _session.residenceId;
     final anchor = weekOf ?? DateTime.now();
     final from = IsoDateRange.startOfWeek(anchor).toUtc().toIso8601String();
     final to = IsoDateRange.endOfWeek(anchor).toUtc().toIso8601String();
 
-    final week = await _fetchAllPages(
+    final weekResult = await _fetchAllPages(
       path: ApiEndpoints.shifts,
       baseQuery: {
         'from': from,
         'to': to,
-        'residenceId': ?residenceId,
+        'residenceId': ?scopedResidenceId,
       },
     );
-    if (week.isFailure) {
+    if (weekResult.isFailure) {
       return Result.failure(
-        week.error ?? const ApiError(message: 'Could not load the schedule.'),
+        weekResult.error ??
+            const ApiError(message: 'Could not load the schedule.'),
       );
     }
+    final week = _applyShiftFilters(
+      weekResult.value ?? const [],
+      residenceId: residenceId,
+      status: status,
+    );
 
     final swapBase = <String, dynamic>{
       'from': from,
       'to': to,
-      'residenceId': ?residenceId,
+      'residenceId': ?scopedResidenceId,
     };
 
     final results = await Future.wait([
@@ -62,7 +71,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
           'status': 'open',
           'from': from,
           'to': to,
-          'residenceId': ?residenceId,
+          'residenceId': ?scopedResidenceId,
         },
       ),
       _api.get(
@@ -105,8 +114,11 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
 
     return Result.success(
       SchedulingMapper.compose(
-        weekBody: week.value,
-        openBody: results[0].value,
+        weekBody: week,
+        openBody: _applyShiftFilters(
+          results[0].value as List<dynamic>? ?? const [],
+          residenceId: residenceId,
+        ),
         pendingSwapsBody: results[1].value,
         approvedSwapsBody: results[2].value,
         declinedSwapsBody: results[3].value,
@@ -114,6 +126,32 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
         selectedDay: selectedDay,
       ),
     );
+  }
+
+  /// Client-side guard so filters still apply when the API ignores the
+  /// `residenceId` query or returns every lifecycle state.
+  List<dynamic> _applyShiftFilters(
+    List<dynamic> rows, {
+    String? residenceId,
+    ShiftStatusFilter? status,
+  }) {
+    if (residenceId == null && status == null) return rows;
+    return rows.where((row) {
+      final json = JsonCodec.asMap(row);
+      if (residenceId != null) {
+        final rowResidence = JsonCodec.string(
+          json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
+        );
+        if (rowResidence != null && rowResidence != residenceId) return false;
+      }
+      if (status != null) {
+        final rowStatus = JsonCodec.string(json['status'])?.toLowerCase();
+        if (rowStatus == null || !status.apiValues.contains(rowStatus)) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
   }
 
   /// Walks `page=1..n` until a short page is returned (or [_maxPages]).

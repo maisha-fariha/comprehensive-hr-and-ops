@@ -46,6 +46,7 @@ class UserSession extends GetxService {
   final RxString _displayName = ''.obs;
   final RxString _email = ''.obs;
   final RxString _avatarInitials = ''.obs;
+  final RxnString _avatarUrl = RxnString();
   final RxnString _residenceId = RxnString();
   final RxnString _residenceName = RxnString();
   final RxnString _organizationName = RxnString();
@@ -66,6 +67,7 @@ class UserSession extends GetxService {
   String get displayName => _displayName.value;
   String get email => _email.value;
   String get avatarInitials => _avatarInitials.value;
+  String? get avatarUrl => _avatarUrl.value;
   String? get residenceId => _residenceId.value;
   String? get residenceName => _residenceName.value;
   String? get organizationName => _organizationName.value;
@@ -165,6 +167,7 @@ class UserSession extends GetxService {
     _displayName.value = profile.displayName;
     _email.value = profile.email;
     _avatarInitials.value = profile.avatarInitials;
+    _avatarUrl.value = profile.avatarUrl;
     _residenceId.value = profile.residenceId;
     _residenceName.value = profile.residenceName;
     _organizationName.value = profile.residenceName ?? profile.tenantName;
@@ -190,6 +193,10 @@ class UserSession extends GetxService {
   }
 
   void selectClient(String clientId) => _selectedClientId.value = clientId;
+
+  /// Reflects a profile photo change (`PATCH /auth/avatar`) app-wide.
+  void updateAvatarUrl(String? url) =>
+      _avatarUrl.value = (url == null || url.trim().isEmpty) ? null : url;
 
   /// Test/dev helper to open a portal without going through `/mobile/me`.
   void signIn({
@@ -265,6 +272,7 @@ class UserSession extends GetxService {
     _displayName.value = '';
     _email.value = '';
     _avatarInitials.value = '';
+    _avatarUrl.value = null;
     _residenceId.value = null;
     _residenceName.value = null;
     _organizationName.value = null;
