@@ -339,7 +339,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Related Client'), findsOneWidget);
-      expect(find.text('Search client...'), findsOneWidget);
+      expect(find.text('Search related client...'), findsOneWidget);
 
       // BUG_Report013 — CFS Details (optional)
       expect(
