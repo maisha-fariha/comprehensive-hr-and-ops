@@ -68,7 +68,7 @@ class CreateIncidentPeopleLocationSection extends StatelessWidget {
           CreateIncidentSearchField(
             fieldKey: const Key('staff-incident-client-search'),
             controller: controller.clientSearchController,
-            hint: 'Search client...',
+            hint: 'Search related client...',
             onChanged: controller.onClientQueryChanged,
           ),
           Obx(() {
@@ -321,6 +321,10 @@ class _EmergencyDetails extends StatelessWidget {
 class _ClientSuggestions extends StatelessWidget {
   final IncidentCreationController controller;
 
+  static const Color _avatarBg = Color(0xFFE8F0FE);
+  static const Color _avatarFg = Color(0xFF1D4ED8);
+  static const Color _selectedBorder = Color(0xFF2563EB);
+
   const _ClientSuggestions({required this.controller});
 
   @override
@@ -333,12 +337,22 @@ class _ClientSuggestions extends StatelessWidget {
       child: Container(
         width: double.infinity,
         constraints: BoxConstraints(
-          maxHeight: ResponsiveHelper.getResponsiveHeight(context, 180),
+          maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
         ),
         decoration: BoxDecoration(
           color: AppColors.surfaceWhite,
           border: Border.all(color: AppColors.searchBorder),
           borderRadius: BorderRadius.circular(radius),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadowNavy.withValues(alpha: 0.06),
+              offset: Offset(
+                0,
+                ResponsiveHelper.getResponsiveHeight(context, 4),
+              ),
+              blurRadius: ResponsiveHelper.getResponsiveHeight(context, 12),
+            ),
+          ],
         ),
         child: Obx(() {
           if (controller.isSearchingClients.value &&
@@ -373,30 +387,111 @@ class _ClientSuggestions extends StatelessWidget {
             color: Colors.transparent,
             child: ListView.separated(
               shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: EdgeInsets.symmetric(
+                vertical: ResponsiveHelper.getResponsiveHeight(context, 6),
+                horizontal: ResponsiveHelper.getResponsiveWidth(context, 6),
+              ),
               itemCount: controller.clientSuggestions.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
+              separatorBuilder: (_, _) => SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 4),
+              ),
               itemBuilder: (context, index) {
                 final option = controller.clientSuggestions[index];
-                return ListTile(
-                  dense: true,
-                  title: Text(
-                    option.name,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w600,
-                    ),
+                final selected =
+                    controller.selectedClient.value?.id == option.id;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(context, 10),
                   ),
-                  subtitle: option.subtitle.isEmpty
-                      ? null
-                      : Text(
-                          option.subtitle,
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            color: AppColors.textMuted,
+                  onTap: () => controller.selectClientFromSearch(option),
+                  child: Container(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFFEFF6FF)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(
+                        ResponsiveHelper.getResponsiveRadius(context, 10),
+                      ),
+                      border: Border.all(
+                        color: selected
+                            ? _selectedBorder
+                            : Colors.transparent,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius:
+                              ResponsiveHelper.getResponsiveSize(context, 18),
+                          backgroundColor: _avatarBg,
+                          child: Text(
+                            option.initials,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                12,
+                              ),
+                              color: _avatarFg,
+                            ),
                           ),
                         ),
-                  onTap: () => controller.selectClientFromSearch(option),
+                        SizedBox(
+                          width:
+                              ResponsiveHelper.getResponsiveWidth(context, 10),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                option.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    14,
+                                  ),
+                                  color: AppColors.textHeading,
+                                ),
+                              ),
+                              SizedBox(
+                                height: ResponsiveHelper.getResponsiveHeight(
+                                  context,
+                                  2,
+                                ),
+                              ),
+                              Text(
+                                option.subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w400,
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    12,
+                                  ),
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               },
             ),

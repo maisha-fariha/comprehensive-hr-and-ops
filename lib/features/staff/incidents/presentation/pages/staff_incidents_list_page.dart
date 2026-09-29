@@ -9,15 +9,16 @@ import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../controllers/staff_incidents_controller.dart';
 import '../widgets/staff_incident_card.dart';
+import '../widgets/staff_incidents_filters_bar.dart';
 import '../widgets/staff_incidents_header.dart';
+import '../widgets/staff_incidents_metrics_row.dart';
 import '../widgets/staff_incidents_search_bar.dart';
+import '../widgets/staff_incidents_side_panels.dart';
 import '../widgets/staff_incidents_tab_bar.dart';
-import '../widgets/staff_primary_button.dart';
 import 'create_incident_page.dart';
 import 'incident_details_page.dart';
 
-/// The Staff Incidents list screen - "My Incidents / All Incidents" tabs
-/// of the Staff (care-worker) portal.
+/// Staff Incident Reports list — metrics, tabs, filters, side panels, cards.
 ///
 /// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
 /// matches reference frames that show the staff bottom nav.
@@ -43,7 +44,10 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
 
   StaffIncidentsController _resolveController() {
     try {
-      return Get.find<StaffIncidentsController>();
+      final existing = Get.find<StaffIncidentsController>();
+      // Permanent controller may hold stale list from earlier in the session.
+      existing.refresh();
+      return existing;
     } catch (_) {
       return Get.put(
         GetIt.instance<StaffIncidentsController>(),
@@ -53,11 +57,15 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
   }
 
   void _openCreateIncident() {
-    Get.to(() => const CreateIncidentPage());
+    Get.to(() => const CreateIncidentPage())?.then((_) {
+      if (mounted) _controller.refresh();
+    });
   }
 
   void _openIncidentDetails(String incidentId) {
-    Get.to(() => IncidentDetailsPage(incidentId: incidentId));
+    Get.to(() => IncidentDetailsPage(incidentId: incidentId))?.then((_) {
+      if (mounted) _controller.refresh();
+    });
   }
 
   void _onBottomNavTap(int index) {
@@ -77,6 +85,48 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
     );
     if (range == null) return;
     _controller.setDateRange(from: range.start, to: range.end);
+  }
+
+  Widget _addIncidentButton(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+
+    return Material(
+      color: AppColors.secondaryTeal,
+      borderRadius: BorderRadius.circular(radius),
+      child: InkWell(
+        onTap: _openCreateIncident,
+        borderRadius: BorderRadius.circular(radius),
+        child: Padding(
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 12,
+            vertical: 9,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.add_rounded,
+                size: ResponsiveHelper.getResponsiveSize(context, 16),
+                color: Colors.white,
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+              Text(
+                'Add Incident',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                  color: Colors.white,
+                  height: 1.1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -116,45 +166,29 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
 
           final selectedTab = _controller.selectedTab.value;
           final incidents = _controller.visibleIncidents;
-          final showCreateButton = selectedTab == StaffIncidentsTab.myIncidents;
           final summary = _controller.summary.value;
+          final myCount = selectedTab == StaffIncidentsTab.myIncidents
+              ? incidents.length
+              : _controller.myIncidentsCount.value;
+          final allCount = summary.total > 0
+              ? summary.total
+              : (selectedTab == StaffIncidentsTab.allIncidents
+                  ? incidents.length
+                  : _controller.allIncidentsCount.value);
 
           return Column(
             children: [
-              ColoredBox(
-                color: AppColors.surfaceWhite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    StaffIncidentsHeader(title: 'Incidents', onBack: Get.back),
-                    Padding(
-                      padding: ResponsiveHelper.getResponsivePadding(
-                        context,
-                        horizontal: 20,
-                        bottom: 12,
-                      ),
-                      child: StaffIncidentsTabBar(
-                        selected: selectedTab,
-                        myIncidentsCount: selectedTab ==
-                                StaffIncidentsTab.myIncidents
-                            ? incidents.length
-                            : _controller.myIncidentsCount.value,
-                        allIncidentsCount: summary.total > 0
-                            ? summary.total
-                            : (selectedTab == StaffIncidentsTab.allIncidents
-                                ? incidents.length
-                                : _controller.allIncidentsCount.value),
-                        onSelected: _controller.selectTab,
-                      ),
-                    ),
-                  ],
-                ),
+              StaffIncidentsHeader(
+                title: 'Incident Reports',
+                onBack: Get.back,
+                trailing: _addIncidentButton(context),
               ),
               Expanded(
                 child: RefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.refresh,
                   child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: EdgeInsets.fromLTRB(
                       ResponsiveHelper.getResponsiveWidth(context, 20),
                       ResponsiveHelper.getResponsiveHeight(context, 14),
@@ -162,12 +196,50 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                       ResponsiveHelper.getResponsiveHeight(context, 14),
                     ),
                     children: [
+                      StaffIncidentsMetricsRow(summary: summary),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
+                      StaffIncidentsTabBar(
+                        selected: selectedTab,
+                        myIncidentsCount: myCount,
+                        allIncidentsCount: allCount,
+                        onSelected: _controller.selectTab,
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 12),
+                      ),
+                      StaffIncidentsFiltersBar(
+                        statusFilter: _controller.statusFilter.value,
+                        severityFilter: _controller.severityFilter.value,
+                        residenceFilterId: _controller.residenceFilterId.value,
+                        clientFilterId: _controller.clientFilterId.value,
+                        residences: _controller.residences.toList(),
+                        clients: _controller.clients.toList(),
+                        fromDate: _controller.fromDate.value,
+                        toDate: _controller.toDate.value,
+                        onStatusChanged: _controller.setStatusFilter,
+                        onSeverityChanged: _controller.setSeverityFilter,
+                        onResidenceChanged: (id) {
+                          _controller.setResidenceFilter(id);
+                        },
+                        onClientChanged: _controller.setClientFilter,
+                        onPickDateRange: _pickDateRange,
+                        onClearFilters: _controller.clearFilters,
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 12),
+                      ),
                       StaffIncidentsSearchBar(
                         controller: _searchController,
                         onChanged: _controller.updateSearchQuery,
                       ),
                       SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 14),
                       ),
                       if (incidents.isEmpty)
                         Padding(
@@ -195,17 +267,19 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                                 _openIncidentDetails(incidents[i].id),
                           ),
                         ],
-                      if (showCreateButton) ...[
-                        SizedBox(
-                          height:
-                              ResponsiveHelper.getResponsiveHeight(context, 16),
-                        ),
-                        StaffPrimaryButton(
-                          label: 'Create Incident',
-                          icon: Icons.add_rounded,
-                          onTap: _openCreateIncident,
-                        ),
-                      ],
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
+                      StaffIncidentsSidePanels(
+                        summary: summary,
+                        onViewQueue: _controller.viewInvestigationQueue,
+                        onOpenIncident: _openIncidentDetails,
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
                     ],
                   ),
                 ),

@@ -5,21 +5,23 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/widgets/app_svg_icon.dart';
 
-/// Bottom action row on Incident Details: Close / Add Note / Acknowledge.
+/// Bottom action row on Incident Details: Close / Edit / Acknowledge.
 class IncidentDetailsActions extends StatelessWidget {
   static const Color _closeInk = Color(0xFF5E6278);
   static const Color _closeBorder = Color(0xFFE1E3EA);
   static const Color _teal = Color(0xFF0E7C7B);
 
   final VoidCallback? onClose;
-  final VoidCallback? onAddNote;
+  final VoidCallback? onEdit;
   final VoidCallback? onAcknowledge;
+  final bool showAcknowledge;
 
   const IncidentDetailsActions({
     super.key,
     this.onClose,
-    this.onAddNote,
+    this.onEdit,
     this.onAcknowledge,
+    this.showAcknowledge = true,
   });
 
   @override
@@ -45,7 +47,8 @@ class IncidentDetailsActions extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 15),
                     color: _closeInk,
                     height: 1,
                   ),
@@ -59,7 +62,7 @@ class IncidentDetailsActions extends StatelessWidget {
                 radius: radius,
                 background: AppColors.surfaceWhite,
                 borderColor: _teal,
-                onTap: onAddNote ?? () {},
+                onTap: onEdit ?? () {},
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
@@ -69,16 +72,21 @@ class IncidentDetailsActions extends StatelessWidget {
                       size: ResponsiveHelper.getResponsiveSize(context, 16),
                       color: _teal,
                     ),
-                    SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                    SizedBox(
+                      width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                    ),
                     Flexible(
                       child: Text(
-                        'Add Note',
+                        'Edit',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            15,
+                          ),
                           color: _teal,
                           height: 1,
                         ),
@@ -90,37 +98,42 @@ class IncidentDetailsActions extends StatelessWidget {
             ),
           ],
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-        _ActionButton(
-          height: height,
-          radius: radius,
-          background: _teal,
-          borderColor: _teal,
-          elevated: true,
-          onTap: onAcknowledge ?? () {},
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppSvgIcon(
-                'assets/icons/staff_incidents/check.svg',
-                size: ResponsiveHelper.getResponsiveSize(context, 18),
-                color: Colors.white,
-              ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              Text(
-                'Acknowledge',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+        if (showAcknowledge) ...[
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          _ActionButton(
+            height: height,
+            radius: radius,
+            background: _teal,
+            borderColor: _teal,
+            elevated: true,
+            onTap: onAcknowledge ?? () {},
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppSvgIcon(
+                  'assets/icons/staff_incidents/check.svg',
+                  size: ResponsiveHelper.getResponsiveSize(context, 18),
                   color: Colors.white,
-                  height: 1,
                 ),
-              ),
-            ],
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                ),
+                Text(
+                  'Acknowledge',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 15),
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -161,9 +174,14 @@ class _ActionButton extends StatelessWidget {
             boxShadow: elevated
                 ? [
                     BoxShadow(
-                      color: IncidentDetailsActions._teal.withValues(alpha: 0.25),
-                      offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 4)),
-                      blurRadius: ResponsiveHelper.getResponsiveHeight(context, 10),
+                      color:
+                          IncidentDetailsActions._teal.withValues(alpha: 0.25),
+                      offset: Offset(
+                        0,
+                        ResponsiveHelper.getResponsiveHeight(context, 4),
+                      ),
+                      blurRadius:
+                          ResponsiveHelper.getResponsiveHeight(context, 10),
                     ),
                   ]
                 : null,

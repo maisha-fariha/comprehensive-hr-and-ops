@@ -15,6 +15,8 @@ abstract class StaffIncidentsRepository {
     String? status,
     String? from,
     String? to,
+    String? residenceId,
+    String? clientId,
     int page = 1,
     int limit = 20,
   });
@@ -49,9 +51,10 @@ abstract class StaffIncidentsRepository {
   /// `GET /residences` — residence picker on Create Incident.
   Future<Result<List<StaffIncidentResidenceOption>>> getResidences();
 
-  /// `GET /clients?assignedToMe=true` or `?search=`
+  /// `GET /clients?assignedToMe=true` or `?search=` / optional `residenceId`
   Future<Result<List<StaffIncidentClientOption>>> getClients({
     String? search,
+    String? residenceId,
     bool assignedToMe = true,
   });
 

@@ -7,9 +7,13 @@ class IncidentActivityEntry {
   final String meta;
   final bool isActive;
 
+  /// When true, show the web-style FAILURE outcome chip.
+  final bool isFailure;
+
   const IncidentActivityEntry({
     required this.title,
     required this.meta,
     this.isActive = false,
+    this.isFailure = false,
   });
 }

@@ -132,7 +132,7 @@ class CreateIncidentTextField extends StatelessWidget {
         child: TextField(
           controller: controller,
           maxLines: maxLines,
-          minLines: 3,
+          minLines: maxLines < 3 ? maxLines : 3,
           style: _fieldTextStyle(context, isPlaceholder: false),
           decoration: InputDecoration(
             isDense: true,

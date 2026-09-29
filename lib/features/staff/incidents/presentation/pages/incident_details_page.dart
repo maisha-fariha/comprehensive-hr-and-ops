@@ -4,26 +4,24 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../controllers/incident_details_controller.dart';
 import '../widgets/incident_details/incident_activity_log_section.dart';
+import '../widgets/incident_details/incident_cir_report_section.dart';
 import '../widgets/incident_details/incident_description_section.dart';
 import '../widgets/incident_details/incident_details_actions.dart';
 import '../widgets/incident_details/incident_evidence_section.dart';
-import '../widgets/incident_details/incident_info_section.dart';
-import '../widgets/incident_details/incident_people_section.dart';
-import '../widgets/incident_details/incident_summary_card.dart';
+import '../widgets/incident_details/incident_investigation_findings_section.dart';
+import '../widgets/incident_details/incident_meta_grid.dart';
+import '../widgets/incident_details/incident_status_ack_section.dart';
+import '../widgets/incident_details/incident_web_header_card.dart';
+import '../widgets/incident_details/incident_witness_statements_section.dart';
 import '../widgets/staff_incidents_header.dart';
 
-/// Read-only Incident Details screen, reached by tapping "View Details" on
-/// an "All Incidents" card.
-///
-/// Reproduction of the Figma "Incident Details - Incidents" screenshot,
-/// built without Figma MCP access (monthly quota exhausted) - see the
-/// feature's final report for details on any approximated content and
-/// icon placeholders.
+/// Read-only Incident Details screen — web modal content order on mobile scroll.
 ///
 /// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
 /// matches reference frames that show the staff bottom nav.
@@ -53,7 +51,10 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
     try {
       return Get.find<IncidentDetailsController>();
     } catch (_) {
-      return Get.put(GetIt.instance<IncidentDetailsController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<IncidentDetailsController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -61,16 +62,8 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
     Get.offAll(() => StaffShell(initialIndex: index));
   }
 
-  Future<void> _promptNote(BuildContext context) async {
-    final note = await showDialog<String>(
-      context: context,
-      builder: (_) => const _AddInvestigationNoteDialog(),
-    );
-    if (!mounted || note == null || note.trim().isEmpty) return;
-    // Let the dialog route finish deactivating before mutating overlays.
-    await Future<void>.delayed(Duration.zero);
-    if (!mounted) return;
-    await _controller.addNote(note);
+  void _onEdit() {
+    AppSnackbar.show('Edit', 'Editing opens on web for now');
   }
 
   @override
@@ -116,13 +109,20 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                 final detail = response.data;
 
                 if (detail == null && _controller.isLoading.value) {
-                  return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.secondaryTeal,
+                    ),
+                  );
                 }
 
                 if (detail == null) {
                   return Center(
                     child: Padding(
-                      padding: ResponsiveHelper.getResponsivePadding(context, all: 24),
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        all: 24,
+                      ),
                       child: Text(
                         _controller.errorMessage.value.isEmpty
                             ? 'Something went wrong while loading this incident.'
@@ -138,6 +138,12 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                   );
                 }
 
+                final gap =
+                    ResponsiveHelper.getResponsiveHeight(context, 14);
+                final cirSections = detail.cirReport?.formSections ?? const [];
+                final showCir =
+                    detail.cirReport != null && cirSections.isNotEmpty;
+
                 return ListView(
                   padding: EdgeInsets.fromLTRB(
                     ResponsiveHelper.getResponsiveWidth(context, 20),
@@ -146,25 +152,55 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                     ResponsiveHelper.getResponsiveHeight(context, 30),
                   ),
                   children: [
-                    IncidentSummaryCard(detail: detail),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                    IncidentInfoSection(detail: detail),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                    IncidentPeopleSection(detail: detail),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                    IncidentDescriptionSection(description: detail.description),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                    IncidentWebHeaderCard(detail: detail),
+                    SizedBox(height: gap),
+                    IncidentMetaGrid(detail: detail),
+                    SizedBox(height: gap),
+                    IncidentDescriptionSection(
+                      description: detail.description,
+                    ),
+                    SizedBox(height: gap),
+                    IncidentWitnessStatementsSection(
+                      witnessNames: detail.witnessNames,
+                    ),
+                    if (showCir) ...[
+                      SizedBox(height: gap),
+                      Obx(
+                        () => IncidentCirReportSection(
+                          sections: cirSections,
+                          pdfBusy: _controller.isOpeningCirPdf.value,
+                          onPrint: _controller.printCirPdf,
+                          onDownload: _controller.shareCirPdf,
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: gap),
+                    IncidentStatusAckSection(
+                      statusLabel: detail.statusLabel,
+                      acknowledged: detail.acknowledged,
+                      acknowledgedAtLabel: detail.acknowledgedAtLabel,
+                    ),
+                    if (detail.hasInvestigationContent) ...[
+                      SizedBox(height: gap),
+                      IncidentInvestigationFindingsSection(detail: detail),
+                    ],
+                    SizedBox(height: gap),
                     IncidentEvidenceSection(
                       items: detail.evidence,
                       isBusy: _controller.isOpeningEvidence.value,
                       onDownload: _controller.openEvidence,
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                    SizedBox(height: gap),
                     IncidentActivityLogSection(entries: detail.activity),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+                    SizedBox(
+                      height:
+                          ResponsiveHelper.getResponsiveHeight(context, 20),
+                    ),
                     IncidentDetailsActions(
+                      onClose: Get.back,
+                      onEdit: _onEdit,
                       onAcknowledge: _controller.acknowledge,
-                      onAddNote: () => _promptNote(context),
+                      showAcknowledge: !detail.acknowledged,
                     ),
                   ],
                 );
@@ -173,56 +209,6 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _AddInvestigationNoteDialog extends StatefulWidget {
-  const _AddInvestigationNoteDialog();
-
-  @override
-  State<_AddInvestigationNoteDialog> createState() =>
-      _AddInvestigationNoteDialogState();
-}
-
-class _AddInvestigationNoteDialogState
-    extends State<_AddInvestigationNoteDialog> {
-  late final TextEditingController _notes;
-
-  @override
-  void initState() {
-    super.initState();
-    _notes = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _notes.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add note'),
-      content: TextField(
-        controller: _notes,
-        autofocus: true,
-        maxLines: 4,
-        decoration: const InputDecoration(
-          hintText: 'Investigation note',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(_notes.text),
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 }

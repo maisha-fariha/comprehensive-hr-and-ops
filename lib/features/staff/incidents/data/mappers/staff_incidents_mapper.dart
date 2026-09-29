@@ -21,12 +21,26 @@ abstract final class StaffIncidentsMapper {
     final client = JsonCodec.mapAt(json, 'client') ??
         JsonCodec.mapAt(json, 'resident') ??
         {};
+    final residence = JsonCodec.mapAt(json, 'residence') ?? {};
+    final reporter = JsonCodec.mapAt(json, 'reporter') ??
+        JsonCodec.mapAt(json, 'reportedBy') ??
+        {};
+    final categoryMap = JsonCodec.mapAt(json, 'category') ?? {};
+    final composedClient = [
+      JsonCodec.stringOr(client['firstName'], ''),
+      JsonCodec.stringOr(client['lastName'], ''),
+    ].where((part) => part.isNotEmpty).join(' ').trim();
     final name = JsonCodec.stringOr(
       client['preferredName'] ??
+          client['fullName'] ??
           client['name'] ??
           json['clientName'] ??
-          json['residentName'],
+          json['residentName'] ??
+          (composedClient.isEmpty ? null : composedClient),
       'Resident',
+    );
+    final reporterName = IsoDateRange.personName(
+      reporter.isEmpty ? json['reportedByName'] : reporter,
     );
     final assignees = JsonCodec.listAt(json, 'assignees').isEmpty
         ? JsonCodec.listAt(json, 'assignedStaff')
@@ -34,10 +48,37 @@ abstract final class StaffIncidentsMapper {
     final occurred = JsonCodec.dateTime(
       json['occurredAt'] ?? json['createdAt'] ?? json['reportedAt'],
     );
+    final reportedAt = JsonCodec.dateTime(json['reportedAt'] ?? json['createdAt']);
+    final acknowledgedAt = JsonCodec.dateTime(json['acknowledgedAt']);
+    final categoryLabel = JsonCodec.stringOr(
+      categoryMap['name'] ??
+          json['categoryName'] ??
+          (json['category'] is String ? json['category'] : null),
+      '',
+    );
+    final title = JsonCodec.stringOr(
+      json['title'] ??
+          (categoryLabel.isNotEmpty ? categoryLabel : null) ??
+          (json['category'] is String ? json['category'] : null),
+      'Incident',
+    );
 
     return StaffIncident(
       id: JsonCodec.stringOr(json['id'], name),
-      title: JsonCodec.stringOr(json['title'] ?? json['category'], 'Incident'),
+      title: title,
+      categoryLabel: categoryLabel,
+      residenceName: JsonCodec.stringOr(
+        residence['name'] ?? json['residenceName'],
+        '',
+      ),
+      reportedByName: reporterName == 'Unknown' ? '' : reporterName,
+      reportedAtLabel: reportedAt == null
+          ? ''
+          : IsoDateRange.formatShortDate(reportedAt.toLocal()),
+      acknowledged: acknowledgedAt != null,
+      acknowledgedAtLabel: acknowledgedAt == null
+          ? null
+          : IsoDateRange.formatShortDate(acknowledgedAt.toLocal()),
       iconKind: _iconKind(json),
       severity: _severity(json['severity']),
       dateTimeLabel: occurred == null
@@ -62,10 +103,63 @@ abstract final class StaffIncidentsMapper {
     final reporter = JsonCodec.mapAt(json, 'reporter') ??
         JsonCodec.mapAt(json, 'reportedBy') ??
         {};
-    final payload = JsonCodec.mapAt(json, 'payload') ?? {};
+    final payload = Map<String, dynamic>.from(
+      JsonCodec.mapAt(json, 'payload') ??
+          JsonCodec.mapAt(json, 'payloadJson') ??
+          const {},
+    );
+    _ensurePartiesNotifiedMap(payload);
+
+    final bodyForCir = Map<String, dynamic>.from(json);
+    bodyForCir['payload'] = payload;
+    final cirReport = IncidentsMapper.investigationSummaryFrom(bodyForCir);
+
     final reporterName = IsoDateRange.personName(
       reporter.isEmpty ? json['reportedByName'] : reporter,
     );
+    final shortId = list.id.length > 8 ? list.id.substring(0, 8) : list.id;
+    final shortIdLabel = '#$shortId';
+
+    final residenceName = _preferNonEmpty(
+      list.residenceName,
+      _dashToEmpty(cirReport.residenceName),
+    );
+    final residentName = _preferNonEmpty(
+      list.personName == 'Resident' ? '' : list.personName,
+      _dashToEmpty(cirReport.clientName),
+      fallback: list.personName,
+    );
+    final reportedByResolved = _preferNonEmpty(
+      reporterName == 'Unknown' ? '' : reporterName,
+      _dashToEmpty(cirReport.reportedByName),
+      fallback: reporterName,
+    );
+
+    final reportedAt = JsonCodec.dateTime(
+      json['reportedAt'] ?? json['createdAt'],
+    );
+    final reportedAtLabel = reportedAt == null
+        ? _preferNonEmpty(
+            list.reportedAtLabel,
+            _dashToEmpty(cirReport.reportedAtLabel),
+          )
+        : IsoDateRange.formatShortDate(reportedAt.toLocal());
+
+    final acknowledgedAt = JsonCodec.dateTime(json['acknowledgedAt']);
+    final investigation = JsonCodec.mapAt(json, 'investigation') ?? const {};
+    final investigationRecordedAt = JsonCodec.dateTime(
+      investigation['updatedAt'] ??
+          investigation['recordedAt'] ??
+          payload['updatedAt'] ??
+          payload['investigationUpdatedAt'],
+    );
+    final recordedByRaw = investigation['recordedBy'] ??
+        investigation['investigator'] ??
+        payload['recordedBy'] ??
+        payload['investigationRecordedBy'];
+    final recordedByName = recordedByRaw == null
+        ? null
+        : IsoDateRange.personName(recordedByRaw);
 
     return IncidentDetail(
       id: list.id,
@@ -74,9 +168,9 @@ abstract final class StaffIncidentsMapper {
         list.id,
       ),
       categoryLabel: JsonCodec.stringOr(
-        json['category'] ??
-            JsonCodec.mapAt(json, 'category')?['name'] ??
-            json['categoryName'],
+        JsonCodec.mapAt(json, 'category')?['name'] ??
+            json['categoryName'] ??
+            (json['category'] is String ? json['category'] : null),
         'Incident',
       ),
       title: list.title,
@@ -85,22 +179,33 @@ abstract final class StaffIncidentsMapper {
       severity: list.severity,
       statusLabel: _statusLabel(list.status),
       detectedDuring: JsonCodec.stringOr(
-        json['detectedDuring'] ?? json['shift'] ?? json['context'],
+        json['detectedDuring'] ??
+            payload['detectedDuring'] ??
+            json['shift'] ??
+            json['context'],
         '',
       ),
-      location: JsonCodec.stringOr(json['location'] ?? json['room'], ''),
-      residentName: list.personName,
+      location: JsonCodec.stringOr(
+        json['location'] ??
+            payload['incidentLocationDescription'] ??
+            payload['location'] ??
+            json['room'],
+        '',
+      ),
+      residentName: residentName,
       residentSubLabel: JsonCodec.stringOr(
         client['room'] ?? client['roomNumber'] ?? json['room'],
         '',
       ),
-      residentInitials: list.personInitials,
-      reportedByName: reporterName,
+      residentInitials: IsoDateRange.initials(residentName),
+      reportedByName: reportedByResolved,
       reportedBySubLabel: JsonCodec.stringOr(
         reporter['role'] ?? reporter['title'] ?? json['reportedByRole'],
         '',
       ),
-      reportedByInitials: IsoDateRange.initials(reporterName),
+      reportedByInitials: IsoDateRange.initials(reportedByResolved),
+      // Top DESCRIPTION matches web: only freeform description fields — not
+      // CIR `incidentDescription` (that lives inside the Report form section).
       description: JsonCodec.stringOr(
         json['description'] ??
             payload['description'] ??
@@ -113,8 +218,115 @@ abstract final class StaffIncidentsMapper {
       evidence: evidenceFrom(
         json['evidence'] ?? json['attachments'] ?? json['files'],
       ),
-      cirReport: IncidentsMapper.investigationSummaryFrom(body),
+      cirReport: cirReport,
+      shortIdLabel: shortIdLabel,
+      residenceName: residenceName,
+      reportedAtLabel: reportedAtLabel,
+      acknowledged: acknowledgedAt != null || list.acknowledged,
+      acknowledgedAtLabel: acknowledgedAt == null
+          ? list.acknowledgedAtLabel
+          : IsoDateRange.formatShortDate(acknowledgedAt.toLocal()),
+      witnessNames: _witnessNames(payload['witnesses'] ?? json['witnesses']),
+      investigationStatus: _humanizeToken(
+        investigation['status'] ?? payload['investigationStatus'],
+      ),
+      investigationFindings: JsonCodec.string(
+        investigation['findings'] ??
+            payload['findings'] ??
+            payload['investigationFindings'] ??
+            payload['investigationNotes'],
+      ),
+      investigationRootCause: JsonCodec.string(
+        investigation['rootCause'] ?? payload['rootCause'],
+      ),
+      investigationCorrectiveAction: JsonCodec.string(
+        investigation['correctiveActions'] ??
+            investigation['correctiveAction'] ??
+            payload['correctiveActions'] ??
+            payload['correctiveAction'],
+      ),
+      investigationRecordedBy:
+          recordedByName == null || recordedByName == 'Unknown'
+              ? null
+              : recordedByName,
+      investigationRecordedAtLabel: investigationRecordedAt == null
+          ? null
+          : IsoDateRange.formatShortDate(investigationRecordedAt.toLocal()),
     );
+  }
+
+  /// When payload has a `notifications` list but no `partiesNotified` map,
+  /// build the map CIR display expects (keyed by simplified party slugs).
+  static void _ensurePartiesNotifiedMap(Map<String, dynamic> payload) {
+    if (payload['partiesNotified'] is Map) return;
+    final notifications = payload['notifications'];
+    if (notifications is! List) return;
+    final map = <String, Map<String, dynamic>>{};
+    for (final item in notifications) {
+      if (item is! Map) continue;
+      final row = JsonCodec.asMap(item);
+      final party = JsonCodec.stringOr(row['party'] ?? row['label'], '');
+      if (party.isEmpty) continue;
+      final key = _partySlug(party);
+      map[key] = {
+        'notified': row['notified'] == true ||
+            row['notified'] == 'yes' ||
+            row['notified'] == 'Yes',
+        if (JsonCodec.string(row['contactName']) != null)
+          'contactName': JsonCodec.string(row['contactName']),
+        if (JsonCodec.string(row['dateNotified']) != null)
+          'dateNotified': JsonCodec.string(row['dateNotified']),
+      };
+    }
+    if (map.isNotEmpty) {
+      payload['partiesNotified'] = map;
+    }
+  }
+
+  static String _partySlug(String party) {
+    return party
+        .trim()
+        .toLowerCase()
+        .replaceAll("'", '')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+  }
+
+  static List<String> _witnessNames(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <String>[];
+    for (final item in raw) {
+      if (item is String) {
+        final name = item.trim();
+        if (name.isNotEmpty) out.add(name);
+        continue;
+      }
+      if (item is! Map) continue;
+      final row = JsonCodec.asMap(item);
+      final name = JsonCodec.string(
+            row['name'] ?? row['fullName'] ?? row['witness'] ?? row['label'],
+          ) ??
+          '';
+      if (name.trim().isNotEmpty) out.add(name.trim());
+    }
+    return out;
+  }
+
+  static String _dashToEmpty(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed == '—' || trimmed == '-') return '';
+    return trimmed;
+  }
+
+  static String _preferNonEmpty(
+    String primary,
+    String secondary, {
+    String fallback = '',
+  }) {
+    if (primary.trim().isNotEmpty) return primary.trim();
+    if (secondary.trim().isNotEmpty) return secondary.trim();
+    return fallback;
   }
 
   static List<IncidentEvidenceItem> evidenceFrom(dynamic body) {
@@ -127,21 +339,37 @@ abstract final class StaffIncidentsMapper {
         row['fileUrl'] ?? row['url'] ?? row['publicUrl'],
       );
       if (url == null || url.isEmpty) continue;
-      final name = JsonCodec.stringOr(
-        row['fileName'] ?? row['name'],
-        url.split('/').last,
+      final fileType = JsonCodec.stringOr(
+        row['fileType'] ?? row['mimeType'] ?? row['contentType'],
+        'file',
       );
+      // Web shows mime type when fileName is null.
+      final named = JsonCodec.string(row['fileName'] ?? row['name']);
+      final name = (named != null && named.isNotEmpty)
+          ? named
+          : (fileType != 'file' ? fileType : url.split('/').last);
+      final uploadedAt = JsonCodec.dateTime(
+        row['createdAt'] ?? row['uploadedAt'],
+      );
+      final uploader = row['uploader'] ?? row['uploadedBy'];
+      final uploaderName = uploader == null
+          ? null
+          : IsoDateRange.personName(uploader);
       out.add(
         IncidentEvidenceItem(
           fileName: name,
           fileUrl: url,
-          fileType: JsonCodec.stringOr(
-            row['fileType'] ?? row['mimeType'] ?? row['contentType'],
-            'file',
-          ),
+          fileType: fileType,
           sizeLabel: JsonCodec.string(
             row['sizeLabel'] ?? row['size'] ?? row['fileSize'],
           ),
+          uploadedByName:
+              uploaderName == null || uploaderName == 'Unknown'
+                  ? null
+                  : uploaderName,
+          uploadedAtLabel: uploadedAt == null
+              ? null
+              : IsoDateRange.formatShortDate(uploadedAt.toLocal()),
         ),
       );
     }
@@ -167,18 +395,59 @@ abstract final class StaffIncidentsMapper {
     final actor = IsoDateRange.personName(
       json['actor'] ?? json['user'] ?? json['staff'] ?? json['performedBy'],
     );
+    final outcome =
+        (JsonCodec.string(json['outcome']) ?? '').trim().toLowerCase();
+    final isFailure = outcome == 'failure' || outcome == 'failed' || outcome == 'error';
     return IncidentActivityEntry(
-      title: JsonCodec.stringOr(
-        json['title'] ?? json['action'] ?? json['type'] ?? json['event'],
-        'Update',
-      ),
+      title: _activityTitle(json),
       meta: [
         if (actor != 'Unknown') actor,
-        if (at != null)
-          '${IsoDateRange.formatShortDate(at.toLocal())}, ${IsoDateRange.timeLabel(at.toLocal())}',
-      ].join('  •  '),
+        if (at != null) IsoDateRange.formatShortDate(at.toLocal()),
+      ].join(' · '),
       isActive: isActive,
+      isFailure: isFailure,
     );
+  }
+
+  /// Maps API audit actions to web labels
+  /// (e.g. `incidents.acknowledge.create` → `Acknowledged`).
+  static String _activityTitle(Map<String, dynamic> json) {
+    final explicit = JsonCodec.string(json['title']);
+    if (explicit != null && explicit.isNotEmpty) return explicit;
+
+    final raw = (JsonCodec.string(
+              json['action'] ?? json['type'] ?? json['event'],
+            ) ??
+            '')
+        .trim()
+        .toLowerCase();
+    if (raw.contains('acknowledge')) return 'Acknowledged';
+    if (raw.contains('investigation')) return 'Investigation updated';
+    if (raw == 'incidents.update' ||
+        raw.endsWith('.update') ||
+        raw.contains('details')) {
+      return 'Details updated';
+    }
+    if (raw.contains('create') || raw.contains('report')) {
+      return 'Incident reported';
+    }
+    if (raw.isEmpty) return 'Update';
+    return _humanizeToken(raw.replaceAll('.', ' ')) ?? 'Update';
+  }
+
+  static String? _humanizeToken(dynamic raw) {
+    final value = (JsonCodec.string(raw) ?? '').trim();
+    if (value.isEmpty) return null;
+    return value
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) =>
+              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join(' ');
   }
 
   static StaffIncidentIconKind _iconKind(Map<String, dynamic> json) {
@@ -236,31 +505,118 @@ abstract final class StaffIncidentsMapper {
 
   static StaffIncidentsSummary summaryFrom(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
-    final open = JsonCodec.integerOr(
-      json['open'] ?? json['openCount'] ?? json['openIncidents'],
-      0,
+    final byStatus = JsonCodec.mapAt(json, 'byStatus') ?? {};
+    final bySeverity = JsonCodec.mapAt(json, 'bySeverity') ?? {};
+
+    final openTotal = byStatus.isEmpty
+        ? JsonCodec.integerOr(
+            json['open'] ?? json['openCount'] ?? json['openIncidents'],
+            0,
+          )
+        : JsonCodec.integerOr(byStatus['open'], 0);
+
+    final investigatingTotal = byStatus.isEmpty
+        ? JsonCodec.integerOr(
+            json['investigating'] ??
+                json['underReview'] ??
+                json['inReview'] ??
+                json['pendingReview'],
+            0,
+          )
+        : JsonCodec.integerOr(byStatus['investigating'], 0) +
+            JsonCodec.integerOr(byStatus['inProgress'], 0);
+
+    final closed = byStatus.isEmpty
+        ? JsonCodec.integerOr(
+            json['closed'] ?? json['closedCount'] ?? json['resolved'],
+            0,
+          )
+        : JsonCodec.integerOr(byStatus['closed'], 0) +
+            JsonCodec.integerOr(byStatus['resolved'], 0);
+
+    final serious = JsonCodec.integerOr(
+      json['serious'] ?? json['highOrCritical'],
+      JsonCodec.integerOr(bySeverity['high'], 0) +
+          JsonCodec.integerOr(bySeverity['critical'], 0),
     );
-    final investigating = JsonCodec.integerOr(
-      json['investigating'] ??
-          json['underReview'] ??
-          json['inReview'] ??
-          json['pendingReview'],
-      0,
-    );
-    final closed = JsonCodec.integerOr(
-      json['closed'] ?? json['closedCount'] ?? json['resolved'],
-      0,
-    );
+
     final total = JsonCodec.integerOr(
       json['total'] ?? json['totalCount'] ?? json['count'],
-      open + investigating + closed,
+      openTotal + investigatingTotal + closed,
     );
+
     return StaffIncidentsSummary(
       total: total,
-      open: open,
-      investigating: investigating,
+      open: openTotal,
+      investigating: investigatingTotal,
       closed: closed,
+      serious: serious,
+      awaitingInvestigation: JsonCodec.integerOr(
+        json['awaitingInvestigation'],
+        0,
+      ),
+      openInvestigations: JsonCodec.integerOr(json['openInvestigations'], 0),
+      watchlist: _watchlistFrom(json['watchlist']),
+      investigationQueue: _queueFrom(json['investigationQueue']),
     );
+  }
+
+  static List<StaffIncidentWatchlistItem> _watchlistFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final items = <StaffIncidentWatchlistItem>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.stringOr(json['id'], '');
+      if (id.isEmpty) continue;
+      final hasInvestigation =
+          JsonCodec.boolean(json['hasInvestigation']) ?? false;
+      final stage = hasInvestigation
+          ? 'Investigation ${JsonCodec.stringOr(json['investigationStatus'] ?? json['status'], 'open')}'
+          : 'Not started';
+      items.add(
+        StaffIncidentWatchlistItem(
+          id: id,
+          title: JsonCodec.stringOr(
+            json['title'] ?? json['reference'],
+            'Untitled incident',
+          ),
+          residence: JsonCodec.stringOr(json['residence'], ''),
+          client: JsonCodec.stringOr(json['client'], ''),
+          severityLabel: JsonCodec.stringOr(json['severity'], ''),
+          stageLabel: stage,
+          hasInvestigation: hasInvestigation,
+          acknowledged: JsonCodec.dateTime(json['acknowledgedAt']) != null,
+        ),
+      );
+    }
+    return items;
+  }
+
+  static List<StaffIncidentQueueItem> _queueFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final items = <StaffIncidentQueueItem>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.stringOr(
+        json['incidentId'] ?? json['id'],
+        '',
+      );
+      if (id.isEmpty) continue;
+      items.add(
+        StaffIncidentQueueItem(
+          id: id,
+          caseName: JsonCodec.stringOr(
+            json['title'] ?? json['reference'] ?? json['caseName'],
+            'Untitled incident',
+          ),
+          stage: JsonCodec.stringOr(json['stage'] ?? json['status'], ''),
+          investigator: JsonCodec.string(json['investigator']),
+        ),
+      );
+    }
+    return items;
   }
 
   static List<StaffIncidentCategoryOption> categoriesFrom(dynamic body) {
@@ -400,12 +756,16 @@ abstract final class StaffIncidentsMapper {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
       final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final first = JsonCodec.stringOr(json['firstName'], '');
+      final last = JsonCodec.stringOr(json['lastName'], '');
+      final composed = '$first $last'.trim();
       final name = JsonCodec.string(
             json['preferredName'] ??
                 json['fullName'] ??
                 json['name'] ??
                 json['displayName'] ??
-                json['clientName'],
+                json['clientName'] ??
+                (composed.isEmpty ? null : composed),
           ) ??
           '';
       if (name.isEmpty) continue;
@@ -433,7 +793,7 @@ abstract final class StaffIncidentsMapper {
       case IncidentStatus.open:
         return 'Open';
       case IncidentStatus.inReview:
-        return 'Under Investigation';
+        return 'Investigating';
       case IncidentStatus.closed:
         return 'Closed';
     }

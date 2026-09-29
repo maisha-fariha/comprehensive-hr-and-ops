@@ -19,37 +19,53 @@ import '../widgets/create_incident/numbered_section_header.dart';
 import '../widgets/create_incident/severity_pill_selector.dart';
 import '../widgets/staff_incidents_header.dart';
 
-/// The single-page "Create Incident" form, reached from the "+ Create
-/// Incident" button on the Staff Incidents list screen.
+/// Staff "Create Incident" 5-step wizard (web parity).
 ///
-/// Unlike the Manager Incidents feature's 4-step wizard, the Figma
-/// "Create Incident - Incidents" screenshot shows a single scrollable form
-/// (Incident Details / Severity / People & Location sections + a bottom
-/// action bar), so this page mirrors that simpler shape.
+/// Steps: Incident Details → Location & People → Investigation →
+/// Evidence & Submission → Report Form.
 ///
 /// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
 /// matches reference frames that show the staff bottom nav.
-class CreateIncidentPage extends StatelessWidget {
+class CreateIncidentPage extends StatefulWidget {
   const CreateIncidentPage({super.key});
 
   /// Index of the "More" slot in [StaffBottomNavBar.items].
-  static const int _moreTabIndex = 4;
+  static const int moreTabIndex = 4;
+
+  @override
+  State<CreateIncidentPage> createState() => _CreateIncidentPageState();
+}
+
+class _CreateIncidentPageState extends State<CreateIncidentPage> {
+  late final IncidentCreationController _controller;
 
   /// Always starts a fresh controller instance for a new draft rather than
-  /// resolving the `get_it`-registered singleton - reusing the same
-  /// instance across multiple "Create Incident" sessions would resurface a
-  /// previous draft's field values, and its `TextEditingController`s would
-  /// already be disposed after the first time this page is closed (see the
-  /// identical rationale on the Manager Incidents wizard's page).
-  IncidentCreationController _resolveController() {
+  /// resolving the `get_it`-registered singleton — reusing the same
+  /// instance across sessions would resurface a previous draft, and its
+  /// `TextEditingController`s would already be disposed.
+  ///
+  /// Resolved once in [initState] (not [build]): keyboard/MediaQuery rebuilds
+  /// after dialogs would otherwise delete the live controller mid-frame.
+  @override
+  void initState() {
+    super.initState();
     if (Get.isRegistered<IncidentCreationController>()) {
       Get.delete<IncidentCreationController>(force: true);
     }
-    return Get.put(
+    _controller = Get.put(
       IncidentCreationController(
         repository: GetIt.instance<StaffIncidentsRepository>(),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    if (Get.isRegistered<IncidentCreationController>() &&
+        Get.find<IncidentCreationController>() == _controller) {
+      Get.delete<IncidentCreationController>(force: true);
+    }
+    super.dispose();
   }
 
   void _onBottomNavTap(int index) {
@@ -58,14 +74,10 @@ class CreateIncidentPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
-    final sectionGap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 26));
-    final fieldGap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
-
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: _moreTabIndex,
+        currentIndex: CreateIncidentPage.moreTabIndex,
         onTap: _onBottomNavTap,
       ),
       body: SafeArea(
@@ -75,213 +87,626 @@ class CreateIncidentPage extends StatelessWidget {
             Container(
               color: AppColors.surfaceWhite,
               child: StaffIncidentsHeader(
-                title: 'Create Incident',
-                subtitle: 'Report incident for safety, compliance & supervisor review',
+                title: 'Add New Incident',
+                subtitle:
+                    'Report incident for safety, compliance & supervisor review',
                 onBack: Get.back,
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, vertical: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Obx(() {
+                final step = _controller.wizardStep.value;
+                final banner = _controller.formBannerMessage.value;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                          const NumberedSectionHeader(
-                            number: 1,
-                            title: 'INCIDENT DETAILS',
-                            filledBadge: true,
-                          ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                    Container(
-                      width: double.infinity,
-                      padding: ResponsiveHelper.getResponsivePadding(
-                        context,
-                        all: 16,
+                    if (banner != null && banner.isNotEmpty)
+                      _FormBanner(
+                        message: banner,
+                        isError: _controller.formBannerIsError.value,
+                        onDismiss: _controller.clearFormBanner,
                       ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceWhite,
-                        borderRadius: BorderRadius.circular(
-                          ResponsiveHelper.getResponsiveRadius(context, 16),
+                    _WizardStepProgress(controller: _controller),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          horizontal: 20,
+                          vertical: 20,
                         ),
-                        border: Border.all(color: AppColors.cardBorder),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.shadowNavy.withValues(alpha: 0.05),
-                            offset: Offset(
-                              0,
-                              ResponsiveHelper.getResponsiveHeight(context, 4),
-                            ),
-                            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 12),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const CreateIncidentFieldLabel('Incident Category', required: true),
-                    Obx(
-                      () => CreateIncidentDropdownField(
-                              value: controller.incidentCategoryLabel,
-                        placeholder: 'Select category...',
-                              onTap: controller.pickCategory,
-                            ),
-                          ),
-                          fieldGap,
-                          const CreateIncidentFieldLabel('Incident Title', required: true),
-                    CreateIncidentTextField(
-                      controller: controller.incidentTitleController,
-                            hint: 'e.g. Client refused morning medication',
-                    ),
-                    fieldGap,
-                    const CreateIncidentFieldLabel('Category Details (optional)'),
-                    CreateIncidentTextField(
-                      key: const Key('staff-incident-category-details'),
-                      controller: controller.categoryDetailsController,
-                      hint: 'Add category-specific context…',
-                      maxLines: 2,
-                    ),
-                    fieldGap,
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                                    const CreateIncidentFieldLabel('Incident Date', required: true),
-                                    GestureDetector(
-                                      onTap: () => controller.pickDate(context),
-                                      behavior: HitTestBehavior.opaque,
-                                      child: AbsorbPointer(
-                                        child: CreateIncidentDateField(
-                                          controller: controller.incidentDateController,
-                                        ),
-                                      ),
-                                    ),
-                            ],
-                          ),
-                        ),
-                              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                                    const CreateIncidentFieldLabel('Incident Time', required: true),
-                                    GestureDetector(
-                                      onTap: () => controller.pickTime(context),
-                                      behavior: HitTestBehavior.opaque,
-                                      child: AbsorbPointer(
-                                        child: CreateIncidentTimeField(
-                                          controller: controller.incidentTimeController,
-                                        ),
-                                      ),
-                                    ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    fieldGap,
-                    const CreateIncidentFieldLabel('Time Ended (optional)'),
-                    GestureDetector(
-                      onTap: () => controller.pickEndTime(context),
-                      behavior: HitTestBehavior.opaque,
-                      child: AbsorbPointer(
-                        child: CreateIncidentTextField(
-                          key: const Key('staff-incident-end-time'),
-                          controller: controller.endTimeController,
-                          hint: 'e.g. 4:30 PM',
-                        ),
+                        child: _buildStepContent(context, _controller, step),
                       ),
                     ),
-                    fieldGap,
-                          const CreateIncidentFieldLabel('Detected During (optional)'),
-                    Obx(
-                      () => CreateIncidentDropdownField(
-                        value: controller.detectedDuring.value,
-                        placeholder: 'Select context',
-                              onTap: controller.pickDetectedDuring,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    sectionGap,
-                    const NumberedSectionHeader(
-                      number: 2,
-                      title: 'SEVERITY',
-                      required: true,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    Obx(
-                      () => SeverityPillSelector(
-                        selected: controller.severity.value,
-                        onChanged: controller.selectSeverity,
-                      ),
-                    ),
-                    sectionGap,
-                    const NumberedSectionHeader(
-                      number: 3,
-                      title: 'LOCATION & PEOPLE',
-                      required: true,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
-                    CreateIncidentPeopleLocationSection(controller: controller),
-                    sectionGap,
-                    const NumberedSectionHeader(number: 4, title: 'DESCRIPTION'),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    _DescriptionSection(
-                      controller: controller.descriptionController,
-                    ),
-                    sectionGap,
-                    const NumberedSectionHeader(
-                      number: 5,
-                      title: 'INVESTIGATION',
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    CreateIncidentInvestigationSection(controller: controller),
-                    sectionGap,
-                    const NumberedSectionHeader(
-                      number: 6,
-                      title: 'EVIDENCE & SUBMISSION',
-                      required: true,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    _EvidenceSection(controller: controller),
-                    sectionGap,
-                    const NumberedSectionHeader(
-                      number: 7,
-                      title: 'REPORT FORM',
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    CreateIncidentReportFormSection(controller: controller),
-                    sectionGap,
-                    const NumberedSectionHeader(
-                      number: 8,
-                      title: 'FOLLOW-UP CHECKLIST',
-                      trailingLabel: 'OPTIONAL',
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    _FollowUpChecklistSection(controller: controller),
-                    sectionGap,
-                    const NumberedSectionHeader(
-                      number: 9,
-                      title: 'CURRENT STATUS',
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    const _CurrentStatusSection(),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                    _CreateIncidentActions(controller: controller),
+                    _WizardFooter(controller: _controller),
                   ],
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepContent(
+    BuildContext context,
+    IncidentCreationController controller,
+    int step,
+  ) {
+    final fieldGap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 16),
+    );
+    final sectionGap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 18),
+    );
+
+    switch (step) {
+      case 0:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const NumberedSectionHeader(
+              number: 1,
+              title: 'INCIDENT DETAILS',
+              filledBadge: true,
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+            Container(
+              width: double.infinity,
+              padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceWhite,
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 16),
                 ),
+                border: Border.all(color: AppColors.cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.shadowNavy.withValues(alpha: 0.05),
+                    offset: Offset(
+                      0,
+                      ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ),
+                    blurRadius:
+                        ResponsiveHelper.getResponsiveHeight(context, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const CreateIncidentFieldLabel(
+                    'Incident Category',
+                    required: true,
+                  ),
+                  Obx(
+                    () => CreateIncidentDropdownField(
+                      value: controller.incidentCategoryLabel,
+                      placeholder: 'Select category...',
+                      onTap: controller.pickCategory,
+                    ),
+                  ),
+                  fieldGap,
+                  const CreateIncidentFieldLabel(
+                    'Incident Title',
+                    required: true,
+                  ),
+                  CreateIncidentTextField(
+                    controller: controller.incidentTitleController,
+                    hint: 'e.g. Client refused morning medication',
+                  ),
+                  fieldGap,
+                  const CreateIncidentFieldLabel(
+                    'Category Details (optional)',
+                  ),
+                  CreateIncidentTextField(
+                    key: const Key('staff-incident-category-details'),
+                    controller: controller.categoryDetailsController,
+                    hint: 'Add category-specific context…',
+                    maxLines: 2,
+                  ),
+                  fieldGap,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CreateIncidentFieldLabel(
+                              'Incident Date',
+                              required: true,
+                            ),
+                            GestureDetector(
+                              onTap: () => controller.pickDate(context),
+                              behavior: HitTestBehavior.opaque,
+                              child: AbsorbPointer(
+                                child: CreateIncidentDateField(
+                                  controller:
+                                      controller.incidentDateController,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: ResponsiveHelper.getResponsiveWidth(context, 12),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CreateIncidentFieldLabel(
+                              'Incident Time',
+                              required: true,
+                            ),
+                            GestureDetector(
+                              onTap: () => controller.pickTime(context),
+                              behavior: HitTestBehavior.opaque,
+                              child: AbsorbPointer(
+                                child: CreateIncidentTimeField(
+                                  controller:
+                                      controller.incidentTimeController,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  fieldGap,
+                  const CreateIncidentFieldLabel('Time Ended (optional)'),
+                  GestureDetector(
+                    onTap: () => controller.pickEndTime(context),
+                    behavior: HitTestBehavior.opaque,
+                    child: AbsorbPointer(
+                      child: CreateIncidentTextField(
+                        key: const Key('staff-incident-end-time'),
+                        controller: controller.endTimeController,
+                        hint: 'e.g. 4:30 PM',
+                      ),
+                    ),
+                  ),
+                  fieldGap,
+                  const CreateIncidentFieldLabel(
+                    'Detected During (optional)',
+                  ),
+                  Obx(
+                    () => CreateIncidentDropdownField(
+                      value: controller.detectedDuring.value,
+                      placeholder: 'Select context',
+                      onTap: controller.pickDetectedDuring,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            sectionGap,
+            const CreateIncidentFieldLabel('Severity', required: true),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            Obx(
+              () => SeverityPillSelector(
+                selected: controller.severity.value,
+                onChanged: controller.selectSeverity,
+              ),
+            ),
+            sectionGap,
+            _DescriptionSection(
+              controller: controller.descriptionController,
+            ),
+          ],
+        );
+      case 1:
+        return CreateIncidentPeopleLocationSection(controller: controller);
+      case 2:
+        return CreateIncidentInvestigationSection(controller: controller);
+      case 3:
+        return _EvidenceSection(controller: controller);
+      case 4:
+      default:
+        return CreateIncidentReportFormSection(controller: controller);
+    }
+  }
+}
+
+/// Inline validation / submit feedback under the page header.
+class _FormBanner extends StatelessWidget {
+  final String message;
+  final bool isError;
+  final VoidCallback onDismiss;
+
+  static const Color _errorBg = Color(0xFFFEF2F2);
+  static const Color _errorBorder = Color(0xFFFECACA);
+  static const Color _errorFg = Color(0xFFB91C1C);
+  static const Color _infoBg = Color(0xFFECFDF5);
+  static const Color _infoBorder = Color(0xFFA7F3D0);
+  static const Color _infoFg = Color(0xFF047857);
+
+  const _FormBanner({
+    required this.message,
+    required this.isError,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isError ? _errorBg : _infoBg;
+    final border = isError ? _errorBorder : _infoBorder;
+    final fg = isError ? _errorFg : _infoFg;
+
+    return Material(
+      color: bg,
+      child: Container(
+        width: double.infinity,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 16,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: border)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isError ? Icons.error_outline_rounded : Icons.info_outline_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 20),
+              color: fg,
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: fg,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            GestureDetector(
+              onTap: onDismiss,
+              behavior: HitTestBehavior.opaque,
+              child: Icon(
+                Icons.close_rounded,
+                size: ResponsiveHelper.getResponsiveSize(context, 18),
+                color: fg,
               ),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// Progress label + tappable step chips for the 5-step wizard.
+class _WizardStepProgress extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _WizardStepProgress({required this.controller});
+
+  static const Color _teal = Color(0xFF0E7C7B);
+  static const Color _idleBg = Color(0xFFF4F7F9);
+  static const Color _idleLabel = Color(0xFF94A3B8);
+
+  @override
+  Widget build(BuildContext context) {
+    final step = controller.wizardStep.value;
+    final titles = IncidentCreationController.stepTitles;
+    final complete = step; // steps before current count as complete
+
+    return Container(
+      width: double.infinity,
+      color: AppColors.surfaceWhite,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 20,
+        top: 12,
+        bottom: 14,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'STEP ${step + 1} OF ${titles.length}',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+              letterSpacing: 0.6,
+              color: _teal,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+          Text(
+            titles[step],
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+              color: AppColors.textHeading,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+          Text(
+            '$complete of ${titles.length} steps complete',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: AppColors.textMuted,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < titles.length; i++) ...[
+                  if (i > 0)
+                    SizedBox(
+                      width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                    ),
+                  GestureDetector(
+                    onTap: () => controller.goToStep(i),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: i == step ? const Color(0xFFE6F4F3) : _idleBg,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: i == step ? _teal : Colors.transparent,
+                        ),
+                      ),
+                      child: Text(
+                        '${i + 1}. ${titles[i]}',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            11.5,
+                          ),
+                          color: i == step ? _teal : _idleLabel,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Footer: Cancel | Save Draft | Back (step>0) | Next / Submit.
+class _WizardFooter extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _WizardFooter({required this.controller});
+
+  static const Color _submit = Color(0xFF0E7C7B);
+  static const Color _cancelBorder = Color(0xFFE2E8F0);
+  static const Color _cancelLabel = Color(0xFF64748B);
+  static const Color _draftBg = Color(0xFFF4F7F9);
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
+    final step = controller.wizardStep.value;
+    final titles = IncidentCreationController.stepTitles;
+    final isLast = step >= titles.length - 1;
+    final nextTitle = isLast ? null : titles[step + 1];
+
+    return Obx(() {
+      final busy = controller.isSubmitting.value;
+      return Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceWhite,
+          border: Border(top: BorderSide(color: AppColors.cardBorder)),
+        ),
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 20,
+          top: 12,
+          bottom: 12,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (step > 0) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const Key('staff-incident-wizard-back'),
+                  onPressed: busy ? null : controller.previousStep,
+                  child: const Text('Back'),
+                ),
+              ),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: busy ? null : Get.back,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      constraints: BoxConstraints(
+                        minHeight:
+                            ResponsiveHelper.getResponsiveHeight(context, 48),
+                      ),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceWhite,
+                        borderRadius: BorderRadius.circular(radius),
+                        border: Border.all(color: _cancelBorder),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            13.5,
+                          ),
+                          color: _cancelLabel,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    key: const Key('staff-incident-save-draft'),
+                    onTap: busy ? null : controller.saveDraft,
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      constraints: BoxConstraints(
+                        minHeight:
+                            ResponsiveHelper.getResponsiveHeight(context, 48),
+                      ),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _draftBg,
+                        borderRadius: BorderRadius.circular(radius),
+                        border: Border.all(color: _cancelBorder),
+                      ),
+                      child: Text(
+                        'Save Draft',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            13.5,
+                          ),
+                          color: AppColors.textBody,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    key: isLast
+                        ? const Key('staff-incident-submit')
+                        : const Key('staff-incident-wizard-next'),
+                    onTap: busy
+                        ? null
+                        : (isLast
+                            ? controller.submit
+                            : () => controller.nextStep()),
+                    behavior: HitTestBehavior.opaque,
+                    child: Container(
+                      constraints: BoxConstraints(
+                        minHeight:
+                            ResponsiveHelper.getResponsiveHeight(context, 48),
+                      ),
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _submit.withValues(alpha: busy ? 0.7 : 1),
+                        borderRadius: BorderRadius.circular(radius),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (busy)
+                            SizedBox(
+                              width: ResponsiveHelper.getResponsiveSize(
+                                context,
+                                18,
+                              ),
+                              height: ResponsiveHelper.getResponsiveSize(
+                                context,
+                                18,
+                              ),
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          else if (isLast)
+                            SvgPicture.asset(
+                              'assets/icons/staff_incidents/submit.svg',
+                              width: ResponsiveHelper.getResponsiveSize(
+                                context,
+                                18,
+                              ),
+                            )
+                          else
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: ResponsiveHelper.getResponsiveSize(
+                                context,
+                                18,
+                              ),
+                              color: Colors.white,
+                            ),
+                          SizedBox(
+                            width:
+                                ResponsiveHelper.getResponsiveWidth(context, 8),
+                          ),
+                          Flexible(
+                            child: Text(
+                              busy
+                                  ? 'Submitting…'
+                                  : isLast
+                                      ? 'Submit Incident'
+                                      : 'Next: $nextTitle',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                                fontSize:
+                                    ResponsiveHelper.getResponsiveFontSize(
+                                  context,
+                                  13.5,
+                                ),
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 

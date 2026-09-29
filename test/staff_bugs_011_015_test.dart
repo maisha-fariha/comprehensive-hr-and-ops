@@ -36,6 +36,7 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
   @override
   Future<Result<List<StaffIncidentClientOption>>> getClients({
     String? search,
+    String? residenceId,
     bool assignedToMe = true,
   }) async {
     final all = const [
@@ -82,6 +83,8 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
     String? status,
     String? from,
     String? to,
+    String? residenceId,
+    String? clientId,
     int page = 1,
     int limit = 20,
   }) async =>

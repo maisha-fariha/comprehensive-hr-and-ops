@@ -41,21 +41,27 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     String? status,
     String? from,
     String? to,
+    String? residenceId,
+    String? clientId,
     int page = 1,
     int limit = 20,
   }) async {
+    final resolvedResidence = (residenceId != null && residenceId.isNotEmpty)
+        ? residenceId
+        : null;
     final result = await _api.get(
       ApiEndpoints.incidents,
       query: {
         'page': page,
         'limit': limit,
-        'residenceId': ?_session.residenceId,
+        if (resolvedResidence != null) 'residenceId': resolvedResidence,
         if (mine) 'reporter': 'me',
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         if (severity != null && severity.isNotEmpty) 'severity': severity,
         if (status != null && status.isNotEmpty) 'status': status,
         if (from != null && from.isNotEmpty) 'from': from,
         if (to != null && to.isNotEmpty) 'to': to,
+        if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
       },
     );
     return result.when(
@@ -69,9 +75,6 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   Future<Result<StaffIncidentsSummary>> getSummary() async {
     final result = await _api.get(
       ApiEndpoints.incidentsSummary,
-      query: {
-        'residenceId': ?_session.residenceId,
-      },
     );
     return result.when(
       success: (body) async =>
@@ -410,6 +413,7 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   @override
   Future<Result<List<StaffIncidentClientOption>>> getClients({
     String? search,
+    String? residenceId,
     bool assignedToMe = true,
   }) async {
     final trimmed = search?.trim();
@@ -417,7 +421,9 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
       ApiEndpoints.clients,
       query: {
         'page': 1,
-        'limit': 20,
+        'limit': 100,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
         if (trimmed != null && trimmed.isNotEmpty)
           'search': trimmed
         else if (assignedToMe)

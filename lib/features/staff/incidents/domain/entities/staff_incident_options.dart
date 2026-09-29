@@ -84,11 +84,27 @@ class StaffIncidentClientOption {
   });
 
   String get subtitle {
-    final parts = [
-      if (roomLabel != null && roomLabel!.isNotEmpty) roomLabel!,
-      if (residenceName != null && residenceName!.isNotEmpty) residenceName!,
-    ];
-    return parts.join(' · ');
+    final residence = residenceName?.trim();
+    if (residence != null && residence.isNotEmpty) {
+      return 'Client · $residence';
+    }
+    final room = roomLabel?.trim();
+    if (room != null && room.isNotEmpty) return 'Client · $room';
+    return 'Client';
+  }
+
+  String get initials {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) {
+      final p = parts.first;
+      return (p.length >= 2 ? p.substring(0, 2) : p).toUpperCase();
+    }
+    return ('${parts.first[0]}${parts.last[0]}').toUpperCase();
   }
 }
 
