@@ -96,9 +96,16 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
             Expanded(
               child: Obx(() {
                 final step = _controller.wizardStep.value;
+                final banner = _controller.formBannerMessage.value;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (banner != null && banner.isNotEmpty)
+                      _FormBanner(
+                        message: banner,
+                        isError: _controller.formBannerIsError.value,
+                        onDismiss: _controller.clearFormBanner,
+                      ),
                     _WizardStepProgress(controller: _controller),
                     Expanded(
                       child: SingleChildScrollView(
@@ -303,6 +310,81 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
       default:
         return CreateIncidentReportFormSection(controller: controller);
     }
+  }
+}
+
+/// Inline validation / submit feedback under the page header.
+class _FormBanner extends StatelessWidget {
+  final String message;
+  final bool isError;
+  final VoidCallback onDismiss;
+
+  static const Color _errorBg = Color(0xFFFEF2F2);
+  static const Color _errorBorder = Color(0xFFFECACA);
+  static const Color _errorFg = Color(0xFFB91C1C);
+  static const Color _infoBg = Color(0xFFECFDF5);
+  static const Color _infoBorder = Color(0xFFA7F3D0);
+  static const Color _infoFg = Color(0xFF047857);
+
+  const _FormBanner({
+    required this.message,
+    required this.isError,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isError ? _errorBg : _infoBg;
+    final border = isError ? _errorBorder : _infoBorder;
+    final fg = isError ? _errorFg : _infoFg;
+
+    return Material(
+      color: bg,
+      child: Container(
+        width: double.infinity,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 16,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: border)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isError ? Icons.error_outline_rounded : Icons.info_outline_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 20),
+              color: fg,
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: fg,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            GestureDetector(
+              onTap: onDismiss,
+              behavior: HitTestBehavior.opaque,
+              child: Icon(
+                Icons.close_rounded,
+                size: ResponsiveHelper.getResponsiveSize(context, 18),
+                color: fg,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

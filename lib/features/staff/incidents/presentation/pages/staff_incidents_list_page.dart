@@ -44,7 +44,10 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
 
   StaffIncidentsController _resolveController() {
     try {
-      return Get.find<StaffIncidentsController>();
+      final existing = Get.find<StaffIncidentsController>();
+      // Permanent controller may hold stale list from earlier in the session.
+      existing.refresh();
+      return existing;
     } catch (_) {
       return Get.put(
         GetIt.instance<StaffIncidentsController>(),
@@ -54,11 +57,15 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
   }
 
   void _openCreateIncident() {
-    Get.to(() => const CreateIncidentPage());
+    Get.to(() => const CreateIncidentPage())?.then((_) {
+      if (mounted) _controller.refresh();
+    });
   }
 
   void _openIncidentDetails(String incidentId) {
-    Get.to(() => IncidentDetailsPage(incidentId: incidentId));
+    Get.to(() => IncidentDetailsPage(incidentId: incidentId))?.then((_) {
+      if (mounted) _controller.refresh();
+    });
   }
 
   void _onBottomNavTap(int index) {
@@ -234,15 +241,6 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                         height:
                             ResponsiveHelper.getResponsiveHeight(context, 14),
                       ),
-                      StaffIncidentsSidePanels(
-                        summary: summary,
-                        onViewQueue: _controller.viewInvestigationQueue,
-                        onOpenIncident: _openIncidentDetails,
-                      ),
-                      SizedBox(
-                        height:
-                            ResponsiveHelper.getResponsiveHeight(context, 14),
-                      ),
                       if (incidents.isEmpty)
                         Padding(
                           padding: EdgeInsets.symmetric(
@@ -269,6 +267,19 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                                 _openIncidentDetails(incidents[i].id),
                           ),
                         ],
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
+                      StaffIncidentsSidePanels(
+                        summary: summary,
+                        onViewQueue: _controller.viewInvestigationQueue,
+                        onOpenIncident: _openIncidentDetails,
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
                     ],
                   ),
                 ),

@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/user_session.dart';
@@ -169,6 +170,19 @@ class IncidentCreationController extends GetxController {
   final RxBool isSubmitting = false.obs;
   final RxBool isLoadingOptions = false.obs;
 
+  /// Top-of-form banner (validation / submit errors). Cleared on step change.
+  final RxnString formBannerMessage = RxnString();
+  final RxBool formBannerIsError = true.obs;
+
+  void clearFormBanner() => formBannerMessage.value = null;
+
+  void showFormBanner(String message, {bool isError = true}) {
+    final trimmed = message.trim();
+    if (trimmed.isEmpty) return;
+    formBannerIsError.value = isError;
+    formBannerMessage.value = trimmed;
+  }
+
   String? get incidentCategoryLabel => selectedCategory.value?.name;
   String? get cirTemplateLabel {
     final template = selectedCirTemplate.value;
@@ -325,15 +339,20 @@ class IncidentCreationController extends GetxController {
 
   void goToStep(int step) {
     if (step < 0 || step >= stepTitles.length) return;
+    clearFormBanner();
     wizardStep.value = step;
   }
 
   /// Advances to the next wizard step when not already on the last.
-  /// Soft-validates step 0 fields with a snackbar but does not block.
+  /// Soft-validates step 0 fields with a top banner but does not block.
   bool nextStep() {
     if (wizardStep.value >= stepTitles.length - 1) return false;
-    if (wizardStep.value == 0) {
-      _softValidateDetailsStep();
+    final softWarning =
+        wizardStep.value == 0 ? _softValidateDetailsStep() : null;
+    if (softWarning != null) {
+      showFormBanner(softWarning);
+    } else {
+      clearFormBanner();
     }
     wizardStep.value++;
     return true;
@@ -341,31 +360,30 @@ class IncidentCreationController extends GetxController {
 
   void previousStep() {
     if (wizardStep.value <= 0) return;
+    clearFormBanner();
     wizardStep.value--;
   }
 
   /// Draft status is not an API-supported value — keep form progress on-screen.
   void saveDraft() {
-    AppSnackbar.show(
-      'Draft not supported',
+    showFormBanner(
       'Draft status is not supported by the API '
-          '(open, investigating, or closed only). '
-          'Your progress stays on screen until you Submit.',
+      '(open, investigating, or closed only). '
+      'Your progress stays on screen until you Submit.',
+      isError: false,
     );
   }
 
-  void _softValidateDetailsStep() {
+  /// Returns a soft warning for incomplete details, or null when OK.
+  String? _softValidateDetailsStep() {
     final missing = <String>[];
     if (selectedCategory.value == null) missing.add('category');
     if (incidentTitleController.text.trim().isEmpty) missing.add('title');
     if (incidentDateController.text.trim().isEmpty) missing.add('date');
     if (incidentTimeController.text.trim().isEmpty) missing.add('time');
     if (descriptionController.text.trim().isEmpty) missing.add('description');
-    if (missing.isEmpty) return;
-    AppSnackbar.show(
-      'Missing details',
-      'Consider filling: ${missing.join(', ')} before continuing.',
-    );
+    if (missing.isEmpty) return null;
+    return 'Consider filling: ${missing.join(', ')} before continuing.';
   }
 
   Future<void> pickCategory() async {
@@ -746,12 +764,12 @@ class IncidentCreationController extends GetxController {
   }
 
   Future<void> submit() async {
+    if (isSubmitting.value) return;
+
     final validation = _validate();
     if (validation != null) {
-      AppErrorDialog.showPageError(
-        title: 'Missing details',
-        message: validation,
-      );
+      wizardStep.value = validation.step;
+      showFormBanner(validation.message);
       return;
     }
 
@@ -762,10 +780,8 @@ class IncidentCreationController extends GetxController {
         Get.find<UserSession>().residenceId ??
         '';
     if (residenceId.isEmpty) {
-      AppErrorDialog.showPageError(
-        title: 'Missing residence',
-        message: 'Select a residence for this incident report.',
-      );
+      wizardStep.value = 1;
+      showFormBanner('Select a residence for this incident report.');
       return;
     }
 
@@ -835,92 +851,119 @@ class IncidentCreationController extends GetxController {
     };
 
     isSubmitting.value = true;
-    final create = await repository.createIncident(
-      residenceId: residenceId,
-      clientId: client.id,
-      categoryId: category.id,
-      title: incidentTitleController.text.trim(),
-      severity: severity.value.name,
-      payload: payload,
-      cirTemplateId: selectedCirTemplate.value?.id,
-      occurredAt: occurredAt,
-      description: description,
-      familyNotified: familyGuardianNotified.value,
-      immediateAction: immediateActionController.text.trim().isEmpty
-          ? null
-          : immediateActionController.text.trim(),
-      emergencyServicesContacted: emergencyServicesContacted.value,
-      externalAgencyType: emergencyServicesContacted.value
-          ? externalAgencyType.value
-          : null,
-      externalAgencyReference: agencyReferenceController.text.trim().isEmpty
-          ? null
-          : agencyReferenceController.text.trim(),
-      externalAgencyResponder: agencyResponderController.text.trim().isEmpty
-          ? null
-          : agencyResponderController.text.trim(),
-      reportedByStaffId: reportedByStaff.value?.id,
-    );
-
-    if (create.isFailure) {
-      isSubmitting.value = false;
-      AppErrorDialog.showResultError(
-        create.error,
-        fallbackTitle: 'Could not submit incident',
-      );
-      return;
-    }
-
-    final incidentId = create.value!;
-    for (final file in evidenceFiles.where((f) => f.isReady)) {
-      await repository.attachEvidence(
-        incidentId: incidentId,
-        fileUrl: file.fileUrl!,
-        fileType: file.mimeType ?? _mimeForName(file.fileName),
-      );
-    }
-    isSubmitting.value = false;
+    clearFormBanner();
 
     try {
-      if (Get.isRegistered<StaffIncidentsController>()) {
-        Get.find<StaffIncidentsController>().refresh();
-      }
-    } catch (_) {}
+      final create = await repository.createIncident(
+        residenceId: residenceId,
+        clientId: client.id,
+        categoryId: category.id,
+        title: incidentTitleController.text.trim(),
+        severity: severity.value.name,
+        payload: payload,
+        cirTemplateId: selectedCirTemplate.value?.id,
+        occurredAt: occurredAt,
+        description: description,
+        familyNotified: familyGuardianNotified.value,
+        immediateAction: immediateActionController.text.trim().isEmpty
+            ? null
+            : immediateActionController.text.trim(),
+        emergencyServicesContacted: emergencyServicesContacted.value,
+        externalAgencyType: emergencyServicesContacted.value
+            ? externalAgencyType.value
+            : null,
+        externalAgencyReference: agencyReferenceController.text.trim().isEmpty
+            ? null
+            : agencyReferenceController.text.trim(),
+        externalAgencyResponder: agencyResponderController.text.trim().isEmpty
+            ? null
+            : agencyResponderController.text.trim(),
+        reportedByStaffId: reportedByStaff.value?.id,
+      );
 
-    Get.snackbar(
-      'Incident submitted',
-      'The report is open for supervisor review.',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.white,
-    );
-    Get.back();
+      if (create.isFailure) {
+        final info = AppErrorMapper.from(
+          create.error,
+          fallbackTitle: 'Could not submit incident',
+        );
+        showFormBanner(info.message);
+        // Dialog may be skipped if API client already showed one — banner
+        // still surfaces the message inside the form.
+        AppErrorDialog.showResultError(
+          create.error,
+          fallbackTitle: 'Could not submit incident',
+        );
+        return;
+      }
+
+      final incidentId = create.value!;
+      var evidenceFailed = false;
+      for (final file in evidenceFiles.where((f) => f.isReady)) {
+        final attached = await repository.attachEvidence(
+          incidentId: incidentId,
+          fileUrl: file.fileUrl!,
+          fileType: file.mimeType ?? _mimeForName(file.fileName),
+        );
+        if (attached.isFailure) evidenceFailed = true;
+      }
+
+      try {
+        if (Get.isRegistered<StaffIncidentsController>()) {
+          Get.find<StaffIncidentsController>().refresh();
+        }
+      } catch (_) {}
+
+      final successTitle = 'Incident submitted';
+      final successMessage = evidenceFailed
+          ? 'Report saved for supervisor review. Some evidence failed to attach.'
+          : 'The report is open for supervisor review.';
+
+      Get.back();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AppSnackbar.show(
+          successTitle,
+          successMessage,
+          position: SnackPosition.TOP,
+          force: true,
+        );
+      });
+    } catch (error) {
+      showFormBanner(
+        'Could not submit incident. ${error.toString()}',
+      );
+    } finally {
+      if (!isClosed) isSubmitting.value = false;
+    }
   }
 
-  String? _validate() {
+  /// Returns the failing wizard step + message, or null when valid.
+  ({int step, String message})? _validate() {
     if (selectedCategory.value == null) {
-      return 'Select an incident category.';
+      return (step: 0, message: 'Select an incident category.');
     }
     if (incidentTitleController.text.trim().isEmpty) {
-      return 'Enter an incident title.';
+      return (step: 0, message: 'Enter an incident title.');
     }
     if (incidentDateController.text.trim().isEmpty ||
         incidentTimeController.text.trim().isEmpty) {
-      return 'Set the incident date and time.';
+      return (step: 0, message: 'Set the incident date and time.');
     }
     if (_occurredAtIso() == null) {
-      return 'Incident date/time is invalid.';
-    }
-    if (selectedResidence.value == null) {
-      return 'Select a residence.';
-    }
-    if (selectedClient.value == null) {
-      return 'Select a related client.';
+      return (step: 0, message: 'Incident date/time is invalid.');
     }
     if (descriptionController.text.trim().isEmpty) {
-      return 'Describe what happened.';
+      return (step: 0, message: 'Describe what happened.');
+    }
+    if (selectedResidence.value == null &&
+        (selectedClient.value?.residenceId == null ||
+            selectedClient.value!.residenceId!.isEmpty)) {
+      return (step: 1, message: 'Select a residence.');
+    }
+    if (selectedClient.value == null) {
+      return (step: 1, message: 'Select a related client.');
     }
     if (evidenceFiles.any((f) => f.isUploading)) {
-      return 'Wait for evidence uploads to finish.';
+      return (step: 3, message: 'Wait for evidence uploads to finish.');
     }
     return null;
   }

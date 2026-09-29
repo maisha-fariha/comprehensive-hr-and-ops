@@ -26,11 +26,17 @@ abstract final class StaffIncidentsMapper {
         JsonCodec.mapAt(json, 'reportedBy') ??
         {};
     final categoryMap = JsonCodec.mapAt(json, 'category') ?? {};
+    final composedClient = [
+      JsonCodec.stringOr(client['firstName'], ''),
+      JsonCodec.stringOr(client['lastName'], ''),
+    ].where((part) => part.isNotEmpty).join(' ').trim();
     final name = JsonCodec.stringOr(
       client['preferredName'] ??
+          client['fullName'] ??
           client['name'] ??
           json['clientName'] ??
-          json['residentName'],
+          json['residentName'] ??
+          (composedClient.isEmpty ? null : composedClient),
       'Resident',
     );
     final reporterName = IsoDateRange.personName(
@@ -50,10 +56,16 @@ abstract final class StaffIncidentsMapper {
           (json['category'] is String ? json['category'] : null),
       '',
     );
+    final title = JsonCodec.stringOr(
+      json['title'] ??
+          (categoryLabel.isNotEmpty ? categoryLabel : null) ??
+          (json['category'] is String ? json['category'] : null),
+      'Incident',
+    );
 
     return StaffIncident(
       id: JsonCodec.stringOr(json['id'], name),
-      title: JsonCodec.stringOr(json['title'] ?? json['category'], 'Incident'),
+      title: title,
       categoryLabel: categoryLabel,
       residenceName: JsonCodec.stringOr(
         residence['name'] ?? json['residenceName'],

@@ -13,13 +13,22 @@ abstract final class AppSnackbar {
     String title,
     String message, {
     SnackPosition position = SnackPosition.BOTTOM,
+    bool force = false,
   }) {
-    if (Get.isDialogOpen == true || AppErrorDialog.recentlyShown) return;
+    if (!force &&
+        (Get.isDialogOpen == true || AppErrorDialog.recentlyShown)) {
+      return;
+    }
 
-    final context = Get.overlayContext ?? Get.context;
-    if (context == null) return;
-
-    final messenger = ScaffoldMessenger.maybeOf(context);
+    BuildContext? context = Get.overlayContext ?? Get.context;
+    ScaffoldMessengerState? messenger =
+        context == null ? null : ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      context = Get.key.currentContext;
+      if (context != null) {
+        messenger = ScaffoldMessenger.maybeOf(context);
+      }
+    }
     if (messenger == null) return;
 
     final trimmedMessage = message.trim();
@@ -30,9 +39,9 @@ abstract final class AppSnackbar {
           behavior: SnackBarBehavior.floating,
           margin: EdgeInsets.fromLTRB(
             16,
-            16,
-            16,
             position == SnackPosition.TOP ? 72 : 16,
+            16,
+            position == SnackPosition.TOP ? 16 : 16,
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,

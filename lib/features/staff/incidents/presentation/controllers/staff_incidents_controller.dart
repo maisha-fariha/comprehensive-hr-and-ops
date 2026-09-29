@@ -174,6 +174,7 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
               .toIso8601String(),
       residenceId: residenceFilterId.value,
       clientId: clientFilterId.value,
+      limit: 50,
     );
     result.when(
       success: (list) {

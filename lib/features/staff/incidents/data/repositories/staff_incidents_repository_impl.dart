@@ -48,13 +48,13 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   }) async {
     final resolvedResidence = (residenceId != null && residenceId.isNotEmpty)
         ? residenceId
-        : _session.residenceId;
+        : null;
     final result = await _api.get(
       ApiEndpoints.incidents,
       query: {
         'page': page,
         'limit': limit,
-        'residenceId': ?resolvedResidence,
+        if (resolvedResidence != null) 'residenceId': resolvedResidence,
         if (mine) 'reporter': 'me',
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         if (severity != null && severity.isNotEmpty) 'severity': severity,
@@ -75,9 +75,6 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   Future<Result<StaffIncidentsSummary>> getSummary() async {
     final result = await _api.get(
       ApiEndpoints.incidentsSummary,
-      query: {
-        'residenceId': ?_session.residenceId,
-      },
     );
     return result.when(
       success: (body) async =>
