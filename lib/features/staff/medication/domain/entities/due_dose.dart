@@ -17,6 +17,7 @@ class DueDose {
   final DueDoseStatus status;
   final String clientId;
   final String residenceId;
+  final String residenceName;
   final String medicationId;
   final bool isPrn;
 
@@ -33,6 +34,7 @@ class DueDose {
     this.status = DueDoseStatus.pending,
     this.clientId = '',
     this.residenceId = '',
+    this.residenceName = '',
     this.medicationId = '',
     this.isPrn = false,
   });
@@ -51,6 +53,7 @@ class DueDose {
       status: status ?? this.status,
       clientId: clientId,
       residenceId: residenceId,
+      residenceName: residenceName,
       medicationId: medicationId,
       isPrn: isPrn,
     );

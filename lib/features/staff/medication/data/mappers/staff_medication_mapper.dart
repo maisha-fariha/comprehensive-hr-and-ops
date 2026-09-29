@@ -21,6 +21,7 @@ abstract final class StaffMedicationMapper {
     final administered = <AdministeredDose>[];
     final missed = <MissedDose>[];
     final refused = <RefusedDose>[];
+    var overdueFromOcc = 0;
 
     for (final item in occurrences) {
       if (item is! Map) continue;
@@ -44,6 +45,7 @@ abstract final class StaffMedicationMapper {
       // Missed (+ overdue also appears under Missed per B6 map)
       if (state == 'missed' || state == 'overdue') {
         missed.add(_missed(row));
+        if (state == 'overdue') overdueFromOcc += 1;
         if (state == 'missed') continue;
         // overdue also stays in Due Now below
       }
@@ -68,9 +70,21 @@ abstract final class StaffMedicationMapper {
     );
     final missedSummary = JsonCodec.integer(summary['missed']);
     final refusedSummary = JsonCodec.integer(summary['refused']);
+    final scheduledSummary = JsonCodec.integer(
+      summary['scheduled'] ?? summary['scheduledToday'],
+    );
+    final overdueSummary = JsonCodec.integer(summary['overdue']);
+    final unscheduledSummary = JsonCodec.integer(summary['unscheduled']);
+    final complianceRaw = summary['complianceRate'];
+    double? complianceRate;
+    if (complianceRaw is num) {
+      complianceRate = complianceRaw.toDouble();
+    } else if (complianceRaw is String) {
+      complianceRate = double.tryParse(complianceRaw);
+    }
 
     return StaffMedicationOverview(
-      screenTitle: 'Medication MAR',
+      screenTitle: 'Medication Administration Record (MAR)',
       dueNowDoses: dueNow,
       laterTodayDoses: later,
       administeredDoses: administered,
@@ -80,6 +94,10 @@ abstract final class StaffMedicationMapper {
       administeredCount: administeredSummary,
       missedCount: missedSummary,
       refusedCount: refusedSummary,
+      scheduledCount: scheduledSummary,
+      overdueCount: overdueSummary ?? (overdueFromOcc > 0 ? overdueFromOcc : null),
+      unscheduledCount: unscheduledSummary,
+      complianceRate: complianceRate,
     );
   }
 
@@ -99,6 +117,11 @@ abstract final class StaffMedicationMapper {
           json['scheduleFrequency'] ?? schedule['frequency'],
         );
       }
+      final client = JsonCodec.mapAt(json, 'client');
+      final residence = JsonCodec.mapAt(json, 'residence');
+      final first = JsonCodec.stringOr(client?['firstName'], '');
+      final last = JsonCodec.stringOr(client?['lastName'], '');
+      final composed = '$first $last'.trim();
       return StaffClientMedicationItem(
         id: JsonCodec.stringOr(json['id'], 'med'),
         name: JsonCodec.stringOr(
@@ -109,6 +132,25 @@ abstract final class StaffMedicationMapper {
         scheduleLabel: scheduleLabel,
         instructions: JsonCodec.string(json['instructions'] ?? json['notes']),
         isPrn: isPrn,
+        clientId: JsonCodec.stringOr(
+          json['clientId'] ?? client?['id'],
+          '',
+        ),
+        clientName: JsonCodec.stringOr(
+          client?['preferredName'] ??
+              client?['name'] ??
+              client?['fullName'] ??
+              (composed.isEmpty ? null : composed),
+          '',
+        ),
+        residenceId: JsonCodec.stringOr(
+          json['residenceId'] ?? residence?['id'],
+          '',
+        ),
+        residenceName: JsonCodec.stringOr(
+          json['residenceName'] ?? residence?['name'],
+          '',
+        ),
       );
     }).toList();
   }
@@ -146,6 +188,12 @@ abstract final class StaffMedicationMapper {
         json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
         '',
       ),
+      residenceName: JsonCodec.stringOr(
+        JsonCodec.mapAt(json, 'residence')?['name'] ??
+            json['residenceName'] ??
+            json['houseName'],
+        '',
+      ),
       medicationId: JsonCodec.stringOr(
         json['medicationId'] ??
             json['prnMedicationId'] ??
@@ -162,6 +210,18 @@ abstract final class StaffMedicationMapper {
     final given = JsonCodec.dateTime(
       json['administeredAt'] ?? json['givenAt'] ?? json['updatedAt'],
     );
+    final staff = JsonCodec.mapAt(json, 'administeredByStaff') ??
+        JsonCodec.mapAt(json, 'staff');
+    final status = (JsonCodec.string(json['status']) ?? 'administered')
+        .toLowerCase();
+    final outcome = switch (status) {
+      'administered' || 'given' || 'late' => 'Given',
+      'refused' => 'Refused',
+      'withheld' => 'Withheld',
+      'not_available' => 'Not available',
+      'missed' => 'Missed',
+      _ => status.isEmpty ? 'Given' : status,
+    };
     return AdministeredDose(
       id: JsonCodec.stringOr(json['id'], name),
       residentName: name,
@@ -170,13 +230,54 @@ abstract final class StaffMedicationMapper {
       medicationName: _medName(json),
       dose: _dose(json),
       route: _route(json),
-      givenTimeLabel: given == null
-          ? ''
-          : IsoDateRange.timeLabel(given.toLocal()),
-      administeredByName: IsoDateRange.personName(
-        json['administeredBy'] ?? json['givenBy'] ?? json['staff'],
+      givenTimeLabel: given == null ? '' : _givenStamp(given.toLocal()),
+      administeredByName: JsonCodec.stringOr(
+        staff?['name'] ??
+            IsoDateRange.personName(
+              json['administeredBy'] ?? json['givenBy'] ?? json['staff'],
+            ),
+        '—',
+      ),
+      outcomeLabel: outcome,
+      residenceName: JsonCodec.stringOr(
+        JsonCodec.mapAt(json, 'residence')?['name'] ??
+            json['residenceName'] ??
+            json['houseName'],
+        '',
       ),
     );
+  }
+
+  /// Web Given column style: `Aug 27, 09:33 AM`.
+  static String _givenStamp(DateTime local) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final h24 = local.hour;
+    final h12 = h24 % 12 == 0 ? 12 : h24 % 12;
+    final ampm = h24 >= 12 ? 'PM' : 'AM';
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '${months[local.month - 1]} ${local.day}, '
+        '${h12.toString().padLeft(2, '0')}:$mm $ampm';
+  }
+
+  /// Maps `GET /mar/administrations` list payload.
+  static List<AdministeredDose> administrationsFrom(dynamic body) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) => _administered(JsonCodec.asMap(item)))
+        .toList();
   }
 
   static MissedDose _missed(Map<String, dynamic> json) {

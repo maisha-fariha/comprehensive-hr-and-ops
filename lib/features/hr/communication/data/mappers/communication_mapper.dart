@@ -5,14 +5,25 @@ import '../../domain/entities/hr_conversation.dart';
 import '../../domain/entities/hr_message_contact.dart';
 
 abstract final class CommunicationMapper {
-  static List<HrConversation> conversationsFrom(dynamic body) {
+  static List<HrConversation> conversationsFrom(
+    dynamic body, {
+    String? currentUserId,
+  }) {
     return JsonCodec.unwrapList(body)
         .whereType<Map>()
-        .map((item) => conversationFrom(JsonCodec.asMap(item)))
+        .map(
+          (item) => conversationFrom(
+            JsonCodec.asMap(item),
+            currentUserId: currentUserId,
+          ),
+        )
         .toList();
   }
 
-  static HrConversation conversationFrom(Map<String, dynamic> json) {
+  static HrConversation conversationFrom(
+    Map<String, dynamic> json, {
+    String? currentUserId,
+  }) {
     final members = JsonCodec.listAt(json, 'members');
     final messages = JsonCodec.listAt(json, 'messages');
     Map<String, dynamic>? lastMessage;
@@ -30,7 +41,14 @@ abstract final class CommunicationMapper {
     final kind = _kindFromType(type, members.length);
     final createdAt = JsonCodec.dateTime(json['createdAt']);
     lastAt ??= createdAt;
-    final title = JsonCodec.stringOr(json['title'], 'Conversation');
+    final rawTitle = JsonCodec.string(json['title']);
+    final title = (rawTitle != null && rawTitle.trim().isNotEmpty)
+        ? rawTitle.trim()
+        : _fallbackTitle(
+            kind: kind,
+            members: members,
+            currentUserId: currentUserId,
+          );
     final unread = JsonCodec.integerOr(json['unreadCount'], 0);
     final monitored = JsonCodec.boolean(json['isMonitored']) ?? false;
 
@@ -50,6 +68,30 @@ abstract final class CommunicationMapper {
       isGroup: kind != ConversationFilter.direct,
       isMonitored: monitored,
     );
+  }
+
+  static String _fallbackTitle({
+    required ConversationFilter kind,
+    required List<dynamic> members,
+    String? currentUserId,
+  }) {
+    if (kind == ConversationFilter.direct) {
+      for (final raw in members.whereType<Map>()) {
+        final row = JsonCodec.asMap(raw);
+        final user = JsonCodec.mapAt(row, 'user') ?? row;
+        final userId = JsonCodec.string(row['userId'] ?? user['id']);
+        if (currentUserId != null &&
+            userId != null &&
+            userId == currentUserId) {
+          continue;
+        }
+        final name = IsoDateRange.personName(user);
+        if (name != 'Unknown' && name.isNotEmpty) return name;
+      }
+      return 'Direct message';
+    }
+    if (kind == ConversationFilter.family) return 'Family thread';
+    return 'Group conversation';
   }
 
   static List<HrMessageContact> contactsFrom(dynamic body) {

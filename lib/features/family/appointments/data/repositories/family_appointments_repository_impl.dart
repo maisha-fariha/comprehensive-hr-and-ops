@@ -2,20 +2,16 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
-import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/family_appointment.dart';
 import '../../domain/repositories/family_appointments_repository.dart';
 import '../mappers/family_appointments_mapper.dart';
 
 class FamilyAppointmentsRepositoryImpl implements FamilyAppointmentsRepository {
   final AppApiClient _api;
-  final UserSession _session;
 
   FamilyAppointmentsRepositoryImpl({
     required AppApiClient api,
-    required UserSession session,
-  })  : _api = api,
-        _session = session;
+  }) : _api = api;
 
   @override
   Future<Result<List<FamilyAppointment>>> getAppointments() async {
@@ -33,19 +29,19 @@ class FamilyAppointmentsRepositoryImpl implements FamilyAppointmentsRepository {
   @override
   Future<Result<void>> createAppointment({
     required String type,
+    required String clientId,
     required DateTime scheduledAt,
-    required String location,
+    String location = '',
     String? notes,
   }) async {
-    final clientId = _session.selectedClientId;
     final result = await _api.post(
       ApiEndpoints.familyAppointments,
       data: {
         'type': type,
+        'clientId': clientId,
         'scheduledAt': scheduledAt.toUtc().toIso8601String(),
-        'location': location,
+        if (location.trim().isNotEmpty) 'location': location.trim(),
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
-        if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
       },
     );
     return result.when(

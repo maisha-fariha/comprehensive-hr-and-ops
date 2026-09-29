@@ -2,40 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/appointment_request_controller.dart';
 import '../widgets/appointment_form_fields.dart';
-import '../widgets/family_appointments_header.dart';
-import '../widgets/family_primary_button.dart';
-import '../widgets/request_type_toggle.dart';
 
-/// The single-page "Request Visit" / "Request Appointment" create form,
-/// reached from the "+ Create Appointment" button on the Family
-/// Appointments list screen.
-///
-/// One page backs both states of the Figma "Request Visit - Appointments"
-/// and "Request Appointment - Appointments" screenshots - the "Request
-/// Type" segmented toggle at the top switches the AppBar title plus a
-/// handful of field labels/values, matching the reference structure of the
-/// Staff Incidents feature's single-page "Create Incident" form.
-///
-/// Hosts [FamilyBottomNavBar] with "Appointments" selected so the pushed
-/// route still matches reference frames that show the family bottom nav.
+/// Family "Request a visit" form — matches the web Family Portal modal
+/// (resident, preferred time, where, notes + Cancel / Send request).
 class CreateAppointmentPage extends StatelessWidget {
   const CreateAppointmentPage({super.key});
 
-  /// Index of the "Appointments" slot in [FamilyBottomNavBar.items].
   static const int _appointmentsTabIndex = 2;
 
-  /// Always starts a fresh controller instance for a new draft rather than
-  /// resolving the `get_it`-registered singleton - reusing the same
-  /// instance across multiple "Create Appointment" sessions would resurface
-  /// a previous draft's field values, and its `TextEditingController` would
-  /// already be disposed after the first time this page is closed (see the
-  /// identical rationale on the Staff Incidents feature's create-form page).
   AppointmentRequestController _resolveController() {
     if (Get.isRegistered<AppointmentRequestController>()) {
       Get.delete<AppointmentRequestController>(force: true);
@@ -50,7 +29,8 @@ class CreateAppointmentPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
-    final fieldGap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final fieldGap =
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -61,65 +41,68 @@ class CreateAppointmentPage extends StatelessWidget {
       body: SafeArea(
         bottom: false,
         child: Obx(() {
+          final error = controller.formError.value;
           return Column(
             children: [
-              Container(
-                color: AppColors.surfaceWhite,
-                child: FamilyAppointmentsHeader(title: controller.pageTitle, onBack: Get.back),
-              ),
+              const _RequestVisitHeader(),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, vertical: 20),
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const AppointmentFieldLabel('Request Type'),
-                      RequestTypeToggle(selected: controller.requestType.value, onSelected: controller.selectRequestType),
-                      fieldGap,
-                      const AppointmentFieldLabel('Preferred Date'),
+                      if (error != null && error.isNotEmpty) ...[
+                        AppointmentFormErrorBanner(message: error),
+                        fieldGap,
+                      ],
+                      const AppointmentFieldLabel(
+                        'Who would you like to visit',
+                        required: true,
+                      ),
                       AppointmentDropdownField(
-                        value: controller.preferredDate,
-                        leadingIcon: AppAssets.navCalendar,
-                        onTap: () => controller.pickDate(context),
+                        value: controller.residentFieldValue,
+                        isPlaceholder: controller.selectedResident == null,
+                        trailingIcon: Icons.keyboard_arrow_down_rounded,
+                        onTap: () => controller.pickResident(context),
                       ),
                       fieldGap,
-                      const AppointmentFieldLabel('Preferred Time'),
+                      const AppointmentFieldLabel('Preferred time'),
                       AppointmentDropdownField(
-                        value: controller.preferredTime,
-                        leadingIcon: AppAssets.clock,
-                        onTap: () => controller.pickTime(context),
+                        value: controller.preferredTimeLabel,
+                        isPlaceholder: controller.preferredAt.value == null,
+                        trailingIcon: Icons.calendar_today_outlined,
+                        onTap: () => controller.pickPreferredTime(context),
                       ),
                       fieldGap,
-                      AppointmentFieldLabel(controller.thirdFieldLabel),
-                      AppointmentDropdownField(
-                        value: controller.thirdFieldValue,
-                        onTap: controller.isVisit
-                            ? null
-                            : () => controller.pickAppointmentKind(context),
-                      ),
-                      fieldGap,
-                      const AppointmentFieldLabel('Location / Mode'),
+                      const AppointmentFieldLabel('Where'),
                       AppointmentTextField(
                         controller: controller.locationController,
-                        hint: 'Residence, clinic, or video call',
+                        hint: 'Optional — e.g. the lounge, the garden',
                       ),
                       fieldGap,
-                      const AppointmentFieldLabel('Add a Note', suffix: '(Optional)'),
+                      const AppointmentFieldLabel(
+                        'Anything the care home should know',
+                      ),
                       AppointmentNoteField(
                         controller: controller.noteController,
-                        hint: controller.notePlaceholder,
-                        length: controller.noteLength.value,
+                        hint:
+                            'Optional — who is coming, how long you would like…',
+                        showCounter: false,
                       ),
-                      fieldGap,
-                      AppointmentInfoBanner(message: controller.bannerMessage),
-                      Padding(
-                        padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 0, top: 12, bottom: 12),
-                        child: FamilyPrimaryButton(
-                          label: controller.isSubmitting.value
-                              ? 'Submitting…'
-                              : 'Submit Request',
-                          onTap: controller.submit,
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          24,
                         ),
+                      ),
+                      _RequestVisitActions(
+                        isSubmitting: controller.isSubmitting.value,
+                        onCancel: Get.back,
+                        onSend: controller.submit,
                       ),
                     ],
                   ),
@@ -129,6 +112,164 @@ class CreateAppointmentPage extends StatelessWidget {
           );
         }),
       ),
+    );
+  }
+}
+
+class _RequestVisitHeader extends StatelessWidget {
+  const _RequestVisitHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.surfaceWhite,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 16,
+        vertical: 14,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: ResponsiveHelper.getResponsiveSize(context, 44),
+            height: ResponsiveHelper.getResponsiveSize(context, 44),
+            decoration: BoxDecoration(
+              color: AppColors.primaryNavy,
+              borderRadius: BorderRadius.circular(
+                ResponsiveHelper.getResponsiveRadius(context, 12),
+              ),
+            ),
+            child: Icon(
+              Icons.calendar_month_rounded,
+              color: Colors.white,
+              size: ResponsiveHelper.getResponsiveSize(context, 22),
+            ),
+          ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Request a visit',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w800,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 18),
+                    color: AppColors.primaryNavy,
+                    height: 1.2,
+                  ),
+                ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+                Text(
+                  'The care home will confirm the time with you.',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w500,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    color: AppColors.textMuted,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+          Material(
+            color: AppColors.filterButtonBackground,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: Get.back,
+              child: Padding(
+                padding: EdgeInsets.all(
+                  ResponsiveHelper.getResponsiveSize(context, 8),
+                ),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: ResponsiveHelper.getResponsiveSize(context, 18),
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestVisitActions extends StatelessWidget {
+  final bool isSubmitting;
+  final VoidCallback onCancel;
+  final VoidCallback onSend;
+
+  const _RequestVisitActions({
+    required this.isSubmitting,
+    required this.onCancel,
+    required this.onSend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: isSubmitting ? null : onCancel,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.textHeading,
+              side: const BorderSide(color: AppColors.searchBorder),
+              backgroundColor: AppColors.surfaceWhite,
+              padding: EdgeInsets.symmetric(
+                vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(radius),
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+        Expanded(
+          child: FilledButton(
+            onPressed: isSubmitting ? null : onSend,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryNavy,
+              disabledBackgroundColor:
+                  AppColors.primaryNavy.withValues(alpha: 0.5),
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(radius),
+              ),
+            ),
+            child: Text(
+              isSubmitting ? 'Sending…' : 'Send request',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -22,6 +22,7 @@ Future<void> setupStaffDailyLogsDependencies() async {
   await DIHelper.registerControllerFactory<StaffDailyLogsController>(
     factory: () => StaffDailyLogsController(
       repository: getIt<StaffDailyLogsRepository>(),
+      session: Get.find<UserSession>(),
     ),
   );
 

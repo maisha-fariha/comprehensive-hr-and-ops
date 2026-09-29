@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../communication/domain/entities/communication_enums.dart';
 import '../../../communication/domain/entities/hr_message_contact.dart';
 import '../../../communication/domain/repositories/communication_repository.dart';
 import '../../domain/entities/missed_medication.dart';
@@ -86,23 +89,40 @@ class _ContactStaffSheetState extends State<_ContactStaffSheet> {
     final med = widget.medication;
     final title =
         'Missed med: ${med.medicationName} — ${med.residentName}'.trim();
-    final result = await _repo.startConversation(
-      title: title,
-      memberUserIds: [selected],
-      clientId: med.clientId,
-    );
+    final residenceId = med.residenceId?.trim().isNotEmpty == true
+        ? med.residenceId
+        : Get.find<UserSession>().residenceId;
+
+    final result = (residenceId != null && residenceId.isNotEmpty)
+        ? await _repo.startConversation(
+            type: ConversationCreateType.residenceGroup,
+            title: title,
+            memberUserIds: [selected],
+            residenceId: residenceId,
+          )
+        : await _repo.startConversation(
+            type: ConversationCreateType.direct,
+            memberUserIds: [selected],
+          );
     if (!mounted) return;
     setState(() => _submitting = false);
 
-    result.when(
-      success: (_) {
+    await result.when(
+      success: (conversation) async {
+        if (residenceId == null || residenceId.isEmpty) {
+          await _repo.sendMessage(
+            conversationId: conversation.id,
+            body: title,
+          );
+        }
+        if (!mounted) return;
         Navigator.of(context).pop();
         AppSnackbar.show(
           'Conversation started',
           'You can continue messaging from Communication.',
         );
       },
-      failure: (error) {
+      failure: (error) async {
         AppSnackbar.show('Could not start conversation', error.message);
       },
     );

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
@@ -13,6 +12,7 @@ import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../pages/staff_manual_attendance_entry_page.dart';
+import '../widgets/staff_clock_action_sheet.dart';
 
 /// GetX controller for the "Attendance" screen.
 class StaffAttendanceController
@@ -22,7 +22,7 @@ class StaffAttendanceController
   /// Live HH:MM:SS from [StaffAttendanceOverview.checkInAt].
   final RxString liveElapsedLabel = '00:00:00'.obs;
 
-  /// BUG_Report006 — residence options for "All Residences" filter.
+  /// Residence options for filters + clock dialog.
   final RxList<ManualEntryResidenceOption> residenceOptions =
       <ManualEntryResidenceOption>[].obs;
 
@@ -74,93 +74,34 @@ class StaffAttendanceController
     });
   }
 
-  Future<void> clockIn() => _clock(isCheckIn: true);
+  Future<void> clockIn() => _openClockSheet(isCheckIn: true);
 
-  Future<void> clockOut() => _clock(isCheckIn: false);
+  Future<void> clockOut() => _openClockSheet(isCheckIn: false);
 
-  Future<void> _clock({required bool isCheckIn}) async {
+  Future<void> _openClockSheet({required bool isCheckIn}) async {
+    if (residenceOptions.isEmpty) await _loadResidences();
+    final context = Get.context;
+    if (context == null || !context.mounted) return;
     final current = overview;
-    final selfieUrl = await _pickAndUploadSelfieOptional();
 
-    setLoading(true);
-    final result = isCheckIn
-        ? await repository.checkIn(
-            shiftId: current?.shiftId,
-            residenceId: current?.residenceId,
-            selfieUrl: selfieUrl,
-          )
-        : await repository.checkOut(
-            shiftId: current?.shiftId,
-            residenceId: current?.residenceId,
-            selfieUrl: selfieUrl,
-          );
-    setLoading(false);
-
-    if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: isCheckIn ? 'Could not clock in' : 'Could not clock out',
+    final saved = await StaffClockActionSheet.show(
+      context,
+      isCheckIn: isCheckIn,
+      residences: residenceOptions.toList(),
+      initialResidenceId: current?.residenceId,
+      shiftId: current?.shiftId,
+      showNotRosteredWarning:
+          isCheckIn && !(current?.hasRosteredShiftNow ?? false),
+    );
+    if (saved == true) {
+      Get.snackbar(
+        'Attendance',
+        isCheckIn ? 'Clocked in.' : 'Clocked out.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
       );
-      return;
+      await loadOverview();
     }
-
-    Get.snackbar(
-      'Attendance',
-      isCheckIn ? 'Clocked in.' : 'Clocked out.',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.white,
-    );
-    await loadOverview();
-  }
-
-  /// Optional selfie → `POST /uploads?category=attendance`.
-  /// Returns URL, or null if skipped / cancelled.
-  Future<String?> _pickAndUploadSelfieOptional() async {
-    final choice = await Get.dialog<String>(
-      AlertDialog(
-        title: const Text('Selfie verification'),
-        content: const Text(
-          'Optionally attach a selfie for this clock action. '
-          'It is uploaded to attendance before check-in/out.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: 'skip'),
-            child: const Text('Skip'),
-          ),
-          TextButton(
-            onPressed: () => Get.back(result: 'pick'),
-            child: const Text('Choose photo'),
-          ),
-        ],
-      ),
-    );
-    if (choice != 'pick') return null;
-
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-      withData: false,
-    );
-    final file = picked?.files.single;
-    final path = file?.path;
-    if (path == null || path.isEmpty) return null;
-
-    setLoading(true);
-    final upload = await repository.uploadAttendanceSelfie(
-      localPath: path,
-      fileName: file!.name,
-    );
-    setLoading(false);
-
-    if (upload.isFailure) {
-      AppErrorDialog.showResultError(
-        upload.error,
-        fallbackTitle: 'Could not upload selfie',
-      );
-      return null;
-    }
-    return upload.value;
   }
 
   Future<void> toggleBreak() {
@@ -201,13 +142,13 @@ class StaffAttendanceController
     await loadOverview();
   }
 
-  /// BUG_Report006 — history date filter (`null` = all dates).
+  /// History date filter (`null` = all dates).
   final Rxn<DateTime> historyDateFilter = Rxn<DateTime>();
 
-  /// BUG_Report006 — `all` or a residence id.
+  /// `all` or a residence id.
   final RxString historyResidenceFilter = 'all'.obs;
 
-  /// BUG_Report006 — `all` | `present` | `late` | `missed` | `pending_approval`.
+  /// `all` | `present` | `late` | `missed` | `pending_approval`.
   final RxString historyStatusFilter = 'all'.obs;
 
   List<StaffAttendanceHistoryItem> get filteredHistory {
@@ -226,7 +167,19 @@ class StaffAttendanceController
         }
       }
       if (residence != 'all' && item.residenceId != residence) return false;
-      if (status != 'all' && item.status != status) return false;
+      if (status != 'all') {
+        final s = item.status;
+        if (status == 'present') {
+          if (s != 'present' &&
+              s != 'on_time' &&
+              s != 'ontime' &&
+              s != 'completed') {
+            return false;
+          }
+        } else if (s != status) {
+          return false;
+        }
+      }
       return true;
     }).toList();
   }

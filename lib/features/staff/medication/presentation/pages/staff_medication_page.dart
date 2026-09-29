@@ -10,24 +10,18 @@ import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../controllers/staff_medication_controller.dart';
-import '../widgets/administered_tab_view.dart';
-import '../widgets/due_tab_view.dart';
-import '../widgets/missed_tab_view.dart';
-import '../widgets/refused_tab_view.dart';
+import '../widgets/given_tab_view.dart';
+import '../widgets/mar_registry_tab_view.dart';
+import '../widgets/prn_registry_tab_view.dart';
+import '../widgets/resident_chart_tab_view.dart';
 import '../widgets/staff_client_medications_sheet.dart';
 import '../widgets/staff_medication_header.dart';
+import '../widgets/staff_medication_metrics_strip.dart';
 import '../widgets/staff_medication_tab_bar.dart';
 
-/// The Staff "Medication MAR" screen — reproduces the "Due", "Administered",
-/// "Missed" and "Refused" Medication screens from the reference screenshots
-/// as ONE page with a shared header and an internal segmented tab control,
-/// since all 4 screens share identical chrome and only the list content
-/// below the tab bar changes.
-///
-/// Hosts [StaffBottomNavBar] with "MAR / Tasks" selected so the pushed route
-/// still matches reference frames that show the staff bottom nav.
+/// Staff Medication MAR — web console parity:
+/// metrics + MAR / PRN / Given / Resident chart tabs.
 class StaffMedicationPage extends StatelessWidget {
-  /// Index of the "MAR / Tasks" slot in [StaffBottomNavBar.items].
   static const int _marTasksTabIndex = 3;
 
   const StaffMedicationPage({super.key});
@@ -36,7 +30,10 @@ class StaffMedicationPage extends StatelessWidget {
     try {
       return Get.find<StaffMedicationController>();
     } catch (_) {
-      return Get.put(GetIt.instance<StaffMedicationController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<StaffMedicationController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -47,6 +44,8 @@ class StaffMedicationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
+    final canWrite = Get.find<UserSession>().canWriteMar;
+    final canPrn = Get.find<UserSession>().canAdministerMarDose(isPrn: true);
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -59,7 +58,9 @@ class StaffMedicationPage extends StatelessWidget {
         final overview = response.data;
 
         if (overview == null && controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+          );
         }
 
         if (overview == null) {
@@ -79,19 +80,26 @@ class StaffMedicationPage extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   StaffMedicationHeader(title: overview.screenTitle),
+                  StaffMedicationMetricsStrip(overview: overview),
+                  StaffMedicationSideCards(overview: overview),
+                  StaffMedicationActionRow(
+                    canWrite: canWrite,
+                    onRecordAdministration: () =>
+                        controller.startRecordAdministration(context),
+                    onAddMedicine: () => controller.openAddMedicine(context),
+                  ),
                   Padding(
                     padding: ResponsiveHelper.getResponsivePadding(
                       context,
                       horizontal: 16,
-                      top: 12,
+                      top: 4,
                       bottom: 8,
                     ),
                     child: StaffMedicationTabBar(
                       selectedTab: controller.selectedTab.value,
-                      dueCount: overview.dueCount,
-                      administeredCount: overview.administeredCount,
-                      missedCount: overview.missedCount,
-                      refusedCount: overview.refusedCount,
+                      marCount: controller.marTabCount,
+                      prnCount: controller.prnTabCount,
+                      givenCount: controller.givenTabCount,
                       onTabSelected: controller.selectTab,
                     ),
                   ),
@@ -111,13 +119,12 @@ class StaffMedicationPage extends StatelessWidget {
                   ),
                   children: [
                     switch (controller.selectedTab.value) {
-                      StaffMedicationTab.due => DueTabView(
+                      StaffMedicationTab.mar => MarRegistryTabView(
                           dueNowDoses: overview.dueNowDoses,
                           laterTodayDoses: overview.laterTodayDoses,
-                          canWriteScheduled:
-                              Get.find<UserSession>().canWriteMar,
-                          canWritePrn: Get.find<UserSession>()
-                              .canAdministerMarDose(isPrn: true),
+                          scheduledCount: overview.scheduledCount,
+                          canWriteScheduled: canWrite,
+                          canWritePrn: canPrn,
                           onAdminister: controller.markAdministered,
                           onNotGiven: controller.markNotGiven,
                           onOpenClientMedications: (dose) {
@@ -128,12 +135,37 @@ class StaffMedicationPage extends StatelessWidget {
                             );
                           },
                         ),
-                      StaffMedicationTab.administered =>
-                        AdministeredTabView(doses: overview.administeredDoses),
-                      StaffMedicationTab.missed =>
-                        MissedTabView(doses: overview.missedDoses),
-                      StaffMedicationTab.refused =>
-                        RefusedTabView(doses: overview.refusedDoses),
+                      StaffMedicationTab.prn => PrnRegistryTabView(
+                          items: controller.prnItems.toList(),
+                          canGive: canPrn,
+                          onGive: controller.givePrn,
+                          onOpenChart: (item) {
+                            if (item.clientId.isEmpty) return;
+                            showStaffClientMedicationsSheet(
+                              context,
+                              clientId: item.clientId,
+                              clientName: item.clientName.isEmpty
+                                  ? 'Resident'
+                                  : item.clientName,
+                            );
+                          },
+                        ),
+                      StaffMedicationTab.given => GivenTabView(
+                          doses: controller.givenItems.toList(),
+                        ),
+                      StaffMedicationTab.residentChart =>
+                        ResidentChartTabView(
+                          clients: controller.chartClients.toList(),
+                          loading: controller.loadingExtras.value &&
+                              controller.chartClients.isEmpty,
+                          onOpenChart: (client) {
+                            showStaffClientMedicationsSheet(
+                              context,
+                              clientId: client.id,
+                              clientName: client.name,
+                            );
+                          },
+                        ),
                     },
                   ],
                 ),
@@ -162,7 +194,11 @@ class _StaffMedicationError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.criticalRed, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.criticalRed,
+              size: 40,
+            ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Text(
               message,
@@ -188,7 +224,9 @@ class _StaffMedicationError extends StatelessWidget {
                 ),
                 child: const Text('View Residence'),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 10),
+              ),
             ],
             ElevatedButton(
               key: const Key('staff-mar-retry'),

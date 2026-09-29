@@ -327,7 +327,7 @@ class _FamilyAppointmentsListPageState
                     ResponsiveHelper.getResponsiveHeight(context, 14),
                   ),
                   child: FamilyPrimaryButton(
-                    label: 'Create Appointment',
+                    label: 'Request a visit',
                     icon: Icons.add_rounded,
                     onTap: _openCreateAppointment,
                   ),

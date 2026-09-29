@@ -21,7 +21,10 @@ import '../../features/family/documents/di/family_documents_di.dart';
 import '../../features/family/messages/di/family_messages_di.dart';
 import '../../features/family/profile_settings/di/family_profile_settings_di.dart';
 import '../../features/family/visit_requests/di/family_visit_requests_di.dart';
+import '../../features/staff/appointments/di/staff_appointments_di.dart';
 import '../../features/staff/attendance/di/staff_attendance_di.dart';
+import '../../features/staff/daily_activity/di/staff_daily_activity_di.dart';
+import '../../features/staff/documents/di/staff_documents_di.dart';
 import '../../features/staff/daily_logs/di/staff_daily_logs_di.dart';
 import '../../features/staff/dashboard/di/staff_dashboard_di.dart';
 import '../../features/staff/extras/di/staff_extras_di.dart';
@@ -30,6 +33,7 @@ import '../../features/staff/medication/di/staff_medication_di.dart';
 import '../../features/staff/profile_settings/di/staff_profile_settings_di.dart';
 import '../../features/staff/scheduling/di/staff_scheduling_di.dart';
 import '../../features/staff/tasks_messages/di/staff_tasks_messages_di.dart';
+import '../../features/staff/training/di/staff_training_di.dart';
 
 /// Registers every feature module's dependencies. Call once from `main()`
 /// before `runApp`. New feature modules should add their own
@@ -56,6 +60,10 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupStaffExtrasDependencies();
   await setupStaffSchedulingDependencies();
   await setupStaffAttendanceDependencies();
+  await setupStaffDailyActivityDependencies();
+  await setupStaffDocumentsDependencies();
+  await setupStaffTrainingDependencies();
+  await setupStaffAppointmentsDependencies();
   await setupStaffDailyLogsDependencies();
   await setupStaffIncidentsDependencies();
   await setupStaffMedicationDependencies();
