@@ -23,6 +23,7 @@ import '../../features/staff/attendance/presentation/controllers/staff_attendanc
 import '../../features/staff/daily_logs/presentation/controllers/daily_note_controller.dart';
 import '../../features/staff/daily_logs/presentation/controllers/staff_daily_logs_controller.dart';
 import '../../features/staff/dashboard/presentation/controllers/staff_dashboard_controller.dart';
+import '../../features/staff/documents/presentation/controllers/staff_documents_controller.dart';
 import '../../features/staff/incidents/presentation/controllers/incident_details_controller.dart';
 import '../../features/staff/incidents/presentation/controllers/staff_incidents_controller.dart';
 import '../../features/staff/medication/presentation/controllers/staff_medication_controller.dart';
@@ -63,6 +64,7 @@ abstract final class SessionLifecycle {
     _reset<StaffAttendanceController>();
     _reset<StaffIncidentsController>();
     _reset<IncidentDetailsController>();
+    _reset<StaffDocumentsController>();
     _reset<StaffProfileSettingsController>();
 
     // HR / Manager
