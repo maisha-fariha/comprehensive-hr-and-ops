@@ -4,10 +4,16 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/incidents_enums.dart';
 
-const List<String> _stepLabels = ['Details', 'People', 'Investigate', 'Evidence'];
+const List<String> _stepLabels = [
+  'Details',
+  'People',
+  'Investigate',
+  'Evidence',
+  'Report',
+];
 
 /// Header for the "Create Incident" wizard: back/close buttons, title +
-/// draft id, and the 1-2-3-4 step progress indicator.
+/// draft id, and the 1–5 step progress indicator (web parity).
 ///
 /// Icon note: the back chevron and close "X" have no matching SVG in
 /// `assets/icons/*`, so this uses Material `Icons.arrow_back_ios_new_rounded`

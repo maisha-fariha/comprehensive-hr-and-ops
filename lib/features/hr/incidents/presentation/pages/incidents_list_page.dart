@@ -119,8 +119,22 @@ class IncidentsListPage extends StatelessWidget {
                   horizontalPad,
                   ResponsiveHelper.getResponsiveHeight(context, 10),
                 ),
-                child: CreateIncidentButton(
-                  onTap: () => _openCreationWizard(controller),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ExportListButton(
+                      isLoading: controller.isExporting.value,
+                      onTap: controller.isExporting.value
+                          ? null
+                          : controller.exportIncidentList,
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 10),
+                    ),
+                    CreateIncidentButton(
+                      onTap: () => _openCreationWizard(controller),
+                    ),
+                  ],
                 ),
               ),
             ),

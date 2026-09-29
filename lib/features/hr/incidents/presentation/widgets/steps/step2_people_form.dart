@@ -4,11 +4,12 @@ import 'package:get/get.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 import '../../controllers/incident_creation_controller.dart';
+import '../follow_up_toggle_row.dart';
 import '../wizard_form_fields.dart';
 import '../wizard_section_header.dart';
 import '../witness_chip_row.dart';
 
-/// Step 2 of the "Create Incident" wizard - "People & Location".
+/// Step 2 — People & Location (web: Location & People). BUG 021 toggles.
 class Step2PeopleForm extends StatelessWidget {
   final IncidentCreationController controller;
 
@@ -30,7 +31,7 @@ class Step2PeopleForm extends StatelessWidget {
             children: [
               const WizardSectionHeader(
                 number: 2,
-                title: 'People & Location',
+                title: 'Location & People',
                 subtitle: 'Who was involved and where it happened',
                 badgeBackground: _badgeBackground,
                 badgeForeground: _badgeForeground,
@@ -74,7 +75,7 @@ class Step2PeopleForm extends StatelessWidget {
                 hint: 'e.g. Living Room, Room 3',
               ),
               gap,
-              const WizardFieldLabel('Witness Information'),
+              const WizardFieldLabel('Witnesses — staff or residents present'),
               Obx(
                 () => WitnessChipRow(
                   witnesses: controller.witnesses.toList(),
@@ -82,10 +83,99 @@ class Step2PeopleForm extends StatelessWidget {
                   onRemoveWitness: controller.removeWitness,
                 ),
               ),
+              gap,
+              const WizardFieldLabel('Immediate Action Taken'),
+              WizardTextField(
+                controller: controller.immediateActionController,
+                hint: 'What was done right away in response to this incident?',
+                maxLines: 4,
+              ),
+              gap,
+              Obx(
+                () => FollowUpToggleRow(
+                  key: const Key('hr-incident-emergency-services'),
+                  title: 'Emergency Services Contacted',
+                  subtitle: 'Ambulance, police or fire services',
+                  value: controller.emergencyServicesContacted.value,
+                  onChanged: (v) =>
+                      controller.emergencyServicesContacted.value = v,
+                ),
+              ),
+              Obx(() {
+                if (!controller.emergencyServicesContacted.value) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: EdgeInsets.only(
+                    top: ResponsiveHelper.getResponsiveHeight(context, 12),
+                  ),
+                  child: _EmergencyDetails(controller: controller),
+                );
+              }),
+              gap,
+              Obx(
+                () => FollowUpToggleRow(
+                  key: const Key('hr-incident-family-notified'),
+                  title: 'Family / Guardian Notified',
+                  subtitle: 'Primary contact informed of the incident',
+                  value: controller.familyGuardianNotified.value,
+                  onChanged: (v) =>
+                      controller.familyGuardianNotified.value = v,
+                ),
+              ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _EmergencyDetails extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _EmergencyDetails({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 12),
+    );
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 12),
+        ),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const WizardFieldLabel('Which service'),
+          Obx(
+            () => WizardDropdownField(
+              key: const Key('hr-incident-agency-type'),
+              value: controller.externalAgencyTypeLabel,
+              placeholder: 'Choose a service',
+              onTap: () => controller.pickExternalAgencyType(context),
+            ),
+          ),
+          gap,
+          const WizardFieldLabel('Agency reference'),
+          WizardTextField(
+            controller: controller.agencyReferenceController,
+            hint: 'CAD / incident number, as they gave it',
+          ),
+          gap,
+          const WizardFieldLabel('Responding station or officer'),
+          WizardTextField(
+            controller: controller.agencyResponderController,
+            hint: 'Name or station, as given',
+          ),
+        ],
+      ),
     );
   }
 }

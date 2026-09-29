@@ -28,4 +28,13 @@ enum IncidentStatTag {
 }
 
 /// Which step of the "Create Incident" wizard is active.
-enum IncidentCreationStep { details, people, investigate, evidence }
+///
+/// Web parity (manager Create Incident): Details → People → Investigate →
+/// Evidence → Report Form.
+enum IncidentCreationStep {
+  details,
+  people,
+  investigate,
+  evidence,
+  reportForm,
+}

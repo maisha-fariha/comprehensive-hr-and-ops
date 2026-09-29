@@ -15,14 +15,44 @@ import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
 import '../../domain/entities/incident_client_option.dart';
 import '../../domain/entities/incident_evidence_file.dart';
+import '../../domain/entities/incident_party_notification.dart';
 import '../../domain/entities/incident_residence_option.dart';
 import '../../domain/entities/incident_staff_option.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../../domain/repositories/incidents_repository.dart';
 
-/// GetX controller for the 4-step "Create Incident" wizard.
+/// GetX controller for the 5-step "Create Incident" wizard (web parity).
 class IncidentCreationController extends GetxController {
   static const List<IncidentCreationStep> steps = IncidentCreationStep.values;
+
+  static const List<(String, String)> investigationStatusOptions = [
+    ('open', 'Open (awaiting investigation)'),
+    ('investigating', 'Under investigation'),
+    ('closed', 'Closed / resolved'),
+  ];
+
+  static const List<(String, String)> externalAgencyTypeOptions = [
+    ('police', 'Police'),
+    ('ambulance', 'Ambulance'),
+    ('fire', 'Fire'),
+    ('cfs', 'Child and Family Services'),
+    ('other', 'Other'),
+  ];
+
+  static const List<String> defaultPartyNames = [
+    'Child Intervention Practitioner',
+    'Child Intervention Intake and Response Team',
+    "Child's Family",
+    "Child's Legal Guardian",
+    'Agency Director/Manager',
+    'Agency On Call',
+    'Licensing Officer',
+    'Police/RCMP',
+    'Medical Services',
+    'Therapist/Clinician',
+    'Probation',
+    'Other',
+  ];
 
   static const List<String> detectedDuringOptions = [
     'Day shift',
@@ -58,7 +88,7 @@ class IncidentCreationController extends GetxController {
       editIncidentId != null && editIncidentId!.trim().isNotEmpty;
 
   int get currentStepIndex => steps.indexOf(currentStep.value);
-  bool get isLastStep => currentStep.value == IncidentCreationStep.evidence;
+  bool get isLastStep => currentStep.value == IncidentCreationStep.reportForm;
 
   // Step 1 - Incident Details
   final RxList<IncidentCategoryOption> categories = <IncidentCategoryOption>[].obs;
@@ -99,7 +129,13 @@ class IncidentCreationController extends GetxController {
   int _clientSearchRequestId = 0;
 
   String? get incidentCategory => selectedCategory.value?.name;
-  String? get cirTemplateLabel => selectedCirTemplate.value?.name;
+  String? get cirTemplateLabel {
+    final template = selectedCirTemplate.value;
+    if (template == null) return null;
+    final version = template.version;
+    if (version == null) return template.name;
+    return '${template.name} · v$version';
+  }
 
   // Step 2 - People & Location
   final TextEditingController involvedClientController = TextEditingController();
@@ -122,19 +158,71 @@ class IncidentCreationController extends GetxController {
   final TextEditingController locationController = TextEditingController();
   final RxList<String> witnesses = <String>[].obs;
 
-  // Step 3 - Immediate Action & Investigation
+  // Emergency + family (web Location & People — BUG 021)
+  final RxBool emergencyServicesContacted = false.obs;
+  final RxnString externalAgencyType = RxnString();
+  final TextEditingController agencyReferenceController =
+      TextEditingController();
+  final TextEditingController agencyResponderController =
+      TextEditingController();
+  final RxBool familyGuardianNotified = false.obs;
+
+  String? get externalAgencyTypeLabel {
+    final value = externalAgencyType.value;
+    if (value == null) return null;
+    for (final option in externalAgencyTypeOptions) {
+      if (option.$1 == value) return option.$2;
+    }
+    return value;
+  }
+
+  // Step 3 - Immediate Action & Investigation (BUG 022)
   final TextEditingController immediateActionController = TextEditingController();
+  final RxnString investigationStatus = RxnString('open');
+  final Rxn<IncidentStaffOption> selectedInvestigator =
+      Rxn<IncidentStaffOption>();
   final TextEditingController investigationNotesController =
+      TextEditingController();
+  final TextEditingController rootCauseController = TextEditingController();
+  final TextEditingController correctiveActionController =
       TextEditingController();
   final RxBool followUpRequired = false.obs;
   final TextEditingController followUpDateController = TextEditingController();
   final Rxn<IncidentStaffOption> selectedSupervisor = Rxn<IncidentStaffOption>();
   final RxnString supervisorAssignment = RxnString();
+  final Rxn<IncidentStaffOption> selectedAssignedTo = Rxn<IncidentStaffOption>();
+  final RxBool debriefCompleted = false.obs;
+  final TextEditingController debriefDetailsController = TextEditingController();
+  final RxBool childInformedOfRights = false.obs;
 
-  // Step 4 - Evidence & Submission
+  String? get investigationStatusLabel {
+    final value = investigationStatus.value;
+    if (value == null) return null;
+    for (final option in investigationStatusOptions) {
+      if (option.$1 == value) return option.$2;
+    }
+    return value;
+  }
+
+  String? get investigatorLabel => selectedInvestigator.value?.name;
+  String? get assignedToLabel => selectedAssignedTo.value?.name;
+
+  // Step 4 - Evidence & Submission (BUG 023)
   final RxList<IncidentEvidenceFile> evidenceFiles =
       <IncidentEvidenceFile>[].obs;
   final TextEditingController additionalNotesController = TextEditingController();
+  final RxList<IncidentPartyNotification> partyNotifications =
+      <IncidentPartyNotification>[
+    for (final party in defaultPartyNames)
+      IncidentPartyNotification(party: party),
+  ].obs;
+
+  // Step 5 - Report Form (BUG 024)
+  final Map<String, TextEditingController> _reportFormAnswers = {};
+
+  TextEditingController reportFormAnswerController(String key) {
+    return _reportFormAnswers.putIfAbsent(key, TextEditingController.new);
+  }
 
   @override
   void onInit() {
@@ -203,11 +291,6 @@ class IncidentCreationController extends GetxController {
     result.when(
       success: (data) {
         cirTemplates.assignAll(data);
-        if (!isEditMode &&
-            selectedCirTemplate.value == null &&
-            data.isNotEmpty) {
-          selectedCirTemplate.value = data.first;
-        }
       },
       failure: (error) {
         AppSnackbar.show('Could not load CIR templates', error.message);
@@ -425,6 +508,32 @@ class IncidentCreationController extends GetxController {
     supervisorAssignment.value = option.name;
   }
 
+  void selectInvestigator(IncidentStaffOption option) {
+    selectedInvestigator.value = option;
+  }
+
+  void selectAssignedTo(IncidentStaffOption option) {
+    selectedAssignedTo.value = option;
+  }
+
+  void clearCirTemplate() {
+    selectedCirTemplate.value = null;
+  }
+
+  void updatePartyNotification(
+    int index, {
+    bool? notified,
+    String? contactName,
+    String? dateNotified,
+  }) {
+    if (index < 0 || index >= partyNotifications.length) return;
+    partyNotifications[index] = partyNotifications[index].copyWith(
+      notified: notified,
+      contactName: contactName,
+      dateNotified: dateNotified,
+    );
+  }
+
   Future<void> pickCategory(BuildContext context) async {
     if (categories.isEmpty && !isLoadingCategories.value) {
       await loadCategories();
@@ -443,23 +552,96 @@ class IncidentCreationController extends GetxController {
     if (selected != null) selectCategory(selected);
   }
 
-  Future<void> pickCirTemplate(BuildContext context) async {
+  Future<void> pickCirTemplate(BuildContext context) =>
+      pickReportFormTemplate(context);
+
+  Future<void> pickReportFormTemplate(BuildContext context) async {
     if (cirTemplates.isEmpty && !isLoadingCirTemplates.value) {
       await loadCirTemplates();
     }
     if (!context.mounted) return;
-    final selected = await _showOptionsSheet<IncidentCirTemplateOption>(
+    if (cirTemplates.isEmpty) {
+      AppSnackbar.show('No forms configured', 'No CIR templates are available.');
+      return;
+    }
+
+    final selected = await showModalBottomSheet<Object>(
       context: context,
-      title: 'Select CIR template',
-      isLoading: isLoadingCirTemplates,
-      options: cirTemplates,
-      labelOf: (option) => option.name,
-      subtitleOf: (option) => option.subtitle,
-      selectedId: selectedCirTemplate.value?.id,
-      idOf: (option) => option.id,
-      onRetry: loadCirTemplates,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Report form',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              ListTile(
+                title: const Text(
+                  'None — this incident is not reportable',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+                trailing: selectedCirTemplate.value == null
+                    ? const Icon(Icons.check_rounded, color: AppColors.secondaryTeal)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, '__none__'),
+              ),
+              for (final option in cirTemplates)
+                ListTile(
+                  title: Text(
+                    option.version == null
+                        ? option.name
+                        : '${option.name} · v${option.version}',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  subtitle: option.subtitle.isEmpty
+                      ? null
+                      : Text(
+                          option.subtitle,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                  trailing: selectedCirTemplate.value?.id == option.id
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: AppColors.secondaryTeal,
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, option),
+                ),
+            ],
+          ),
+        );
+      },
     );
-    if (selected != null) selectCirTemplate(selected);
+
+    if (selected == '__none__') {
+      clearCirTemplate();
+    } else if (selected is IncidentCirTemplateOption) {
+      selectCirTemplate(selected);
+    }
   }
 
   Future<void> pickResidence(BuildContext context) async {
@@ -546,6 +728,116 @@ class IncidentCreationController extends GetxController {
       title: 'Assign supervisor',
     );
     if (selected != null) selectSupervisor(selected);
+  }
+
+  Future<void> pickInvestigator(BuildContext context) async {
+    final selected = await _pickStaff(context, title: 'Investigator');
+    if (selected != null) selectInvestigator(selected);
+  }
+
+  Future<void> pickAssignedTo(BuildContext context) async {
+    final selected = await _pickStaff(context, title: 'Assigned to');
+    if (selected != null) selectAssignedTo(selected);
+  }
+
+  Future<void> pickInvestigationStatus(BuildContext context) async {
+    final selected = await showModalBottomSheet<(String, String)>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Investigation Status',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              for (final option in investigationStatusOptions)
+                ListTile(
+                  title: Text(
+                    option.$2,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  trailing: investigationStatus.value == option.$1
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: AppColors.secondaryTeal,
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, option),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null) investigationStatus.value = selected.$1;
+  }
+
+  Future<void> pickExternalAgencyType(BuildContext context) async {
+    final selected = await showModalBottomSheet<(String, String)>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Which service',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              for (final option in externalAgencyTypeOptions)
+                ListTile(
+                  title: Text(
+                    option.$2,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  trailing: externalAgencyType.value == option.$1
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: AppColors.secondaryTeal,
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, option),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null) externalAgencyType.value = selected.$1;
   }
 
   Future<IncidentStaffOption?> _pickStaff(
@@ -1145,7 +1437,7 @@ class IncidentCreationController extends GetxController {
         reportedAt: reportedAt,
         residentChecked: false,
         supervisorNotified: supervisorNotified,
-        familyNotified: false,
+        familyNotified: familyGuardianNotified.value,
         carePlanReviewed: false,
       );
 
@@ -1180,7 +1472,7 @@ class IncidentCreationController extends GetxController {
         reportedAt: reportedAt,
         residentChecked: false,
         supervisorNotified: supervisorNotified,
-        familyNotified: false,
+        familyNotified: familyGuardianNotified.value,
         carePlanReviewed: false,
       );
 
@@ -1209,13 +1501,24 @@ class IncidentCreationController extends GetxController {
 
     final findings = investigationNotesController.text.trim();
     final immediate = immediateActionController.text.trim();
-    if (!asDraft && (findings.isNotEmpty || immediate.isNotEmpty)) {
+    final rootCause = rootCauseController.text.trim();
+    final corrective = correctiveActionController.text.trim();
+    if (!asDraft &&
+        (findings.isNotEmpty ||
+            immediate.isNotEmpty ||
+            rootCause.isNotEmpty ||
+            corrective.isNotEmpty)) {
       final investigation = await repository.recordInvestigation(
         incidentId: incidentId,
-        findings: findings.isEmpty ? immediate : findings,
-        rootCause: null,
-        correctiveActions: immediate.isEmpty ? null : immediate,
-        status: isEditMode ? (existingStatus.value ?? 'open') : 'open',
+        findings: findings.isEmpty
+            ? (immediate.isEmpty ? rootCause : immediate)
+            : findings,
+        rootCause: rootCause.isEmpty ? null : rootCause,
+        correctiveActions: corrective.isEmpty
+            ? (immediate.isEmpty ? null : immediate)
+            : corrective,
+        status: investigationStatus.value ??
+            (isEditMode ? (existingStatus.value ?? 'open') : 'open'),
       );
       investigation.when(
         success: (_) {},
@@ -1317,18 +1620,71 @@ class IncidentCreationController extends GetxController {
       if (witnesses.isNotEmpty) 'witnesses': witnesses.toList(),
       if (immediateActionController.text.trim().isNotEmpty)
         'immediateAction': immediateActionController.text.trim(),
+      'emergencyServicesContacted': emergencyServicesContacted.value,
+      if (emergencyServicesContacted.value &&
+          externalAgencyType.value != null &&
+          externalAgencyType.value!.isNotEmpty)
+        'externalAgencyType': externalAgencyType.value,
+      if (agencyReferenceController.text.trim().isNotEmpty)
+        'externalAgencyReference': agencyReferenceController.text.trim(),
+      if (agencyResponderController.text.trim().isNotEmpty)
+        'externalAgencyResponder': agencyResponderController.text.trim(),
+      'familyNotified': familyGuardianNotified.value,
+      if (investigationStatus.value != null)
+        'investigationStatus': investigationStatus.value,
+      if (selectedInvestigator.value != null) ...{
+        'investigatorId': selectedInvestigator.value!.id,
+        'investigatorName': selectedInvestigator.value!.name,
+      },
       if (investigationNotesController.text.trim().isNotEmpty)
         'investigationNotes': investigationNotesController.text.trim(),
+      if (rootCauseController.text.trim().isNotEmpty)
+        'rootCause': rootCauseController.text.trim(),
+      if (correctiveActionController.text.trim().isNotEmpty)
+        'correctiveAction': correctiveActionController.text.trim(),
       'followUpRequired': followUpRequired.value,
       if (followUpDateController.text.trim().isNotEmpty)
-        'followUpDate': followUpDateController.text.trim(),
+        'followUpDueDate': followUpDateController.text.trim(),
       if (selectedSupervisor.value != null)
         'supervisorId': selectedSupervisor.value!.id,
       if (supervisorAssignment.value != null)
         'supervisorName': supervisorAssignment.value,
+      if (selectedAssignedTo.value != null) ...{
+        'assignedToId': selectedAssignedTo.value!.id,
+        'assignedToName': selectedAssignedTo.value!.name,
+      },
+      'debriefCompleted': debriefCompleted.value,
+      if (debriefDetailsController.text.trim().isNotEmpty)
+        'debriefDetails': debriefDetailsController.text.trim(),
+      'childInformedOfRights': childInformedOfRights.value,
       if (additionalNotesController.text.trim().isNotEmpty)
         'additionalNotes': additionalNotesController.text.trim(),
+      'notifications':
+          partyNotifications.map((item) => item.toJson()).toList(),
+      'partiesNotified': {
+        for (final item in partyNotifications)
+          _partySlug(item.party): {
+            'notified': item.notified,
+            if (item.contactName.trim().isNotEmpty)
+              'contactName': item.contactName.trim(),
+            if (item.dateNotified.trim().isNotEmpty)
+              'dateNotified': item.dateNotified.trim(),
+          },
+      },
+      for (final entry in _reportFormAnswers.entries)
+        if (entry.value.text.trim().isNotEmpty)
+          entry.key: entry.value.text.trim(),
     };
+  }
+
+  static String _partySlug(String party) {
+    return party
+        .trim()
+        .toLowerCase()
+        .replaceAll("'", '')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
   }
 
   String? _reportedAtIso() {
@@ -1394,8 +1750,16 @@ class IncidentCreationController extends GetxController {
     locationController.dispose();
     immediateActionController.dispose();
     investigationNotesController.dispose();
+    rootCauseController.dispose();
+    correctiveActionController.dispose();
     followUpDateController.dispose();
+    agencyReferenceController.dispose();
+    agencyResponderController.dispose();
+    debriefDetailsController.dispose();
     additionalNotesController.dispose();
+    for (final controller in _reportFormAnswers.values) {
+      controller.dispose();
+    }
     super.onClose();
   }
 }

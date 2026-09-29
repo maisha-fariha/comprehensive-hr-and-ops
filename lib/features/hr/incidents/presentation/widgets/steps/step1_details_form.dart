@@ -40,17 +40,6 @@ class Step1DetailsForm extends StatelessWidget {
           ),
         ),
         gap,
-        const WizardFieldLabel('CIR Template'),
-        Obx(
-          () => WizardDropdownField(
-            value: controller.cirTemplateLabel,
-            placeholder: controller.isLoadingCirTemplates.value
-                ? 'Loading templates…'
-                : 'Select CIR template',
-            onTap: () => controller.pickCirTemplate(context),
-          ),
-        ),
-        gap,
         const WizardFieldLabel('Incident Title', required: true),
         WizardTextField(controller: controller.incidentTitleController, hint: 'Enter a short title'),
         gap,

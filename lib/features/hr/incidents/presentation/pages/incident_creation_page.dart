@@ -9,12 +9,16 @@ import '../widgets/steps/step1_details_form.dart';
 import '../widgets/steps/step2_people_form.dart';
 import '../widgets/steps/step3_investigate_form.dart';
 import '../widgets/steps/step4_evidence_form.dart';
+import '../widgets/steps/step5_report_form.dart';
 import '../widgets/wizard_bottom_bar.dart';
 import '../widgets/wizard_header.dart';
 
-/// The 4-step "Create Incident" wizard, reached from the "+ Create
+/// The 5-step "Create Incident" wizard, reached from the "+ Create
 /// Incident" button on the Incidents list screen, or in edit mode from
 /// View Investigation → Edit.
+///
+/// Web parity: Details → Location & People → Investigation →
+/// Evidence & Submission → Report Form.
 class IncidentCreationPage extends StatefulWidget {
   final String? editIncidentId;
 
@@ -135,6 +139,7 @@ class _StepBody extends StatelessWidget {
       IncidentCreationStep.investigate =>
         Step3InvestigateForm(controller: controller),
       IncidentCreationStep.evidence => Step4EvidenceForm(controller: controller),
+      IncidentCreationStep.reportForm => Step5ReportForm(controller: controller),
     };
   }
 }

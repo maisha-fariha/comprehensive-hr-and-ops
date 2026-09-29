@@ -131,21 +131,77 @@ abstract final class IncidentsMapper {
 
   /// Parse `GET /incidents/cir-templates`.
   static List<IncidentCirTemplateOption> cirTemplatesFrom(dynamic body) {
+    var source = JsonCodec.unwrapList(body);
+    if (source.isEmpty) {
+      final map = JsonCodec.unwrapMap(body);
+      final nested = map['templates'] ?? map['items'] ?? map['results'];
+      if (nested is List) source = nested;
+    }
     final options = <IncidentCirTemplateOption>[];
-    for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
+    for (final item in source) {
+      if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
       final name = JsonCodec.string(json['name'] ?? json['title']) ?? '';
       if (name.isEmpty) continue;
       options.add(
         IncidentCirTemplateOption(
-          id: JsonCodec.stringOr(json['id'], name),
+          id: JsonCodec.stringOr(json['id'] ?? json['cirTemplateId'], name),
           name: name,
           provinceOrState: JsonCodec.string(json['provinceOrState']),
           version: JsonCodec.integer(json['version']),
+          sections: _cirTemplateSectionsFrom(json['fields'] ?? json['sections']),
         ),
       );
     }
     return options;
+  }
+
+  static List<IncidentCirTemplateSection> _cirTemplateSectionsFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final sections = <IncidentCirTemplateSection>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final title = JsonCodec.stringOr(
+        json['title'] ?? json['label'] ?? json['name'],
+        '',
+      );
+      if (title.isEmpty) continue;
+      final fieldsRaw = json['fields'] ?? json['subFields'];
+      final fields = <IncidentCirTemplateField>[];
+      if (fieldsRaw is List) {
+        for (final fieldItem in fieldsRaw) {
+          if (fieldItem is! Map) continue;
+          final field = JsonCodec.asMap(fieldItem);
+          final key = JsonCodec.stringOr(field['key'] ?? field['id'], '');
+          final label = JsonCodec.stringOr(
+            field['label'] ?? field['title'] ?? field['name'],
+            '',
+          );
+          if (key.isEmpty || label.isEmpty) continue;
+          fields.add(
+            IncidentCirTemplateField(
+              key: key,
+              label: label,
+              type: JsonCodec.stringOr(field['type'], 'text'),
+              required: JsonCodec.boolean(field['required']) ?? false,
+              helpText: JsonCodec.stringOr(
+                field['helpText'] ?? field['placeholder'],
+                '',
+              ),
+            ),
+          );
+        }
+      }
+      sections.add(
+        IncidentCirTemplateSection(
+          key: JsonCodec.stringOr(json['key'] ?? json['id'], title),
+          title: title,
+          fields: fields,
+        ),
+      );
+    }
+    return sections;
   }
 
   /// Parse `GET /staff` into people-picker options.
