@@ -543,6 +543,7 @@ class _IncidentsError extends StatelessWidget {
               onPressed: onRetry,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.secondaryTeal,
+                foregroundColor: Colors.white,
               ),
               child: const Text('Retry'),
             ),

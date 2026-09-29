@@ -2094,6 +2094,19 @@ void main() {
       expect(find.byKey(const ValueKey('dl-add-entry')), findsOneWidget);
     });
 
+    testWidgets('BUG14: Missing rows offer only "Write entry" - no Send Reminder or '
+        'Contact Staff', (tester) async {
+      await _openLogs(tester);
+      await _pickResidence(tester);
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-missing')));
+
+      expect(find.byKey(const ValueKey('dl-write-c2-2026-08-28')), findsOneWidget);
+      expect(find.text('Write entry'), findsWidgets);
+      for (final removed in ['Send Reminder', 'Contact Staff', 'Remind', 'Contact']) {
+        expect(find.textContaining(removed), findsNothing);
+      }
+    });
+
     testWidgets('a resident outside the client list keeps the queue row name', (tester) async {
       final repo = _FakeDailyLogsRepo()..clientRows = const [];
       await _openLogs(tester, repo: repo);

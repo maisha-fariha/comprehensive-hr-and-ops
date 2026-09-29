@@ -49,10 +49,12 @@ class StaffRaiseEmergencyDialog extends StatefulWidget {
 class _StaffRaiseEmergencyDialogState extends State<StaffRaiseEmergencyDialog> {
   static const _emergencyKinds = <({String value, String label})>[
     (value: 'medical', label: 'Medical emergency'),
+    (value: 'fall', label: 'Fall'),
+    (value: 'behaviour', label: 'Resident behaviour'),
+    (value: 'missing_client', label: 'Missing resident'),
+    (value: 'safety', label: 'Safety concern'),
+    (value: 'fire', label: 'Fire or facility'),
     (value: 'security', label: 'Security'),
-    (value: 'fire', label: 'Fire'),
-    (value: 'behavioral', label: 'Behavioral'),
-    (value: 'missing', label: 'Missing person'),
     (value: 'other', label: 'Other'),
   ];
 

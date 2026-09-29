@@ -11,6 +11,8 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../communication/presentation/pages/communication_page.dart';
 import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../../../emergency/domain/repositories/emergency_repository.dart';
+import '../../../emergency/presentation/widgets/raise_emergency_sheet.dart';
 import '../../../hr_shell.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/manager_page_search_sheet.dart';
@@ -37,6 +39,14 @@ class ManagerDashboardPage extends StatelessWidget {
       return Get.find<DashboardController>();
     } catch (_) {
       return Get.put(GetIt.instance<DashboardController>(), permanent: true);
+    }
+  }
+
+  bool _canRaiseEmergency() {
+    try {
+      return Get.find<UserSession>().canRaiseEmergency;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -95,6 +105,13 @@ class ManagerDashboardPage extends StatelessWidget {
                             Get.to(() => const PortalNotificationsPage()),
                         onAvatarTap: () =>
                             Get.to(() => const HrProfileSettingsPage()),
+                        onRaiseEmergency: _canRaiseEmergency()
+                            ? () => showRaiseEmergencySheet(
+                                  context,
+                                  repository:
+                                      GetIt.instance<EmergencyRepository>(),
+                                )
+                            : null,
                       ),
                     ),
                     Positioned(
@@ -181,11 +198,13 @@ class _DashboardHeader extends StatelessWidget {
   final DashboardOverview overview;
   final VoidCallback? onNotificationsTap;
   final VoidCallback? onAvatarTap;
+  final VoidCallback? onRaiseEmergency;
 
   const _DashboardHeader({
     required this.overview,
     this.onNotificationsTap,
     this.onAvatarTap,
+    this.onRaiseEmergency,
   });
 
   @override
@@ -233,8 +252,19 @@ class _DashboardHeader extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _OrganizationSwitcher(name: overview.organizationName),
-                      Spacer(),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _OrganizationSwitcher(
+                            name: overview.organizationName,
+                          ),
+                        ),
+                      ),
+                      if (onRaiseEmergency != null) ...[
+                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                        EmergencyRaiseButton(onPressed: onRaiseEmergency!, onDark: true),
+                        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+                      ],
                       _NotificationButton(
                         count: overview.unreadNotificationCount,
                         onTap: onNotificationsTap,
@@ -349,6 +379,7 @@ class _OrganizationSwitcher extends StatelessWidget {
             child: Text(
               name,
               maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w600,
@@ -1182,6 +1213,7 @@ class _DashboardError extends StatelessWidget {
               onPressed: onRetry,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.secondaryTeal,
+                foregroundColor: Colors.white,
               ),
               child: const Text('Retry'),
             ),

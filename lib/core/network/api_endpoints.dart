@@ -157,6 +157,14 @@ abstract final class ApiEndpoints {
       '$emergencyAlerts/$id/cancel';
   static String emergencyAlertById(String id) => '$emergencyAlerts/$id';
   static String emergencyAlertNotes(String id) => '$emergencyAlerts/$id/notes';
+  static String emergencyAlertAcknowledge(String id) =>
+      '$emergencyAlerts/$id/acknowledge';
+  static String emergencyAlertResolve(String id) =>
+      '$emergencyAlerts/$id/resolve';
+  static String emergencyAlertAssign(String id) =>
+      '$emergencyAlerts/$id/assign';
+  static String emergencyAlertStatus(String id) =>
+      '$emergencyAlerts/$id/status';
   static String referralAssessments(String id) => '$referrals/$id/assessments';
   static const String complianceScore = '/compliance/score';
   static const String complianceOverview = '/compliance/overview';

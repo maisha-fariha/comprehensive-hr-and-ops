@@ -54,25 +54,28 @@ abstract final class IncidentsMapper {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
       final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
-      final name = JsonCodec.string(
-            json['preferredName'] ??
-                json['fullName'] ??
-                json['name'] ??
-                json['displayName'] ??
-                json['clientName'] ??
-                json['residentName'],
-          ) ??
-          '';
+      final fullName = [json['firstName'], json['lastName']]
+          .map((part) => JsonCodec.string(part)?.trim() ?? '')
+          .where((part) => part.isNotEmpty)
+          .join(' ');
+      final name = fullName.isNotEmpty
+          ? fullName
+          : JsonCodec.string(
+                json['preferredName'] ??
+                    json['fullName'] ??
+                    json['name'] ??
+                    json['displayName'] ??
+                    json['clientName'] ??
+                    json['residentName'],
+              ) ??
+              '';
       if (name.isEmpty) continue;
 
-      final room = JsonCodec.string(
-        json['room'] ?? json['roomNumber'] ?? json['location'],
-      );
       final residenceName = JsonCodec.string(
         json['residenceName'] ?? residence['name'],
-      );
+      )?.trim();
       final subtitle = [
-        if (room != null && room.isNotEmpty) room,
+        'Client',
         if (residenceName != null && residenceName.isNotEmpty) residenceName,
       ].join(' · ');
 
@@ -84,7 +87,7 @@ abstract final class IncidentsMapper {
             json['residenceId'] ?? residence['id'],
           ),
           residenceName: residenceName,
-          subtitle: subtitle.isEmpty ? null : subtitle,
+          subtitle: subtitle,
         ),
       );
     }

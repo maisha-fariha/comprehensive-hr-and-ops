@@ -6,6 +6,7 @@ import '../../../core/roles/user_session.dart';
 import '../clients/presentation/pages/clients_page.dart';
 import '../communication/presentation/pages/communication_page.dart';
 import '../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../emergency/presentation/pages/emergency_page.dart';
 import '../handovers/presentation/pages/handovers_page.dart';
 import '../hr_shell.dart';
 import '../medication/presentation/pages/medication_page.dart';
@@ -127,6 +128,16 @@ List<ManagerDestination> managerDestinations() {
       keywords: const ['alerts'],
       inMoreMenu: false,
     ),
+    if (can('emergency:read'))
+      ManagerDestination(
+        title: 'Emergency',
+        subtitle: 'Raised alarms and who is responding',
+        icon: Icons.crisis_alert_rounded,
+        iconBackground: AppColors.criticalBackgroundSoft,
+        iconColor: AppColors.criticalRed,
+        open: () => Get.to(() => const EmergencyPage()),
+        keywords: const ['emergency', 'alarm', 'alarms', 'sos', 'alert'],
+      ),
     ManagerDestination(
       title: 'Daily Logs',
       subtitle: 'Review queue, missing logs & resident days',
