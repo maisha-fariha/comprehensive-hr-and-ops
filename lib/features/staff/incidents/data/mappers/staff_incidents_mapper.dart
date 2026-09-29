@@ -744,12 +744,16 @@ abstract final class StaffIncidentsMapper {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
       final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final first = JsonCodec.stringOr(json['firstName'], '');
+      final last = JsonCodec.stringOr(json['lastName'], '');
+      final composed = '$first $last'.trim();
       final name = JsonCodec.string(
             json['preferredName'] ??
                 json['fullName'] ??
                 json['name'] ??
                 json['displayName'] ??
-                json['clientName'],
+                json['clientName'] ??
+                (composed.isEmpty ? null : composed),
           ) ??
           '';
       if (name.isEmpty) continue;

@@ -166,12 +166,6 @@ class IncidentCreationController extends GetxController {
   // Report Form (BUG_Report017) — answers keyed by CIR field key
   // Controllers created lazily via [reportFormAnswerController].
 
-  // Follow-up checklist — tri-state (null = unanswered)
-  final RxnBool residentChecked = RxnBool();
-  final RxnBool supervisorNotified = RxnBool();
-  final RxnBool familyNotified = RxnBool();
-  final RxnBool carePlanReviewed = RxnBool();
-
   final RxBool isSubmitting = false.obs;
   final RxBool isLoadingOptions = false.obs;
 
@@ -455,27 +449,40 @@ class IncidentCreationController extends GetxController {
   Future<void> _searchClients(String query) async {
     final requestId = ++_clientSearchRequestId;
     isSearchingClients.value = true;
+    // Match web: search all tenants clients (optionally scoped by residence
+    // via API), then show results — do not drop rows client-side when the
+    // selected residence id differs (user can still pick; selecting a client
+    // syncs residence).
     final result = await repository.getClients(
       search: query,
+      residenceId: selectedResidence.value?.id,
       assignedToMe: false,
     );
     if (requestId != _clientSearchRequestId) return;
     isSearchingClients.value = false;
     result.when(
       success: (list) {
-        final residenceId = selectedResidence.value?.id;
-        final filtered = residenceId == null
-            ? list
-            : list
-                .where(
-                  (c) =>
-                      c.residenceId == null ||
-                      c.residenceId == residenceId ||
-                      c.residenceId!.isEmpty,
-                )
-                .toList();
-        clientSuggestions.assignAll(filtered);
+        // If residence-scoped search returned nothing, fall back to unscoped
+        // search so options still appear (web lists Mala Box clients even
+        // before residence is chosen).
+        if (list.isEmpty && selectedResidence.value?.id != null) {
+          _searchClientsUnscoped(query, requestId);
+          return;
+        }
+        clientSuggestions.assignAll(list);
       },
+      failure: (_) => clientSuggestions.clear(),
+    );
+  }
+
+  Future<void> _searchClientsUnscoped(String query, int requestId) async {
+    final result = await repository.getClients(
+      search: query,
+      assignedToMe: false,
+    );
+    if (requestId != _clientSearchRequestId) return;
+    result.when(
+      success: clientSuggestions.assignAll,
       failure: (_) => clientSuggestions.clear(),
     );
   }
@@ -716,18 +723,6 @@ class IncidentCreationController extends GetxController {
     }
   }
 
-  /// Cycle null → true → false → null for inspector-safe tri-state.
-  void cycleChecklist(RxnBool field) {
-    final current = field.value;
-    if (current == null) {
-      field.value = true;
-    } else if (current == true) {
-      field.value = false;
-    } else {
-      field.value = null;
-    }
-  }
-
   Future<void> pickEvidence() async {
     final picked = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -866,11 +861,7 @@ class IncidentCreationController extends GetxController {
       cirTemplateId: selectedCirTemplate.value?.id,
       occurredAt: occurredAt,
       description: description,
-      residentChecked: residentChecked.value,
-      supervisorNotified: supervisorNotified.value,
-      familyNotified:
-          familyGuardianNotified.value || (familyNotified.value ?? false),
-      carePlanReviewed: carePlanReviewed.value,
+      familyNotified: familyGuardianNotified.value,
       immediateAction: immediateActionController.text.trim().isEmpty
           ? null
           : immediateActionController.text.trim(),
