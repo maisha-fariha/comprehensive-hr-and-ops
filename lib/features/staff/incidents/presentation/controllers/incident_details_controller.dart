@@ -83,6 +83,15 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
 
   /// Share CIR PDF built with the same [CirPdfBuilder] as manager details.
   Future<void> shareCirPdf() async {
+    await _handleCirPdf(forPrint: false);
+  }
+
+  /// Print CIR PDF via [Printing.layoutPdf].
+  Future<void> printCirPdf() async {
+    await _handleCirPdf(forPrint: true);
+  }
+
+  Future<void> _handleCirPdf({required bool forPrint}) async {
     final detail = state.value.data;
     final summary = detail?.cirReport;
     if (summary == null || isOpeningCirPdf.value) return;
@@ -102,14 +111,24 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
             generatedFor.trim().isEmpty ? 'User' : generatedFor.trim(),
       );
 
-      await Printing.sharePdf(
-        bytes: pdfBytes,
-        filename: fileName,
-        subject: summary.title,
-        body: 'Critical Incident Report — ${summary.title}',
-      );
+      if (forPrint) {
+        await Printing.layoutPdf(
+          name: fileName,
+          onLayout: (_) async => pdfBytes,
+        );
+      } else {
+        await Printing.sharePdf(
+          bytes: pdfBytes,
+          filename: fileName,
+          subject: summary.title,
+          body: 'Critical Incident Report — ${summary.title}',
+        );
+      }
     } catch (error) {
-      AppSnackbar.show('Could not share PDF', error.toString());
+      AppSnackbar.show(
+        forPrint ? 'Could not print PDF' : 'Could not share PDF',
+        error.toString(),
+      );
     } finally {
       isOpeningCirPdf.value = false;
     }

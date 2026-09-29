@@ -836,6 +836,16 @@ class IncidentCreationController extends GetxController {
         'transcription': transcriptionController.text.trim(),
       'notifications':
           partyNotifications.map((item) => item.toJson()).toList(),
+      'partiesNotified': {
+        for (final item in partyNotifications)
+          _partySlug(item.party): {
+            'notified': item.notified,
+            if (item.contactName.trim().isNotEmpty)
+              'contactName': item.contactName.trim(),
+            if (item.dateNotified.trim().isNotEmpty)
+              'dateNotified': item.dateNotified.trim(),
+          },
+      },
       if (categoryDetailsController.text.trim().isNotEmpty)
         'categoryDetail': categoryDetailsController.text.trim(),
       if (endTimeController.text.trim().isNotEmpty)
@@ -996,6 +1006,16 @@ class IncidentCreationController extends GetxController {
     return DateTime(date.year, date.month, date.day, hour, minute)
         .toUtc()
         .toIso8601String();
+  }
+
+  static String _partySlug(String party) {
+    return party
+        .trim()
+        .toLowerCase()
+        .replaceAll("'", '')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
   }
 
   DateTime? _parseDate(String raw) {

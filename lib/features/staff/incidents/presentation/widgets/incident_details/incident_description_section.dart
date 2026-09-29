@@ -37,7 +37,7 @@ class IncidentDescriptionSection extends StatelessWidget {
             ],
           ),
           child: Text(
-            description.isEmpty ? 'No description provided.' : description,
+            description.isEmpty ? 'No description recorded.' : description,
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w400,
