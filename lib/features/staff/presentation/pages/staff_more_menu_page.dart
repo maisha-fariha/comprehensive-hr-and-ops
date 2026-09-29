@@ -8,8 +8,8 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/user_role.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
+import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
 import '../../extras/presentation/pages/staff_admissions_page.dart';
-import '../../extras/presentation/pages/staff_client_activities_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
 import '../../extras/presentation/pages/staff_emergency_page.dart';
 import '../../extras/presentation/pages/staff_inventory_page.dart';
@@ -168,7 +168,7 @@ class StaffMoreMenuPage extends StatelessWidget {
       case 'Shift handovers':
         Get.to(() => const StaffShiftHandoversPage());
       case 'Daily Activity':
-        Get.to(() => const StaffClientActivitiesPage());
+        Get.to(() => const StaffDailyActivityPage());
       case 'Inventory':
         Get.to(() => const StaffInventoryPage());
       case 'Admissions':
