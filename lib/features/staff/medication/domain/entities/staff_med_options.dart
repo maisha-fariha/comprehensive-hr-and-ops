@@ -25,6 +25,15 @@ class StaffMedClientOption {
   });
 }
 
+/// Recurring-check schedule option for "Requires a check first".
+@immutable
+class StaffMedCheckOption {
+  final String id;
+  final String name;
+
+  const StaffMedCheckOption({required this.id, required this.name});
+}
+
 /// Payload for `POST /medications`.
 @immutable
 class StaffCreateMedicationInput {
@@ -39,6 +48,7 @@ class StaffCreateMedicationInput {
   final DateTime? startsAt;
   final DateTime? endsAt;
   final bool isControlled;
+  final String? requiresCheckScheduleId;
 
   const StaffCreateMedicationInput({
     required this.residenceId,
@@ -52,6 +62,7 @@ class StaffCreateMedicationInput {
     this.startsAt,
     this.endsAt,
     this.isControlled = false,
+    this.requiresCheckScheduleId,
   });
 }
 
@@ -68,6 +79,8 @@ class StaffCreatePrnMedicationInput {
   final DateTime? startsAt;
   final DateTime? endsAt;
   final bool isControlled;
+  final int? minIntervalMinutes;
+  final String? requiresCheckScheduleId;
 
   const StaffCreatePrnMedicationInput({
     required this.residenceId,
@@ -80,5 +93,7 @@ class StaffCreatePrnMedicationInput {
     this.startsAt,
     this.endsAt,
     this.isControlled = false,
+    this.minIntervalMinutes,
+    this.requiresCheckScheduleId,
   });
 }

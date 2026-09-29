@@ -40,6 +40,12 @@ const Map<StaffDailyLogStatTag, _StatTagStyle> _statTagStyles = {
     iconColor: Color(0xFFE5484D),
     iconBackground: Color(0xFFFFEBEE),
   ),
+  StaffDailyLogStatTag.missingLogs: _StatTagStyle(
+    svgAsset: 'assets/icons/staff_daily_logs/clock.svg',
+    valueColor: Color(0xFFE5484D),
+    iconColor: Color(0xFFE5484D),
+    iconBackground: Color(0xFFFFEBEE),
+  ),
 };
 
 /// A single tile in the top stats row: circular icon → colored value →

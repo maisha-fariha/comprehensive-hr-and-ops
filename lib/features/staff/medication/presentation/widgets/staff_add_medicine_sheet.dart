@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get_it/get_it.dart';
 
@@ -18,6 +19,7 @@ class StaffAddMedicineSheet extends StatefulWidget {
     BuildContext context, {
     VoidCallback? onCreated,
   }) {
+    final height = MediaQuery.sizeOf(context).height;
     final wide = MediaQuery.sizeOf(context).width >= 720;
     if (wide) {
       return showDialog<bool>(
@@ -31,7 +33,7 @@ class StaffAddMedicineSheet extends StatefulWidget {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: SizedBox(
             width: 720,
-            height: MediaQuery.sizeOf(context).height * 0.88,
+            height: height * 0.9,
             child: StaffAddMedicineSheet(onCreated: onCreated),
           ),
         ),
@@ -45,7 +47,10 @@ class StaffAddMedicineSheet extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => StaffAddMedicineSheet(onCreated: onCreated),
+      builder: (_) => SizedBox(
+        height: height * 0.94,
+        child: StaffAddMedicineSheet(onCreated: onCreated),
+      ),
     );
   }
 
@@ -59,11 +64,14 @@ class _MedicineDraft {
   final route = TextEditingController();
   final stock = TextEditingController();
   final whenToGive = TextEditingController();
+  final timeInput = TextEditingController();
+  final minGap = TextEditingController();
   bool controlled = false;
   String frequency = 'daily';
-  final Set<String> times = {'08:00'};
+  final List<String> times = ['08:00'];
   DateTime? startsAt;
   DateTime? endsAt;
+  String? requiresCheckScheduleId;
 
   void dispose() {
     name.dispose();
@@ -71,6 +79,8 @@ class _MedicineDraft {
     route.dispose();
     stock.dispose();
     whenToGive.dispose();
+    timeInput.dispose();
+    minGap.dispose();
   }
 }
 
@@ -78,9 +88,11 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   final _repo = GetIt.instance<StaffMedicationRepository>();
+  final _scroll = ScrollController();
 
   List<StaffMedResidenceOption> _residences = [];
   List<StaffMedClientOption> _clients = [];
+  List<StaffMedCheckOption> _checks = [];
   bool _loadingOptions = true;
   bool _submitting = false;
   String? _banner;
@@ -88,16 +100,6 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   StaffMedResidenceOption? _residence;
   StaffMedClientOption? _client;
   final List<_MedicineDraft> _medicines = [_MedicineDraft()];
-
-  static const _timeChoices = [
-    '06:00',
-    '08:00',
-    '12:00',
-    '14:00',
-    '17:00',
-    '20:00',
-    '22:00',
-  ];
 
   @override
   void initState() {
@@ -112,6 +114,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   @override
   void dispose() {
     _tabs.dispose();
+    _scroll.dispose();
     for (final m in _medicines) {
       m.dispose();
     }
@@ -122,30 +125,36 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     setState(() => _loadingOptions = true);
     final residences = await _repo.getResidences();
     residences.when(
-      success: (list) {
-        _residences = list;
-        if (_residence == null && list.isNotEmpty) {
-          _residence = list.first;
-        }
-      },
+      success: (list) => _residences = list,
       failure: (_) {},
     );
-    await _reloadClients();
+    await _reloadClientsAndChecks();
     if (mounted) setState(() => _loadingOptions = false);
   }
 
-  Future<void> _reloadClients() async {
-    final result = await _repo.getClients(residenceId: _residence?.id);
-    result.when(
+  Future<void> _reloadClientsAndChecks() async {
+    final clients = await _repo.getClients(residenceId: _residence?.id);
+    clients.when(
       success: (list) {
         _clients = list;
         if (_client != null && list.every((c) => c.id != _client!.id)) {
           _client = null;
         }
       },
-      failure: (_) {
-        _clients = [];
+      failure: (_) => _clients = [],
+    );
+    final checks = await _repo.getCheckSchedules(residenceId: _residence?.id);
+    checks.when(
+      success: (list) {
+        _checks = list;
+        for (final m in _medicines) {
+          if (m.requiresCheckScheduleId != null &&
+              list.every((c) => c.id != m.requiresCheckScheduleId)) {
+            m.requiresCheckScheduleId = null;
+          }
+        }
       },
+      failure: (_) => _checks = [],
     );
   }
 
@@ -154,18 +163,25 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   String get _title => _isPrn ? 'Add a PRN medicine' : 'Add a medicine';
 
   String get _subtitle => _isPrn
-      ? 'Not prescribed for set times — given as needed.'
+      ? 'Not prescribed by a doctor — given as needed.'
       : 'Charted at set times against one resident.';
 
   void _addMedicine() {
     setState(() => _medicines.add(_MedicineDraft()));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   void _removeMedicine(int index) {
     if (_medicines.length <= 1) return;
-    setState(() {
-      _medicines.removeAt(index).dispose();
-    });
+    setState(() => _medicines.removeAt(index).dispose());
   }
 
   String? _validate() {
@@ -177,7 +193,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
         return 'Medicine ${i + 1}: name is required.';
       }
       if (!_isPrn && m.times.isEmpty) {
-        return 'Medicine ${i + 1}: select at least one schedule time.';
+        return 'Medicine ${i + 1}: add at least one schedule time.';
       }
     }
     return null;
@@ -198,6 +214,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     var saved = 0;
     for (final m in _medicines) {
       final stock = int.tryParse(m.stock.text.trim());
+      final gap = int.tryParse(m.minGap.text.trim());
       final result = _isPrn
           ? await _repo.createPrnMedication(
               StaffCreatePrnMedicationInput(
@@ -213,6 +230,8 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                 startsAt: m.startsAt,
                 endsAt: m.endsAt,
                 isControlled: m.controlled,
+                minIntervalMinutes: gap,
+                requiresCheckScheduleId: m.requiresCheckScheduleId,
               ),
             )
           : await _repo.createMedication(
@@ -224,10 +243,11 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                 route: m.route.text.trim().isEmpty ? null : m.route.text.trim(),
                 stockUnitsPerDose: stock,
                 scheduleFrequency: m.frequency,
-                scheduleTimes: m.times.toList()..sort(),
+                scheduleTimes: List<String>.from(m.times)..sort(),
                 startsAt: m.startsAt,
                 endsAt: m.endsAt,
                 isControlled: m.controlled,
+                requiresCheckScheduleId: m.requiresCheckScheduleId,
               ),
             );
       if (result.isFailure) {
@@ -257,7 +277,9 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     AppSnackbar.show(
       'Medicine added',
       saved == 1
-          ? (_isPrn ? 'PRN medicine was created.' : 'Scheduled medicine was created.')
+          ? (_isPrn
+              ? 'PRN medicine was created.'
+              : 'Scheduled medicine was created.')
           : '$saved medicines were created.',
     );
     Navigator.of(context).pop(true);
@@ -291,27 +313,24 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
-    final wide = MediaQuery.sizeOf(context).width >= 720;
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: SizedBox(
-        height: wide ? null : MediaQuery.sizeOf(context).height * 0.92,
+    return Material(
+      color: AppColors.surfaceWhite,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottom),
         child: Column(
           children: [
-            if (!wide) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.cardBorder,
-                  borderRadius: BorderRadius.circular(999),
-                ),
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.cardBorder,
+                borderRadius: BorderRadius.circular(999),
               ),
-            ],
+            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 8, 0),
+              padding: const EdgeInsets.fromLTRB(20, 12, 8, 0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -319,7 +338,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                     width: 40,
                     height: 40,
                     decoration: const BoxDecoration(
-                      color: AppColors.secondaryTeal,
+                      color: AppColors.primaryNavy,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -374,7 +393,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                   indicatorSize: TabBarIndicatorSize.tab,
                   dividerColor: Colors.transparent,
                   indicator: BoxDecoration(
-                    color: AppColors.secondaryTeal,
+                    color: AppColors.primaryNavy,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   labelColor: Colors.white,
@@ -420,6 +439,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                       ),
                     )
                   : ListView(
+                      controller: _scroll,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
                         Text(
@@ -431,99 +451,92 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<
-                                  StaffMedResidenceOption>(
-                                key: ValueKey(_residence?.id),
-                                initialValue: _residence,
-                                decoration: const InputDecoration(
-                                  labelText: 'House *',
-                                  hintText: 'Where it is held',
-                                ),
-                                items: [
-                                  for (final r in _residences)
-                                    DropdownMenuItem(
-                                      value: r,
-                                      child: Text(r.name),
-                                    ),
-                                ],
-                                onChanged: (value) async {
-                                  setState(() {
-                                    _residence = value;
-                                    _client = null;
-                                  });
-                                  await _reloadClients();
-                                  if (mounted) setState(() {});
-                                },
-                              ),
+                        _Labeled(
+                          label: 'House *',
+                          child: DropdownButtonFormField<
+                              StaffMedResidenceOption>(
+                            key: ValueKey('house-${_residence?.id}'),
+                            initialValue: _residence,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              hintText: 'Where it is held',
+                              border: OutlineInputBorder(),
+                              isDense: true,
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: DropdownButtonFormField<
-                                  StaffMedClientOption?>(
-                                key: ValueKey(
-                                  '${_residence?.id}-${_client?.id ?? 'none'}-${_clients.length}',
+                            items: [
+                              for (final r in _residences)
+                                DropdownMenuItem(
+                                  value: r,
+                                  child: Text(
+                                    r.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                initialValue: _client,
-                                decoration: InputDecoration(
-                                  labelText: _isPrn
-                                      ? 'Resident (optional)'
-                                      : 'Resident *',
-                                  hintText: _residence == null
-                                      ? 'Choose a house first'
-                                      : (_clients.isEmpty
-                                          ? 'No residents in house'
-                                          : 'Search residents'),
-                                ),
-                                items: [
-                                  if (_isPrn)
-                                    const DropdownMenuItem<
-                                        StaffMedClientOption?>(
-                                      value: null,
-                                      child: Text('— None —'),
-                                    ),
-                                  for (final c in _clients)
-                                    DropdownMenuItem<StaffMedClientOption?>(
-                                      value: c,
-                                      child: Text(c.name),
-                                    ),
-                                ],
-                                onChanged: _residence == null
-                                    ? null
-                                    : (value) =>
-                                        setState(() => _client = value),
-                              ),
-                            ),
-                          ],
+                            ],
+                            onChanged: (value) async {
+                              setState(() {
+                                _residence = value;
+                                _client = null;
+                              });
+                              await _reloadClientsAndChecks();
+                              if (mounted) setState(() {});
+                            },
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Medication details',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
+                        const SizedBox(height: 12),
+                        _Labeled(
+                          label: _isPrn ? 'Resident (optional)' : 'Resident *',
+                          child: DropdownButtonFormField<
+                              StaffMedClientOption?>(
+                            key: ValueKey(
+                              'resident-${_residence?.id}-${_client?.id}-${_clients.length}',
+                            ),
+                            initialValue: _client,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              hintText: _residence == null
+                                  ? 'Choose a house first'
+                                  : (_clients.isEmpty
+                                      ? 'No residents in house'
+                                      : 'Choose a resident'),
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: [
+                              if (_isPrn)
+                                const DropdownMenuItem<StaffMedClientOption?>(
+                                  value: null,
+                                  child: Text('— None —'),
                                 ),
+                              for (final c in _clients)
+                                DropdownMenuItem<StaffMedClientOption?>(
+                                  value: c,
+                                  child: Text(
+                                    c.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: _residence == null
+                                ? null
+                                : (value) => setState(() => _client = value),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: _addMedicine,
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text(
+                              'Add another medicine',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
                               ),
                             ),
-                            TextButton.icon(
-                              onPressed: _addMedicine,
-                              icon: const Icon(Icons.add, size: 16),
-                              label: const Text(
-                                'Add another medicine',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                         for (var i = 0; i < _medicines.length; i++)
                           _MedicineCard(
@@ -531,7 +544,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                             draft: _medicines[i],
                             isPrn: _isPrn,
                             canRemove: _medicines.length > 1,
-                            timeChoices: _timeChoices,
+                            checks: _checks,
                             onRemove: () => _removeMedicine(i),
                             onChanged: () => setState(() {}),
                             onPickStart: () =>
@@ -546,10 +559,10 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                 child: Row(
                   children: [
-                    TextButton(
+                    OutlinedButton(
                       onPressed:
                           _submitting ? null : () => Navigator.pop(context),
                       child: const Text('Cancel'),
@@ -559,9 +572,9 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                       key: const Key('staff-mar-add-medicine-save'),
                       onPressed: _submitting ? null : _submit,
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.secondaryTeal,
+                        backgroundColor: AppColors.primaryNavy,
                         minimumSize: Size(
-                          ResponsiveHelper.getResponsiveWidth(context, 140),
+                          ResponsiveHelper.getResponsiveWidth(context, 120),
                           44,
                         ),
                       ),
@@ -574,7 +587,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                                 color: Colors.white,
                               ),
                             )
-                          : Text(_isPrn ? 'Add' : 'Add'),
+                          : const Text('Add'),
                     ),
                   ],
                 ),
@@ -587,12 +600,39 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   }
 }
 
+class _Labeled extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _Labeled({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: 12.5,
+            color: AppColors.textHeading,
+          ),
+        ),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
+
 class _MedicineCard extends StatelessWidget {
   final int index;
   final _MedicineDraft draft;
   final bool isPrn;
   final bool canRemove;
-  final List<String> timeChoices;
+  final List<StaffMedCheckOption> checks;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
   final VoidCallback onPickStart;
@@ -604,13 +644,36 @@ class _MedicineCard extends StatelessWidget {
     required this.draft,
     required this.isPrn,
     required this.canRemove,
-    required this.timeChoices,
+    required this.checks,
     required this.onRemove,
     required this.onChanged,
     required this.onPickStart,
     required this.onPickEnd,
     required this.formatDate,
   });
+
+  void _commitTime() {
+    final raw = draft.timeInput.text.trim();
+    if (raw.isEmpty) return;
+    final normalized = _normalizeTime(raw);
+    if (normalized == null) return;
+    if (!draft.times.contains(normalized)) {
+      draft.times.add(normalized);
+      draft.times.sort();
+    }
+    draft.timeInput.clear();
+    onChanged();
+  }
+
+  static String? _normalizeTime(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'[^\d:]'), '');
+    final match = RegExp(r'^(\d{1,2}):?(\d{2})$').firstMatch(cleaned);
+    if (match == null) return null;
+    final h = int.tryParse(match.group(1)!);
+    final m = int.tryParse(match.group(2)!);
+    if (h == null || m == null || h > 23 || m > 59) return null;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -627,7 +690,7 @@ class _MedicineCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Medicine ${index + 1}',
+                _medicinesLabel(index),
                 style: const TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
@@ -643,32 +706,34 @@ class _MedicineCard extends StatelessWidget {
                 ),
             ],
           ),
-          TextField(
-            controller: draft.name,
-            decoration: const InputDecoration(
-              labelText: 'Medicine *',
-              hintText: 'Paracetamol 500mg',
-            ),
-          ),
-          const SizedBox(height: 12),
+          // Medicine * | Dose
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: TextField(
-                  controller: draft.dose,
-                  decoration: const InputDecoration(
-                    labelText: 'Dose',
-                    hintText: '1 tablet',
+                child: _Labeled(
+                  label: 'Medicine *',
+                  child: TextField(
+                    controller: draft.name,
+                    decoration: const InputDecoration(
+                      hintText: 'Paracetamol 500mg',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: TextField(
-                  controller: draft.route,
-                  decoration: const InputDecoration(
-                    labelText: 'Route',
-                    hintText: 'Oral, topical, inhaled…',
+                child: _Labeled(
+                  label: 'Dose',
+                  child: TextField(
+                    controller: draft.dose,
+                    decoration: const InputDecoration(
+                      hintText: '1 tablet',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
                   ),
                 ),
               ),
@@ -676,114 +741,189 @@ class _MedicineCard extends StatelessWidget {
           ),
           if (isPrn) ...[
             const SizedBox(height: 12),
-            TextField(
-              controller: draft.whenToGive,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'When to give it',
-                hintText:
-                    'For pain, up to 4 in 24 hours, at least 4 hours apart…',
-                alignLabelWithHint: true,
+            _Labeled(
+              label: 'When to give it',
+              child: TextField(
+                controller: draft.whenToGive,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText:
+                      'For pain, up to 4 in 24 hours, at least 4 hours apart...',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
               ),
             ),
-          ],
-          const SizedBox(height: 12),
-          TextField(
-            controller: draft.stock,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Units of stock per dose',
-              hintText: 'Leave blank to count stock by hand',
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Only set this where a dose maps cleanly onto the stock unit.',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 11,
-              color: AppColors.textMuted,
-            ),
-          ),
-          if (!isPrn) ...[
+          ] else ...[
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: draft.frequency,
-              decoration: const InputDecoration(labelText: 'How often'),
-              items: const [
-                DropdownMenuItem(value: 'daily', child: Text('Every day')),
-                DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
-              ],
-              onChanged: (value) {
-                if (value == null) return;
-                draft.frequency = value;
-                onChanged();
-              },
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'At what times',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: AppColors.textHeading,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '24-hour, one per entry — 08:00, 14:00, 20:00.',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 11,
-                color: AppColors.textMuted,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            // How often | At what times
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final t in timeChoices)
-                  FilterChip(
-                    label: Text(t),
-                    selected: draft.times.contains(t),
-                    onSelected: (selected) {
-                      if (selected) {
-                        draft.times.add(t);
-                      } else {
-                        draft.times.remove(t);
-                      }
-                      onChanged();
-                    },
-                    selectedColor: AppColors.activeBackground,
-                    checkmarkColor: AppColors.secondaryTeal,
-                    labelStyle: TextStyle(
-                      fontFamily: 'Outfit',
-                      color: draft.times.contains(t)
-                          ? AppColors.secondaryTeal
-                          : AppColors.textBody,
+                Expanded(
+                  child: _Labeled(
+                    label: 'How often',
+                    child: DropdownButtonFormField<String>(
+                      initialValue: draft.frequency,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'daily',
+                          child: Text('Every day'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'weekly',
+                          child: Text('Weekly'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        draft.frequency = value;
+                        onChanged();
+                      },
                     ),
                   ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _Labeled(
+                    label: 'At what times',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: draft.timeInput,
+                          decoration: const InputDecoration(
+                            hintText: 'Type and press Enter...',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          keyboardType: TextInputType.datetime,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _commitTime(),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9:]'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          '24-hour, one per entry — 08:00, 14:00, 20:00',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        if (draft.times.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final t in draft.times)
+                                InputChip(
+                                  label: Text(t),
+                                  onDeleted: () {
+                                    draft.times.remove(t);
+                                    onChanged();
+                                  },
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
           const SizedBox(height: 12),
+          // Route | Units of stock
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _Labeled(
+                  label: 'Route',
+                  child: TextField(
+                    controller: draft.route,
+                    decoration: const InputDecoration(
+                      hintText: 'Oral, topical, inhaled...',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _Labeled(
+                  label: 'Units of stock per dose',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: draft.stock,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          hintText: 'Leave blank to count stock by hand',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Only set this where a dose maps cleanly onto the stock unit.',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 11,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Starts | Ends
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onPickStart,
-                  icon: const Icon(Icons.calendar_today_outlined, size: 14),
-                  label: Text('Starts: ${formatDate(draft.startsAt)}'),
+                child: _Labeled(
+                  label: 'Starts (optional)',
+                  child: OutlinedButton.icon(
+                    onPressed: onPickStart,
+                    icon: const Icon(Icons.calendar_today_outlined, size: 14),
+                    label: Text(formatDate(draft.startsAt)),
+                    style: OutlinedButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onPickEnd,
-                  icon: const Icon(Icons.calendar_today_outlined, size: 14),
-                  label: Text('Ends: ${formatDate(draft.endsAt)}'),
+                child: _Labeled(
+                  label: 'Ends (optional)',
+                  child: OutlinedButton.icon(
+                    onPressed: onPickEnd,
+                    icon: const Icon(Icons.calendar_today_outlined, size: 14),
+                    label: Text(formatDate(draft.endsAt)),
+                    style: OutlinedButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -791,7 +931,7 @@ class _MedicineCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             isPrn
-                ? 'Leave both blank if this PRN has no date window.'
+                ? 'Leave both blank for standing house stock.'
                 : 'Leave both blank for a standing prescription.',
             style: const TextStyle(
               fontFamily: 'Outfit',
@@ -799,6 +939,35 @@ class _MedicineCard extends StatelessWidget {
               color: AppColors.textMuted,
             ),
           ),
+          if (isPrn) ...[
+            const SizedBox(height: 12),
+            _Labeled(
+              label: 'Shortest gap between doses (minutes)',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: draft.minGap,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      hintText: 'Leave blank for no minimum',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '240 for a medicine prescribed no more often than four hourly.',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           CheckboxListTile(
             contentPadding: EdgeInsets.zero,
             value: draft.controlled,
@@ -807,14 +976,63 @@ class _MedicineCard extends StatelessWidget {
               onChanged();
             },
             title: const Text(
-              'Controlled drug — a witness is required to chart a dose.',
+              'Controlled drug — a witness is required to chart a dose',
               style: TextStyle(fontFamily: 'Outfit', fontSize: 13),
             ),
             controlAffinity: ListTileControlAffinity.leading,
             activeColor: AppColors.secondaryTeal,
           ),
+          _Labeled(
+            label: 'Requires a check first',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<String?>(
+                  key: ValueKey(
+                    'check-${draft.requiresCheckScheduleId}-${checks.length}',
+                  ),
+                  initialValue: draft.requiresCheckScheduleId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('No check required'),
+                    ),
+                    for (final c in checks)
+                      DropdownMenuItem<String?>(
+                        value: c.id,
+                        child: Text(
+                          c.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    draft.requiresCheckScheduleId = value;
+                    onChanged();
+                  },
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'A dose cannot be charted until this check has been recorded',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
+
+  static String _medicinesLabel(int index) =>
+      index == 0 ? 'Medication details' : 'Medicine ${index + 1}';
 }

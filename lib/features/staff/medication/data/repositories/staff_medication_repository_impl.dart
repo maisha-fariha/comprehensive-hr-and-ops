@@ -318,6 +318,9 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       if (input.endsAt != null)
         'endsAt': input.endsAt!.toUtc().toIso8601String(),
       'isControlled': input.isControlled,
+      if (input.requiresCheckScheduleId != null &&
+          input.requiresCheckScheduleId!.isNotEmpty)
+        'requiresCheckScheduleId': input.requiresCheckScheduleId,
     };
     final result = await _api.post(ApiEndpoints.medications, data: data);
     return result.when(
@@ -348,6 +351,11 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       if (input.endsAt != null)
         'endsAt': input.endsAt!.toUtc().toIso8601String(),
       'isControlled': input.isControlled,
+      if (input.minIntervalMinutes != null)
+        'minIntervalMinutes': input.minIntervalMinutes,
+      if (input.requiresCheckScheduleId != null &&
+          input.requiresCheckScheduleId!.isNotEmpty)
+        'requiresCheckScheduleId': input.requiresCheckScheduleId,
     };
     final result = await _api.post(ApiEndpoints.prnMedications, data: data);
     return result.when(
@@ -428,6 +436,40 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
               ),
             ),
           );
+        }
+        return Result.success(options);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<StaffMedCheckOption>>> getCheckSchedules({
+    String? residenceId,
+  }) async {
+    final hasResidence = residenceId != null && residenceId.isNotEmpty;
+    final result = await _api.get(
+      ApiEndpoints.recurringCheckSchedules,
+      query: {
+        'page': 1,
+        'limit': 100,
+        if (hasResidence) 'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final options = <StaffMedCheckOption>[];
+        for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
+          final json = JsonCodec.asMap(item);
+          final id = JsonCodec.string(json['id']);
+          final name = JsonCodec.string(
+            json['name'] ?? json['title'] ?? json['checkType'],
+          );
+          if (id == null || id.isEmpty || name == null || name.isEmpty) {
+            continue;
+          }
+          options.add(StaffMedCheckOption(id: id, name: name));
         }
         return Result.success(options);
       },

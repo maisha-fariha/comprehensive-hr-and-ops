@@ -11,32 +11,27 @@ import '../../../staff_shell.dart';
 import '../controllers/staff_attendance_controller.dart';
 import '../widgets/attendance_history_section.dart';
 import '../widgets/break_row.dart';
-import '../widgets/clock_out_button.dart';
 import '../widgets/on_shift_banner.dart';
 import '../widgets/selfie_verification_row.dart';
 import '../widgets/shift_details_card.dart';
 import '../widgets/staff_attendance_filters_bar.dart';
 import '../widgets/staff_attendance_header.dart';
+import '../widgets/staff_attendance_metrics_strip.dart';
 
-/// "Attendance" — the Staff (care-worker) portal's clock-in/out screen.
-///
-/// Reproduction of the reference "Attendance" screenshot. Single,
-/// non-tabbed screen (unlike the HR Attendance feature's segmented
-/// Today/Late/Missed/OT tabs).
-///
-/// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
-/// matches the reference frames that show the staff bottom nav.
+/// Staff Attendance — web-parity metrics, filters, list, and clock in/out.
 class StaffAttendancePage extends StatelessWidget {
   const StaffAttendancePage({super.key});
 
-  /// Index of the "More" slot in [StaffBottomNavBar.items].
   static const int _moreTabIndex = 4;
 
   StaffAttendanceController _resolveController() {
     try {
       return Get.find<StaffAttendanceController>();
     } catch (_) {
-      return Get.put(GetIt.instance<StaffAttendanceController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<StaffAttendanceController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -59,7 +54,9 @@ class StaffAttendancePage extends StatelessWidget {
         final overview = response.data;
 
         if (overview == null && controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+          );
         }
 
         if (overview == null) {
@@ -79,6 +76,9 @@ class StaffAttendancePage extends StatelessWidget {
                 bottom: false,
                 child: StaffAttendanceHeader(
                   onBackTap: () => Navigator.maybePop(context),
+                  isOnShift: overview.isOnShift,
+                  onClockInTap: controller.clockIn,
+                  onClockOutTap: controller.clockOut,
                   onManualEntryTap: controller.showManualEntryDialog,
                 ),
               ),
@@ -88,57 +88,85 @@ class StaffAttendancePage extends StatelessWidget {
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(
-                    ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+                    ResponsiveHelper.getResponsiveWidth(
+                      context,
+                      AppDimens.screenPaddingHorizontal,
+                    ),
                     ResponsiveHelper.getResponsiveHeight(context, 16),
-                    ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+                    ResponsiveHelper.getResponsiveWidth(
+                      context,
+                      AppDimens.screenPaddingHorizontal,
+                    ),
                     ResponsiveHelper.getResponsiveHeight(context, 42),
                   ),
                   children: [
-                    OnShiftBanner(isOnShift: overview.isOnShift, startedLabel: overview.shiftStartedLabel),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                    ClockOutButton(
-                      label: overview.isOnShift ? 'Clock Out' : 'Clock In',
-                      isClockOut: overview.isOnShift,
-                      onTap: overview.isOnShift
-                          ? controller.clockOut
-                          : controller.clockIn,
+                    StaffAttendanceMetricsStrip(metrics: overview.metrics),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 16),
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-                    const SectionHeaderRow(title: 'Shift Details'),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    ShiftDetailsCard(
-                      locationName: overview.shiftLocationName,
-                      timeRange: overview.shiftTimeRange,
-                      elapsedTimeLabel: controller.liveElapsedLabel.value,
-                      isWithinGeofence: overview.isWithinGeofence,
-                      geofenceStatusLabel: overview.geofenceStatusLabel,
-                      geofenceAddress: overview.geofenceAddress,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    SelfieVerificationRow(
-                      isVerified: overview.isSelfieVerified,
-                      verifiedLabel: overview.selfieVerifiedLabel,
-                      selfieUrl: overview.selfieUrl,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                    BreakRow(
-                      isOnBreak: overview.isOnBreak,
-                      statusLabel: overview.breakStatusLabel,
-                      onToggleBreak: controller.toggleBreak,
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 24)),
+                    if (overview.isOnShift) ...[
+                      OnShiftBanner(
+                        isOnShift: overview.isOnShift,
+                        startedLabel: overview.shiftStartedLabel,
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 12),
+                      ),
+                      const SectionHeaderRow(title: 'Shift Details'),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 12),
+                      ),
+                      ShiftDetailsCard(
+                        locationName: overview.shiftLocationName,
+                        timeRange: overview.shiftTimeRange,
+                        elapsedTimeLabel: controller.liveElapsedLabel.value,
+                        isWithinGeofence: overview.isWithinGeofence,
+                        geofenceStatusLabel: overview.geofenceStatusLabel,
+                        geofenceAddress: overview.geofenceAddress,
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
+                      SelfieVerificationRow(
+                        isVerified: overview.isSelfieVerified,
+                        verifiedLabel: overview.selfieVerifiedLabel,
+                        selfieUrl: overview.selfieUrl,
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
+                      BreakRow(
+                        isOnBreak: overview.isOnBreak,
+                        statusLabel: overview.breakStatusLabel,
+                        onToggleBreak: controller.toggleBreak,
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 20),
+                      ),
+                    ],
                     StaffAttendanceFiltersBar(
                       selectedDate: controller.historyDateFilter.value,
                       residenceFilter: controller.historyResidenceFilter.value,
                       statusFilter: controller.historyStatusFilter.value,
                       residences: controller.residenceOptions.toList(),
                       onDateChanged: controller.setHistoryDateFilter,
-                      onResidenceChanged: controller.setHistoryResidenceFilter,
+                      onResidenceChanged:
+                          controller.setHistoryResidenceFilter,
                       onStatusChanged: controller.setHistoryStatusFilter,
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                    AttendanceHistorySection(items: controller.filteredHistory),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 16),
+                    ),
+                    AttendanceHistorySection(
+                      items: controller.filteredHistory,
+                    ),
                   ],
                 ),
               ),
@@ -164,7 +192,11 @@ class _StaffAttendanceError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.criticalRed, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.criticalRed,
+              size: 40,
+            ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Text(
               message,
@@ -178,7 +210,9 @@ class _StaffAttendanceError extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+              ),
               child: const Text('Retry'),
             ),
           ],

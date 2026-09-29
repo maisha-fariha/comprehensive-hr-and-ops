@@ -1,16 +1,11 @@
-/// Which segmented tab is currently selected on the Staff "Daily Logs"
-/// screen.
-enum StaffDailyLogsTab { myClients, inProgress, submitted }
+/// Which segmented tab is selected on Staff Daily Logs (web parity).
+enum StaffDailyLogsTab { toReview, missing, residentDay, houseActivity }
 
-/// Semantic tag driving the icon/color of a summary stat tile. The same 3
-/// stat tiles are shown at the top of every tab per the reference
-/// screenshots.
-enum StaffDailyLogStatTag { submittedToday, pendingReview, flaggedNotes }
+/// Semantic tag for summary stat tiles.
+enum StaffDailyLogStatTag { submittedToday, pendingReview, flaggedNotes, missingLogs }
 
-/// Status of a single client's daily log, driving the trailing pill color
-/// on every client row/card across all 3 tabs.
-enum ClientLogStatus { pending, inProgress, submitted }
+/// Status of a client daily-log row.
+enum ClientLogStatus { pending, inProgress, submitted, toReview, missing }
 
-/// Identifies a single form row on the "Daily Note" screen, driving its
-/// icon/color and its position in the list.
+/// Identifies a single form row on the "Daily Note" screen.
 enum DailyNoteFieldKey { mood, meals, sleep, hygiene, activities, behavior, wellness }

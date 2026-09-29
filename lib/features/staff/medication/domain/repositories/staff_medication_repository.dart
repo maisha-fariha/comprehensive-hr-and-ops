@@ -68,4 +68,9 @@ abstract class StaffMedicationRepository {
     String? residenceId,
     String? search,
   });
+
+  /// `GET /recurring-checks/schedules` for "Requires a check first".
+  Future<Result<List<StaffMedCheckOption>>> getCheckSchedules({
+    String? residenceId,
+  });
 }
