@@ -660,32 +660,16 @@ class IncidentCreationController extends GetxController {
   }
 
   Future<void> promptAddWitness() async {
-    final input = TextEditingController();
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
-        title: const Text('Add witness'),
-        content: TextField(
-          controller: input,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Witness name'),
-          textCapitalization: TextCapitalization.words,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+    final context = Get.context;
+    if (context == null || !context.mounted) return;
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => const _AddWitnessDialog(),
     );
-    final name = input.text.trim();
-    input.dispose();
-    if (confirmed != true || name.isEmpty) return;
-    if (!witnesses.contains(name)) witnesses.add(name);
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) return;
+    if (!witnesses.contains(trimmed)) witnesses.add(trimmed);
   }
 
   void removeWitness(String name) => witnesses.remove(name);
@@ -1094,3 +1078,57 @@ class IncidentCreationController extends GetxController {
     super.onClose();
   }
 }
+
+/// Owns its [TextEditingController] so dismiss/back never disposes a still-mounted field.
+class _AddWitnessDialog extends StatefulWidget {
+  const _AddWitnessDialog();
+
+  @override
+  State<_AddWitnessDialog> createState() => _AddWitnessDialogState();
+}
+
+class _AddWitnessDialogState extends State<_AddWitnessDialog> {
+  late final TextEditingController _input;
+
+  @override
+  void initState() {
+    super.initState();
+    _input = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.of(context).pop(_input.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add witness'),
+      content: TextField(
+        controller: _input,
+        autofocus: true,
+        decoration: const InputDecoration(hintText: 'Witness name'),
+        textCapitalization: TextCapitalization.words,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Add'),
+        ),
+      ],
+    );
+  }
+}
+

@@ -26,27 +26,46 @@ import '../widgets/staff_incidents_header.dart';
 ///
 /// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
 /// matches reference frames that show the staff bottom nav.
-class CreateIncidentPage extends StatelessWidget {
+class CreateIncidentPage extends StatefulWidget {
   const CreateIncidentPage({super.key});
 
   /// Index of the "More" slot in [StaffBottomNavBar.items].
-  static const int _moreTabIndex = 4;
+  static const int moreTabIndex = 4;
+
+  @override
+  State<CreateIncidentPage> createState() => _CreateIncidentPageState();
+}
+
+class _CreateIncidentPageState extends State<CreateIncidentPage> {
+  late final IncidentCreationController _controller;
 
   /// Always starts a fresh controller instance for a new draft rather than
-  /// resolving the `get_it`-registered singleton - reusing the same
-  /// instance across multiple "Create Incident" sessions would resurface a
-  /// previous draft's field values, and its `TextEditingController`s would
-  /// already be disposed after the first time this page is closed (see the
-  /// identical rationale on the Manager Incidents wizard's page).
-  IncidentCreationController _resolveController() {
+  /// resolving the `get_it`-registered singleton — reusing the same
+  /// instance across sessions would resurface a previous draft, and its
+  /// `TextEditingController`s would already be disposed.
+  ///
+  /// Resolved once in [initState] (not [build]): keyboard/MediaQuery rebuilds
+  /// after dialogs would otherwise delete the live controller mid-frame.
+  @override
+  void initState() {
+    super.initState();
     if (Get.isRegistered<IncidentCreationController>()) {
       Get.delete<IncidentCreationController>(force: true);
     }
-    return Get.put(
+    _controller = Get.put(
       IncidentCreationController(
         repository: GetIt.instance<StaffIncidentsRepository>(),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    if (Get.isRegistered<IncidentCreationController>() &&
+        Get.find<IncidentCreationController>() == _controller) {
+      Get.delete<IncidentCreationController>(force: true);
+    }
+    super.dispose();
   }
 
   void _onBottomNavTap(int index) {
@@ -55,12 +74,10 @@ class CreateIncidentPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
-
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: _moreTabIndex,
+        currentIndex: CreateIncidentPage.moreTabIndex,
         onTap: _onBottomNavTap,
       ),
       body: SafeArea(
@@ -78,11 +95,11 @@ class CreateIncidentPage extends StatelessWidget {
             ),
             Expanded(
               child: Obx(() {
-                final step = controller.wizardStep.value;
+                final step = _controller.wizardStep.value;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _WizardStepProgress(controller: controller),
+                    _WizardStepProgress(controller: _controller),
                     Expanded(
                       child: SingleChildScrollView(
                         padding: ResponsiveHelper.getResponsivePadding(
@@ -90,10 +107,10 @@ class CreateIncidentPage extends StatelessWidget {
                           horizontal: 20,
                           vertical: 20,
                         ),
-                        child: _buildStepContent(context, controller, step),
+                        child: _buildStepContent(context, _controller, step),
                       ),
                     ),
-                    _WizardFooter(controller: controller),
+                    _WizardFooter(controller: _controller),
                   ],
                 );
               }),
@@ -281,20 +298,7 @@ class CreateIncidentPage extends StatelessWidget {
       case 2:
         return CreateIncidentInvestigationSection(controller: controller);
       case 3:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _EvidenceSection(controller: controller),
-            sectionGap,
-            const NumberedSectionHeader(
-              number: 4,
-              title: 'FOLLOW-UP CHECKLIST',
-              trailingLabel: 'OPTIONAL',
-            ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-            _FollowUpChecklistSection(controller: controller),
-          ],
-        );
+        return _EvidenceSection(controller: controller);
       case 4:
       default:
         return CreateIncidentReportFormSection(controller: controller);
@@ -1210,175 +1214,3 @@ class _DashedBorderPainter extends CustomPainter {
         oldDelegate.dashGap != dashGap;
   }
 }
-
-
-/// Optional follow-up checklist — tri-state null / true / false.
-class _FollowUpChecklistSection extends StatelessWidget {
-  final IncidentCreationController controller;
-
-  const _FollowUpChecklistSection({required this.controller});
-
-  static const Color _checkedGreen = Color(0xFF2E8C58);
-  static const Color _falseAmber = Color(0xFFD97706);
-  static const Color _checkedLabel = Color(0xFF94A3B8);
-  static const Color _boxBorder = Color(0xFFCBD5E1);
-  static const Color _divider = Color(0xFFEDF2F5);
-
-  @override
-  Widget build(BuildContext context) {
-    final boxSize = ResponsiveHelper.getResponsiveSize(context, 22);
-    final boxRadius = ResponsiveHelper.getResponsiveRadius(context, 6);
-
-    return Container(
-      width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 16,
-        vertical: 4,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 16),
-        ),
-        border: Border.all(color: AppColors.cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowNavy.withValues(alpha: 0.05),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 4)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 12),
-          ),
-        ],
-      ),
-      child: Obx(() {
-        final rows = <(String, bool?, VoidCallback)>[
-          (
-            'Resident checked & safe',
-            controller.residentChecked.value,
-            () => controller.cycleChecklist(controller.residentChecked),
-          ),
-          (
-            'Supervisor notified',
-            controller.supervisorNotified.value,
-            () => controller.cycleChecklist(controller.supervisorNotified),
-          ),
-          (
-            'Family / next of kin informed',
-            controller.familyNotified.value,
-            () => controller.cycleChecklist(controller.familyNotified),
-          ),
-          (
-            'Care plan reviewed & updated',
-            controller.carePlanReviewed.value,
-            () => controller.cycleChecklist(controller.carePlanReviewed),
-          ),
-        ];
-
-        return Column(
-          children: [
-            for (var i = 0; i < rows.length; i++) ...[
-              if (i > 0)
-                const Divider(height: 1, thickness: 1, color: _divider),
-              _ChecklistRow(
-                label: rows[i].$1,
-                value: rows[i].$2,
-                onTap: rows[i].$3,
-                boxSize: boxSize,
-                boxRadius: boxRadius,
-              ),
-            ],
-          ],
-        );
-      }),
-    );
-  }
-}
-
-class _ChecklistRow extends StatelessWidget {
-  final String label;
-  final bool? value;
-  final VoidCallback onTap;
-  final double boxSize;
-  final double boxRadius;
-
-  const _ChecklistRow({
-    required this.label,
-    required this.value,
-    required this.onTap,
-    required this.boxSize,
-    required this.boxRadius,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isTrue = value == true;
-    final isFalse = value == false;
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, vertical: 14),
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: boxSize,
-              height: boxSize,
-              decoration: BoxDecoration(
-                color: isTrue
-                    ? _FollowUpChecklistSection._checkedGreen
-                    : isFalse
-                        ? _FollowUpChecklistSection._falseAmber
-                            .withValues(alpha: 0.15)
-                        : AppColors.surfaceWhite,
-                borderRadius: BorderRadius.circular(boxRadius),
-                border: Border.all(
-                  color: isTrue
-                      ? _FollowUpChecklistSection._checkedGreen
-                      : isFalse
-                          ? _FollowUpChecklistSection._falseAmber
-                          : _FollowUpChecklistSection._boxBorder,
-                  width: 1.5,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: isTrue
-                  ? Icon(
-                      Icons.check_rounded,
-                      size: ResponsiveHelper.getResponsiveSize(context, 14),
-                      color: Colors.white,
-                    )
-                  : isFalse
-                      ? Icon(
-                          Icons.close_rounded,
-                          size: ResponsiveHelper.getResponsiveSize(context, 14),
-                          color: _FollowUpChecklistSection._falseAmber,
-                        )
-                      : null,
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w500,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                  color: isTrue
-                      ? _FollowUpChecklistSection._checkedLabel
-                      : AppColors.textHeading,
-                  height: 1.25,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
-/// Optional follow-up checklist — tri-state null / true / false.
