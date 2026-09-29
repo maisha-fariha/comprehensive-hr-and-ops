@@ -26,7 +26,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     required AppApiClient api,
     required UserSession session,
   }) : _api = api,
-       _session = session;
+        _session = session;
 
   @override
   Future<Result<TasksMessagesOverview>> getOverview() async {

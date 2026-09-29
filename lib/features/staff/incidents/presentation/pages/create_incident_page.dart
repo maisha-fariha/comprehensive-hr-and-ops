@@ -107,8 +107,8 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
                         onDismiss: _controller.clearFormBanner,
                       ),
                     _WizardStepProgress(controller: _controller),
-                    Expanded(
-                      child: SingleChildScrollView(
+            Expanded(
+              child: SingleChildScrollView(
                         padding: ResponsiveHelper.getResponsivePadding(
                           context,
                           horizontal: 20,
@@ -172,27 +172,27 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   const CreateIncidentFieldLabel(
                     'Incident Category',
                     required: true,
                   ),
-                  Obx(
-                    () => CreateIncidentDropdownField(
+                    Obx(
+                      () => CreateIncidentDropdownField(
                       value: controller.incidentCategoryLabel,
-                      placeholder: 'Select category...',
+                        placeholder: 'Select category...',
                       onTap: controller.pickCategory,
+                      ),
                     ),
-                  ),
-                  fieldGap,
+                    fieldGap,
                   const CreateIncidentFieldLabel(
                     'Incident Title',
                     required: true,
                   ),
-                  CreateIncidentTextField(
-                    controller: controller.incidentTitleController,
+                    CreateIncidentTextField(
+                      controller: controller.incidentTitleController,
                     hint: 'e.g. Client refused morning medication',
                   ),
                   fieldGap,
@@ -204,16 +204,16 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
                     controller: controller.categoryDetailsController,
                     hint: 'Add category-specific context…',
                     maxLines: 2,
-                  ),
-                  fieldGap,
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
+                    ),
+                    fieldGap,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                             const CreateIncidentFieldLabel(
                               'Incident Date',
                               required: true,
@@ -228,17 +228,17 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
                                 ),
                               ),
                             ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
                       SizedBox(
                         width: ResponsiveHelper.getResponsiveWidth(context, 12),
                       ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                             const CreateIncidentFieldLabel(
                               'Incident Time',
                               required: true,
@@ -253,12 +253,12 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
                                 ),
                               ),
                             ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  fieldGap,
+                      ],
+                    ),
+                    fieldGap,
                   const CreateIncidentFieldLabel('Time Ended (optional)'),
                   GestureDetector(
                     onTap: () => controller.pickEndTime(context),
@@ -275,26 +275,26 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
                   const CreateIncidentFieldLabel(
                     'Detected During (optional)',
                   ),
-                  Obx(
-                    () => CreateIncidentDropdownField(
-                      value: controller.detectedDuring.value,
+                    Obx(
+                      () => CreateIncidentDropdownField(
+                        value: controller.detectedDuring.value,
                       placeholder: 'Select context',
                       onTap: controller.pickDetectedDuring,
                     ),
                   ),
                 ],
-              ),
-            ),
-            sectionGap,
+                      ),
+                    ),
+                    sectionGap,
             const CreateIncidentFieldLabel('Severity', required: true),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            Obx(
-              () => SeverityPillSelector(
-                selected: controller.severity.value,
-                onChanged: controller.selectSeverity,
-              ),
-            ),
-            sectionGap,
+                    Obx(
+                      () => SeverityPillSelector(
+                        selected: controller.severity.value,
+                        onChanged: controller.selectSeverity,
+                      ),
+                    ),
+                    sectionGap,
             _DescriptionSection(
               controller: controller.descriptionController,
             ),

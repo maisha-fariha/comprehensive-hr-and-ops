@@ -197,7 +197,7 @@ abstract final class AttendanceMapper {
             json['id'] ?? json['residenceId'] ?? name,
             name,
           ),
-          name: name,
+      name: name,
         ),
       );
     }
