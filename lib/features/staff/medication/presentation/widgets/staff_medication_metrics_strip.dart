@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../domain/entities/due_dose.dart';
 import '../../domain/entities/staff_medication_overview.dart';
 
 /// Web-parity metric strip: Scheduled / Administered / Missed-Overdue / Compliance.
@@ -126,40 +127,43 @@ class _MetricChip extends StatelessWidget {
   }
 }
 
-/// Lite side-panel cards: Due Now + Missed/Overdue counts.
+/// Web-parity side panels: Due Now + Missed / Overdue (console right column).
 class StaffMedicationSideCards extends StatelessWidget {
   final StaffMedicationOverview overview;
+  final VoidCallback? onReviewAllMissed;
+  final ValueChanged<DueDose>? onChartDue;
 
-  const StaffMedicationSideCards({super.key, required this.overview});
+  const StaffMedicationSideCards({
+    super.key,
+    required this.overview,
+    this.onReviewAllMissed,
+    this.onChartDue,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final dueNow = overview.dueNowDoses;
+    final missedCount = overview.missedOrOverdueCount;
+    final previewDue = dueNow.take(6).toList();
+
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
         context,
-        horizontal: 16,
+        horizontal: 0,
+        top: 8,
         bottom: 8,
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _SideCard(
-              title: 'Due Now',
-              count: overview.dueNowDoses.length,
-              icon: Icons.schedule_rounded,
-              color: AppColors.urgentAmber,
-              background: AppColors.urgentBackgroundSoft,
-            ),
+          _DueNowPanel(
+            count: dueNow.length,
+            preview: previewDue,
+            onChart: onChartDue,
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          Expanded(
-            child: _SideCard(
-              title: 'Missed / Overdue',
-              count: overview.missedOrOverdueCount,
-              icon: Icons.warning_amber_rounded,
-              color: AppColors.criticalRed,
-              background: AppColors.criticalBackgroundSoft,
-            ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          _MissedOverduePanel(
+            count: missedCount,
+            onReviewAll: onReviewAllMissed,
           ),
         ],
       ),
@@ -167,57 +171,134 @@ class StaffMedicationSideCards extends StatelessWidget {
   }
 }
 
-class _SideCard extends StatelessWidget {
-  final String title;
+class _DueNowPanel extends StatelessWidget {
   final int count;
-  final IconData icon;
-  final Color color;
-  final Color background;
+  final List<DueDose> preview;
+  final ValueChanged<DueDose>? onChart;
 
-  const _SideCard({
-    required this.title,
+  const _DueNowPanel({
     required this.count,
-    required this.icon,
-    required this.color,
-    required this.background,
+    required this.preview,
+    this.onChart,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.schedule_rounded,
+                size: 16,
+                color: AppColors.textHeading,
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Due Now',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.urgentBackgroundSoft,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$count pending',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                    color: AppColors.urgentAmber,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (preview.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text(
+                  'Nothing left to give today.',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12.5,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ),
+            )
+          else
+            for (final dose in preview) ...[
+              _DueNowRow(dose: dose, onChart: onChart),
+              if (dose != preview.last) const SizedBox(height: 8),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DueNowRow extends StatelessWidget {
+  final DueDose dose;
+  final ValueChanged<DueDose>? onChart;
+
+  const _DueNowRow({required this.dose, this.onChart});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(11),
         border: Border.all(color: AppColors.cardBorder),
       ),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$count',
+                  dose.residentName.isEmpty ? 'Resident' : dose.residentName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
                     color: AppColors.textHeading,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  title,
+                  [
+                    dose.medicationName,
+                    if (dose.dose.isNotEmpty) dose.dose,
+                    if (dose.timeLabel.isNotEmpty) dose.timeLabel,
+                  ].join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 12,
@@ -225,6 +306,123 @@ class _SideCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+          if (onChart != null)
+            TextButton(
+              onPressed: () => onChart!(dose),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.secondaryTeal,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Record',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MissedOverduePanel extends StatelessWidget {
+  final int count;
+  final VoidCallback? onReviewAll;
+
+  const _MissedOverduePanel({required this.count, this.onReviewAll});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                size: 16,
+                color: AppColors.criticalRed,
+              ),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Missed / Overdue',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.criticalBackgroundSoft,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$count alerts',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                    color: AppColors.criticalRed,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: Text(
+                count == 0
+                    ? 'No missed or overdue medications.'
+                    : '$count missed or overdue — review the registry.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12.5,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: onReviewAll,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textHeading,
+                side: const BorderSide(color: AppColors.cardBorder),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text(
+                'Review All',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
             ),
           ),
         ],
@@ -300,3 +498,4 @@ class StaffMedicationActionRow extends StatelessWidget {
     );
   }
 }
+

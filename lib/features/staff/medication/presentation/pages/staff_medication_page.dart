@@ -18,6 +18,7 @@ import '../widgets/staff_client_medications_sheet.dart';
 import '../widgets/staff_medication_header.dart';
 import '../widgets/staff_medication_metrics_strip.dart';
 import '../widgets/staff_medication_tab_bar.dart';
+import '../widgets/staff_mar_metrics_row.dart';
 
 /// Staff Medication MAR — web console parity:
 /// metrics + MAR / PRN / Given / Resident chart tabs.
@@ -80,8 +81,15 @@ class StaffMedicationPage extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   StaffMedicationHeader(title: overview.screenTitle),
-                  StaffMedicationMetricsStrip(overview: overview),
-                  StaffMedicationSideCards(overview: overview),
+                  Padding(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 16,
+                      top: 4,
+                      bottom: 8,
+                    ),
+                    child: StaffMarMetricsRow(overview: overview),
+                  ),
                   StaffMedicationActionRow(
                     canWrite: canWrite,
                     onRecordAdministration: () =>
@@ -120,9 +128,22 @@ class StaffMedicationPage extends StatelessWidget {
                   children: [
                     switch (controller.selectedTab.value) {
                       StaffMedicationTab.mar => MarRegistryTabView(
-                          dueNowDoses: overview.dueNowDoses,
-                          laterTodayDoses: overview.laterTodayDoses,
+                          doses: controller.filteredScheduledDoses,
                           scheduledCount: overview.scheduledCount,
+                          searchController: controller.searchController,
+                          residenceId: controller.filterResidenceId.value,
+                          clientId: controller.filterClientId.value,
+                          medication: controller.filterMedication.value,
+                          state: controller.filterState.value,
+                          residenceOptions: controller.residenceFilterOptions,
+                          residentOptions: controller.residentFilterOptions,
+                          medicationOptions:
+                              controller.medicationFilterOptions,
+                          hasActiveFilters: controller.hasActiveFilters,
+                          onSearchChanged: (v) =>
+                              controller.updateFilters(search: v),
+                          onFilterChanged: controller.updateFilters,
+                          onClearFilters: controller.clearFilters,
                           canWriteScheduled: canWrite,
                           canWritePrn: canPrn,
                           onAdminister: controller.markAdministered,
@@ -167,6 +188,13 @@ class StaffMedicationPage extends StatelessWidget {
                           },
                         ),
                     },
+                    StaffMedicationSideCards(
+                      overview: overview,
+                      onReviewAllMissed: controller.reviewAllMissed,
+                      onChartDue: canWrite
+                          ? (dose) => controller.markAdministered(dose.id)
+                          : null,
+                    ),
                   ],
                 ),
               ),

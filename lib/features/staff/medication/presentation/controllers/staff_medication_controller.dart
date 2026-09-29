@@ -28,6 +28,14 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       <StaffMedClientOption>[].obs;
   final RxBool loadingExtras = false.obs;
 
+  /// Web MAR registry filters (client-side, same as console).
+  final RxString filterSearch = ''.obs;
+  final RxString filterResidenceId = ''.obs;
+  final RxString filterClientId = ''.obs;
+  final RxString filterMedication = ''.obs;
+  final RxString filterState = ''.obs;
+  final TextEditingController searchController = TextEditingController();
+
   /// Web Not Given reason → API status (+ doseReason label for notes).
   static const List<({String label, String status, String doseReason})>
       notGivenReasons = [
@@ -64,6 +72,121 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   int get marTabCount => overview?.scheduledCount ?? 0;
   int get prnTabCount => prnItems.length;
   int get givenTabCount => givenItems.length;
+
+  bool get hasActiveFilters =>
+      filterSearch.value.trim().isNotEmpty ||
+      filterResidenceId.value.isNotEmpty ||
+      filterClientId.value.isNotEmpty ||
+      filterMedication.value.isNotEmpty ||
+      filterState.value.isNotEmpty;
+
+  List<DueDose> get allScheduledDoses {
+    final current = overview;
+    if (current == null) return const [];
+    return [...current.dueNowDoses, ...current.laterTodayDoses];
+  }
+
+  List<({String value, String label})> get residenceFilterOptions {
+    final map = <String, String>{};
+    for (final d in allScheduledDoses) {
+      if (d.residenceId.isEmpty) continue;
+      map.putIfAbsent(
+        d.residenceId,
+        () => d.residenceName.isEmpty ? d.residenceId : d.residenceName,
+      );
+    }
+    final list = map.entries
+        .map((e) => (value: e.key, label: e.value))
+        .toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+    return list;
+  }
+
+  List<({String value, String label})> get residentFilterOptions {
+    final map = <String, String>{};
+    for (final d in allScheduledDoses) {
+      if (d.clientId.isEmpty) continue;
+      map.putIfAbsent(
+        d.clientId,
+        () => d.residentName.isEmpty ? 'Resident' : d.residentName,
+      );
+    }
+    final list = map.entries
+        .map((e) => (value: e.key, label: e.value))
+        .toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+    return list;
+  }
+
+  List<({String value, String label})> get medicationFilterOptions {
+    final names = <String>{};
+    for (final d in allScheduledDoses) {
+      if (d.medicationName.trim().isEmpty) continue;
+      names.add(d.medicationName.trim());
+    }
+    final list = names.map((n) => (value: n, label: n)).toList()
+      ..sort((a, b) => a.label.compareTo(b.label));
+    return list;
+  }
+
+  List<DueDose> get filteredScheduledDoses {
+    final q = filterSearch.value.trim().toLowerCase();
+    final residence = filterResidenceId.value;
+    final client = filterClientId.value;
+    final med = filterMedication.value;
+    final state = filterState.value;
+
+    return allScheduledDoses.where((d) {
+      if (residence.isNotEmpty && d.residenceId != residence) return false;
+      if (client.isNotEmpty && d.clientId != client) return false;
+      if (med.isNotEmpty && d.medicationName != med) return false;
+      if (state.isNotEmpty && d.state != state) return false;
+      if (q.isEmpty) return true;
+      final haystack = [
+        d.residentName,
+        d.medicationName,
+        d.dose,
+        d.residenceName,
+        d.timeLabel,
+      ].join(' ').toLowerCase();
+      return haystack.contains(q);
+    }).toList();
+  }
+
+  void updateFilters({
+    String? search,
+    String? residenceId,
+    String? clientId,
+    String? medication,
+    String? state,
+  }) {
+    if (search != null) filterSearch.value = search;
+    if (residenceId != null) filterResidenceId.value = residenceId;
+    if (clientId != null) filterClientId.value = clientId;
+    if (medication != null) filterMedication.value = medication;
+    if (state != null) filterState.value = state;
+  }
+
+  void clearFilters() {
+    filterSearch.value = '';
+    filterResidenceId.value = '';
+    filterClientId.value = '';
+    filterMedication.value = '';
+    filterState.value = '';
+    searchController.clear();
+  }
+
+  /// Web Missed panel "Review All" — jump to MAR tab with overdue filter.
+  void reviewAllMissed() {
+    selectedTab.value = StaffMedicationTab.mar;
+    filterState.value = 'overdue';
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
+  }
 
   Future<void> loadOverview() async {
     setLoading(true);

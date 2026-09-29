@@ -38,4 +38,10 @@ abstract class MedicationRepository {
     String? clientId,
     String? residenceId,
   });
+
+  /// Web "Export MAR" — `POST /reports/exports` with
+  /// `reportKey: mar_administrations`, then download CSV.
+  /// Falls back to a CSV built from `GET /mar/administrations` when status
+  /// download is forbidden (role has `mar:export` but not `reports:read`).
+  Future<Result<List<int>>> exportMarCsv();
 }

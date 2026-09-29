@@ -1,9 +1,15 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 
+import '../../../../../core/config/app_env.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/network/tenant_store.dart';
+import '../../../../../core/network/token_store.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/client_medication_item.dart';
 import '../../domain/entities/medication_overview.dart';
@@ -13,12 +19,18 @@ import '../mappers/medication_mapper.dart';
 class MedicationRepositoryImpl implements MedicationRepository {
   final AppApiClient _api;
   final UserSession _session;
+  final TokenStore _tokens;
+  final TenantStore _tenant;
 
   MedicationRepositoryImpl({
     required AppApiClient api,
     required UserSession session,
+    required TokenStore tokens,
+    required TenantStore tenant,
   })  : _api = api,
-        _session = session;
+        _session = session,
+        _tokens = tokens,
+        _tenant = tenant;
 
   @override
   Future<Result<MedicationOverview>> getOverview() async {
@@ -246,6 +258,232 @@ class MedicationRepositoryImpl implements MedicationRepository {
         corrective.error ?? error,
       ),
     );
+  }
+
+  @override
+  Future<Result<List<int>>> exportMarCsv() async {
+    final server = await _tryServerMarExport();
+    if (server.isSuccess && (server.value?.isNotEmpty ?? false)) {
+      return server;
+    }
+    return _buildMarCsvFromApi();
+  }
+
+  Future<Result<List<int>>> _tryServerMarExport() async {
+    final create = await _api.post(
+      ApiEndpoints.reportsExports,
+      data: const {
+        'reportKey': 'mar_administrations',
+        'format': 'csv',
+      },
+      silent: true,
+      allowQueue: false,
+    );
+    if (create.isFailure) {
+      return Result.failure(
+        create.error ??
+            const ApiError(message: 'Could not create MAR export.'),
+      );
+    }
+
+    final created = JsonCodec.unwrapMap(create.value);
+    final exportId = JsonCodec.string(created['id']) ?? '';
+    if (exportId.isEmpty) {
+      return Result.failure(
+        ApiError(message: 'Export was created but id was missing.'),
+      );
+    }
+
+    var status = JsonCodec.stringOr(created['status'], 'queued').toLowerCase();
+    for (var attempt = 0; attempt < 25 && status != 'ready'; attempt++) {
+      if (status == 'failed') {
+        return Result.failure(
+          ApiError(message: 'The MAR export failed on the server.'),
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      final poll = await _api.get(
+        ApiEndpoints.reportsExportById(exportId),
+        silent: true,
+      );
+      if (poll.isFailure) {
+        return Result.failure(
+          poll.error ??
+              const ApiError(message: 'Could not check export status.'),
+        );
+      }
+      final map = JsonCodec.unwrapMap(poll.value);
+      status = JsonCodec.stringOr(map['status'], status).toLowerCase();
+      final fileUrl = JsonCodec.string(
+        map['fileUrl'] ?? map['downloadUrl'] ?? map['signedUrl'],
+      );
+      if (status == 'ready') {
+        return _downloadExportBytes(exportId, fileUrl);
+      }
+    }
+
+    return Result.failure(
+      ApiError(
+        message:
+            'Export is still running — it will appear on the Reports page when it finishes.',
+      ),
+    );
+  }
+
+  Future<Result<List<int>>> _downloadExportBytes(
+    String exportId,
+    String? preferredUrl,
+  ) async {
+    final preferred = (preferredUrl?.trim().isNotEmpty == true)
+        ? preferredUrl!.trim()
+        : ApiEndpoints.reportsExportDownload(exportId);
+    final usesSignedToken = preferred.contains('token=');
+
+    try {
+      final headers = <String, dynamic>{
+        'Accept': 'text/csv, application/octet-stream, */*',
+      };
+      if (!usesSignedToken) {
+        final token = _tokens.accessToken;
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+        final subdomain = _tenant.subdomain;
+        if (subdomain != null && subdomain.isNotEmpty) {
+          headers['X-Tenant-Subdomain'] = subdomain;
+        }
+      }
+
+      final response = await Dio().get<List<int>>(
+        _resolveExportUrl(preferred),
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers,
+          validateStatus: (code) => code != null && code < 500,
+        ),
+      );
+      final code = response.statusCode ?? 0;
+      final bytes = response.data ?? const <int>[];
+      if (code == 403) {
+        return Result.failure(
+          ApiError(message: 'Missing permission to download this export.'),
+        );
+      }
+      if (code < 200 || code >= 300 || bytes.isEmpty) {
+        return Result.failure(
+          ApiError(message: 'Could not download the export file.'),
+        );
+      }
+      return Result.success(bytes);
+    } catch (_) {
+      return Result.failure(
+        ApiError(message: 'Could not download the export file.'),
+      );
+    }
+  }
+
+  Future<Result<List<int>>> _buildMarCsvFromApi() async {
+    final residenceId = (await _resolveResidence()).$1;
+    final result = await _api.get(
+      ApiEndpoints.marAdministrations,
+      query: {
+        'page': 1,
+        'limit': 500,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    if (result.isFailure) {
+      return Result.failure(
+        result.error ??
+            const ApiError(message: 'Could not load MAR records for export.'),
+      );
+    }
+
+    final rows = JsonCodec.unwrapList(result.value).whereType<Map>();
+    final buffer = StringBuffer();
+    buffer.writeln(
+      'ID,Client,Medication,Dose,Status,Scheduled,Administered,Residence',
+    );
+    for (final raw in rows) {
+      final json = JsonCodec.asMap(raw);
+      final client = JsonCodec.mapAt(json, 'client') ?? const {};
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final medication = JsonCodec.mapAt(json, 'medication') ?? const {};
+      final id = JsonCodec.stringOr(json['id'], '');
+      final shortId = id.length > 8 ? id.substring(0, 8) : id;
+      final clientName = JsonCodec.stringOr(
+        client['name'] ??
+            client['displayName'] ??
+            json['clientName'] ??
+            '${JsonCodec.stringOr(client['firstName'], '')} ${JsonCodec.stringOr(client['lastName'], '')}'
+                .trim(),
+        '',
+      );
+      final medName = JsonCodec.stringOr(
+        medication['name'] ?? json['medicationName'] ?? json['drugName'],
+        '',
+      );
+      final dose = JsonCodec.stringOr(
+        medication['dose'] ?? json['dose'] ?? json['dosage'],
+        '',
+      );
+      final status = JsonCodec.stringOr(json['status'], '');
+      final scheduled = JsonCodec.stringOr(
+        json['scheduledAt'] ?? json['dueAt'] ?? json['scheduledFor'],
+        '',
+      );
+      final administered = JsonCodec.stringOr(
+        json['administeredAt'] ?? json['givenAt'],
+        '',
+      );
+      final residenceName = JsonCodec.stringOr(
+        residence['name'] ?? json['residenceName'],
+        '',
+      );
+      buffer.writeln(
+        [
+          _csvCell('#$shortId'),
+          _csvCell(clientName),
+          _csvCell(medName),
+          _csvCell(dose),
+          _csvCell(status),
+          _csvCell(scheduled),
+          _csvCell(administered),
+          _csvCell(residenceName),
+        ].join(','),
+      );
+    }
+
+    return Result.success(utf8.encode(buffer.toString()));
+  }
+
+  static String _csvCell(String value) {
+    final text = value.replaceAll('\r\n', ' ').replaceAll('\n', ' ').trim();
+    if (text.contains(',') || text.contains('"') || text.contains('\n')) {
+      return '"${text.replaceAll('"', '""')}"';
+    }
+    return text;
+  }
+
+  static String _resolveExportUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    final base = AppEnv.apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
+    if (trimmed.startsWith('/api/v1/')) {
+      final origin = base.replaceAll(RegExp(r'/api/v1$'), '');
+      return '$origin$trimmed';
+    }
+    if (trimmed.startsWith('/')) {
+      if (trimmed.startsWith('/reports/')) {
+        return '$base$trimmed';
+      }
+      return '${Uri.parse(base).origin}$trimmed';
+    }
+    return '$base/$trimmed';
   }
 
   Future<(String?, String?)> _resolveResidence() async {

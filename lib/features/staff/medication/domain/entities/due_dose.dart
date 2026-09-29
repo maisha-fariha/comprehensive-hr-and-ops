@@ -15,6 +15,8 @@ class DueDose {
   final String timeLabel;
   final DueDoseSection section;
   final DueDoseStatus status;
+  /// Web registry `state` (due | upcoming | overdue | …) for filters.
+  final String state;
   final String clientId;
   final String residenceId;
   final String residenceName;
@@ -32,6 +34,7 @@ class DueDose {
     required this.timeLabel,
     required this.section,
     this.status = DueDoseStatus.pending,
+    this.state = 'due',
     this.clientId = '',
     this.residenceId = '',
     this.residenceName = '',
@@ -39,7 +42,7 @@ class DueDose {
     this.isPrn = false,
   });
 
-  DueDose copyWith({DueDoseStatus? status}) {
+  DueDose copyWith({DueDoseStatus? status, String? state}) {
     return DueDose(
       id: id,
       residentName: residentName,
@@ -51,6 +54,7 @@ class DueDose {
       timeLabel: timeLabel,
       section: section,
       status: status ?? this.status,
+      state: state ?? this.state,
       clientId: clientId,
       residenceId: residenceId,
       residenceName: residenceName,

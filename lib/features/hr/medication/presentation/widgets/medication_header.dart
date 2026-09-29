@@ -1,34 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// The flat white app-bar-style header shared by every Medication tab:
-/// a menu icon, the "Medication MAR" title + "Oversight · N residences"
-/// subtitle centered between it and a search icon.
-///
-/// NOTE: there is no existing SVG for a hamburger/menu glyph in
-/// `assets/icons/{dashboard,common,nav}`, and the Figma asset-download tool
-/// is unavailable this round, so [Icons.menu_rounded] is used as a
-/// placeholder — see the feature's implementation report.
+/// Medication MAR app bar — web PageHeader parity:
+/// back (module navigation), title, and Export MAR action.
 class MedicationHeader extends StatelessWidget {
   final String title;
   final String subtitle;
-  final VoidCallback? onMenuTap;
-  final VoidCallback? onSearchTap;
+  final VoidCallback? onBackTap;
+  final VoidCallback? onExportTap;
+  final bool isExporting;
 
   const MedicationHeader({
     super.key,
     required this.title,
     required this.subtitle,
-    this.onMenuTap,
-    this.onSearchTap,
+    this.onBackTap,
+    this.onExportTap,
+    this.isExporting = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    final buttonRadius = ResponsiveHelper.getResponsiveRadius(context, 12);
+
     return ColoredBox(
       color: AppColors.surfaceWhite,
       child: SafeArea(
@@ -43,9 +43,19 @@ class MedicationHeader extends StatelessWidget {
           child: Row(
             children: [
               _HeaderIconButton(
-                icon: Icons.menu_rounded,
-                onTap: onMenuTap,
+                size: buttonSize,
+                radius: buttonRadius,
+                onTap: onBackTap ?? () => Get.back(),
+                child: Transform.rotate(
+                  angle: 3.14159,
+                  child: const AppSvgIcon(
+                    AppAssets.chevronRight,
+                    size: 18,
+                    color: AppColors.textHeading,
+                  ),
+                ),
               ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
               Expanded(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -58,7 +68,8 @@ class MedicationHeader extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 17),
                         color: AppColors.textHeading,
                       ),
                     ),
@@ -70,32 +81,82 @@ class MedicationHeader extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w400,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 12),
                         color: AppColors.textMuted,
                       ),
                     ),
                   ],
                 ),
               ),
-              GestureDetector(
-                onTap: onSearchTap,
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  width: ResponsiveHelper.getResponsiveSize(context, 36),
-                  height: ResponsiveHelper.getResponsiveSize(context, 36),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceWhite,
-                    borderRadius: BorderRadius.circular(
-                      ResponsiveHelper.getResponsiveRadius(context, 10),
-                    ),
-                    border: Border.all(color: AppColors.searchBorder),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              _ExportMarChip(
+                isLoading: isExporting,
+                onTap: isExporting ? null : onExportTap,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExportMarChip extends StatelessWidget {
+  final bool isLoading;
+  final VoidCallback? onTap;
+
+  const _ExportMarChip({required this.isLoading, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+
+    return Material(
+      color: AppColors.surfaceWhite,
+      borderRadius: BorderRadius.circular(radius),
+      child: InkWell(
+        key: const Key('hr-mar-export'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(radius),
+        child: Container(
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 10,
+            vertical: 9,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: AppColors.searchBorder),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLoading)
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveSize(context, 14),
+                  height: ResponsiveHelper.getResponsiveSize(context, 14),
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.secondaryTeal,
                   ),
-                  alignment: Alignment.center,
-                  child: const AppSvgIcon(
-                    AppAssets.search,
-                    size: 18,
-                    color: AppColors.textPrimary,
-                  ),
+                )
+              else
+                Icon(
+                  Icons.file_download_outlined,
+                  size: ResponsiveHelper.getResponsiveSize(context, 16),
+                  color: AppColors.secondaryTeal,
+                ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
+              Text(
+                isLoading ? 'Exporting…' : 'Export MAR',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: AppColors.secondaryTeal,
+                  height: 1.1,
                 ),
               ),
             ],
@@ -107,23 +168,33 @@ class MedicationHeader extends StatelessWidget {
 }
 
 class _HeaderIconButton extends StatelessWidget {
-  final IconData icon;
+  final double size;
+  final double radius;
   final VoidCallback? onTap;
+  final Widget child;
 
-  const _HeaderIconButton({required this.icon, this.onTap});
+  const _HeaderIconButton({
+    required this.size,
+    required this.radius,
+    required this.child,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, all: 7),
-        child: Icon(
-          icon,
-          size: ResponsiveHelper.getResponsiveSize(context, 22),
-          color: AppColors.textPrimary,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: AppColors.cardBorder),
         ),
+        alignment: Alignment.center,
+        child: child,
       ),
     );
   }

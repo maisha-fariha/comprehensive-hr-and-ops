@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
+import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/storage/media_store_download.dart';
 import '../../domain/entities/medication_enums.dart';
 import '../../domain/entities/medication_overview.dart';
 import '../../domain/entities/schedule_dose.dart';
@@ -12,6 +16,7 @@ class MedicationController extends BaseController<MedicationOverview> {
 
   final Rx<MedicationTab> selectedTab = MedicationTab.overview.obs;
   final Rx<SchedulePeriod> selectedSchedulePeriod = SchedulePeriod.today.obs;
+  final RxBool isExporting = false.obs;
 
   int _loadGeneration = 0;
 
@@ -51,6 +56,59 @@ class MedicationController extends BaseController<MedicationOverview> {
         SchedulePeriod.today => true,
       };
     }).toList();
+  }
+
+  /// Web "Export MAR" — CSV of medication administrations.
+  Future<void> exportMar() async {
+    if (isExporting.value) return;
+    isExporting.value = true;
+    try {
+      final result = await repository.exportMarCsv();
+      await result.when(
+        success: (bytes) async {
+          final stamp = DateTime.now()
+              .toIso8601String()
+              .replaceAll(':', '-')
+              .split('.')
+              .first;
+          final fileName = 'mar_administrations-$stamp.csv';
+          final saveResult = await MediaStoreDownload.saveFileAndOpen(
+            fileName: fileName,
+            bytes: Uint8List.fromList(bytes),
+            mimeType: 'text/csv',
+            chooserTitle: 'Open CSV',
+          );
+          if (!saveResult.success) {
+            AppSnackbar.show(
+              'Could not export MAR',
+              saveResult.error ?? 'Could not save or open the CSV file.',
+              force: true,
+            );
+            return;
+          }
+          AppSnackbar.show(
+            'Export ready',
+            'MAR administrations CSV exported.',
+            force: true,
+          );
+        },
+        failure: (error) async {
+          AppSnackbar.show(
+            'Could not export MAR',
+            error.message,
+            force: true,
+          );
+        },
+      );
+    } catch (error) {
+      AppSnackbar.show(
+        'Could not export MAR',
+        error.toString(),
+        force: true,
+      );
+    } finally {
+      isExporting.value = false;
+    }
   }
 
   @override

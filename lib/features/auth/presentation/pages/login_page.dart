@@ -33,7 +33,6 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
 
   late final AuthController _auth;
-  _AccountType _selectedType = _AccountType.staff;
   bool _rememberMe = true;
   bool _obscurePassword = true;
 
@@ -161,9 +160,7 @@ class _LoginPageState extends State<LoginPage> {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
             Obx(
               () => _SignInButton(
-                label: _auth.isBusy.value
-                    ? 'Signing in…'
-                    : 'Sign In as ${_selectedType.label}',
+                label: _auth.isBusy.value ? 'Signing in…' : 'Login',
                 accent: _primaryTeal,
                 onPressed: _auth.isBusy.value ? null : _onSignIn,
               ),

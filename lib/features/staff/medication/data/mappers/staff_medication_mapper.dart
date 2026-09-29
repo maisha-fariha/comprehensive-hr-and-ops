@@ -53,13 +53,28 @@ abstract final class StaffMedicationMapper {
       // Due Now / Later Today: due | upcoming | overdue
       if (state == 'upcoming') {
         later.add(
-          _due(row, DueDoseSection.laterToday, DueDoseStatus.upcoming),
+          _due(
+            row,
+            DueDoseSection.laterToday,
+            DueDoseStatus.upcoming,
+            webState: 'upcoming',
+          ),
         );
       } else if (state == 'due' ||
           state == 'overdue' ||
           state.isEmpty ||
           state == 'pending') {
-        dueNow.add(_due(row, DueDoseSection.dueNow, DueDoseStatus.pending));
+        final webState = state == 'overdue'
+            ? 'overdue'
+            : (state.isEmpty || state == 'pending' ? 'due' : state);
+        dueNow.add(
+          _due(
+            row,
+            DueDoseSection.dueNow,
+            DueDoseStatus.pending,
+            webState: webState,
+          ),
+        );
       }
     }
 
@@ -158,8 +173,9 @@ abstract final class StaffMedicationMapper {
   static DueDose _due(
     Map<String, dynamic> json,
     DueDoseSection section,
-    DueDoseStatus status,
-  ) {
+    DueDoseStatus status, {
+    String webState = 'due',
+  }) {
     final name = _residentName(json);
     final scheduled = JsonCodec.dateTime(
       json['scheduledAt'] ?? json['dueAt'] ?? json['time'],
@@ -180,6 +196,7 @@ abstract final class StaffMedicationMapper {
           : IsoDateRange.timeLabel(scheduled.toLocal()),
       section: section,
       status: status,
+      state: webState,
       clientId: JsonCodec.stringOr(
         json['clientId'] ?? JsonCodec.mapAt(json, 'client')?['id'],
         '',

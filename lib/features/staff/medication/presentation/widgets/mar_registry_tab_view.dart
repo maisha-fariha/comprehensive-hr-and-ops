@@ -3,14 +3,31 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/due_dose.dart';
-import 'due_dose_card.dart';
 import 'administered_tab_view.dart';
+import 'due_dose_card.dart';
+import 'staff_mar_filters_bar.dart';
 
 /// Web MAR tab — today's scheduled / due occurrences from `GET /mar/round`.
 class MarRegistryTabView extends StatelessWidget {
-  final List<DueDose> dueNowDoses;
-  final List<DueDose> laterTodayDoses;
+  final List<DueDose> doses;
   final int scheduledCount;
+  final TextEditingController searchController;
+  final String residenceId;
+  final String clientId;
+  final String medication;
+  final String state;
+  final List<({String value, String label})> residenceOptions;
+  final List<({String value, String label})> residentOptions;
+  final List<({String value, String label})> medicationOptions;
+  final bool hasActiveFilters;
+  final ValueChanged<String> onSearchChanged;
+  final void Function({
+    String? residenceId,
+    String? clientId,
+    String? medication,
+    String? state,
+  }) onFilterChanged;
+  final VoidCallback onClearFilters;
   final ValueChanged<String> onAdminister;
   final ValueChanged<String> onNotGiven;
   final ValueChanged<DueDose>? onOpenClientMedications;
@@ -19,9 +36,20 @@ class MarRegistryTabView extends StatelessWidget {
 
   const MarRegistryTabView({
     super.key,
-    required this.dueNowDoses,
-    required this.laterTodayDoses,
+    required this.doses,
     required this.scheduledCount,
+    required this.searchController,
+    required this.residenceId,
+    required this.clientId,
+    required this.medication,
+    required this.state,
+    required this.residenceOptions,
+    required this.residentOptions,
+    required this.medicationOptions,
+    required this.hasActiveFilters,
+    required this.onSearchChanged,
+    required this.onFilterChanged,
+    required this.onClearFilters,
     required this.onAdminister,
     required this.onNotGiven,
     this.onOpenClientMedications,
@@ -34,11 +62,10 @@ class MarRegistryTabView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final doses = [...dueNowDoses, ...laterTodayDoses];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
         Row(
           children: [
             const Expanded(
@@ -58,6 +85,21 @@ class MarRegistryTabView extends StatelessWidget {
               foreground: AppColors.textMuted,
             ),
           ],
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        StaffMarFiltersBar(
+          searchController: searchController,
+          residenceId: residenceId,
+          clientId: clientId,
+          medication: medication,
+          state: state,
+          residenceOptions: residenceOptions,
+          residentOptions: residentOptions,
+          medicationOptions: medicationOptions,
+          hasActiveFilters: hasActiveFilters,
+          onSearchChanged: onSearchChanged,
+          onFilterChanged: onFilterChanged,
+          onClear: onClearFilters,
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         if (doses.isEmpty)

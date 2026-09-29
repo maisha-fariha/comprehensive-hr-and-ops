@@ -1,42 +1,61 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/storage/media_store_download.dart';
 import '../../../hr_shell.dart';
-import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
-import '../../domain/entities/medication_enums.dart';
-import '../controllers/medication_controller.dart';
-import '../widgets/client_medications_sheet.dart';
-import '../widgets/due_tab_view.dart';
+import '../../../../staff/medication/domain/entities/staff_medication_enums.dart';
+import '../../../../staff/medication/presentation/controllers/staff_medication_controller.dart';
+import '../../../../staff/medication/presentation/widgets/given_tab_view.dart';
+import '../../../../staff/medication/presentation/widgets/mar_registry_tab_view.dart';
+import '../../../../staff/medication/presentation/widgets/prn_registry_tab_view.dart';
+import '../../../../staff/medication/presentation/widgets/resident_chart_tab_view.dart';
+import '../../../../staff/medication/presentation/widgets/staff_client_medications_sheet.dart';
+import '../../../../staff/medication/presentation/widgets/staff_mar_metrics_row.dart';
+import '../../../../staff/medication/presentation/widgets/staff_medication_metrics_strip.dart';
+import '../../../../staff/medication/presentation/widgets/staff_medication_tab_bar.dart';
+import '../../domain/repositories/medication_repository.dart';
 import '../widgets/medication_header.dart';
-import '../widgets/medication_tab_bar.dart';
-import '../widgets/medication_issue_actions.dart';
-import '../widgets/missed_tab_view.dart';
-import '../widgets/overview_tab_view.dart';
-import '../widgets/refused_tab_view.dart';
 
-/// The "Medication MAR" screen — reproduces the "Overview", "Due",
-/// "Missed" and "Refused" Medication screens from the reference design as
-/// ONE page with a shared header and an internal segmented tab control,
-/// since all 4 screens share identical chrome and only the list content
-/// below the tab bar changes.
-///
-/// Hosts [HrBottomNavBar] with "More" selected so the pushed route still
-/// matches the reference frames that show the manager bottom nav.
-class MedicationPage extends StatelessWidget {
+/// Manager Medication MAR — web `/dashboard/medication` parity:
+/// metrics, Due Now / Missed side cards, Export MAR, and
+/// MAR / PRN / Given / Resident chart tabs (same console as staff web).
+class MedicationPage extends StatefulWidget {
   const MedicationPage({super.key});
 
-  /// Index of the "More" slot in [HrBottomNavBar.items].
+  @override
+  State<MedicationPage> createState() => _MedicationPageState();
+}
+
+class _MedicationPageState extends State<MedicationPage> {
   static const int _moreTabIndex = 4;
 
-  MedicationController _resolveController() {
+  late final StaffMedicationController _controller;
+  final RxBool _isExporting = false.obs;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = _resolveController();
+  }
+
+  StaffMedicationController _resolveController() {
     try {
-      return Get.find<MedicationController>();
+      final existing = Get.find<StaffMedicationController>();
+      existing.refresh();
+      return existing;
     } catch (_) {
-      return Get.put(GetIt.instance<MedicationController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<StaffMedicationController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -44,9 +63,58 @@ class MedicationPage extends StatelessWidget {
     Get.offAll(() => HrShell(initialIndex: index));
   }
 
+  Future<void> _exportMar() async {
+    if (_isExporting.value) return;
+    _isExporting.value = true;
+    try {
+      final repository = GetIt.instance<MedicationRepository>();
+      final result = await repository.exportMarCsv();
+      await result.when(
+        success: (bytes) async {
+          final stamp = DateTime.now()
+              .toIso8601String()
+              .replaceAll(':', '-')
+              .split('.')
+              .first;
+          final saveResult = await MediaStoreDownload.saveFileAndOpen(
+            fileName: 'mar_administrations-$stamp.csv',
+            bytes: Uint8List.fromList(bytes),
+            mimeType: 'text/csv',
+            chooserTitle: 'Open CSV',
+          );
+          if (!saveResult.success) {
+            AppSnackbar.show(
+              'Could not export MAR',
+              saveResult.error ?? 'Could not save or open the CSV file.',
+              force: true,
+            );
+            return;
+          }
+          AppSnackbar.show(
+            'Export ready',
+            'MAR administrations CSV exported.',
+            force: true,
+          );
+        },
+        failure: (error) async {
+          AppSnackbar.show(
+            'Could not export MAR',
+            error.message,
+            force: true,
+          );
+        },
+      );
+    } catch (error) {
+      AppSnackbar.show('Could not export MAR', error.toString(), force: true);
+    } finally {
+      _isExporting.value = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
+    final canWrite = Get.find<UserSession>().canWriteMar;
+    final canPrn = Get.find<UserSession>().canAdministerMarDose(isPrn: true);
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -58,19 +126,21 @@ class MedicationPage extends StatelessWidget {
         ),
       ),
       body: Obx(() {
-        final response = controller.state.value;
+        final response = _controller.state.value;
         final overview = response.data;
 
-        if (overview == null && controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+        if (overview == null && _controller.isLoading.value) {
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+          );
         }
 
         if (overview == null) {
           return _MedicationError(
-            message: controller.errorMessage.value.isEmpty
+            message: _controller.errorMessage.value.isEmpty
                 ? 'Something went wrong while loading medications.'
-                : controller.errorMessage.value,
-            onRetry: controller.refresh,
+                : _controller.errorMessage.value,
+            onRetry: _controller.refresh,
           );
         }
 
@@ -79,25 +149,46 @@ class MedicationPage extends StatelessWidget {
             ColoredBox(
               color: AppColors.surfaceWhite,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   MedicationHeader(
-                    title: overview.screenTitle,
-                    subtitle: overview.screenSubtitle,
-                    onSearchTap: openManagerPortalSearch,
+                    title: 'Medication Administration Record (MAR)',
+                    subtitle: 'Across residences · MAR console',
+                    onBackTap: Get.back,
+                    isExporting: _isExporting.value,
+                    onExportTap: _exportMar,
                   ),
                   Padding(
                     padding: ResponsiveHelper.getResponsivePadding(
                       context,
                       horizontal: 16,
                       top: 4,
-                      bottom: 12,
+                      bottom: 8,
                     ),
-                    child: MedicationTabBar(
-                      selectedTab: controller.selectedTab.value,
-                      dueCount: overview.dueCount,
-                      missedCount: overview.missedCount,
-                      refusedCount: overview.refusedCount,
-                      onTabSelected: controller.selectTab,
+                    child: StaffMarMetricsRow(overview: overview),
+                  ),
+                  if (canWrite)
+                    StaffMedicationActionRow(
+                      canWrite: canWrite,
+                      onRecordAdministration: () =>
+                          _controller.startRecordAdministration(context),
+                      onAddMedicine: () =>
+                          _controller.openAddMedicine(context),
+                    ),
+                  Padding(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 16,
+                      top: 4,
+                      bottom: 8,
+                    ),
+                    child: StaffMedicationTabBar(
+                      key: const Key('hr-mar-section-nav'),
+                      selectedTab: _controller.selectedTab.value,
+                      marCount: _controller.marTabCount,
+                      prnCount: _controller.prnTabCount,
+                      givenCount: _controller.givenTabCount,
+                      onTabSelected: _controller.selectTab,
                     ),
                   ),
                 ],
@@ -106,66 +197,85 @@ class MedicationPage extends StatelessWidget {
             Expanded(
               child: RefreshIndicator(
                 color: AppColors.secondaryTeal,
-                onRefresh: controller.refresh,
+                onRefresh: _controller.refresh,
                 child: ListView(
                   padding: EdgeInsets.fromLTRB(
                     ResponsiveHelper.getResponsiveWidth(context, 16),
-                    ResponsiveHelper.getResponsiveHeight(context, 8),
+                    ResponsiveHelper.getResponsiveHeight(context, 4),
                     ResponsiveHelper.getResponsiveWidth(context, 16),
-                    ResponsiveHelper.getResponsiveHeight(context, 28),
+                    ResponsiveHelper.getResponsiveHeight(context, 32),
                   ),
                   children: [
-                    switch (controller.selectedTab.value) {
-                      MedicationTab.overview => OverviewTabView(
-                          stats: overview.overviewStats,
-                          dueTodayDoses: overview.dueTodayDoses,
-                          moreDueTodayCount: overview.moreDueTodayCount,
-                          missedRefusedAlerts: overview.missedRefusedAlerts,
-                          missedRefusedAlertCount: overview.missedCount + overview.refusedCount,
+                    switch (_controller.selectedTab.value) {
+                      StaffMedicationTab.mar => MarRegistryTabView(
+                          doses: _controller.filteredScheduledDoses,
+                          scheduledCount: overview.scheduledCount,
+                          searchController: _controller.searchController,
+                          residenceId: _controller.filterResidenceId.value,
+                          clientId: _controller.filterClientId.value,
+                          medication: _controller.filterMedication.value,
+                          state: _controller.filterState.value,
+                          residenceOptions:
+                              _controller.residenceFilterOptions,
+                          residentOptions: _controller.residentFilterOptions,
+                          medicationOptions:
+                              _controller.medicationFilterOptions,
+                          hasActiveFilters: _controller.hasActiveFilters,
+                          onSearchChanged: (v) =>
+                              _controller.updateFilters(search: v),
+                          onFilterChanged: _controller.updateFilters,
+                          onClearFilters: _controller.clearFilters,
+                          canWriteScheduled: canWrite,
+                          canWritePrn: canPrn,
+                          onAdminister: _controller.markAdministered,
+                          onNotGiven: _controller.markNotGiven,
+                          onOpenClientMedications: (dose) {
+                            showStaffClientMedicationsSheet(
+                              context,
+                              clientId: dose.clientId,
+                              clientName: dose.residentName,
+                            );
+                          },
                         ),
-                      MedicationTab.due => DueTabView(
-                          title: overview.scheduleTitle,
-                          subtitle: overview.scheduleSubtitle,
-                          selectedPeriod: controller.selectedSchedulePeriod.value,
-                          onPeriodSelected: controller.selectSchedulePeriod,
-                          priorityDoses: controller.dosesForPeriod(
-                            overview.priorityDoses,
-                          ),
-                          laterTodayDoses: controller.dosesForPeriod(
-                            overview.laterTodayDoses,
-                          ),
-                          completedDoses: controller.dosesForPeriod(
-                            overview.completedDoses,
-                          ),
-                          onDoseTap: (dose) => showClientMedicationsSheet(
-                            context,
-                            dose: dose,
-                          ),
+                      StaffMedicationTab.prn => PrnRegistryTabView(
+                          items: _controller.prnItems.toList(),
+                          canGive: canPrn,
+                          onGive: _controller.givePrn,
+                          onOpenChart: (item) {
+                            if (item.clientId.isEmpty) return;
+                            showStaffClientMedicationsSheet(
+                              context,
+                              clientId: item.clientId,
+                              clientName: item.clientName.isEmpty
+                                  ? 'Resident'
+                                  : item.clientName,
+                            );
+                          },
                         ),
-                      MedicationTab.missed => MissedTabView(
-                          stats: overview.missedStats,
-                          medications: overview.missedMedications,
-                          onReviewTap: (medication) =>
-                              reviewMissedMedicationIssue(
-                            context,
-                            medication: medication,
-                          ),
-                          onContactStaffTap: (medication) =>
-                              contactMissedMedicationStaff(
-                            context,
-                            medication: medication,
-                          ),
+                      StaffMedicationTab.given => GivenTabView(
+                          doses: _controller.givenItems.toList(),
                         ),
-                      MedicationTab.refused => RefusedTabView(
-                          stats: overview.refusedStats,
-                          medications: overview.refusedMedications,
-                          onLogFollowUpTap: (medication) =>
-                              logRefusedMedicationFollowUp(
-                            context,
-                            medication: medication,
-                          ),
+                      StaffMedicationTab.residentChart =>
+                        ResidentChartTabView(
+                          clients: _controller.chartClients.toList(),
+                          loading: _controller.loadingExtras.value &&
+                              _controller.chartClients.isEmpty,
+                          onOpenChart: (client) {
+                            showStaffClientMedicationsSheet(
+                              context,
+                              clientId: client.id,
+                              clientName: client.name,
+                            );
+                          },
                         ),
                     },
+                    StaffMedicationSideCards(
+                      overview: overview,
+                      onReviewAllMissed: _controller.reviewAllMissed,
+                      onChartDue: canWrite
+                          ? (dose) => _controller.markAdministered(dose.id)
+                          : null,
+                    ),
                   ],
                 ),
               ),
@@ -191,7 +301,11 @@ class _MedicationError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.criticalRed, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.criticalRed,
+              size: 40,
+            ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Text(
               message,
