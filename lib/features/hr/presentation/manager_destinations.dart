@@ -6,9 +6,11 @@ import '../../../core/roles/user_session.dart';
 import '../clients/presentation/pages/clients_page.dart';
 import '../communication/presentation/pages/communication_page.dart';
 import '../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../handovers/presentation/pages/handovers_page.dart';
 import '../hr_shell.dart';
 import '../medication/presentation/pages/medication_page.dart';
 import '../profile_settings/presentation/pages/hr_profile_settings_page.dart';
+import '../recurring_checks/presentation/pages/recurring_checks_page.dart';
 import '../residences/presentation/pages/residences_page.dart';
 import '../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
 import '../team_reports/presentation/pages/team_reports_page.dart';
@@ -127,13 +129,33 @@ List<ManagerDestination> managerDestinations() {
     ),
     ManagerDestination(
       title: 'Daily Logs',
-      subtitle: 'Shift logs, missing entries & handovers',
+      subtitle: 'Review queue, missing logs & resident days',
       icon: Icons.assignment_outlined,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
       open: () => Get.to(() => const DailyLogsPage()),
       keywords: const ['handovers', 'logs', 'notes'],
     ),
+    if (can('shift-handovers:read'))
+      ManagerDestination(
+        title: 'Shift Handovers',
+        subtitle: 'What one shift tells the next',
+        icon: Icons.edit_note_rounded,
+        iconBackground: AppColors.activeBackground,
+        iconColor: AppColors.secondaryTeal,
+        open: () => Get.to(() => const HandoversPage()),
+        keywords: const ['handover', 'handovers', 'shift notes'],
+      ),
+    if (can('recurring-checks:read'))
+      ManagerDestination(
+        title: 'Recurring Checks',
+        subtitle: 'Scheduled resident checks, due and recorded',
+        icon: Icons.timer_outlined,
+        iconBackground: AppColors.activeBackground,
+        iconColor: AppColors.secondaryTeal,
+        open: () => Get.to(() => const RecurringChecksPage()),
+        keywords: const ['recurring', 'checks', 'welfare', 'vitals', 'schedule'],
+      ),
     ManagerDestination(
       title: 'Medication',
       subtitle: 'MAR oversight across all residences',

@@ -56,6 +56,8 @@ abstract final class ApiEndpoints {
   // ── Daily logs ──────────────────────────────────────────────────────────
   static const String dailyLogs = '/daily-logs';
   static const String dailyLogEntries = '/daily-logs/entries';
+  static const String dailyLogShifts = '/daily-logs/shifts';
+  static const String residenceActivity = '/residence-activity';
   static const String careFlags = '/care-flags';
   static const String shiftHandovers = '/shift-handovers';
   static const String clientActivities = '/client-activities';
@@ -215,12 +217,14 @@ abstract final class ApiEndpoints {
   static String dailyLogEntryById(String id) => '$dailyLogEntries/$id';
   static String dailyLogAmendments(String id) =>
       '$dailyLogEntries/$id/amendments';
+  static String dailyLogShiftById(String id) => '$dailyLogShifts/$id';
   static String careFlagResolve(String id) => '$careFlags/$id/resolve';
   static String handoverById(String id) => '$shiftHandovers/$id';
   static String handoverAcknowledge(String id) =>
       '$shiftHandovers/$id/acknowledge';
   static String handoverComments(String id) => '$shiftHandovers/$id/comments';
   static String handoverStatus(String id) => '$shiftHandovers/$id/status';
+  static String handoverRestore(String id) => '$shiftHandovers/$id/restore';
   static String incidentById(String id) => '$incidents/$id';
   static String incidentInvestigation(String id) =>
       '$incidents/$id/investigation';
@@ -255,6 +259,8 @@ abstract final class ApiEndpoints {
       '$recurringCheckInstances/$id';
   static String recurringCheckScheduleById(String id) =>
       '$recurringCheckSchedules/$id';
+  static String recurringCheckAvailableStaff(String instanceId) =>
+      '$recurringCheckInstances/$instanceId/available-staff';
 
   const ApiEndpoints._();
 }

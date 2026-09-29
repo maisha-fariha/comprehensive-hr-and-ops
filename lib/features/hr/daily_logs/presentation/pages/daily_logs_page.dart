@@ -6,372 +6,285 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../attendance/presentation/widgets/attendance_pagination.dart';
+import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../hr_shell.dart';
+import '../../../presentation/manager_destinations.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
-import '../../domain/entities/daily_logs_enums.dart';
 import '../controllers/daily_logs_controller.dart';
-import '../widgets/handover_tab_view.dart';
-import '../widgets/missing_tab_view.dart';
-import '../widgets/review_tab_view.dart';
+import '../widgets/daily_log_common.dart';
+import '../widgets/daily_logs_filters.dart';
+import '../widgets/daily_logs_lists.dart';
+import '../widgets/day_timeline.dart';
+import '../widgets/entry_sheets.dart';
+import '../widgets/new_log_entry_sheet.dart';
+import '../widgets/side_panels.dart';
 
-/// The "Daily Logs" screen: a single page hosting three segmented tabs
-/// (Review / Missing / Handover) that share the same white app bar and
-/// tab-bar header. Tab UIs match their Figma references.
-///
-/// Hosts [HrBottomNavBar] with "More" selected so the pushed route still
-/// matches the reference frames that show the manager bottom nav.
-class DailyLogsPage extends StatelessWidget {
-  const DailyLogsPage({super.key});
+/// Web `notificationHref` targets that have a manager screen in the app.
+const _entityDestinations = {
+  'shift': 'Scheduling',
+  'shift_swap': 'Scheduling',
+  'shift_handover': 'Shift Handovers',
+  'attendance_record': 'Attendance',
+  'task': 'Tasks & Compliance',
+  'compliance_score': 'Tasks & Compliance',
+  'compliance_check': 'Tasks & Compliance',
+  'corrective_action': 'Tasks & Compliance',
+  'incident': 'Incidents',
+  'client': 'Clients',
+  'medication_chart': 'Medication',
+  'medication_stock': 'Medication',
+  'recurring_check': 'Recurring Checks',
+  'conversation': 'Communication',
+};
 
-  /// Index of the "More" slot in [HrBottomNavBar.items].
+/// Manager "Daily Logs" — mirrors web `/dashboard/daily-logs`.
+class DailyLogsPage extends StatefulWidget {
+  final DailyLogFilePicker? pickFiles;
+
+  const DailyLogsPage({super.key, this.pickFiles});
+
   static const int _moreTabIndex = 4;
 
-  DailyLogsController _resolveController() {
-    try {
-      return Get.find<DailyLogsController>();
-    } catch (_) {
-      return Get.put(GetIt.instance<DailyLogsController>(), permanent: true);
-    }
-  }
-
-  void _onBottomNavTap(int index) {
-    Get.offAll(() => HrShell(initialIndex: index));
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final controller = _resolveController();
-
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
-      body: Obx(() {
-        final response = controller.state.value;
-        final overview = response.data;
-
-        if (overview == null && controller.isLoading.value) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.secondaryTeal),
-          );
-        }
-
-        if (overview == null) {
-          return _DailyLogsError(
-            message: controller.errorMessage.value.isEmpty
-                ? 'Something went wrong while loading Daily Logs.'
-                : controller.errorMessage.value,
-            onRetry: controller.refresh,
-          );
-        }
-
-        final selectedTab = controller.selectedTab.value;
-
-        return Column(
-          children: [
-            ColoredBox(
-              color: AppColors.surfaceWhite,
-              child: SafeArea(
-                bottom: false,
-                child: Column(
-                  children: [
-                    const _DailyLogsHeader(),
-                    _DailyLogsTabBar(
-                      selectedTab: selectedTab,
-                      missingBadgeCount: overview.missingLogs.length,
-                      onTabSelected: controller.selectTab,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Expanded(
-              child: RefreshIndicator(
-                color: AppColors.secondaryTeal,
-                onRefresh: controller.refresh,
-                child: switch (selectedTab) {
-                  DailyLogsTab.review => ReviewTabView(
-                      stats: overview.reviewStats,
-                      submittedLogs: overview.submittedLogs,
-                      submittedLogsTotalCount: overview.submittedLogsTotalCount,
-                      clientStatusSummaries: overview.clientStatusSummaries,
-                    ),
-                  DailyLogsTab.missing => MissingTabView(
-                      stats: overview.missingStats,
-                      missingLogs: overview.missingLogs,
-                    ),
-                  DailyLogsTab.handover => HandoverTabView(
-                      stats: overview.handoverStats,
-                      handoverEntries: overview.handoverEntries,
-                      acknowledgingHandoverId:
-                          controller.acknowledgingHandoverId.value,
-                      onAcknowledge: controller.acknowledgeHandover,
-                    ),
-                },
-              ),
-            ),
-          ],
-        );
-      }),
-      bottomNavigationBar: Obx(
-        () => HrBottomNavBar(
-          currentIndex: _moreTabIndex,
-          onTap: _onBottomNavTap,
-          alertsBadgeCount: hrAlertsBadgeCount(),
-        ),
-      ),
-    );
-  }
+  State<DailyLogsPage> createState() => _DailyLogsPageState();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Header
-// ─────────────────────────────────────────────────────────────────────────────
+class _DailyLogsPageState extends State<DailyLogsPage> {
+  late final DailyLogsController _c;
 
-class _DailyLogsHeader extends StatelessWidget {
-  const _DailyLogsHeader();
+  @override
+  void initState() {
+    super.initState();
+    _c = Get.put(GetIt.instance<DailyLogsController>());
+  }
+
+  @override
+  void dispose() {
+    Get.delete<DailyLogsController>();
+    super.dispose();
+  }
+
+  VoidCallback? _openFor(String? entityType, String? _) {
+    final title = _entityDestinations[entityType];
+    if (title == null) return null;
+    final destination = managerDestinations().firstWhereOrNull((d) => d.title == title);
+    return destination?.open;
+  }
+
+  VoidCallback? get _openMedication =>
+      managerDestinations().firstWhereOrNull((d) => d.title == 'Medication')?.open;
 
   @override
   Widget build(BuildContext context) {
-    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 36);
-
-    return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 20,
-        top: 8,
-        bottom: 12,
-      ),
-      child: Row(
+    final pad = ResponsiveHelper.getResponsiveWidth(context, 16);
+    return Scaffold(
+      backgroundColor: AppColors.scaffoldBackground,
+      body: Column(
         children: [
-          Icon(
-            Icons.menu_rounded,
-            size: ResponsiveHelper.getResponsiveSize(context, 24),
-            color: AppColors.textHeading,
-          ),
+          _header(context),
           Expanded(
-            child: Text(
-              'Daily Logs',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
-                color: AppColors.textHeading,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: openManagerPortalSearch,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: buttonSize,
-              height: buttonSize,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceWhite,
-                border: Border.all(color: AppColors.cardBorder),
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 12),
+            child: RefreshIndicator(
+              color: AppColors.secondaryTeal,
+              onRefresh: _c.refreshAll,
+              child: Obx(
+                () => ListView(
+                  key: const ValueKey('dl-scroll'),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
+                  children: _content(context),
                 ),
-              ),
-              alignment: Alignment.center,
-              child: const AppSvgIcon(
-                AppAssets.search,
-                size: 18,
-                color: AppColors.textHeading,
               ),
             ),
           ),
         ],
       ),
+      bottomNavigationBar: Obx(
+        () => HrBottomNavBar(
+          currentIndex: DailyLogsPage._moreTabIndex,
+          onTap: (index) => Get.offAll(() => HrShell(initialIndex: index)),
+          alertsBadgeCount: hrAlertsBadgeCount(),
+        ),
+      ),
     );
   }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tab bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DailyLogsTabBar extends StatelessWidget {
-  final DailyLogsTab selectedTab;
-  final int missingBadgeCount;
-  final ValueChanged<DailyLogsTab> onTabSelected;
-
-  const _DailyLogsTabBar({
-    required this.selectedTab,
-    required this.missingBadgeCount,
-    required this.onTabSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tabs = [
-      (DailyLogsTab.review, 'Review', null),
-      (DailyLogsTab.missing, 'Missing', missingBadgeCount),
-      (DailyLogsTab.handover, 'Handover', null),
-    ];
-
-    return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 20,
-        bottom: 14,
-      ),
-      child: Container(
-        height: ResponsiveHelper.getResponsiveHeight(context, 44),
-        padding: ResponsiveHelper.getResponsivePadding(context, all: 3),
-        decoration: BoxDecoration(
-          color: AppColors.filterButtonBackground,
-          borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 14),
-          ),
-        ),
-        child: Row(
-          children: [
-            for (final (tab, label, badge) in tabs)
+  Widget _header(BuildContext context) {
+    final buttonSize = ResponsiveHelper.getResponsiveSize(context, 36);
+    return ColoredBox(
+      color: AppColors.surfaceWhite,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 16, 10),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textHeading),
+              ),
               Expanded(
-                child: GestureDetector(
-                  onTap: () => onTabSelected(tab),
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    margin: EdgeInsets.symmetric(
-                      horizontal: ResponsiveHelper.getResponsiveWidth(context, 2),
-                    ),
-                    decoration: BoxDecoration(
-                      color: tab == selectedTab
-                          ? AppColors.surfaceWhite
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(
-                        ResponsiveHelper.getResponsiveRadius(context, 12),
-                      ),
-                      boxShadow: tab == selectedTab
-                          ? [
-                              BoxShadow(
-                                color: AppColors.shadowNavy.withValues(alpha: 0.08),
-                                offset: Offset(
-                                  0,
-                                  ResponsiveHelper.getResponsiveHeight(context, 1),
-                                ),
-                                blurRadius: ResponsiveHelper.getResponsiveHeight(
-                                  context,
-                                  3,
-                                ),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: tab == selectedTab
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                context,
-                                13,
-                              ),
-                              color: tab == selectedTab
-                                  ? AppColors.secondaryTeal
-                                  : AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                        if (tab != selectedTab && (badge ?? 0) > 0) ...[
-                          SizedBox(
-                            width: ResponsiveHelper.getResponsiveWidth(context, 5),
-                          ),
-                          Container(
-                            constraints: const BoxConstraints(minWidth: 18),
-                            height: ResponsiveHelper.getResponsiveSize(context, 18),
-                            padding: ResponsiveHelper.getResponsivePadding(
-                              context,
-                              horizontal: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.criticalRed,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '$badge',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w700,
-                                fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                  context,
-                                  10,
-                                ),
-                                color: AppColors.surfaceWhite,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                child: Text(
+                  'Daily Logs',
+                  style: handoverText(context, 18, weight: FontWeight.w700),
                 ),
               ),
-          ],
+              Obx(
+                () => _c.showAddEntry
+                    ? Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: HandoverButton(
+                          key: const ValueKey('dl-add-entry'),
+                          label: 'Add Entry',
+                          icon: Icons.add_rounded,
+                          filled: true,
+                          compact: true,
+                          onPressed: () => showNewLogEntrySheet(
+                            context,
+                            controller: _c,
+                            pickFiles: widget.pickFiles,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              GestureDetector(
+                onTap: openManagerPortalSearch,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: buttonSize,
+                  height: buttonSize,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceWhite,
+                    border: Border.all(color: AppColors.cardBorder),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: const AppSvgIcon(AppAssets.search, size: 18, color: AppColors.textHeading),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Error
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DailyLogsError extends StatelessWidget {
-  final String message;
-  final Future<void> Function() onRetry;
-
-  const _DailyLogsError({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, all: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              color: AppColors.criticalRed,
-              size: 40,
-            ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-            ElevatedButton(
-              onPressed: onRetry,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.secondaryTeal,
-              ),
-              child: const Text('Retry'),
-            ),
-          ],
+  List<Widget> _content(BuildContext context) {
+    final tab = _c.tab.value;
+    final hasResidence = _c.hasResidence;
+    return [
+      DailyLogsFilters(controller: _c),
+      const SizedBox(height: 15),
+      if (hasResidence && tab != DailyLogsTab.day) ...[
+        DailyLogsKpis(controller: _c),
+        const SizedBox(height: 15),
+      ],
+      DailyLogsTabs(controller: _c),
+      const SizedBox(height: 15),
+      if (!hasResidence)
+        const DailyLogEmptyCard(
+          title: 'Choose a residence to begin',
+          description: 'Daily logs are read one residence at a time.',
+        )
+      else ...[
+        ..._main(context, tab),
+        const SizedBox(height: 15),
+        ShiftDocumentationPanel(
+          rows: _c.shiftLogs.toList(),
+          loading: _c.shiftLogsLoading.value,
+          canWrite: _c.canWrite,
+          canReview: _c.canReview,
+          busyId: _c.busyShiftId.value,
+          onUpdate: _c.updateShiftLog,
         ),
+        const SizedBox(height: 15),
+        PriorityNotesPanel(
+          flags: _c.flags.toList(),
+          loading: _c.flagsLoading.value,
+          error: _c.flagsError.value,
+          canResolve: _c.canResolveFlags,
+          onResolve: (f) => showResolveFlagSheet(context, controller: _c, flag: f),
+        ),
+      ],
+    ];
+  }
+
+  Widget _pagination() {
+    final (total, totalPages) = _c.paging;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: AttendancePagination(
+        page: _c.page.value,
+        limit: _c.limit.value,
+        total: total,
+        totalPages: totalPages,
+        limitOptions: DailyLogsController.limitOptions,
+        onPage: _c.setPage,
+        onLimit: _c.setLimit,
       ),
     );
+  }
+
+  List<Widget> _main(BuildContext context, DailyLogsTab tab) {
+    switch (tab) {
+      case DailyLogsTab.review:
+        final rows = _c.review.value?.items ?? const [];
+        return [
+          ReviewQueueList(
+            rows: rows,
+            loading: _c.reviewLoading.value,
+            error: _c.reviewError.value,
+            onOpen: (r) => _c.openDay(r.clientId, r.logDate, name: r.clientName),
+          ),
+          if (rows.isNotEmpty) _pagination(),
+        ];
+      case DailyLogsTab.missing:
+        final rows = _c.missing.value?.items ?? const [];
+        return [
+          MissingLogsList(
+            rows: rows,
+            loading: _c.missingLoading.value,
+            error: _c.missingError.value,
+            onWrite: (r) => _c.openDay(r.clientId, r.logDate, name: r.clientName),
+          ),
+          if (rows.isNotEmpty) _pagination(),
+        ];
+      case DailyLogsTab.activity:
+        final rows = _c.activity.value?.items ?? const [];
+        return [
+          HouseActivityList(
+            rows: rows,
+            loading: _c.activityLoading.value,
+            openFor: _openFor,
+          ),
+          if (rows.isNotEmpty) _pagination(),
+        ];
+      case DailyLogsTab.day:
+        if (_c.clientId.value.isEmpty) {
+          return const [
+            DailyLogEmptyCard(
+              title: 'Choose a resident',
+              description: 'A day view is one resident on one date.',
+            ),
+          ];
+        }
+        return [
+          if (_c.dayError.value case final error?) ...[
+            DailyLogFormError(error),
+            const SizedBox(height: 12),
+          ],
+          DayTimeline(
+            day: _c.day.value,
+            loading: _c.dayLoading.value,
+            canWrite: _c.canWrite,
+            onOpen: (e) => showEntryDetailSheet(context, controller: _c, entryId: e.id),
+            onAmend: (e) => showAmendEntrySheet(context, controller: _c, entry: e),
+            onDelete: (e) => confirmDeleteEntry(context, controller: _c, entry: e),
+            onMedication: _openMedication == null ? null : (_) => _openMedication!(),
+          ),
+        ];
+    }
   }
 }

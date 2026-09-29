@@ -1,3 +1,4 @@
+import '../../../../../core/formatting/web_formats.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/assignee.dart';
@@ -11,6 +12,7 @@ import '../../domain/entities/expiring_certificate.dart';
 import '../../domain/entities/task_client_option.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/entities/task_residence_option.dart';
+import '../../domain/entities/task_shift_option.dart';
 import '../../domain/entities/task_staff_option.dart';
 import '../../domain/entities/task_stat.dart';
 import '../../domain/entities/tasks_compliance_enums.dart';
@@ -368,6 +370,53 @@ abstract final class TasksComplianceMapper {
         .whereType<TaskResidenceOption>()
         .toList();
   }
+
+  static List<String> roomNamesFrom(dynamic body) {
+    final map = body is Map ? JsonCodec.asMap(body) : const <String, dynamic>{};
+    final data = map['data'];
+    final rows = data is Map ? JsonCodec.listAt(JsonCodec.asMap(data), 'rooms') : JsonCodec.unwrapList(body);
+    return [
+      for (final row in rows.whereType<Map>())
+        ?JsonCodec.string(JsonCodec.asMap(row)['name']),
+    ];
+  }
+
+  static List<TaskShiftOption> shiftOptionsFrom(dynamic body) {
+    final options = <TaskShiftOption>[];
+    for (final row in JsonCodec.unwrapList(body).whereType<Map>()) {
+      final json = JsonCodec.asMap(row);
+      final id = JsonCodec.string(json['id']);
+      if (id == null || JsonCodec.string(json['status']) == 'cancelled') continue;
+      final startsAt = JsonCodec.dateTime(json['startsAt']);
+      options.add(
+        TaskShiftOption(
+          id: id,
+          startsAt: startsAt,
+          label: WebFormat.describeShift(
+            shiftType: JsonCodec.string(json['shiftType']),
+            title: JsonCodec.string(json['title']),
+            startsAt: startsAt,
+            endsAt: JsonCodec.dateTime(json['endsAt']),
+            staffNames: rosteredNames(json),
+          ),
+        ),
+      );
+    }
+    options.sort((a, b) {
+      final x = a.startsAt, y = b.startsAt;
+      if (x == null || y == null) return 0;
+      return x.compareTo(y);
+    });
+    return options;
+  }
+
+  /// Names on a shift, leaving out declined assignments and pending bids.
+  static List<String> rosteredNames(Map<String, dynamic> shift) => [
+        for (final person in JsonCodec.listAt(shift, 'staff').whereType<Map>())
+          if (!const {'declined', 'bid_pending'}
+              .contains(JsonCodec.string(person['status'])))
+            ?JsonCodec.string(person['name']),
+      ];
 
   static List<TaskClientOption> clientsFrom(dynamic body) {
     final options = <TaskClientOption>[];
