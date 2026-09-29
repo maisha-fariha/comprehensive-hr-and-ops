@@ -180,6 +180,124 @@ class MediaStoreDownload {
     return file;
   }
 
+  /// Saves [bytes] then opens with the system viewer (CSV, etc.).
+  ///
+  /// Android uses MediaStore + `ACTION_VIEW` (content URI). iOS uses a local
+  /// copy + [OpenFilex].
+  static Future<MediaStoreSaveResult> saveFileAndOpen({
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+    String chooserTitle = 'Open file',
+  }) async {
+    final safeName = fileName.trim().isEmpty ? 'download.bin' : fileName.trim();
+
+    if (Platform.isAndroid) {
+      final saved = await saveFile(
+        fileName: safeName,
+        bytes: bytes,
+        mimeType: mimeType,
+      );
+      if (!saved.success) return saved;
+
+      final opened = await _openAndroidFile(
+        uri: saved.uri,
+        filePath: saved.path,
+        fileName: safeName,
+        bytes: bytes,
+        mimeType: mimeType,
+        chooserTitle: chooserTitle,
+      );
+      if (!opened) {
+        return MediaStoreSaveResult(
+          success: false,
+          path: saved.path,
+          uri: saved.uri,
+          error: 'File was saved to Downloads, but could not be opened.',
+        );
+      }
+      return MediaStoreSaveResult(
+        success: true,
+        path: saved.path,
+        uri: saved.uri,
+        locationLabel: 'Downloads',
+      );
+    }
+
+    if (Platform.isIOS) {
+      try {
+        final file = await _writeLocalCopy(
+          fileName: safeName,
+          bytes: bytes,
+          subFolder: 'Downloads',
+        );
+        final openResult = await OpenFilex.open(file.path, type: mimeType);
+        if (openResult.type != ResultType.done) {
+          return MediaStoreSaveResult(
+            success: false,
+            path: file.path,
+            error: openResult.message,
+          );
+        }
+        return MediaStoreSaveResult(
+          success: true,
+          path: file.path,
+          locationLabel: 'Files → On My iPhone → Downloads',
+        );
+      } catch (e) {
+        return MediaStoreSaveResult(success: false, error: e.toString());
+      }
+    }
+
+    return const MediaStoreSaveResult(
+      success: false,
+      error: 'File download is only supported on Android and iOS.',
+    );
+  }
+
+  static Future<bool> _openAndroidFile({
+    required String? uri,
+    required String? filePath,
+    required String fileName,
+    required Uint8List bytes,
+    required String mimeType,
+    required String chooserTitle,
+  }) async {
+    final absolutePath = _absolutePathIfExists(filePath);
+    try {
+      await _channel.invokeMethod<void>('openFile', {
+        if (uri != null && uri.isNotEmpty) 'uri': uri,
+        if (absolutePath != null) 'filePath': absolutePath,
+        'mimeType': mimeType,
+        'chooserTitle': chooserTitle,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('openFile Intent failed, falling back to OpenFilex: $e');
+    }
+
+    try {
+      final cache = await _writeLocalCopy(
+        fileName: fileName,
+        bytes: bytes,
+        subFolder: 'export_preview',
+        preferCache: true,
+      );
+      final openResult = await OpenFilex.open(cache.path, type: mimeType);
+      return openResult.type == ResultType.done;
+    } catch (e) {
+      debugPrint('OpenFilex fallback failed: $e');
+      return false;
+    }
+  }
+
+  static String? _absolutePathIfExists(String? path) {
+    if (path == null || path.isEmpty) return null;
+    if (!path.startsWith('/')) return null;
+    final file = File(path);
+    return file.existsSync() ? path : null;
+  }
+
   /// Saves [bytes] as [fileName] with the given [mimeType].
   static Future<MediaStoreSaveResult> saveFile({
     required String fileName,

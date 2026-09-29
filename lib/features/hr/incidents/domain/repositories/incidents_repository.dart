@@ -100,4 +100,11 @@ abstract class IncidentsRepository {
     String? correctiveActions,
     String status = 'open',
   });
+
+  /// Web "Export List" for Incident Reports.
+  ///
+  /// Tries `POST /reports/exports` (`reportKey: incident_log`) then download.
+  /// When status/download is forbidden (role has `incidents:export` but not
+  /// `reports:read`), falls back to CSV built from `GET /incidents`.
+  Future<Result<List<int>>> exportIncidentListCsv();
 }

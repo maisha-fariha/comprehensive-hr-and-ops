@@ -540,6 +540,230 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
     );
   }
 
+  @override
+  Future<Result<List<int>>> exportIncidentListCsv() async {
+    final server = await _tryServerIncidentLogExport();
+    if (server.isSuccess && (server.value?.isNotEmpty ?? false)) {
+      return server;
+    }
+    return _buildIncidentListCsvFromApi();
+  }
+
+  /// Web path: `POST /reports/exports` with `reportKey: incident_log`, poll,
+  /// then download. Many manager roles can create but lack `reports:read` for
+  /// status/download — those callers fall back to [_buildIncidentListCsvFromApi].
+  Future<Result<List<int>>> _tryServerIncidentLogExport() async {
+    final create = await _api.post(
+      ApiEndpoints.reportsExports,
+      data: const {
+        'reportKey': 'incident_log',
+        'format': 'csv',
+      },
+      silent: true,
+      allowQueue: false,
+    );
+    if (create.isFailure) {
+      return Result.failure(
+        create.error ??
+            const ApiError(message: 'Could not create incident export.'),
+      );
+    }
+
+    final created = JsonCodec.unwrapMap(create.value);
+    final exportId = JsonCodec.string(created['id']) ?? '';
+    if (exportId.isEmpty) {
+      return Result.failure(
+        ApiError(message: 'Export was created but id was missing.'),
+      );
+    }
+
+    var status = JsonCodec.stringOr(created['status'], 'queued').toLowerCase();
+    for (var attempt = 0; attempt < 25 && status != 'ready'; attempt++) {
+      if (status == 'failed') {
+        return Result.failure(
+          ApiError(message: 'The export failed on the server.'),
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      final poll = await _api.get(
+        ApiEndpoints.reportsExportById(exportId),
+        silent: true,
+      );
+      if (poll.isFailure) {
+        // Typical for residence_manager: create OK, GET status FORBIDDEN.
+        return Result.failure(
+          poll.error ??
+              const ApiError(message: 'Could not check export status.'),
+        );
+      }
+      final map = JsonCodec.unwrapMap(poll.value);
+      status = JsonCodec.stringOr(map['status'], status).toLowerCase();
+      final fileUrl = JsonCodec.string(
+        map['fileUrl'] ?? map['downloadUrl'] ?? map['signedUrl'],
+      );
+      if (status == 'ready') {
+        return _downloadExportBytes(exportId, fileUrl);
+      }
+    }
+
+    return Result.failure(
+      ApiError(
+        message:
+            'Export is still running — it will appear on the Reports page when it finishes.',
+      ),
+    );
+  }
+
+  Future<Result<List<int>>> _downloadExportBytes(
+    String exportId,
+    String? preferredUrl,
+  ) async {
+    final preferred = (preferredUrl?.trim().isNotEmpty == true)
+        ? preferredUrl!.trim()
+        : ApiEndpoints.reportsExportDownload(exportId);
+    final usesSignedToken = preferred.contains('token=');
+
+    try {
+      final headers = <String, dynamic>{
+        'Accept': 'text/csv, application/octet-stream, */*',
+      };
+      if (!usesSignedToken) {
+        final token = _tokens.accessToken;
+        if (token != null && token.isNotEmpty) {
+          headers['Authorization'] = 'Bearer $token';
+        }
+        final subdomain = _tenant.subdomain;
+        if (subdomain != null && subdomain.isNotEmpty) {
+          headers['X-Tenant-Subdomain'] = subdomain;
+        }
+      }
+
+      final response = await Dio().get<List<int>>(
+        _resolveExportUrl(preferred),
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers,
+          validateStatus: (code) => code != null && code < 500,
+        ),
+      );
+      final code = response.statusCode ?? 0;
+      final bytes = response.data ?? const <int>[];
+      if (code == 403) {
+        return Result.failure(
+          ApiError(message: 'Missing permission to download this export.'),
+        );
+      }
+      if (code < 200 || code >= 300 || bytes.isEmpty) {
+        return Result.failure(
+          ApiError(message: 'Could not download the export file.'),
+        );
+      }
+      return Result.success(bytes);
+    } catch (_) {
+      return Result.failure(
+        ApiError(message: 'Could not download the export file.'),
+      );
+    }
+  }
+
+  Future<Result<List<int>>> _buildIncidentListCsvFromApi() async {
+    final residenceId = _session.residenceId;
+    final result = await _api.get(
+      ApiEndpoints.incidents,
+      query: {
+        'page': 1,
+        'limit': 500,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    if (result.isFailure) {
+      return Result.failure(
+        result.error ??
+            const ApiError(message: 'Could not load incidents for export.'),
+      );
+    }
+
+    final rows = JsonCodec.unwrapList(result.value).whereType<Map>();
+    final buffer = StringBuffer();
+    buffer.writeln(
+      'ID,Incident,Client,Residence,Severity,Reported,Status',
+    );
+    for (final raw in rows) {
+      final json = JsonCodec.asMap(raw);
+      final client = JsonCodec.mapAt(json, 'client') ?? const {};
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final category = JsonCodec.mapAt(json, 'category') ?? const {};
+      final id = JsonCodec.stringOr(json['id'], '');
+      final shortId = id.length > 8 ? id.substring(0, 8) : id;
+      final title = JsonCodec.stringOr(
+        json['title'],
+        JsonCodec.stringOr(category['name'], 'Incident'),
+      );
+      final clientName = JsonCodec.stringOr(
+        client['name'] ??
+            client['displayName'] ??
+            '${JsonCodec.stringOr(client['firstName'], '')} ${JsonCodec.stringOr(client['lastName'], '')}'
+                .trim(),
+        '',
+      );
+      final residenceName = JsonCodec.stringOr(
+        residence['name'] ?? residence['title'],
+        '',
+      );
+      final severity = JsonCodec.stringOr(
+        json['severity'] ?? category['severity'],
+        '',
+      );
+      final reportedAt = JsonCodec.stringOr(
+        json['reportedAt'] ?? json['createdAt'],
+        '',
+      );
+      final status = JsonCodec.stringOr(json['status'], '');
+      buffer.writeln(
+        [
+          _csvCell('#$shortId'),
+          _csvCell(title),
+          _csvCell(clientName),
+          _csvCell(residenceName),
+          _csvCell(severity),
+          _csvCell(reportedAt),
+          _csvCell(status),
+        ].join(','),
+      );
+    }
+
+    return Result.success(utf8.encode(buffer.toString()));
+  }
+
+  static String _csvCell(String value) {
+    final text = value.replaceAll('\r\n', ' ').replaceAll('\n', ' ').trim();
+    if (text.contains(',') || text.contains('"') || text.contains('\n')) {
+      return '"${text.replaceAll('"', '""')}"';
+    }
+    return text;
+  }
+
+  static String _resolveExportUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    final base = AppEnv.apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
+    if (trimmed.startsWith('/api/v1/')) {
+      final origin = base.replaceAll(RegExp(r'/api/v1$'), '');
+      return '$origin$trimmed';
+    }
+    if (trimmed.startsWith('/')) {
+      if (trimmed.startsWith('/reports/')) {
+        return '$base$trimmed';
+      }
+      return '${Uri.parse(base).origin}$trimmed';
+    }
+    return '$base/$trimmed';
+  }
+
   String? _extractId(dynamic body) {
     if (body is Map) {
       final map = Map<String, dynamic>.from(body);

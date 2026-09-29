@@ -60,7 +60,20 @@ class MainActivity : FlutterActivity() {
                         val uriString = call.argument<String>("uri")
                         val filePath = call.argument<String>("filePath")
                         try {
-                            openPdf(uriString, filePath)
+                            openFile(uriString, filePath, "application/pdf", "Open PDF")
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("OPEN_FAILED", e.message, null)
+                        }
+                    }
+                    "openFile" -> {
+                        val uriString = call.argument<String>("uri")
+                        val filePath = call.argument<String>("filePath")
+                        val mimeType =
+                            call.argument<String>("mimeType") ?: "application/octet-stream"
+                        val chooserTitle = call.argument<String>("chooserTitle") ?: "Open file"
+                        try {
+                            openFile(uriString, filePath, mimeType, chooserTitle)
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("OPEN_FAILED", e.message, null)
@@ -218,28 +231,35 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    private fun openPdf(uriString: String?, filePath: String?) {
+    private fun openFile(
+        uriString: String?,
+        filePath: String?,
+        mimeType: String,
+        chooserTitle: String,
+    ) {
         val uri: Uri = when {
             !uriString.isNullOrBlank() -> Uri.parse(uriString)
             !filePath.isNullOrBlank() -> {
                 val file = File(filePath)
+                if (!file.exists()) {
+                    throw IllegalArgumentException("File not found: $filePath")
+                }
                 FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
             }
             else -> throw IllegalArgumentException("uri or filePath required")
         }
 
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/pdf")
+            setDataAndType(uri, mimeType)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
 
-        val chooser = Intent.createChooser(intent, "Open PDF").apply {
+        val chooser = Intent.createChooser(intent, chooserTitle).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        // Grant read permission to all apps that can handle the chooser.
         val resInfoList = packageManager.queryIntentActivities(
             intent,
             android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
@@ -255,7 +275,7 @@ class MainActivity : FlutterActivity() {
         try {
             startActivity(chooser)
         } catch (e: android.content.ActivityNotFoundException) {
-            throw IllegalStateException("No PDF viewer app is installed", e)
+            throw IllegalStateException("No app is installed to open this file", e)
         }
     }
 

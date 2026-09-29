@@ -124,9 +124,7 @@ class IncidentsListPage extends StatelessWidget {
                   children: [
                     ExportListButton(
                       isLoading: controller.isExporting.value,
-                      onTap: controller.isExporting.value
-                          ? null
-                          : controller.exportIncidentList,
+                      onTap: controller.exportIncidentList,
                     ),
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 10),

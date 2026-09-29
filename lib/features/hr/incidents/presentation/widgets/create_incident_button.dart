@@ -73,7 +73,7 @@ class ExportListButton extends StatelessWidget {
           ResponsiveHelper.getResponsiveRadius(context, 16),
         ),
         child: InkWell(
-          onTap: onTap,
+          onTap: isLoading ? null : onTap,
           borderRadius: BorderRadius.circular(
             ResponsiveHelper.getResponsiveRadius(context, 16),
           ),
@@ -105,7 +105,7 @@ class ExportListButton extends StatelessWidget {
                   ),
                 SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 7)),
                 Text(
-                  'Export List',
+                  isLoading ? 'Preparing…' : 'Export List',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
