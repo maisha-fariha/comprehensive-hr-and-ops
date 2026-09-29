@@ -196,7 +196,15 @@ class _FakeAttendanceRepo implements AttendanceRepository {
     String? search,
     String? residenceId,
   }) async =>
-      Result.success(const []);
+      Result.success([
+        if ((search ?? '').toLowerCase().startsWith('ma'))
+          const ManualEntryStaffOption(
+            id: 'staff-maya',
+            name: 'Maya Rahman',
+            detail: 'Care Assistant',
+            initials: 'MR',
+          ),
+      ]);
 
   @override
   Future<Result<List<ManualEntryShiftOption>>> getRosteredShifts({
@@ -544,6 +552,50 @@ void main() {
     );
     expect(find.text('Select a staff member'), findsOneWidget);
     expect(find.text('Select a residence'), findsOneWidget);
+    expect(_repo.created, isEmpty);
+  });
+
+  testWidgets('BUG09: moving between Manual Entry steps never advances the '
+      'progress; only filling a step does', (tester) async {
+    await _pumpAttendance(tester);
+    await _tap(tester, find.byKey(const ValueKey('attendance-manual-entry')));
+
+    // Approval status starts at "Pending approval", which the web counts.
+    expect(find.text('STEP 1 OF 4'), findsOneWidget);
+    for (final tab in const [
+      'Time Correction',
+      'Reason & Evidence',
+      'Approval',
+      'Attendance Details',
+      'Approval',
+    ]) {
+      await _tap(tester, _stepTab(tab));
+      expect(find.text('STEP 1 OF 4'), findsOneWidget, reason: 'after $tab');
+    }
+
+    await _tap(tester, _stepTab('Attendance Details'));
+    await _choose(tester, find.text('Select residence'), 'Elm House');
+    expect(find.text('STEP 1 OF 4'), findsOneWidget,
+        reason: 'residence alone does not complete the details step');
+
+    await tester.enterText(find.byType(TextField).first, 'Ma');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    await _tap(tester, find.text('Maya Rahman').last);
+    expect(find.text('STEP 2 OF 4'), findsOneWidget);
+
+    await _tap(tester, _stepTab('Reason & Evidence'));
+    expect(find.text('STEP 2 OF 4'), findsOneWidget);
+    await _choose(
+      tester,
+      find.text('Why is this being entered by hand?'),
+      'Forgot clock-in',
+    );
+    expect(find.text('STEP 3 OF 4'), findsOneWidget);
+
+    await _tap(tester, _stepTab('Approval'));
+    await _tap(tester, _stepTab('Time Correction'));
+    expect(find.text('STEP 3 OF 4'), findsOneWidget);
     expect(_repo.created, isEmpty);
   });
 

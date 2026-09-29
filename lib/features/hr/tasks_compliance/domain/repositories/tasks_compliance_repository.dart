@@ -3,6 +3,7 @@ import 'package:gems_core/gems_core.dart';
 import '../entities/create_task_request.dart';
 import '../entities/task_client_option.dart';
 import '../entities/task_residence_option.dart';
+import '../entities/task_shift_option.dart';
 import '../entities/task_staff_option.dart';
 import '../entities/tasks_compliance_overview.dart';
 
@@ -11,6 +12,13 @@ abstract class TasksComplianceRepository {
   Future<Result<TasksComplianceOverview>> getOverview();
 
   Future<Result<List<TaskResidenceOption>>> getResidences();
+
+  /// `GET /residences/{id}/rooms` — room names for "Room / Area".
+  Future<Result<List<String>>> getRooms(String residenceId);
+
+  /// Non-cancelled shifts at the residence from a day ago to a week ahead,
+  /// soonest first — the web's "Shift" options.
+  Future<Result<List<TaskShiftOption>>> getShiftOptions(String residenceId);
 
   /// Typeahead for Create Task "Resident (Optional)" via `GET /clients?search=`.
   Future<Result<List<TaskClientOption>>> searchClients({
@@ -30,7 +38,8 @@ abstract class TasksComplianceRepository {
   /// `GET /tasks/{taskId}/notes`
   Future<Result<List<Map<String, dynamic>>>> getTaskNotes(String taskId);
 
-  /// `POST /tasks` (or `POST /tasks/recurring` when [CreateTaskRequest.recurring]).
+  /// `POST /tasks/recurring` for a recurrence; otherwise `POST /tasks`, then
+  /// assignees, the note and uploaded documents, as the web does.
   Future<Result<void>> createTask(CreateTaskRequest request);
 
   /// `PUT /tasks/{taskId}/assignees`
