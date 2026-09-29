@@ -21,6 +21,11 @@ abstract final class StaffIncidentsMapper {
     final client = JsonCodec.mapAt(json, 'client') ??
         JsonCodec.mapAt(json, 'resident') ??
         {};
+    final residence = JsonCodec.mapAt(json, 'residence') ?? {};
+    final reporter = JsonCodec.mapAt(json, 'reporter') ??
+        JsonCodec.mapAt(json, 'reportedBy') ??
+        {};
+    final categoryMap = JsonCodec.mapAt(json, 'category') ?? {};
     final name = JsonCodec.stringOr(
       client['preferredName'] ??
           client['name'] ??
@@ -28,16 +33,40 @@ abstract final class StaffIncidentsMapper {
           json['residentName'],
       'Resident',
     );
+    final reporterName = IsoDateRange.personName(
+      reporter.isEmpty ? json['reportedByName'] : reporter,
+    );
     final assignees = JsonCodec.listAt(json, 'assignees').isEmpty
         ? JsonCodec.listAt(json, 'assignedStaff')
         : JsonCodec.listAt(json, 'assignees');
     final occurred = JsonCodec.dateTime(
       json['occurredAt'] ?? json['createdAt'] ?? json['reportedAt'],
     );
+    final reportedAt = JsonCodec.dateTime(json['reportedAt'] ?? json['createdAt']);
+    final acknowledgedAt = JsonCodec.dateTime(json['acknowledgedAt']);
+    final categoryLabel = JsonCodec.stringOr(
+      categoryMap['name'] ??
+          json['categoryName'] ??
+          (json['category'] is String ? json['category'] : null),
+      '',
+    );
 
     return StaffIncident(
       id: JsonCodec.stringOr(json['id'], name),
       title: JsonCodec.stringOr(json['title'] ?? json['category'], 'Incident'),
+      categoryLabel: categoryLabel,
+      residenceName: JsonCodec.stringOr(
+        residence['name'] ?? json['residenceName'],
+        '',
+      ),
+      reportedByName: reporterName == 'Unknown' ? '' : reporterName,
+      reportedAtLabel: reportedAt == null
+          ? ''
+          : IsoDateRange.formatShortDate(reportedAt.toLocal()),
+      acknowledged: acknowledgedAt != null,
+      acknowledgedAtLabel: acknowledgedAt == null
+          ? null
+          : IsoDateRange.formatShortDate(acknowledgedAt.toLocal()),
       iconKind: _iconKind(json),
       severity: _severity(json['severity']),
       dateTimeLabel: occurred == null
@@ -236,31 +265,118 @@ abstract final class StaffIncidentsMapper {
 
   static StaffIncidentsSummary summaryFrom(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
-    final open = JsonCodec.integerOr(
-      json['open'] ?? json['openCount'] ?? json['openIncidents'],
-      0,
+    final byStatus = JsonCodec.mapAt(json, 'byStatus') ?? {};
+    final bySeverity = JsonCodec.mapAt(json, 'bySeverity') ?? {};
+
+    final openTotal = byStatus.isEmpty
+        ? JsonCodec.integerOr(
+            json['open'] ?? json['openCount'] ?? json['openIncidents'],
+            0,
+          )
+        : JsonCodec.integerOr(byStatus['open'], 0);
+
+    final investigatingTotal = byStatus.isEmpty
+        ? JsonCodec.integerOr(
+            json['investigating'] ??
+                json['underReview'] ??
+                json['inReview'] ??
+                json['pendingReview'],
+            0,
+          )
+        : JsonCodec.integerOr(byStatus['investigating'], 0) +
+            JsonCodec.integerOr(byStatus['inProgress'], 0);
+
+    final closed = byStatus.isEmpty
+        ? JsonCodec.integerOr(
+            json['closed'] ?? json['closedCount'] ?? json['resolved'],
+            0,
+          )
+        : JsonCodec.integerOr(byStatus['closed'], 0) +
+            JsonCodec.integerOr(byStatus['resolved'], 0);
+
+    final serious = JsonCodec.integerOr(
+      json['serious'] ?? json['highOrCritical'],
+      JsonCodec.integerOr(bySeverity['high'], 0) +
+          JsonCodec.integerOr(bySeverity['critical'], 0),
     );
-    final investigating = JsonCodec.integerOr(
-      json['investigating'] ??
-          json['underReview'] ??
-          json['inReview'] ??
-          json['pendingReview'],
-      0,
-    );
-    final closed = JsonCodec.integerOr(
-      json['closed'] ?? json['closedCount'] ?? json['resolved'],
-      0,
-    );
+
     final total = JsonCodec.integerOr(
       json['total'] ?? json['totalCount'] ?? json['count'],
-      open + investigating + closed,
+      openTotal + investigatingTotal + closed,
     );
+
     return StaffIncidentsSummary(
       total: total,
-      open: open,
-      investigating: investigating,
+      open: openTotal,
+      investigating: investigatingTotal,
       closed: closed,
+      serious: serious,
+      awaitingInvestigation: JsonCodec.integerOr(
+        json['awaitingInvestigation'],
+        0,
+      ),
+      openInvestigations: JsonCodec.integerOr(json['openInvestigations'], 0),
+      watchlist: _watchlistFrom(json['watchlist']),
+      investigationQueue: _queueFrom(json['investigationQueue']),
     );
+  }
+
+  static List<StaffIncidentWatchlistItem> _watchlistFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final items = <StaffIncidentWatchlistItem>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.stringOr(json['id'], '');
+      if (id.isEmpty) continue;
+      final hasInvestigation =
+          JsonCodec.boolean(json['hasInvestigation']) ?? false;
+      final stage = hasInvestigation
+          ? 'Investigation ${JsonCodec.stringOr(json['investigationStatus'] ?? json['status'], 'open')}'
+          : 'Not started';
+      items.add(
+        StaffIncidentWatchlistItem(
+          id: id,
+          title: JsonCodec.stringOr(
+            json['title'] ?? json['reference'],
+            'Untitled incident',
+          ),
+          residence: JsonCodec.stringOr(json['residence'], ''),
+          client: JsonCodec.stringOr(json['client'], ''),
+          severityLabel: JsonCodec.stringOr(json['severity'], ''),
+          stageLabel: stage,
+          hasInvestigation: hasInvestigation,
+          acknowledged: JsonCodec.dateTime(json['acknowledgedAt']) != null,
+        ),
+      );
+    }
+    return items;
+  }
+
+  static List<StaffIncidentQueueItem> _queueFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final items = <StaffIncidentQueueItem>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.stringOr(
+        json['incidentId'] ?? json['id'],
+        '',
+      );
+      if (id.isEmpty) continue;
+      items.add(
+        StaffIncidentQueueItem(
+          id: id,
+          caseName: JsonCodec.stringOr(
+            json['title'] ?? json['reference'] ?? json['caseName'],
+            'Untitled incident',
+          ),
+          stage: JsonCodec.stringOr(json['stage'] ?? json['status'], ''),
+          investigator: JsonCodec.string(json['investigator']),
+        ),
+      );
+    }
+    return items;
   }
 
   static List<StaffIncidentCategoryOption> categoriesFrom(dynamic body) {

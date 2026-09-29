@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 
 import '../../../../../core/network/iso_date_range.dart';
 import '../../domain/entities/staff_incident.dart';
+import '../../domain/entities/staff_incident_options.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
 import '../../domain/entities/staff_incidents_summary.dart';
 import '../../domain/repositories/staff_incidents_repository.dart';
@@ -14,16 +15,23 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
   final StaffIncidentsRepository repository;
 
   StaffIncidentsController({required this.repository}) {
+    loadFilterOptions();
     loadIncidents();
     loadSummary();
   }
 
-  final Rx<StaffIncidentsTab> selectedTab = StaffIncidentsTab.myIncidents.obs;
+  final Rx<StaffIncidentsTab> selectedTab = StaffIncidentsTab.allIncidents.obs;
   final RxString searchQuery = ''.obs;
   final Rxn<IncidentSeverity> severityFilter = Rxn<IncidentSeverity>();
   final Rxn<IncidentStatus> statusFilter = Rxn<IncidentStatus>();
   final Rxn<DateTime> fromDate = Rxn<DateTime>();
   final Rxn<DateTime> toDate = Rxn<DateTime>();
+  final RxnString residenceFilterId = RxnString();
+  final RxnString clientFilterId = RxnString();
+  final RxList<StaffIncidentResidenceOption> residences =
+      <StaffIncidentResidenceOption>[].obs;
+  final RxList<StaffIncidentClientOption> clients =
+      <StaffIncidentClientOption>[].obs;
   final Rx<StaffIncidentsSummary> summary = StaffIncidentsSummary.empty.obs;
   final RxInt myIncidentsCount = 0.obs;
   final RxInt allIncidentsCount = 0.obs;
@@ -36,6 +44,24 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
   List<StaffIncident> get visibleIncidents => incidents;
 
   int get headerCount => summary.value.total;
+
+  String? get residenceFilterLabel {
+    final id = residenceFilterId.value;
+    if (id == null) return null;
+    for (final residence in residences) {
+      if (residence.id == id) return residence.name;
+    }
+    return null;
+  }
+
+  String? get clientFilterLabel {
+    final id = clientFilterId.value;
+    if (id == null) return null;
+    for (final client in clients) {
+      if (client.id == id) return client.name;
+    }
+    return null;
+  }
 
   void selectTab(StaffIncidentsTab tab) {
     if (selectedTab.value == tab) return;
@@ -65,12 +91,59 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
     loadIncidents();
   }
 
+  Future<void> setResidenceFilter(String? residenceId) async {
+    final next =
+        (residenceId == null || residenceId.isEmpty) ? null : residenceId;
+    residenceFilterId.value = next;
+    clientFilterId.value = null;
+    await loadClients(residenceId: next);
+    loadIncidents();
+  }
+
+  void setClientFilter(String? clientId) {
+    clientFilterId.value =
+        (clientId == null || clientId.isEmpty) ? null : clientId;
+    loadIncidents();
+  }
+
   void clearFilters() {
     severityFilter.value = null;
     statusFilter.value = null;
     fromDate.value = null;
     toDate.value = null;
+    residenceFilterId.value = null;
+    clientFilterId.value = null;
+    loadClients();
     loadIncidents();
+  }
+
+  /// Web "View Queue" — filter list to investigating status.
+  void viewInvestigationQueue() {
+    statusFilter.value = IncidentStatus.inReview;
+    loadIncidents();
+  }
+
+  Future<void> loadFilterOptions() async {
+    await Future.wait([loadResidences(), loadClients()]);
+  }
+
+  Future<void> loadResidences() async {
+    final result = await repository.getResidences();
+    result.when(
+      success: (list) => residences.assignAll(list),
+      failure: (_) {},
+    );
+  }
+
+  Future<void> loadClients({String? residenceId}) async {
+    final result = await repository.getClients(
+      assignedToMe: false,
+      residenceId: residenceId ?? residenceFilterId.value,
+    );
+    result.when(
+      success: (list) => clients.assignAll(list),
+      failure: (_) {},
+    );
   }
 
   Future<void> loadSummary() async {
@@ -99,6 +172,8 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
               .add(const Duration(days: 1))
               .toUtc()
               .toIso8601String(),
+      residenceId: residenceFilterId.value,
+      clientId: clientFilterId.value,
     );
     result.when(
       success: (list) {
@@ -116,7 +191,11 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
 
   @override
   Future<void> refresh() async {
-    await Future.wait([loadIncidents(), loadSummary()]);
+    await Future.wait([
+      loadFilterOptions(),
+      loadIncidents(),
+      loadSummary(),
+    ]);
   }
 
   @override

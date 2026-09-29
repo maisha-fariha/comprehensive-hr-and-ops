@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_incident_options.dart';
@@ -19,6 +20,17 @@ class IncidentCreationController extends GetxController {
 
   IncidentCreationController({StaffIncidentsRepository? repository})
       : repository = repository ?? GetIt.instance<StaffIncidentsRepository>();
+
+  /// 0-based wizard index matching web's 5-step create flow.
+  final RxInt wizardStep = 0.obs;
+
+  static const List<String> stepTitles = [
+    'Incident Details',
+    'Location & People',
+    'Investigation',
+    'Evidence & Submission',
+    'Report Form',
+  ];
 
   static const List<String> detectedDuringOptions = [
     'Medication Round',
@@ -316,6 +328,51 @@ class IncidentCreationController extends GetxController {
   }
 
   void selectSeverity(IncidentSeverity value) => severity.value = value;
+
+  void goToStep(int step) {
+    if (step < 0 || step >= stepTitles.length) return;
+    wizardStep.value = step;
+  }
+
+  /// Advances to the next wizard step when not already on the last.
+  /// Soft-validates step 0 fields with a snackbar but does not block.
+  bool nextStep() {
+    if (wizardStep.value >= stepTitles.length - 1) return false;
+    if (wizardStep.value == 0) {
+      _softValidateDetailsStep();
+    }
+    wizardStep.value++;
+    return true;
+  }
+
+  void previousStep() {
+    if (wizardStep.value <= 0) return;
+    wizardStep.value--;
+  }
+
+  /// Draft status is not an API-supported value — keep form progress on-screen.
+  void saveDraft() {
+    AppSnackbar.show(
+      'Draft not supported',
+      'Draft status is not supported by the API '
+          '(open, investigating, or closed only). '
+          'Your progress stays on screen until you Submit.',
+    );
+  }
+
+  void _softValidateDetailsStep() {
+    final missing = <String>[];
+    if (selectedCategory.value == null) missing.add('category');
+    if (incidentTitleController.text.trim().isEmpty) missing.add('title');
+    if (incidentDateController.text.trim().isEmpty) missing.add('date');
+    if (incidentTimeController.text.trim().isEmpty) missing.add('time');
+    if (descriptionController.text.trim().isEmpty) missing.add('description');
+    if (missing.isEmpty) return;
+    AppSnackbar.show(
+      'Missing details',
+      'Consider filling: ${missing.join(', ')} before continuing.',
+    );
+  }
 
   Future<void> pickCategory() async {
     if (categories.isEmpty) {

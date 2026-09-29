@@ -4,8 +4,10 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
 
-/// Segmented "My Incidents / All Incidents" control — same visual language as
+/// Segmented "All Incidents | Reported by Me" control — same visual language as
 /// [StaffDailyLogsTabBar] (slate track, white elevated segment, mint badge).
+/// Enum values remain [StaffIncidentsTab.allIncidents] /
+/// [StaffIncidentsTab.myIncidents].
 class StaffIncidentsTabBar extends StatelessWidget {
   final StaffIncidentsTab selected;
   final int allIncidentsCount;
@@ -53,18 +55,6 @@ class StaffIncidentsTabBar extends StatelessWidget {
           children: [
             Expanded(
               child: _TabSegment(
-                label: 'My Incidents',
-                isActive: selected == StaffIncidentsTab.myIncidents,
-                radius: segmentRadius,
-                badgeCount: selected == StaffIncidentsTab.myIncidents
-                    ? null
-                    : (myIncidentsCount > 0 ? myIncidentsCount : null),
-                badgeStyle: _badgeStyle,
-                onTap: () => onSelected(StaffIncidentsTab.myIncidents),
-              ),
-            ),
-            Expanded(
-              child: _TabSegment(
                 label: 'All Incidents',
                 isActive: selected == StaffIncidentsTab.allIncidents,
                 radius: segmentRadius,
@@ -73,6 +63,18 @@ class StaffIncidentsTabBar extends StatelessWidget {
                     : (allIncidentsCount > 0 ? allIncidentsCount : null),
                 badgeStyle: _badgeStyle,
                 onTap: () => onSelected(StaffIncidentsTab.allIncidents),
+              ),
+            ),
+            Expanded(
+              child: _TabSegment(
+                label: 'Reported by Me',
+                isActive: selected == StaffIncidentsTab.myIncidents,
+                radius: segmentRadius,
+                badgeCount: selected == StaffIncidentsTab.myIncidents
+                    ? null
+                    : (myIncidentsCount > 0 ? myIncidentsCount : null),
+                badgeStyle: _badgeStyle,
+                onTap: () => onSelected(StaffIncidentsTab.myIncidents),
               ),
             ),
           ],
