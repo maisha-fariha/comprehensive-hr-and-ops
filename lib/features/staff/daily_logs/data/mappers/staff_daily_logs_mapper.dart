@@ -7,124 +7,252 @@ import '../../domain/entities/staff_client_log_entry.dart';
 import '../../domain/entities/staff_daily_log_summary_stat.dart';
 import '../../domain/entities/staff_daily_logs_enums.dart';
 import '../../domain/entities/staff_daily_logs_overview.dart';
+import '../../domain/entities/staff_day_log_entry.dart';
+import '../../domain/entities/staff_house_activity_entry.dart';
 
 abstract final class StaffDailyLogsMapper {
   static StaffDailyLogsOverview compose({
+    required dynamic reviewBody,
+    required dynamic missingBody,
+    required dynamic dayBody,
+    required dynamic activitiesBody,
     required dynamic clientsBody,
-    required List<({String clientId, dynamic body})> draftLogs,
-    required List<({String clientId, dynamic body})> submittedLogs,
-    required dynamic flagsBody,
+    dynamic flagsBody,
+    String? selectedClientName,
+    DateTime? from,
+    DateTime? to,
   }) {
-    final draftByClient = <String, List<Map<String, dynamic>>>{};
-    final submittedByClient = <String, List<Map<String, dynamic>>>{};
-    final drafts = <StaffClientLogEntry>[];
-    final submitted = <StaffClientLogEntry>[];
+    final reviewRows = JsonCodec.unwrapList(reviewBody)
+        .whereType<Map>()
+        .map(JsonCodec.asMap)
+        .toList();
+    final missingRows = JsonCodec.unwrapList(missingBody)
+        .whereType<Map>()
+        .map(JsonCodec.asMap)
+        .toList();
 
-    for (final pair in draftLogs) {
-      final entries = _entriesFromDailyLogBody(pair.body);
-      draftByClient.putIfAbsent(pair.clientId, () => []);
-      for (final json in entries) {
-        final withClient = <String, dynamic>{
-          ...json,
-          'clientId': json['clientId'] ?? pair.clientId,
-          'status': json['status'] ?? 'draft',
-        };
-        draftByClient[pair.clientId]!.add(withClient);
-        drafts.add(_logRow(withClient, ClientLogStatus.inProgress));
-      }
+    final review = [
+      for (final json in reviewRows)
+        _queueRow(json, ClientLogStatus.toReview),
+    ];
+    final missing = [
+      for (final json in missingRows)
+        _queueRow(json, ClientLogStatus.missing),
+    ];
+
+    final dayMap =
+        dayBody == null ? <String, dynamic>{} : JsonCodec.unwrapMap(dayBody);
+    final dayEntries = <StaffDayLogEntry>[];
+    for (final raw in JsonCodec.listAt(dayMap, 'entries').whereType<Map>()) {
+      dayEntries.add(_dayEntry(JsonCodec.asMap(raw)));
     }
+    final dayDate = JsonCodec.dateTime(dayMap['logDate']);
+    final dayClientName = selectedClientName ??
+        JsonCodec.string(
+          dayMap['clientName'] ?? IsoDateRange.personName(dayMap['client']),
+        );
 
-    for (final pair in submittedLogs) {
-      final entries = _entriesFromDailyLogBody(pair.body);
-      submittedByClient.putIfAbsent(pair.clientId, () => []);
-      for (final json in entries) {
-        final withClient = <String, dynamic>{
-          ...json,
-          'clientId': json['clientId'] ?? pair.clientId,
-          'status': json['status'] ?? 'submitted',
-        };
-        submittedByClient[pair.clientId]!.add(withClient);
-        submitted.add(_logRow(withClient, ClientLogStatus.submitted));
-      }
-    }
+    final activities = JsonCodec.unwrapList(activitiesBody)
+        .whereType<Map>()
+        .map((item) => _activity(JsonCodec.asMap(item)))
+        .toList();
 
-    final clients = JsonCodec.unwrapList(clientsBody).whereType<Map>().map((raw) {
+    final residents = <({String id, String name})>[];
+    for (final raw in JsonCodec.unwrapList(clientsBody).whereType<Map>()) {
       final json = JsonCodec.asMap(raw);
-      final clientId = JsonCodec.stringOr(json['id'], '');
-      final clientSubmitted =
-          submittedByClient[clientId] ?? const <Map<String, dynamic>>[];
-      final clientDrafts =
-          draftByClient[clientId] ?? const <Map<String, dynamic>>[];
+      final id = JsonCodec.string(json['id']);
+      if (id == null || id.isEmpty) continue;
+      residents.add((id: id, name: _clientName(json)));
+    }
 
-      // Prefer submitted > draft > pending for the My Clients pill.
-      final ClientLogStatus status;
-      final Map<String, dynamic>? latest;
-      if (clientSubmitted.isNotEmpty) {
-        status = ClientLogStatus.submitted;
-        latest = clientSubmitted.first;
-      } else if (clientDrafts.isNotEmpty) {
-        status = ClientLogStatus.inProgress;
-        latest = clientDrafts.first;
-      } else {
-        status = ClientLogStatus.pending;
-        latest = null;
-      }
-      return _clientRow(json, status, latest);
-    }).toList();
+    final reviewTotal = JsonCodec.integerOr(
+      JsonCodec.metaOf(reviewBody)?['total'],
+      review.length,
+    );
+    final missingTotal = JsonCodec.integerOr(
+      JsonCodec.metaOf(missingBody)?['total'],
+      missing.length,
+    );
+    final activitiesTotal = JsonCodec.integerOr(
+      JsonCodec.metaOf(activitiesBody)?['total'],
+      activities.length,
+    );
+    final openFlags = JsonCodec.integerOr(
+      JsonCodec.metaOf(flagsBody)?['total'],
+      JsonCodec.unwrapList(flagsBody).length,
+    );
 
-    final flagged = JsonCodec.unwrapList(flagsBody).length;
+    // Web "Entries Logged" = sum of entriesCount on review (to-review) days.
+    var entriesLogged = 0;
+    for (final row in reviewRows) {
+      entriesLogged += JsonCodec.integerOr(row['entriesCount'], 0);
+    }
+
+    final rangeSubtitle = (from != null && to != null)
+        ? _shortRangeLabel(from, to)
+        : null;
 
     return StaffDailyLogsOverview(
       stats: [
         StaffDailyLogSummaryStat(
-          tag: StaffDailyLogStatTag.submittedToday,
-          value: '${submitted.length}',
-          label: 'Submitted Today',
+          tag: StaffDailyLogStatTag.entriesLogged,
+          value: '$entriesLogged',
+          label: 'Entries Logged',
+          subtitle: rangeSubtitle,
         ),
         StaffDailyLogSummaryStat(
-          tag: StaffDailyLogStatTag.pendingReview,
-          value: '${drafts.length}',
-          label: 'In Progress',
+          tag: StaffDailyLogStatTag.daysToReview,
+          value: '$reviewTotal',
+          label: 'Days to Review',
+          subtitle: 'Resident-days with entries',
         ),
         StaffDailyLogSummaryStat(
-          tag: StaffDailyLogStatTag.flaggedNotes,
-          value: '$flagged',
-          label: 'Flagged Notes',
+          tag: StaffDailyLogStatTag.missingLogs,
+          value: '$missingTotal',
+          label: 'Missing Logs',
+          subtitle: 'Resident-days with nothing written',
+        ),
+        StaffDailyLogSummaryStat(
+          tag: StaffDailyLogStatTag.openFlags,
+          value: '$openFlags',
+          label: 'Open Flags',
+          subtitle: 'Raised and not yet resolved',
         ),
       ],
-      myClients: clients,
-      myClientsTotalCount: JsonCodec.integerOr(
-        JsonCodec.metaOf(clientsBody)?['total'],
-        clients.length,
-      ),
-      inProgressClients: drafts,
-      submittedClients: submitted,
-      submittedTotalCount: submitted.length,
+      toReview: review,
+      toReviewTotal: reviewTotal,
+      missing: missing,
+      missingTotal: missingTotal,
+      dayEntries: dayEntries,
+      dayClientName: dayClientName,
+      dayLogDateLabel: dayDate == null
+          ? null
+          : IsoDateRange.formatShortDate(dayDate.toLocal()),
+      houseActivities: activities,
+      houseActivitiesTotal: activitiesTotal,
+      residents: residents,
     );
   }
 
-  static List<Map<String, dynamic>> _entriesFromDailyLogBody(dynamic body) {
-    if (body == null) return const [];
-    final list = JsonCodec.unwrapList(body);
-    if (list.isNotEmpty) {
-      return [
-        for (final item in list)
-          if (item is Map) JsonCodec.asMap(item),
-      ];
-    }
-    final map = JsonCodec.unwrapMap(body);
-    if (map.isEmpty) return const [];
-    if (map.containsKey('id') || map.containsKey('entries')) {
-      final nested = JsonCodec.listAt(map, 'entries');
-      if (nested.isNotEmpty) {
-        return [
-          for (final item in nested)
-            if (item is Map) JsonCodec.asMap(item),
-        ];
-      }
-      return [map];
-    }
-    return const [];
+  static String _shortRangeLabel(DateTime from, DateTime to) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[from.month - 1]} ${from.day} – ${months[to.month - 1]} ${to.day}';
+  }
+
+  static StaffClientLogEntry _queueRow(
+    Map<String, dynamic> json,
+    ClientLogStatus status,
+  ) {
+    final name = JsonCodec.stringOr(
+      json['clientName'] ?? IsoDateRange.personName(json['client']),
+      'Resident',
+    );
+    final logDate = JsonCodec.dateTime(json['logDate']) ??
+        DateTime.tryParse(JsonCodec.stringOr(json['logDate'], ''));
+    final created = JsonCodec.dateTime(json['createdAt']);
+    final entriesCount = JsonCodec.integerOr(json['entriesCount'], 0);
+    final dateLabel = logDate == null
+        ? '—'
+        : IsoDateRange.formatShortDate(logDate.toLocal());
+
+    final subtitle = status == ClientLogStatus.missing
+        ? 'No log for $dateLabel'
+        : (entriesCount > 0
+            ? '$entriesCount ${entriesCount == 1 ? 'entry' : 'entries'}'
+            : (created == null
+                ? 'Awaiting review'
+                : 'Submitted ${IsoDateRange.timeLabel(created.toLocal())}'));
+
+    return StaffClientLogEntry(
+      id: JsonCodec.stringOr(
+        json['id'] ?? '${json['clientId']}-$dateLabel',
+        name,
+      ),
+      initials: IsoDateRange.initials(name),
+      shiftLabel: dateLabel,
+      clientName: name,
+      subtitleLabel: subtitle,
+      status: status,
+      dobLabel: '',
+      roomLabel: '',
+      clientId: JsonCodec.stringOr(json['clientId'], ''),
+      residenceId: JsonCodec.string(json['residenceId']),
+      entryId: JsonCodec.string(json['id']),
+      logDateIso: logDate?.toUtc().toIso8601String() ??
+          JsonCodec.string(json['logDate']),
+      entriesCount: entriesCount,
+    );
+  }
+
+  static StaffDayLogEntry _dayEntry(Map<String, dynamic> json) {
+    final at = JsonCodec.dateTime(
+      json['occurredAt'] ?? json['createdAt'],
+    );
+    final author = JsonCodec.mapAt(json, 'author') ?? {};
+    return StaffDayLogEntry(
+      id: JsonCodec.stringOr(json['id'], ''),
+      body: JsonCodec.stringOr(json['body'] ?? json['notes'], ''),
+      authorName: JsonCodec.stringOr(
+        author['name'] ?? IsoDateRange.personName(author),
+        'Staff',
+      ),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      logType: JsonCodec.stringOr(json['logType'] ?? json['source'], ''),
+      shift: JsonCodec.string(json['shift']),
+    );
+  }
+
+  static StaffHouseActivityEntry _activity(Map<String, dynamic> json) {
+    final client = JsonCodec.mapAt(json, 'client') ?? {};
+    final name = _clientName(client.isEmpty ? json : client);
+    final date = JsonCodec.dateTime(
+      json['activityDate'] ?? json['occurredAt'] ?? json['createdAt'],
+    );
+    final author = JsonCodec.mapAt(json, 'author') ??
+        JsonCodec.mapAt(json, 'recordedByStaff') ??
+        {};
+    return StaffHouseActivityEntry(
+      id: JsonCodec.stringOr(json['id'], ''),
+      clientName: name,
+      activityType: JsonCodec.stringOr(
+        json['activityType'] ?? json['type'],
+        'Activity',
+      ),
+      status: JsonCodec.stringOr(json['status'], ''),
+      dateLabel: date == null
+          ? '—'
+          : IsoDateRange.formatShortDate(date.toLocal()),
+      notes: JsonCodec.stringOr(json['notes'] ?? json['description'], ''),
+      authorName: JsonCodec.stringOr(
+        author['name'] ?? IsoDateRange.personName(author),
+        '',
+      ),
+    );
+  }
+
+  static String _clientName(Map<String, dynamic> json) {
+    final preferred = JsonCodec.string(json['preferredName']);
+    if (preferred != null && preferred.isNotEmpty) return preferred;
+    final full = JsonCodec.string(json['fullName'] ?? json['name']);
+    if (full != null && full.isNotEmpty) return full;
+    final first = JsonCodec.string(json['firstName']) ?? '';
+    final last = JsonCodec.string(json['lastName']) ?? '';
+    final joined = '$first $last'.trim();
+    if (joined.isNotEmpty) return joined;
+    return IsoDateRange.personName(json);
   }
 
   static DailyNoteOverview emptyNote() {
@@ -148,8 +276,9 @@ abstract final class StaffDailyLogsMapper {
       observations['wellness'] ?? observations['appointmentNotes'],
       '',
     );
-    final wellnessCompleted = JsonCodec.boolean(json['wellnessCheckCompleted']) ??
-        wellnessValue.isNotEmpty;
+    final wellnessCompleted =
+        JsonCodec.boolean(json['wellnessCheckCompleted']) ??
+            wellnessValue.isNotEmpty;
     final flag = json['flagForAttention'];
     final flagForAttention = flag is bool
         ? flag
@@ -171,7 +300,8 @@ abstract final class StaffDailyLogsMapper {
       flagForAttention: flagForAttention,
       attachments: [
         for (final item in attachmentMaps)
-          if ((JsonCodec.string(item['fileUrl'] ?? item['url']) ?? '').isNotEmpty)
+          if ((JsonCodec.string(item['fileUrl'] ?? item['url']) ?? '')
+              .isNotEmpty)
             DailyNoteAttachment(
               fileUrl: JsonCodec.stringOr(item['fileUrl'] ?? item['url'], ''),
               fileType: JsonCodec.stringOr(
@@ -256,108 +386,6 @@ abstract final class StaffDailyLogsMapper {
           value: '',
         ),
       ];
-
-  static StaffClientLogEntry _clientRow(
-    Map<String, dynamic> json,
-    ClientLogStatus status,
-    Map<String, dynamic>? latestLog,
-  ) {
-    final name = JsonCodec.stringOr(
-      json['preferredName'] ?? json['fullName'] ?? json['name'],
-      'Client',
-    );
-    final clientId = JsonCodec.stringOr(json['id'], name);
-    final updated = latestLog == null
-        ? null
-        : JsonCodec.dateTime(
-            latestLog['updatedAt'] ??
-                latestLog['submittedAt'] ??
-                latestLog['createdAt'],
-          );
-    final subtitle = switch (status) {
-      ClientLogStatus.pending => JsonCodec.stringOr(
-          json['room'] ?? json['roomNumber'] ?? json['location'],
-          'No note yet today',
-        ),
-      ClientLogStatus.inProgress => updated == null
-          ? 'Draft in progress'
-          : 'Updated ${IsoDateRange.timeLabel(updated.toLocal())}',
-      ClientLogStatus.submitted => updated == null
-          ? 'Submitted'
-          : 'Submitted ${IsoDateRange.timeLabel(updated.toLocal())}',
-    };
-
-    return StaffClientLogEntry(
-      id: clientId,
-      initials: IsoDateRange.initials(name),
-      shiftLabel: JsonCodec.stringOr(
-        latestLog?['shift'] ?? json['shift'] ?? json['shiftLabel'],
-        'Today',
-      ),
-      clientName: name,
-      subtitleLabel: subtitle,
-      status: status,
-      dobLabel: _dobLabel(json),
-      roomLabel: JsonCodec.stringOr(json['room'] ?? json['roomNumber'], ''),
-      clientId: clientId,
-      residenceId: JsonCodec.string(
-        json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
-      ),
-      entryId: JsonCodec.string(
-        latestLog?['id'] ?? latestLog?['entryId'],
-      ),
-    );
-  }
-
-  static String _dobLabel(Map<String, dynamic> json) {
-    final raw = JsonCodec.string(json['dateOfBirth'] ?? json['dob']);
-    if (raw == null) return '';
-    final parsed = JsonCodec.dateTime(raw);
-    if (parsed == null) return raw.startsWith('DOB') ? raw : 'DOB $raw';
-    final local = parsed.toLocal();
-    final mm = local.month.toString().padLeft(2, '0');
-    final dd = local.day.toString().padLeft(2, '0');
-    return 'DOB $mm/$dd/${local.year}';
-  }
-
-  static StaffClientLogEntry _logRow(
-    Map<String, dynamic> json,
-    ClientLogStatus status,
-  ) {
-    final client = JsonCodec.mapAt(json, 'client') ?? json;
-    final name = JsonCodec.stringOr(
-      client['preferredName'] ??
-          client['fullName'] ??
-          client['name'] ??
-          json['clientName'],
-      'Client',
-    );
-    final updated = JsonCodec.dateTime(
-      json['updatedAt'] ?? json['submittedAt'] ?? json['createdAt'],
-    );
-    return StaffClientLogEntry(
-      id: JsonCodec.stringOr(
-        json['id'] ?? json['entryId'] ?? client['id'],
-        name,
-      ),
-      initials: IsoDateRange.initials(name),
-      shiftLabel: JsonCodec.stringOr(json['shift'] ?? json['shiftLabel'], 'Shift'),
-      clientName: name,
-      subtitleLabel: updated == null
-          ? JsonCodec.stringOr(json['status'], status.name)
-          : '${status == ClientLogStatus.submitted ? 'Submitted' : 'Updated'} ${IsoDateRange.timeLabel(updated.toLocal())}',
-      status: status,
-      dobLabel: _dobLabel(JsonCodec.asMap(client)),
-      roomLabel: JsonCodec.stringOr(client['room'] ?? client['roomNumber'], ''),
-      clientId: JsonCodec.stringOr(json['clientId'] ?? client['id'], ''),
-      residenceId: JsonCodec.string(
-        json['residenceId'] ??
-            client['residenceId'] ??
-            JsonCodec.mapAt(json, 'residence')?['id'],
-      ),
-      entryId: JsonCodec.string(json['id'] ?? json['entryId']),
-    );
-  }
 
   const StaffDailyLogsMapper._();
 }

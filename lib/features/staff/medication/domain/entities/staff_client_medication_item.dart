@@ -10,6 +10,10 @@ class StaffClientMedicationItem {
   final String? scheduleLabel;
   final String? instructions;
   final bool isPrn;
+  final String clientId;
+  final String clientName;
+  final String residenceId;
+  final String residenceName;
 
   const StaffClientMedicationItem({
     required this.id,
@@ -18,5 +22,9 @@ class StaffClientMedicationItem {
     this.scheduleLabel,
     this.instructions,
     this.isPrn = false,
+    this.clientId = '',
+    this.clientName = '',
+    this.residenceId = '',
+    this.residenceName = '',
   });
 }

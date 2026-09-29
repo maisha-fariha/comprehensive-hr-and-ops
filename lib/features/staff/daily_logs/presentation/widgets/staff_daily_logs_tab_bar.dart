@@ -4,109 +4,57 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_daily_logs_enums.dart';
 
-class _BadgeStyle {
-  final Color background;
-  final Color foreground;
-
-  const _BadgeStyle(this.background, this.foreground);
-}
-
-/// Segmented "My Clients | In Progress | Submitted" control under the
-/// Daily Logs app bar — matched to the header + tabs reference screenshot.
+/// Web-parity tabs: To review · Missing · Resident day view · House activity.
 class StaffDailyLogsTabBar extends StatelessWidget {
   final StaffDailyLogsTab selectedTab;
   final ValueChanged<StaffDailyLogsTab> onTabSelected;
-  final int myClientsCount;
-  final int inProgressCount;
-  final int submittedCount;
-
-  static const Color _track = Color(0xFFF1F4F8);
-  static const Color _inactiveLabel = Color(0xFF7E8CA0);
-  static const Color _activeLabel = Color(0xFF005F56);
-
-  /// Soft slate badge + dark navy count.
-  static const _BadgeStyle _myClientsBadgeStyle = _BadgeStyle(
-    Color(0xFFECEFF3),
-    Color(0xFF1A2B3C),
-  );
-
-  /// Pale blue badge + dark navy count (matches header ink).
-  static const _BadgeStyle _inProgressBadgeStyle = _BadgeStyle(
-    Color(0xFFE8F0FE),
-    Color(0xFF1A2B3C),
-  );
-
-  /// Pale mint badge + deep teal count (matches active label).
-  static const _BadgeStyle _submittedBadgeStyle = _BadgeStyle(
-    Color(0xFFD4F7E5),
-    Color(0xFF005F56),
-  );
+  final int toReviewCount;
+  final int missingCount;
 
   const StaffDailyLogsTabBar({
     super.key,
     required this.selectedTab,
     required this.onTabSelected,
-    this.myClientsCount = 0,
-    this.inProgressCount = 0,
-    this.submittedCount = 0,
+    this.toReviewCount = 0,
+    this.missingCount = 0,
   });
 
   @override
   Widget build(BuildContext context) {
-    final segmentRadius = ResponsiveHelper.getResponsiveRadius(context, 14);
-
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
         context,
-        horizontal: 20,
-        top: 4,
-        bottom: 16,
+        horizontal: 16,
+        bottom: 12,
       ),
-      child: Container(
-        padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
-        decoration: BoxDecoration(
-          color: _track,
-          borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 16),
-          ),
-        ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            Expanded(
-              child: _TabSegment(
-                label: 'My Clients',
-                isActive: selectedTab == StaffDailyLogsTab.myClients,
-                radius: segmentRadius,
-                badgeCount: selectedTab == StaffDailyLogsTab.myClients
-                    ? null
-                    : (myClientsCount > 0 ? myClientsCount : null),
-                badgeStyle: _myClientsBadgeStyle,
-                onTap: () => onTabSelected(StaffDailyLogsTab.myClients),
-              ),
+            _Chip(
+              label: 'To review',
+              selected: selectedTab == StaffDailyLogsTab.toReview,
+              badge: toReviewCount,
+              onTap: () => onTabSelected(StaffDailyLogsTab.toReview),
             ),
-            Expanded(
-              child: _TabSegment(
-                label: 'In Progress',
-                isActive: selectedTab == StaffDailyLogsTab.inProgress,
-                radius: segmentRadius,
-                badgeCount: selectedTab == StaffDailyLogsTab.inProgress
-                    ? null
-                    : (inProgressCount > 0 ? inProgressCount : null),
-                badgeStyle: _inProgressBadgeStyle,
-                onTap: () => onTabSelected(StaffDailyLogsTab.inProgress),
-              ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            _Chip(
+              label: 'Missing',
+              selected: selectedTab == StaffDailyLogsTab.missing,
+              badge: missingCount,
+              onTap: () => onTabSelected(StaffDailyLogsTab.missing),
             ),
-            Expanded(
-              child: _TabSegment(
-                label: 'Submitted',
-                isActive: selectedTab == StaffDailyLogsTab.submitted,
-                radius: segmentRadius,
-                badgeCount: selectedTab == StaffDailyLogsTab.submitted
-                    ? null
-                    : (submittedCount > 0 ? submittedCount : null),
-                badgeStyle: _submittedBadgeStyle,
-                onTap: () => onTabSelected(StaffDailyLogsTab.submitted),
-              ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            _Chip(
+              label: 'Resident day view',
+              selected: selectedTab == StaffDailyLogsTab.residentDay,
+              onTap: () => onTabSelected(StaffDailyLogsTab.residentDay),
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            _Chip(
+              label: 'House activity',
+              selected: selectedTab == StaffDailyLogsTab.houseActivity,
+              onTap: () => onTabSelected(StaffDailyLogsTab.houseActivity),
             ),
           ],
         ),
@@ -115,94 +63,65 @@ class StaffDailyLogsTabBar extends StatelessWidget {
   }
 }
 
-class _TabSegment extends StatelessWidget {
+class _Chip extends StatelessWidget {
   final String label;
-  final bool isActive;
-  final double radius;
-  final int? badgeCount;
-  final _BadgeStyle? badgeStyle;
+  final bool selected;
+  final int? badge;
   final VoidCallback onTap;
 
-  const _TabSegment({
+  const _Chip({
     required this.label,
-    required this.isActive,
-    required this.radius,
-    this.badgeCount,
-    this.badgeStyle,
+    required this.selected,
     required this.onTap,
+    this.badge,
   });
 
   @override
   Widget build(BuildContext context) {
-    final style = badgeStyle;
-    final count = badgeCount;
-    final showBadge = !isActive && count != null && style != null;
-    final badgeSize = ResponsiveHelper.getResponsiveSize(context, 18);
-
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-        padding: ResponsiveHelper.getResponsivePadding(
-          context,
-          vertical: 10,
-          horizontal: 6,
-        ),
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.surfaceWhite : Colors.transparent,
-          borderRadius: BorderRadius.circular(radius),
-          boxShadow: isActive
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF1A2B3C).withValues(alpha: 0.08),
-                    offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-                    blurRadius: ResponsiveHelper.getResponsiveHeight(context, 4),
-                    spreadRadius: 0,
-                  ),
-                ]
-              : null,
+          color: selected ? const Color(0xFFE8EEF2) : AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? const Color(0xFFD5DEE6) : AppColors.searchBorder,
+          ),
         ),
-        alignment: Alignment.center,
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: isActive
-                      ? StaffDailyLogsTabBar._activeLabel
-                      : StaffDailyLogsTabBar._inactiveLabel,
-                  height: 1.2,
-                ),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                color: selected
+                    ? AppColors.textHeading
+                    : AppColors.textSecondary,
               ),
             ),
-            if (showBadge) ...[
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+            if (badge != null && badge! > 0) ...[
+              const SizedBox(width: 6),
               Container(
-                width: badgeSize,
-                height: badgeSize,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: style.background,
-                  shape: BoxShape.circle,
+                  color: selected
+                      ? AppColors.secondaryTeal
+                      : AppColors.filterButtonBackground,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                alignment: Alignment.center,
                 child: Text(
-                  '$count',
+                  '$badge',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
-                    color: style.foreground,
-                    height: 1,
+                    fontSize: 10,
+                    color: selected ? Colors.white : AppColors.textSecondary,
                   ),
                 ),
               ),

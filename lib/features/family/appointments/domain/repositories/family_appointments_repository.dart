@@ -7,8 +7,9 @@ abstract class FamilyAppointmentsRepository {
 
   Future<Result<void>> createAppointment({
     required String type,
+    required String clientId,
     required DateTime scheduledAt,
-    required String location,
+    String location = '',
     String? notes,
   });
 

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'staff_attendance_history_item.dart';
+import 'staff_attendance_metrics.dart';
 
 /// Aggregate root for everything shown on the "Attendance" screen.
 @immutable
@@ -21,6 +22,8 @@ class StaffAttendanceOverview {
   final String breakStatusLabel;
   final String? shiftId;
   final String? residenceId;
+  final bool hasRosteredShiftNow;
+  final StaffAttendanceMetrics metrics;
   final List<StaffAttendanceHistoryItem> history;
 
   const StaffAttendanceOverview({
@@ -40,6 +43,8 @@ class StaffAttendanceOverview {
     required this.breakStatusLabel,
     this.shiftId,
     this.residenceId,
+    this.hasRosteredShiftNow = false,
+    this.metrics = StaffAttendanceMetrics.empty,
     this.history = const [],
   });
 
@@ -65,6 +70,8 @@ class StaffAttendanceOverview {
       breakStatusLabel: breakStatusLabel ?? this.breakStatusLabel,
       shiftId: shiftId,
       residenceId: residenceId,
+      hasRosteredShiftNow: hasRosteredShiftNow,
+      metrics: metrics,
       history: history,
     );
   }

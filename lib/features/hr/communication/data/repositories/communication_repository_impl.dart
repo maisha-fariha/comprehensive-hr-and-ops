@@ -4,6 +4,7 @@ import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_conversation.dart';
 import '../../domain/entities/hr_message_contact.dart';
 import '../../domain/repositories/communication_repository.dart';
@@ -23,8 +24,12 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
   Future<Result<List<HrConversation>>> getConversations() async {
     final result = await _api.get(ApiEndpoints.conversations);
     return result.when(
-      success: (body) async =>
-          Result.success(CommunicationMapper.conversationsFrom(body)),
+      success: (body) async => Result.success(
+        CommunicationMapper.conversationsFrom(
+          body,
+          currentUserId: _session.userId,
+        ),
+      ),
       failure: (error) async => Result.failure(error),
     );
   }
@@ -65,54 +70,133 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
   }
 
   @override
+  Future<Result<List<CommunicationResidenceOption>>> getResidences() async {
+    final result = await _api.get(
+      ApiEndpoints.residences,
+      query: const {'page': 1, 'limit': 50},
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final items = JsonCodec.unwrapList(body)
+            .whereType<Map>()
+            .map((raw) {
+              final json = JsonCodec.asMap(raw);
+              return CommunicationResidenceOption(
+                id: JsonCodec.stringOr(json['id'], ''),
+                name: JsonCodec.stringOr(json['name'], 'Residence'),
+              );
+            })
+            .where((r) => r.id.isNotEmpty)
+            .toList();
+        return Result.success(items);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<CommunicationClientOption>>> getClients() async {
+    final result = await _api.get(
+      ApiEndpoints.clients,
+      query: const {'page': 1, 'limit': 100},
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final items = JsonCodec.unwrapList(body)
+            .whereType<Map>()
+            .map((raw) {
+              final json = JsonCodec.asMap(raw);
+              final residence = JsonCodec.mapAt(json, 'residence');
+              final name = JsonCodec.stringOr(
+                json['displayName'] ??
+                    json['name'] ??
+                    '${JsonCodec.stringOr(json['firstName'], '')} ${JsonCodec.stringOr(json['lastName'], '')}'
+                        .trim(),
+                'Resident',
+              );
+              return CommunicationClientOption(
+                id: JsonCodec.stringOr(json['id'], ''),
+                name: name.trim().isEmpty ? 'Resident' : name.trim(),
+                residenceName: residence == null
+                    ? null
+                    : JsonCodec.string(residence['name']),
+              );
+            })
+            .where((c) => c.id.isNotEmpty)
+            .toList();
+        return Result.success(items);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<HrConversation>> startConversation({
-    required String title,
-    required List<String> memberUserIds,
+    required ConversationCreateType type,
+    List<String> memberUserIds = const [],
+    String? title,
+    String? residenceId,
     String? clientId,
-    bool isMonitored = false,
   }) async {
-    final trimmedTitle = title.trim();
     final members = memberUserIds
         .map((id) => id.trim())
         .where((id) => id.isNotEmpty)
         .toList();
-    if (trimmedTitle.isEmpty) {
-      return Result.failure(
-        const ValidationError(message: 'Conversation title is required.'),
-      );
-    }
-    if (members.isEmpty) {
-      return Result.failure(
-        const ValidationError(message: 'Select at least one contact.'),
-      );
+    final trimmedTitle = title?.trim();
+
+    final data = <String, dynamic>{
+      'type': type.apiValue,
+      if (members.isNotEmpty) 'memberUserIds': members,
+      if (trimmedTitle != null && trimmedTitle.isNotEmpty) 'title': trimmedTitle,
+    };
+
+    switch (type) {
+      case ConversationCreateType.direct:
+        if (members.isEmpty) {
+          return Result.failure(
+            const ValidationError(message: 'Select a staff member.'),
+          );
+        }
+      case ConversationCreateType.residenceGroup:
+        final residence = (residenceId ?? _session.residenceId)?.trim();
+        if (residence == null || residence.isEmpty) {
+          return Result.failure(
+            const ValidationError(message: 'Residence is required.'),
+          );
+        }
+        if (trimmedTitle == null || trimmedTitle.isEmpty) {
+          return Result.failure(
+            const ValidationError(message: 'Group name is required.'),
+          );
+        }
+        data['residenceId'] = residence;
+      case ConversationCreateType.familySupport:
+        final client = clientId?.trim();
+        if (client == null || client.isEmpty) {
+          return Result.failure(
+            const ValidationError(message: 'Select a family contact.'),
+          );
+        }
+        data['clientId'] = client;
+        if (members.isNotEmpty) {
+          data['memberUserIds'] = members;
+        }
     }
 
-    final residenceId = _session.residenceId;
-    if (residenceId == null || residenceId.isEmpty) {
-      return Result.failure(
-        const ValidationError(
-          message: 'Residence context is required to start a conversation.',
-        ),
-      );
-    }
-
-    // Postman Manager sample only documents `type: residence_group`.
     final result = await _api.post(
       ApiEndpoints.conversations,
-      data: {
-        'type': 'residence_group',
-        'residenceId': residenceId,
-        'title': trimmedTitle,
-        'memberUserIds': members,
-        'isMonitored': isMonitored,
-        if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
-      },
+      data: data,
       allowQueue: false,
     );
 
     return result.when(
       success: (body) async => Result.success(
-        CommunicationMapper.conversationFrom(JsonCodec.unwrapMap(body)),
+        CommunicationMapper.conversationFrom(
+          JsonCodec.unwrapMap(body),
+          currentUserId: _session.userId,
+        ),
       ),
       failure: (error) async => Result.failure(error),
     );

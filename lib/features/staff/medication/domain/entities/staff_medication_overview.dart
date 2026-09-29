@@ -25,6 +25,12 @@ class StaffMedicationOverview {
   final int missedCount;
   final int refusedCount;
 
+  /// Web MAR metric strip fields from `summary`.
+  final int scheduledCount;
+  final int overdueCount;
+  final int unscheduledCount;
+  final double? complianceRate;
+
   const StaffMedicationOverview({
     required this.screenTitle,
     required this.dueNowDoses,
@@ -36,10 +42,21 @@ class StaffMedicationOverview {
     int? administeredCount,
     int? missedCount,
     int? refusedCount,
+    int? scheduledCount,
+    int? overdueCount,
+    int? unscheduledCount,
+    this.complianceRate,
   })  : dueCount = dueCount ?? (dueNowDoses.length + laterTodayDoses.length),
         administeredCount = administeredCount ?? administeredDoses.length,
         missedCount = missedCount ?? missedDoses.length,
-        refusedCount = refusedCount ?? refusedDoses.length;
+        refusedCount = refusedCount ?? refusedDoses.length,
+        scheduledCount = scheduledCount ??
+            (dueCount ?? (dueNowDoses.length + laterTodayDoses.length)),
+        overdueCount = overdueCount ?? 0,
+        unscheduledCount = unscheduledCount ?? 0;
+
+  /// Missed + overdue for the metric strip / side cards.
+  int get missedOrOverdueCount => missedCount + overdueCount;
 
   StaffMedicationOverview copyWith({
     List<DueDose>? dueNowDoses,
@@ -56,6 +73,10 @@ class StaffMedicationOverview {
       administeredCount: administeredCount,
       missedCount: missedCount,
       refusedCount: refusedCount,
+      scheduledCount: scheduledCount,
+      overdueCount: overdueCount,
+      unscheduledCount: unscheduledCount,
+      complianceRate: complianceRate,
     );
   }
 }

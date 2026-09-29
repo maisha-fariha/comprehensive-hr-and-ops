@@ -13,7 +13,6 @@ import '../../domain/repositories/staff_attendance_repository.dart';
 import '../mappers/staff_attendance_mapper.dart';
 
 class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
-  static const _historyDays = 30;
   static const _pageLimit = 20;
 
   final AppApiClient _api;
@@ -29,8 +28,9 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
   Future<Result<StaffAttendanceOverview>> getOverview() async {
     final residenceId = _session.residenceId;
 
+    // Web list uses `mine` without a tight from/to — date filters on the API
+    // drop missed rows (null checkInAt). Keep today-window only for open punch.
     final futures = <Future<Result<dynamic>>>[
-      // Open-shift status: today → now (mine=true per Fixed 1).
       _api.get(
         ApiEndpoints.attendance,
         query: {
@@ -41,28 +41,27 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
           'limit': _pageLimit,
         },
       ),
-      // Attendance History.
+      // History: omit from/to so missed / pending rows are returned (web parity).
       _api.get(
         ApiEndpoints.attendance,
         query: {
           'mine': true,
-          'from': IsoDateRange.daysAgoStartIso(_historyDays),
-          'to': IsoDateRange.nowIso,
           'page': 1,
-          'limit': _pageLimit,
+          'limit': 50,
         },
       ),
-      // Shift Details.
       _api.get(
         ApiEndpoints.shifts,
         query: {
           'mine': true,
-          'from': IsoDateRange.todayStartIso,
-          'to': IsoDateRange.todayEndIso,
+          'from': IsoDateRange.daysAgoStartIso(7),
+          'to': IsoDateRange.weekEndIso,
           'page': 1,
           'limit': _pageLimit,
         },
       ),
+      // Summary drives Present / Late / Missed / Pending cards (web).
+      _api.get(ApiEndpoints.attendanceSummary, silent: true),
     ];
 
     if (residenceId != null && residenceId.isNotEmpty) {
@@ -83,8 +82,9 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
         todayAttendanceBody: results[0].isSuccess ? results[0].value : const [],
         historyBody: results[1].isSuccess ? results[1].value : const [],
         shiftsBody: results[2].isSuccess ? results[2].value : const [],
-        residenceBody: results.length > 3 && results[3].isSuccess
-            ? results[3].value
+        summaryBody: results[3].isSuccess ? results[3].value : null,
+        residenceBody: results.length > 4 && results[4].isSuccess
+            ? results[4].value
             : null,
         sessionResidenceId: residenceId,
       ),

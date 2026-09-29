@@ -19,16 +19,20 @@ import '../../features/hr/profile_settings/presentation/controllers/hr_profile_s
 import '../../features/hr/scheduling/presentation/controllers/scheduling_controller.dart';
 import '../../features/hr/tasks_compliance/presentation/controllers/tasks_compliance_controller.dart';
 import '../../features/hr/team_reports/presentation/controllers/team_reports_controller.dart';
+import '../../features/staff/appointments/presentation/controllers/staff_appointments_controller.dart';
 import '../../features/staff/attendance/presentation/controllers/staff_attendance_controller.dart';
 import '../../features/staff/daily_logs/presentation/controllers/daily_note_controller.dart';
 import '../../features/staff/daily_logs/presentation/controllers/staff_daily_logs_controller.dart';
 import '../../features/staff/dashboard/presentation/controllers/staff_dashboard_controller.dart';
+import '../../features/staff/documents/presentation/controllers/staff_documents_controller.dart';
 import '../../features/staff/incidents/presentation/controllers/incident_details_controller.dart';
 import '../../features/staff/incidents/presentation/controllers/staff_incidents_controller.dart';
 import '../../features/staff/medication/presentation/controllers/staff_medication_controller.dart';
 import '../../features/staff/profile_settings/presentation/controllers/staff_profile_settings_controller.dart';
 import '../../features/staff/scheduling/presentation/controllers/staff_schedule_controller.dart';
 import '../../features/staff/tasks_messages/presentation/controllers/tasks_messages_controller.dart';
+import '../../features/staff/training/presentation/controllers/staff_training_controller.dart';
+import '../../features/staff/training/presentation/controllers/staff_training_course_controller.dart';
 import '../network/response_cache.dart';
 
 /// Clears portal UI + HTTP cache that would otherwise leak across accounts.
@@ -63,6 +67,10 @@ abstract final class SessionLifecycle {
     _reset<StaffAttendanceController>();
     _reset<StaffIncidentsController>();
     _reset<IncidentDetailsController>();
+    _reset<StaffDocumentsController>();
+    _reset<StaffTrainingController>();
+    _reset<StaffTrainingCourseController>();
+    _reset<StaffAppointmentsController>();
     _reset<StaffProfileSettingsController>();
 
     // HR / Manager

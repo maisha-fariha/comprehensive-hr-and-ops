@@ -19,6 +19,7 @@ class MobileProfile {
   final String avatarInitials;
   final String? avatarUrl;
   final bool medAdminCertified;
+  final bool medAdminApproved;
 
   const MobileProfile({
     required this.id,
@@ -38,5 +39,6 @@ class MobileProfile {
     this.staffId,
     this.relationship,
     this.medAdminCertified = false,
+    this.medAdminApproved = false,
   });
 }

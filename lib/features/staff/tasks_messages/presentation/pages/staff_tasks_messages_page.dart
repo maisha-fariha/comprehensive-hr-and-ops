@@ -5,10 +5,10 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
 import '../controllers/tasks_messages_controller.dart';
 import '../widgets/messages_tab_view.dart';
-import '../widgets/staff_new_message_sheet.dart';
 import '../widgets/tasks_messages_header.dart';
 import '../widgets/tasks_messages_segmented_tabs.dart';
 import '../widgets/tasks_tab_view.dart';
@@ -51,23 +51,8 @@ class StaffTasksMessagesPage extends StatelessWidget {
     BuildContext context,
     TasksMessagesController controller,
   ) async {
-    if (controller.contacts.isEmpty) {
-      await controller.loadContacts();
-    }
-    if (!context.mounted) return;
-    final draft = await showStaffNewMessageSheet(
-      context,
-      contacts: List.from(controller.contacts),
-    );
-    if (draft == null) return;
-    final created = await controller.startConversation(
-      title: draft.title,
-      memberUserIds: draft.memberUserIds,
-      firstMessage: draft.firstMessage,
-    );
-    if (created != null) {
-      await _openConversation(controller, created.id, created.name);
-    }
+    await Get.to(() => const CommunicationPage(showStaffBottomNav: true));
+    await controller.refresh();
   }
 
   @override

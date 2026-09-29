@@ -5,26 +5,54 @@ import 'package:get/get.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/administered_dose.dart';
 import '../../domain/entities/due_dose.dart';
+import '../../domain/entities/staff_client_medication_item.dart';
+import '../../domain/entities/staff_med_options.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/entities/staff_medication_overview.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
-import '../widgets/staff_administer_dose_dialog.dart';
+import '../widgets/staff_add_medicine_sheet.dart';
+import '../widgets/staff_record_administration_dialog.dart';
 
 /// GetX controller for the Staff Medication MAR screen.
 class StaffMedicationController extends BaseController<StaffMedicationOverview> {
   final StaffMedicationRepository repository;
 
-  final Rx<StaffMedicationTab> selectedTab = StaffMedicationTab.due.obs;
+  final Rx<StaffMedicationTab> selectedTab = StaffMedicationTab.mar.obs;
   final RxBool isRecording = false.obs;
+  final RxList<StaffClientMedicationItem> prnItems =
+      <StaffClientMedicationItem>[].obs;
+  final RxList<AdministeredDose> givenItems = <AdministeredDose>[].obs;
+  final RxList<StaffMedClientOption> chartClients =
+      <StaffMedClientOption>[].obs;
+  final RxBool loadingExtras = false.obs;
 
-  /// Web Not Given reason → API status mapping (BUG_Report018/019 nested).
-  static const List<({String label, String status})> notGivenReasons = [
-    (label: 'Resident refused', status: 'refused'),
-    (label: 'Asleep / unavailable', status: 'missed'),
-    (label: 'Away / hospital appointment', status: 'missed'),
-    (label: 'Withheld on clinical advice', status: 'missed'),
-    (label: 'Other / missed', status: 'missed'),
+  /// Web Not Given reason → API status (+ doseReason label for notes).
+  static const List<({String label, String status, String doseReason})>
+      notGivenReasons = [
+    (label: 'Resident refused', status: 'refused', doseReason: 'patient_refused'),
+    (
+      label: 'Asleep / unavailable',
+      status: 'missed',
+      doseReason: 'resident_asleep',
+    ),
+    (
+      label: 'Away / hospital appointment',
+      status: 'missed',
+      doseReason: 'hospitalized',
+    ),
+    (
+      label: 'Withheld on clinical advice',
+      status: 'withheld',
+      doseReason: 'clinical_hold',
+    ),
+    (
+      label: 'Not available — none in stock',
+      status: 'not_available',
+      doseReason: 'drug_unavailable',
+    ),
+    (label: 'Other / missed', status: 'missed', doseReason: 'other'),
   ];
 
   StaffMedicationController({required this.repository}) {
@@ -33,59 +61,203 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
 
   StaffMedicationOverview? get overview => state.value.data;
 
+  int get marTabCount => overview?.scheduledCount ?? 0;
+  int get prnTabCount => prnItems.length;
+  int get givenTabCount => givenItems.length;
+
   Future<void> loadOverview() async {
     setLoading(true);
+    loadingExtras.value = true;
     final result = await repository.getOverview();
     result.when(
       success: setSuccess,
       failure: (error) => setError(error.message),
     );
     setLoading(false);
+
+    // Web loads these separately from the round summary (metrics ≠ tab badges).
+    final prnResult = await repository.listPrnMedications();
+    prnItems.assignAll(prnResult.value ?? const []);
+
+    final givenResult = await repository.listAdministrations();
+    givenItems.assignAll(givenResult.value ?? const []);
+
+    final clientsResult = await repository.getClients();
+    chartClients.assignAll(clientsResult.value ?? const []);
+    loadingExtras.value = false;
   }
 
   void selectTab(StaffMedicationTab tab) => selectedTab.value = tab;
+
+  Future<void> givePrn(StaffClientMedicationItem item) async {
+    final session = Get.find<UserSession>();
+    if (!session.canWriteMar) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot administer',
+        message: 'Administering doses needs mar:write permission.',
+      );
+      return;
+    }
+    if (item.clientId.isEmpty || item.residenceId.isEmpty) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot give PRN',
+        message: 'This PRN is missing resident or residence details.',
+      );
+      return;
+    }
+    await _openWizardForMedication(item);
+  }
+
+  Future<void> openAddMedicine(BuildContext context) async {
+    final session = Get.find<UserSession>();
+    if (!session.canWriteMar) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot add medicine',
+        message: 'Adding medicines needs mar:write permission.',
+      );
+      return;
+    }
+    final created = await StaffAddMedicineSheet.show(
+      context,
+      onCreated: () {},
+    );
+    if (created == true) await loadOverview();
+  }
+
+  Future<void> startRecordAdministration(BuildContext context) async {
+    final session = Get.find<UserSession>();
+    if (!session.canWriteMar) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot administer',
+        message: 'Administering doses needs mar:write permission.',
+      );
+      return;
+    }
+
+    // Web opens the Record Administration dialog immediately — resident and
+    // medicine are chosen inside step 1, not via a pre-picker sheet.
+    var clients = chartClients.toList();
+    if (clients.isEmpty) {
+      clients = (await repository.getClients()).value ?? const [];
+    }
+    final current = overview;
+    final due = current == null
+        ? const <DueDose>[]
+        : [...current.dueNowDoses, ...current.laterTodayDoses];
+    DueDose? preselected;
+    if (due.length == 1) preselected = due.first;
+
+    final dialogContext = Get.overlayContext ?? Get.context;
+    if (dialogContext == null) return;
+    final result = await StaffRecordAdministrationDialog.show(
+      dialogContext,
+      clients: clients,
+      preselectedDose: preselected,
+    );
+    if (result == null) return;
+    await _recordFromResult(result);
+  }
+
+  Future<void> _openWizardForMedication(StaffClientMedicationItem item) async {
+    final clients = chartClients.isNotEmpty
+        ? chartClients.toList()
+        : (await repository.getClients()).value ?? const <StaffMedClientOption>[];
+    final synthetic = DueDose(
+      id: '${item.isPrn ? 'prn' : 'med'}-${item.id}',
+      residentName: item.clientName.isEmpty ? 'Resident' : item.clientName,
+      residentInitials: item.clientName.isEmpty
+          ? 'R'
+          : item.clientName
+              .trim()
+              .split(RegExp(r'\s+'))
+              .where((p) => p.isNotEmpty)
+              .take(2)
+              .map((p) => p[0].toUpperCase())
+              .join(),
+      avatarColor: AvatarPalette.blue,
+      medicationName: item.name,
+      dose: item.dose,
+      route: MedicationRoute.tabletOral,
+      timeLabel: item.isPrn
+          ? (item.instructions?.isNotEmpty == true
+              ? item.instructions!
+              : 'PRN / as needed')
+          : (item.scheduleLabel ?? ''),
+      section: DueDoseSection.dueNow,
+      clientId: item.clientId,
+      residenceId: item.residenceId,
+      residenceName: item.residenceName,
+      medicationId: item.id,
+      isPrn: item.isPrn,
+    );
+    final dialogContext = Get.overlayContext ?? Get.context;
+    if (dialogContext == null) return;
+    final result = await StaffRecordAdministrationDialog.show(
+      dialogContext,
+      clients: clients,
+      preselectedDose: synthetic,
+    );
+    if (result == null) return;
+    await _recordFromResult(result);
+  }
+
+  Future<void> _recordFromResult(StaffRecordAdministrationResult result) async {
+    final evidenceNote = result.evidencePaths.isEmpty
+        ? null
+        : 'Evidence attached locally: ${result.evidencePaths.map((p) => p.split('/').last).join(', ')}';
+    final notes = [
+      if (result.notes.isNotEmpty) result.notes,
+      ?evidenceNote,
+    ].join('\n');
+    await _record(
+      result.dose,
+      status: result.status,
+      notes: notes.isEmpty ? null : notes,
+      clinicalNotes:
+          result.clinicalNotes.isEmpty ? null : result.clinicalNotes,
+      doseReason: result.doseReason,
+      safetyChecks: {
+        'safetyConfirmed': result.safetyConfirmed,
+        'identityVerified': result.identityVerified,
+        'medicationVerified': result.medicationVerified,
+        'dosageVerified': result.dosageVerified,
+        'routeVerified': result.routeVerified,
+        'timeVerified': result.timeVerified,
+      },
+      vitals: {
+        'bloodPressure': result.bloodPressure,
+        'heartRate': result.heartRate,
+        'temperature': result.temperature,
+        'bloodSugar': result.bloodSugar,
+      },
+    );
+  }
 
   Future<void> markAdministered(String doseId) async {
     final dose = _findDose(doseId);
     if (dose == null) return;
     final session = Get.find<UserSession>();
-    if (!session.canAdministerMarDose(isPrn: dose.isPrn)) {
+    if (!session.canWriteMar) {
       AppErrorDialog.showPageError(
-        title: dose.isPrn ? 'PRN not allowed' : 'Cannot administer',
-        message: dose.isPrn
-            ? 'PRN doses require medication-administration certification.'
-            : 'Administering doses needs mar:write permission.',
+        title: 'Cannot administer',
+        message: 'Administering doses needs mar:write permission.',
       );
       return;
     }
 
+    var clients = chartClients.toList();
+    if (clients.isEmpty) {
+      clients = (await repository.getClients()).value ?? const [];
+    }
     final dialogContext = Get.overlayContext ?? Get.context;
     if (dialogContext == null) return;
-    final wizard = await StaffAdministerDoseDialog.show(
+    final result = await StaffRecordAdministrationDialog.show(
       dialogContext,
-      dose: dose,
+      clients: clients,
+      preselectedDose: dose,
     );
-    if (wizard == null) return;
-
-    await _record(
-      dose,
-      status: 'administered',
-      clinicalNotes: wizard.notes.isEmpty ? null : wizard.notes,
-      safetyChecks: {
-        'safetyConfirmed': wizard.safetyConfirmed,
-        'identityVerified': wizard.identityVerified,
-        'medicationVerified': wizard.medicationVerified,
-        'dosageVerified': wizard.dosageVerified,
-        'routeVerified': wizard.routeVerified,
-        'timeVerified': wizard.timeVerified,
-      },
-      vitals: {
-        'bloodPressure': wizard.bloodPressure,
-        'heartRate': wizard.heartRate,
-        'temperature': wizard.temperature,
-        'bloodSugar': wizard.bloodSugar,
-      },
-    );
+    if (result == null) return;
+    await _recordFromResult(result);
   }
 
   Future<void> markNotGiven(String doseId) async {
@@ -106,6 +278,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       dose,
       status: outcome.status,
       notes: outcome.notes,
+      doseReason: outcome.doseReason,
     );
   }
 
@@ -184,7 +357,11 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     final composed = text.isEmpty
         ? reason.label
         : '${reason.label}: $text';
-    return _NotGivenOutcome(status: reason.status, notes: composed);
+    return _NotGivenOutcome(
+      status: reason.status,
+      notes: composed,
+      doseReason: reason.doseReason,
+    );
   }
 
   Future<void> _record(
@@ -192,6 +369,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     required String status,
     String? notes,
     String? clinicalNotes,
+    String? doseReason,
     Map<String, bool>? safetyChecks,
     Map<String, String>? vitals,
   }) async {
@@ -217,6 +395,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       status: status,
       notes: notes,
       clinicalNotes: clinicalNotes,
+      doseReason: doseReason,
       isPrn: dose.isPrn,
       safetyChecks: safetyChecks,
       vitals: vitals,
@@ -258,6 +437,11 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
 class _NotGivenOutcome {
   final String status;
   final String notes;
+  final String doseReason;
 
-  const _NotGivenOutcome({required this.status, required this.notes});
+  const _NotGivenOutcome({
+    required this.status,
+    required this.notes,
+    required this.doseReason,
+  });
 }

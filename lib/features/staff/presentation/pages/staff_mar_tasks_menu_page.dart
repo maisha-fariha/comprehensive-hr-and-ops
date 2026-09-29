@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/user_session.dart';
+import '../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../medication/presentation/pages/staff_medication_page.dart';
 import '../../tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
 import '../widgets/staff_menu_entry.dart';
@@ -52,6 +53,14 @@ class StaffMarTasksMenuPage extends StatelessWidget {
               title: 'Tasks & Messages',
               subtitle: 'Your to-dos and team conversations',
             ),
+            if (session.canAccessMessaging)
+              const StaffMenuEntry(
+                icon: Icons.forum_outlined,
+                iconBackground: AppColors.infoBackground,
+                iconColor: AppColors.infoBlue,
+                title: 'Communication',
+                subtitle: 'Direct, group, and family conversations',
+              ),
           ];
 
           return ListView.separated(
@@ -82,6 +91,8 @@ class StaffMarTasksMenuPage extends StatelessWidget {
       Get.to(() => const StaffMedicationPage());
     } else if (title == 'Tasks & Messages') {
       Get.to(() => const StaffTasksMessagesPage());
+    } else if (title == 'Communication') {
+      Get.to(() => const CommunicationPage(showStaffBottomNav: true));
     }
   }
 }

@@ -57,6 +57,7 @@ class UserSession extends GetxService {
   final Rxn<StaffKind> _staffKind = Rxn<StaffKind>();
   final RxList<String> _permissions = <String>[].obs;
   final RxBool _medAdminCertified = false.obs;
+  final RxBool _medAdminApproved = false.obs;
   final Rx<FamilyVisibility> _familyVisibility = FamilyVisibility.unknown.obs;
   bool _signingOut = false;
 
@@ -78,6 +79,7 @@ class UserSession extends GetxService {
   StaffKind? get staffKind => _staffKind.value;
   List<String> get permissions => List.unmodifiable(_permissions);
   bool get medAdminCertified => _medAdminCertified.value;
+  bool get medAdminApproved => _medAdminApproved.value;
   FamilyVisibility get familyVisibility => _familyVisibility.value;
 
   String get portalRoute => isSignedIn ? role.portalRoute : AppRoutes.login;
@@ -106,20 +108,25 @@ class UserSession extends GetxService {
   bool get canAccessIncidents => can('incidents');
   bool get canAccessTasks => can('tasks');
   bool get canAccessAppointments => can('appointments');
+  bool get canWriteAppointments => can('appointments:write');
   bool get canAccessHandovers => can('shift-handovers') || can('handovers');
   bool get canRaiseEmergency => can('emergency:raise');
   bool get canReadEmergency => can('emergency:read') || canRaiseEmergency;
   bool get canAccessClientActivities => can('client-activities');
+  bool get canWriteClientActivities => can('client-activities:write');
+  bool get canAccessMessaging => can('messaging');
+  bool get canWriteMessaging => can('messaging:write');
   bool get canAccessInventory => can('inventory');
+  bool get canAccessDocuments => can('documents');
+  bool get canWriteDocuments => can('documents:write');
+  bool get canAccessTraining => can('training');
+  bool get canWriteTraining => can('training:write');
   bool get canAccessAdmissions =>
       can('admissions:assess') || can('admissions');
 
-  /// Scheduled MAR charting needs `mar:write`; PRN also needs med-admin cert.
-  bool canAdministerMarDose({required bool isPrn}) {
-    if (!canWriteMar) return false;
-    if (isPrn && !medAdminCertified) return false;
-    return true;
-  }
+  /// Charting needs `mar:write`. Web does not client-block PRN on cert flags —
+  /// the API enforces certification/approval on submit when required.
+  bool canAdministerMarDose({required bool isPrn}) => canWriteMar;
 
   /// Staff Schedule "Upcoming Appointments" — nurse / caregiver only (B2).
   bool get canSeeStaffScheduleAppointments =>
@@ -175,6 +182,7 @@ class UserSession extends GetxService {
     _relationship.value = profile.relationship;
     _permissions.assignAll(profile.permissions);
     _medAdminCertified.value = profile.medAdminCertified;
+    _medAdminApproved.value = profile.medAdminApproved;
   }
 
   void applyFamilyHome({
@@ -283,6 +291,7 @@ class UserSession extends GetxService {
     _staffKind.value = null;
     _permissions.clear();
     _medAdminCertified.value = false;
+    _medAdminApproved.value = false;
     _familyVisibility.value = FamilyVisibility.unknown;
   }
 
