@@ -7,13 +7,17 @@ import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../scheduling_constants.dart';
 
-/// Date-range chip ("28 Sep – 4 Oct") and "Filters" button shown under the
-/// Schedule top bar.
+/// Date-range chip ("28 Sep – 4 Oct"), "My shifts" toggle and "Filters"
+/// button shown under the Schedule top bar.
 class SchedulingFilterBar extends StatelessWidget {
   final DateTime weekOf;
   final int activeFilterCount;
   final VoidCallback onDateTap;
   final VoidCallback onFiltersTap;
+
+  /// Hidden when null (no `scheduling:write`).
+  final VoidCallback? onMineTap;
+  final bool mineOnly;
 
   const SchedulingFilterBar({
     super.key,
@@ -21,6 +25,8 @@ class SchedulingFilterBar extends StatelessWidget {
     required this.activeFilterCount,
     required this.onDateTap,
     required this.onFiltersTap,
+    this.onMineTap,
+    this.mineOnly = false,
   });
 
   static const _months = [
@@ -53,7 +59,20 @@ class SchedulingFilterBar extends StatelessWidget {
               trailing: Icons.keyboard_arrow_down_rounded,
             ),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+          if (onMineTap != null) ...[
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            Semantics(
+              button: true,
+              toggled: mineOnly,
+              child: _Pill(
+                key: const ValueKey('scheduling-my-shifts'),
+                onTap: onMineTap!,
+                label: 'My shifts',
+                highlighted: mineOnly,
+              ),
+            ),
+          ],
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
           _Pill(
             onTap: onFiltersTap,
             icon: Icons.tune_rounded,
@@ -68,14 +87,15 @@ class SchedulingFilterBar extends StatelessWidget {
 
 class _Pill extends StatelessWidget {
   final VoidCallback onTap;
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final IconData? trailing;
   final bool highlighted;
 
   const _Pill({
+    super.key,
     required this.onTap,
-    required this.icon,
+    this.icon,
     required this.label,
     this.trailing,
     this.highlighted = false,
@@ -116,12 +136,14 @@ class _Pill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: ResponsiveHelper.getResponsiveSize(context, 16),
-                color: fg,
-              ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: ResponsiveHelper.getResponsiveSize(context, 16),
+                  color: fg,
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              ],
               if (trailing == null) text,
               if (trailing != null) ...[
                 Expanded(child: text),

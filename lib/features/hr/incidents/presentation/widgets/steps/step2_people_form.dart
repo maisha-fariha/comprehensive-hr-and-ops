@@ -315,7 +315,7 @@ class _InvolvedClientSuggestions extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'No clients found.',
+                'No matches found',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize:
@@ -346,6 +346,17 @@ class _InvolvedClientSuggestions extends StatelessWidget {
                     color: AppColors.textHeading,
                   ),
                 ),
+                subtitle: option.subtitle == null
+                    ? null
+                    : Text(
+                        option.subtitle!,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12),
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                 onTap: () => controller.selectInvolvedClient(option),
               );
             },

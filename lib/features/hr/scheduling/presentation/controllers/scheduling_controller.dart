@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../data/mappers/scheduling_mapper.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
@@ -36,8 +37,21 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   final RxList<ShiftResidenceOption> residences = <ShiftResidenceOption>[].obs;
   bool _residencesLoaded = false;
 
-  SchedulingController({required this.repository}) {
+  /// Web "My shifts" toggle: only the signed-in user's shifts.
+  final RxBool mineOnly = false.obs;
+
+  final UserSession? session;
+
+  SchedulingController({required this.repository, this.session}) {
     loadOverview();
+  }
+
+  /// `scheduling:write` gates "My shifts" and "Create Shift", as on the web.
+  bool get canWrite => session?.can('scheduling:write') ?? true;
+
+  Future<void> toggleMine() {
+    mineOnly.toggle();
+    return loadOverview();
   }
 
   int get activeFilterCount =>
@@ -138,6 +152,7 @@ class SchedulingController extends BaseController<SchedulingOverview> {
       selectedDay: requestedDay,
       residenceId: residenceFilter.value,
       status: statusFilter.value,
+      mine: mineOnly.value,
     );
     if (generation != _loadGeneration) return;
 

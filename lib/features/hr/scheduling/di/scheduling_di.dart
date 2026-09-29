@@ -23,6 +23,9 @@ Future<void> setupHrSchedulingDependencies() async {
   );
 
   DIHelper.registerController<SchedulingController>(
-    factory: () => SchedulingController(repository: getIt<SchedulingRepository>()),
+    factory: () => SchedulingController(
+      repository: getIt<SchedulingRepository>(),
+      session: Get.find<UserSession>(),
+    ),
   );
 }

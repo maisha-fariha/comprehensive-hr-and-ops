@@ -15,12 +15,14 @@ abstract class SchedulingRepository {
   ///
   /// [residenceId] scopes every query to one home (defaults to the session
   /// residence). [status] narrows calendar/board shifts to one lifecycle
-  /// state.
+  /// state. [mine] limits the week and open shifts to the signed-in user's
+  /// own shifts (`mine=true`, the web "My shifts" toggle).
   Future<Result<SchedulingOverview>> getOverview({
     DateTime? weekOf,
     DateTime? selectedDay,
     String? residenceId,
     ShiftStatusFilter? status,
+    bool mine = false,
   });
 
   /// Residences for the Create Shift "Residence" dropdown (`GET /residences`).

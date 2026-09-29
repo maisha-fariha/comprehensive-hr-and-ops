@@ -470,31 +470,29 @@ class IncidentCreationController extends GetxController {
     }
     _involvedClientDebounce?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _involvedClientRequestId++;
-      isSearchingInvolvedClients.value = false;
-      involvedClientSuggestions.clear();
-      showInvolvedClientSuggestions.value = false;
-      return;
-    }
     showInvolvedClientSuggestions.value = true;
-    _involvedClientDebounce = Timer(_clientSearchDebounce, () async {
-      final requestId = ++_involvedClientRequestId;
-      isSearchingInvolvedClients.value = true;
-      final result = await repository.searchClients(trimmed);
-      if (requestId != _involvedClientRequestId) return;
-      isSearchingInvolvedClients.value = false;
-      result.when(
-        success: (options) {
-          involvedClientSuggestions.assignAll(options);
-          showInvolvedClientSuggestions.value = true;
-        },
-        failure: (_) {
-          involvedClientSuggestions.clear();
-          showInvolvedClientSuggestions.value = true;
-        },
-      );
-    });
+    _involvedClientDebounce = Timer(
+      _clientSearchDebounce,
+      () => _searchInvolvedClients(trimmed),
+    );
+  }
+
+  Future<void> _searchInvolvedClients(String trimmed) async {
+    final requestId = ++_involvedClientRequestId;
+    isSearchingInvolvedClients.value = true;
+    final result = await repository.searchClients(trimmed);
+    if (requestId != _involvedClientRequestId) return;
+    isSearchingInvolvedClients.value = false;
+    result.when(
+      success: (options) {
+        involvedClientSuggestions.assignAll(options);
+        showInvolvedClientSuggestions.value = true;
+      },
+      failure: (_) {
+        involvedClientSuggestions.clear();
+        showInvolvedClientSuggestions.value = true;
+      },
+    );
   }
 
   void selectInvolvedClient(IncidentClientOption option) {
@@ -511,9 +509,7 @@ class IncidentCreationController extends GetxController {
     if (selectedInvolvedClient.value != null) return;
     _involvedClientDebounce?.cancel();
     showInvolvedClientSuggestions.value = true;
-    final trimmed = involvedClientController.text.trim();
-    if (trimmed.isEmpty) return;
-    onInvolvedClientQueryChanged(trimmed);
+    _searchInvolvedClients(involvedClientController.text.trim());
   }
 
   void clearInvolvedClient() {
@@ -1358,18 +1354,19 @@ class IncidentCreationController extends GetxController {
     childIdController.text =
         JsonCodec.stringOr(payload['childIdNumber'], '');
     cipController.text = JsonCodec.stringOr(
-      payload['cipName'] ?? payload['cip'],
+      payload['cipName'] ??
+          payload['cip'] ??
+          payload['childInterventionPractitioner'],
       '',
     );
     cipOfficeController.text = JsonCodec.stringOr(payload['cipOffice'], '');
     final cfsRaw = payload['cfsStatus'];
-    if (cfsRaw is List) {
-      cfsStatuses.assignAll(
-        cfsRaw
-            .map((e) => e.toString())
-            .where(cfsStatusOptions.contains),
-      );
-    }
+    cfsStatuses.assignAll(
+      (cfsRaw is List ? cfsRaw : [?cfsRaw])
+          .map((e) => e.toString().trim().toUpperCase())
+          .where(cfsStatusOptions.contains)
+          .toSet(),
+    );
 
     final severityRaw =
         (JsonCodec.string(json['severity']) ?? 'high').toLowerCase();

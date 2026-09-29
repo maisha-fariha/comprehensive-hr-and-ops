@@ -111,13 +111,18 @@ class SchedulingPage extends StatelessWidget {
                 child: Column(
                   children: [
                     SchedulingTopBar(
-                      onCreateShiftTap: () => _openCreateShift(controller),
+                      onCreateShiftTap: controller.canWrite
+                          ? () => _openCreateShift(controller)
+                          : null,
                     ),
                     SchedulingFilterBar(
                       weekOf: controller.weekOf.value,
                       activeFilterCount: controller.activeFilterCount,
                       onDateTap: () => _pickDate(context, controller),
                       onFiltersTap: () => _openFilters(context, controller),
+                      mineOnly: controller.mineOnly.value,
+                      onMineTap:
+                          controller.canWrite ? controller.toggleMine : null,
                     ),
                     SchedulingSegmentedTabs(
                       selectedTab: controller.selectedTab.value,

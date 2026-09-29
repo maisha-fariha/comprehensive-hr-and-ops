@@ -32,6 +32,7 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     DateTime? selectedDay,
     String? residenceId,
     ShiftStatusFilter? status,
+    bool mine = false,
   }) =>
       throw UnimplementedError();
 

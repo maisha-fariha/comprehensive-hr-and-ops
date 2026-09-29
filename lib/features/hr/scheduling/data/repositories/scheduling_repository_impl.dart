@@ -31,6 +31,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     DateTime? selectedDay,
     String? residenceId,
     ShiftStatusFilter? status,
+    bool mine = false,
   }) async {
     final scopedResidenceId = residenceId ?? _session.residenceId;
     final anchor = weekOf ?? DateTime.now();
@@ -43,6 +44,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
         'from': from,
         'to': to,
         'residenceId': ?scopedResidenceId,
+        if (mine) 'mine': true,
       },
     );
     if (weekResult.isFailure) {
@@ -71,6 +73,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
           'from': from,
           'to': to,
           'residenceId': ?scopedResidenceId,
+          if (mine) 'mine': true,
         },
       ),
       _api.get(
