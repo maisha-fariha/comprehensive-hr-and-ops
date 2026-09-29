@@ -46,6 +46,7 @@ abstract final class ApiEndpoints {
   static const String attendanceBreakStart = '/attendance/break/start';
   static const String attendanceBreakEnd = '/attendance/break/end';
   static const String appointments = '/appointments';
+  static const String appointmentsSummary = '/appointments/summary';
   static const String recurringCheckSchedules = '/recurring-checks/schedules';
   static const String recurringCheckInstances = '/recurring-checks/instances';
   static const String recurringCheckEntries = '/recurring-checks/entries';
@@ -141,6 +142,7 @@ abstract final class ApiEndpoints {
   static const String tasksReview = '/tasks/review';
   static const String tasksRecurring = '/tasks/recurring';
   static const String trainingAssignments = '/training/assignments';
+  static const String trainingCourses = '/training/courses';
   static const String trainingCertificates = '/training/certificates';
   static const String emergencyAlerts = '/emergency-alerts';
   static const String inventoryItems = '/inventory/items';
@@ -203,6 +205,11 @@ abstract final class ApiEndpoints {
   static String attendanceById(String id) => '$attendance/$id';
   static String attendanceApprove(String id) => '$attendance/$id/approve';
   static String attendanceReject(String id) => '$attendance/$id/reject';
+  static String appointmentById(String id) => '$appointments/$id';
+  static String appointmentApprove(String id) => '$appointments/$id/approve';
+  static String appointmentReject(String id) => '$appointments/$id/reject';
+  static String appointmentRestore(String id) => '$appointments/$id/restore';
+  static String appointmentCancel(String id) => '$appointments/$id/cancel';
   static String dailyLogEntryById(String id) => '$dailyLogEntries/$id';
   static String dailyLogAmendments(String id) =>
       '$dailyLogEntries/$id/amendments';
@@ -237,6 +244,7 @@ abstract final class ApiEndpoints {
   static String taskRecurringById(String id) => '$tasksRecurring/$id';
   static String taskRecurringPause(String id) => '$tasksRecurring/$id/pause';
   static String taskRecurringResume(String id) => '$tasksRecurring/$id/resume';
+  static String trainingCourseById(String id) => '$trainingCourses/$id';
   static String trainingCourseQuiz(String courseId) =>
       '/training/courses/$courseId/quiz';
   static String trainingCourseAttempts(String courseId) =>

@@ -106,6 +106,7 @@ class UserSession extends GetxService {
   bool get canAccessIncidents => can('incidents');
   bool get canAccessTasks => can('tasks');
   bool get canAccessAppointments => can('appointments');
+  bool get canWriteAppointments => can('appointments:write');
   bool get canAccessHandovers => can('shift-handovers') || can('handovers');
   bool get canRaiseEmergency => can('emergency:raise');
   bool get canReadEmergency => can('emergency:read') || canRaiseEmergency;
@@ -117,6 +118,7 @@ class UserSession extends GetxService {
   bool get canAccessDocuments => can('documents');
   bool get canWriteDocuments => can('documents:write');
   bool get canAccessTraining => can('training');
+  bool get canWriteTraining => can('training:write');
   bool get canAccessAdmissions =>
       can('admissions:assess') || can('admissions');
 
