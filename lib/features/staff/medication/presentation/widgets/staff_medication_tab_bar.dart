@@ -21,43 +21,31 @@ class _TabData {
   });
 }
 
-/// Horizontally scrollable segmented control for Medication MAR tabs.
-///
-/// Active segment: raised white pill + teal label.
-/// Inactive: muted label + count badge (Administered / Missed).
+/// Web-parity tabs: MAR · PRN · Given · Resident chart.
 class StaffMedicationTabBar extends StatelessWidget {
   final StaffMedicationTab selectedTab;
-  final int dueCount;
-  final int administeredCount;
-  final int missedCount;
-  final int refusedCount;
+  final int marCount;
+  final int prnCount;
+  final int givenCount;
   final ValueChanged<StaffMedicationTab> onTabSelected;
 
   static const Color _track = Color(0xFFF1F4F8);
   static const Color _inactiveLabel = Color(0xFF7A869A);
-  static const Color _activeLabel = Color(0xFF005F56);
+  static const Color _activeBg = Color(0xFF0B1F3A);
 
-  static const Color _dueBadgeBg = Color(0xFFE8F6EF);
-  static const Color _dueBadgeFg = Color(0xFF2D8A56);
-
-  /// Pale blue badge for Administered count.
-  static const Color _administeredBadgeBg = Color(0xFFE7F0FF);
-  static const Color _administeredBadgeFg = Color(0xFF2A5DA6);
-
-  /// Pale peach badge for Missed count.
-  static const Color _missedBadgeBg = Color(0xFFFFF0D8);
-  static const Color _missedBadgeFg = Color(0xFFDE7A00);
-
-  static const Color _refusedBadgeBg = Color(0xFFFFF1E8);
-  static const Color _refusedBadgeFg = Color(0xFFC26E00);
+  static const Color _marBadgeBg = Color(0xFFE8F6EF);
+  static const Color _marBadgeFg = Color(0xFF2D8A56);
+  static const Color _prnBadgeBg = Color(0xFFE7F0FF);
+  static const Color _prnBadgeFg = Color(0xFF2A5DA6);
+  static const Color _givenBadgeBg = Color(0xFFE8F6EF);
+  static const Color _givenBadgeFg = Color(0xFF2D8A56);
 
   const StaffMedicationTabBar({
     super.key,
     required this.selectedTab,
-    required this.dueCount,
-    required this.administeredCount,
-    required this.missedCount,
-    required this.refusedCount,
+    required this.marCount,
+    required this.prnCount,
+    required this.givenCount,
     required this.onTabSelected,
   });
 
@@ -65,32 +53,29 @@ class StaffMedicationTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final tabs = [
       _TabData(
-        tab: StaffMedicationTab.due,
-        label: 'Due',
-        count: dueCount,
-        badgeBackground: _dueBadgeBg,
-        badgeForeground: _dueBadgeFg,
+        tab: StaffMedicationTab.mar,
+        label: 'MAR',
+        count: marCount,
+        badgeBackground: _marBadgeBg,
+        badgeForeground: _marBadgeFg,
       ),
       _TabData(
-        tab: StaffMedicationTab.administered,
-        label: 'Administered',
-        count: administeredCount,
-        badgeBackground: _administeredBadgeBg,
-        badgeForeground: _administeredBadgeFg,
+        tab: StaffMedicationTab.prn,
+        label: 'PRN',
+        count: prnCount,
+        badgeBackground: _prnBadgeBg,
+        badgeForeground: _prnBadgeFg,
       ),
       _TabData(
-        tab: StaffMedicationTab.missed,
-        label: 'Missed',
-        count: missedCount,
-        badgeBackground: _missedBadgeBg,
-        badgeForeground: _missedBadgeFg,
+        tab: StaffMedicationTab.given,
+        label: 'Given',
+        count: givenCount,
+        badgeBackground: _givenBadgeBg,
+        badgeForeground: _givenBadgeFg,
       ),
-      _TabData(
-        tab: StaffMedicationTab.refused,
-        label: 'Refused',
-        count: refusedCount,
-        badgeBackground: _refusedBadgeBg,
-        badgeForeground: _refusedBadgeFg,
+      const _TabData(
+        tab: StaffMedicationTab.residentChart,
+        label: 'Resident chart',
       ),
     ];
 
@@ -138,6 +123,7 @@ class _TabSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final showCount = data.count != null;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -149,17 +135,10 @@ class _TabSegment extends StatelessWidget {
           vertical: 10,
         ),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.surfaceWhite : Colors.transparent,
+          color: isSelected
+              ? StaffMedicationTabBar._activeBg
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(radius),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.shadowNavy.withValues(alpha: 0.06),
-                    offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-                    blurRadius: ResponsiveHelper.getResponsiveHeight(context, 4),
-                  ),
-                ]
-              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -173,18 +152,30 @@ class _TabSegment extends StatelessWidget {
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
                 color: isSelected
-                    ? StaffMedicationTabBar._activeLabel
+                    ? Colors.white
                     : StaffMedicationTabBar._inactiveLabel,
                 height: 1.2,
               ),
             ),
-            if (!isSelected && data.count != null) ...[
+            if (showCount) ...[
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-              StaffMedicationCountBadge(
-                count: data.count!,
-                background: data.badgeBackground,
-                foreground: data.badgeForeground,
-              ),
+              if (isSelected)
+                Text(
+                  '${data.count}',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                )
+              else
+                StaffMedicationCountBadge(
+                  count: data.count!,
+                  background: data.badgeBackground,
+                  foreground: data.badgeForeground,
+                ),
             ],
           ],
         ),

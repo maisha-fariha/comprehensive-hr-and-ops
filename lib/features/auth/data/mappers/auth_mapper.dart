@@ -100,6 +100,12 @@ abstract final class AuthMapper {
                 staff?['medAdminCertified'],
           ) ??
           false,
+      medAdminApproved: JsonCodec.boolean(
+            user['medAdminApproved'] ??
+                json['medAdminApproved'] ??
+                staff?['medAdminApproved'],
+          ) ??
+          false,
     );
   }
 
