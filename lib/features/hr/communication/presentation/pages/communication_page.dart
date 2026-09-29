@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_message_contact.dart';
+import '../../domain/repositories/communication_repository.dart';
 import '../controllers/communication_controller.dart';
 import '../widgets/chat_panel.dart';
 import '../widgets/communication_header.dart';
@@ -42,17 +43,25 @@ class _CommunicationPageState extends State<CommunicationPage> {
     if (controller.contacts.isEmpty && !controller.isLoadingContacts.value) {
       await controller.loadContacts();
     }
+    if (controller.residences.isEmpty) await controller.loadResidences();
+    if (controller.clients.isEmpty) await controller.loadClients();
     if (!context.mounted) return;
 
     final result = await showNewConversationDialog(
       context,
       contacts: List<HrMessageContact>.from(controller.contacts),
+      residences: List<CommunicationResidenceOption>.from(controller.residences),
+      clients: List<CommunicationClientOption>.from(controller.clients),
+      initialResidenceId: controller.preferredResidenceId,
     );
     if (result == null) return;
 
     await controller.startConversation(
+      type: result.type,
       title: result.title,
       memberUserIds: result.memberUserIds,
+      residenceId: result.residenceId,
+      clientId: result.clientId,
       firstMessage: result.firstMessage,
     );
   }

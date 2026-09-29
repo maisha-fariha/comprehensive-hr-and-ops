@@ -34,10 +34,13 @@ class ChatPanel extends StatelessWidget {
           borderRadius: BorderRadius.circular(
             ResponsiveHelper.getResponsiveRadius(context, 16),
           ),
-          border: Border.all(color: AppColors.cardBorder),
+          border: Border.all(
+            color: AppColors.cardBorder,
+            style: BorderStyle.solid,
+          ),
         ),
         child: Text(
-          'Select a conversation to start messaging.',
+          'No conversation selected.',
           style: TextStyle(
             fontFamily: 'Outfit',
             color: AppColors.textSecondary,

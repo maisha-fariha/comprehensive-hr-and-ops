@@ -8,6 +8,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/storage/media_store_download.dart';
 import '../../../communication/domain/entities/hr_message_contact.dart';
 import '../../../communication/domain/repositories/communication_repository.dart';
@@ -154,6 +155,8 @@ class TeamReportsPage extends StatelessWidget {
     TeamReportsController controller,
   ) async {
     final contactsResult = await _messaging.getContacts();
+    final residencesResult = await _messaging.getResidences();
+    final clientsResult = await _messaging.getClients();
     if (!context.mounted) return;
 
     final contacts = contactsResult.when(
@@ -168,15 +171,35 @@ class TeamReportsPage extends StatelessWidget {
       return;
     }
 
+    final residences = residencesResult.when(
+      success: (items) => items,
+      failure: (_) => const <CommunicationResidenceOption>[],
+    );
+    final clients = clientsResult.when(
+      success: (items) => items,
+      failure: (_) => const <CommunicationClientOption>[],
+    );
+
+    String? initialResidenceId;
+    try {
+      initialResidenceId = Get.find<UserSession>().residenceId;
+    } catch (_) {}
+
     final draft = await showNewConversationDialog(
       context,
       contacts: List<HrMessageContact>.from(contacts),
+      residences: List<CommunicationResidenceOption>.from(residences),
+      clients: List<CommunicationClientOption>.from(clients),
+      initialResidenceId: initialResidenceId,
     );
     if (draft == null) return;
 
     final created = await _messaging.startConversation(
+      type: draft.type,
       title: draft.title,
       memberUserIds: draft.memberUserIds,
+      residenceId: draft.residenceId,
+      clientId: draft.clientId,
     );
     await created.when(
       success: (conversation) async {

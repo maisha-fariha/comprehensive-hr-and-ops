@@ -17,6 +17,7 @@ import '../../extras/presentation/pages/staff_recurring_checks_page.dart';
 import '../../extras/presentation/pages/staff_residences_page.dart';
 import '../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
+import '../../../hr/communication/presentation/pages/communication_page.dart';
 import '../open_staff_profile.dart';
 import '../widgets/staff_menu_entry.dart';
 
@@ -90,6 +91,14 @@ class StaffMoreMenuPage extends StatelessWidget {
                 iconColor: AppColors.activeGreen,
                 title: 'Daily Activity',
                 subtitle: 'Outings, school, programmes, and observations',
+              ),
+            if (session.canAccessMessaging)
+              const StaffMenuEntry(
+                icon: Icons.forum_outlined,
+                iconBackground: AppColors.infoBackground,
+                iconColor: AppColors.infoBlue,
+                title: 'Communication',
+                subtitle: 'Direct, group, and family conversations',
               ),
             if (session.canAccessInventory)
               const StaffMenuEntry(
@@ -169,6 +178,8 @@ class StaffMoreMenuPage extends StatelessWidget {
         Get.to(() => const StaffShiftHandoversPage());
       case 'Daily Activity':
         Get.to(() => const StaffDailyActivityPage());
+      case 'Communication':
+        Get.to(() => const CommunicationPage());
       case 'Inventory':
         Get.to(() => const StaffInventoryPage());
       case 'Admissions':

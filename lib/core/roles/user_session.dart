@@ -111,6 +111,8 @@ class UserSession extends GetxService {
   bool get canReadEmergency => can('emergency:read') || canRaiseEmergency;
   bool get canAccessClientActivities => can('client-activities');
   bool get canWriteClientActivities => can('client-activities:write');
+  bool get canAccessMessaging => can('messaging');
+  bool get canWriteMessaging => can('messaging:write');
   bool get canAccessInventory => can('inventory');
   bool get canAccessAdmissions =>
       can('admissions:assess') || can('admissions');
