@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../family_appointments_constants.dart';
 
-/// Bold field label shown above every field on the Create Appointment form,
-/// with an optional trailing muted suffix (e.g. "(Optional)").
+/// Bold field label shown above every field on the Request a visit form,
+/// with an optional required asterisk.
 class AppointmentFieldLabel extends StatelessWidget {
   final String text;
   final String? suffix;
+  final bool required;
 
-  const AppointmentFieldLabel(this.text, {super.key, this.suffix});
+  const AppointmentFieldLabel(
+    this.text, {
+    super.key,
+    this.suffix,
+    this.required = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: ResponsiveHelper.getResponsiveHeight(context, 8)),
+      padding: EdgeInsets.only(
+        bottom: ResponsiveHelper.getResponsiveHeight(context, 8),
+      ),
       child: Row(
         children: [
           Text(
@@ -29,6 +34,16 @@ class AppointmentFieldLabel extends StatelessWidget {
               color: AppColors.textHeading,
             ),
           ),
+          if (required)
+            Text(
+              ' *',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                color: AppColors.criticalRed,
+              ),
+            ),
           if (suffix != null) ...[
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
             Text(
@@ -47,17 +62,54 @@ class AppointmentFieldLabel extends StatelessWidget {
   }
 }
 
-/// The shared white/outlined "pill" field shell (border, radius, padding)
-/// used by every dropdown-look field on the Create Appointment form.
+/// Soft pink validation banner matching the web "Request a visit" modal.
+class AppointmentFormErrorBanner extends StatelessWidget {
+  final String message;
+
+  const AppointmentFormErrorBanner({super.key, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 14,
+        vertical: 12,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.criticalBackgroundSoft,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 10),
+        ),
+        border: Border.all(color: AppColors.criticalBackground),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontFamily: 'Manrope',
+          fontWeight: FontWeight.w600,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+          color: AppColors.criticalRed,
+          height: 1.3,
+        ),
+      ),
+    );
+  }
+}
+
+/// Outlined field shell used by dropdown-style picks on the request form.
 class AppointmentDropdownField extends StatelessWidget {
   final String value;
-  final String? leadingIcon;
+  final bool isPlaceholder;
+  final IconData? trailingIcon;
   final VoidCallback? onTap;
 
   const AppointmentDropdownField({
     super.key,
     required this.value,
-    this.leadingIcon,
+    this.isPlaceholder = false,
+    this.trailingIcon,
     this.onTap,
   });
 
@@ -67,44 +119,52 @@ class AppointmentDropdownField extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-      width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16, vertical: 15),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        border: Border.all(color: AppColors.searchBorder),
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
+        width: double.infinity,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 16,
+          vertical: 15,
         ),
-      ),
-      child: Row(
-        children: [
-          if (leadingIcon != null) ...[
-            AppSvgIcon(leadingIcon!, size: 16, color: AppColors.secondaryTeal),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          ],
-          Expanded(
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Manrope',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                color: AppColors.textHeading,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          border: Border.all(color: AppColors.searchBorder),
+          borderRadius: BorderRadius.circular(
+            ResponsiveHelper.getResponsiveRadius(context, 12),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontWeight:
+                      isPlaceholder ? FontWeight.w500 : FontWeight.w600,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                  color: isPlaceholder
+                      ? AppColors.textMuted
+                      : AppColors.textHeading,
+                ),
               ),
             ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          const AppSvgIcon(AppAssets.chevronDown, size: 15, color: AppColors.textFaint),
-        ],
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            Icon(
+              trailingIcon ?? Icons.keyboard_arrow_down_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 20),
+              color: AppColors.textMuted,
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 }
 
-/// A single-line outlined text field used for location / purpose.
+/// Single-line outlined text field (Where).
 class AppointmentTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
@@ -128,7 +188,7 @@ class AppointmentTextField extends StatelessWidget {
         color: AppColors.surfaceWhite,
         border: Border.all(color: AppColors.searchBorder),
         borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
+          ResponsiveHelper.getResponsiveRadius(context, 12),
         ),
       ),
       child: TextField(
@@ -147,7 +207,7 @@ class AppointmentTextField extends StatelessWidget {
             fontFamily: 'Manrope',
             fontWeight: FontWeight.w400,
             fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-            color: AppColors.textFaint,
+            color: AppColors.textMuted,
           ),
         ),
       ),
@@ -155,109 +215,59 @@ class AppointmentTextField extends StatelessWidget {
   }
 }
 
-/// The multiline "Add a Note" textarea with a right-aligned character
-/// counter (e.g. "63/250"), shown near the bottom of the Create Appointment
-/// form.
+/// Multiline notes textarea.
 class AppointmentNoteField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
+  final bool showCounter;
   final int length;
 
-  const AppointmentNoteField({super.key, required this.controller, required this.hint, required this.length});
+  const AppointmentNoteField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    this.showCounter = false,
+    this.length = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16, vertical: 14),
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 16,
+        vertical: 14,
+      ),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
         border: Border.all(color: AppColors.searchBorder),
         borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
+          ResponsiveHelper.getResponsiveRadius(context, 12),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          TextField(
-            controller: controller,
-            maxLines: 3,
-            minLines: 3,
-            maxLength: FamilyAppointmentsConstants.noteMaxLength,
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontWeight: FontWeight.w500,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-              color: AppColors.textHeading,
-            ),
-            decoration: InputDecoration(
-              isDense: true,
-              border: InputBorder.none,
-              counterText: '',
-              hintText: hint,
-              hintStyle: TextStyle(
-                fontFamily: 'Manrope',
-                fontWeight: FontWeight.w400,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                color: AppColors.textFaint,
-              ),
-            ),
-          ),
-          Text(
-            '$length/${FamilyAppointmentsConstants.noteMaxLength}',
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontWeight: FontWeight.w400,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-              color: AppColors.textFaint,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The mint-green "your request will be reviewed" info banner shown near
-/// the bottom of the Create Appointment form.
-///
-/// Icon note: no shield-check SVG exists in `assets/icons/*` yet, so this
-/// uses the Material `Icons.gpp_good_outlined` as a temporary stand-in.
-class AppointmentInfoBanner extends StatelessWidget {
-  final String message;
-
-  const AppointmentInfoBanner({super.key, required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.activeBackground,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
+      child: TextField(
+        controller: controller,
+        maxLines: 4,
+        minLines: 4,
+        style: TextStyle(
+          fontFamily: 'Manrope',
+          fontWeight: FontWeight.w500,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+          color: AppColors.textHeading,
         ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.gpp_good_outlined, size: ResponsiveHelper.getResponsiveSize(context, 18), color: AppColors.secondaryTealDark),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                fontFamily: 'Manrope',
-                fontWeight: FontWeight.w500,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                color: Color(0xFF2A5250),
-                height: 1.35,
-              ),
-            ),
+        decoration: InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          counterText: '',
+          hintText: hint,
+          hintStyle: TextStyle(
+            fontFamily: 'Manrope',
+            fontWeight: FontWeight.w400,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+            color: AppColors.textMuted,
           ),
-        ],
+        ),
       ),
     );
   }
