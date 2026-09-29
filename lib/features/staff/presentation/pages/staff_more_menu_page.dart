@@ -10,12 +10,15 @@ import '../../../../core/roles/user_session.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
 import '../../extras/presentation/pages/staff_admissions_page.dart';
+import '../../extras/presentation/pages/staff_appointments_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
+import '../../extras/presentation/pages/staff_documents_page.dart';
 import '../../extras/presentation/pages/staff_emergency_page.dart';
 import '../../extras/presentation/pages/staff_inventory_page.dart';
 import '../../extras/presentation/pages/staff_recurring_checks_page.dart';
 import '../../extras/presentation/pages/staff_residences_page.dart';
 import '../../extras/presentation/pages/staff_shift_handovers_page.dart';
+import '../../extras/presentation/pages/staff_training_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
 import '../open_staff_profile.dart';
@@ -100,6 +103,30 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Communication',
                 subtitle: 'Direct, group, and family conversations',
               ),
+            if (session.canAccessDocuments)
+              const StaffMenuEntry(
+                icon: Icons.folder_outlined,
+                iconBackground: AppColors.nightBackground,
+                iconColor: AppColors.nightPurple,
+                title: 'Documents Management',
+                subtitle: 'Care plans, certificates, and filings',
+              ),
+            if (session.canAccessAppointments)
+              const StaffMenuEntry(
+                icon: Icons.event_available_outlined,
+                iconBackground: AppColors.activeBackground,
+                iconColor: AppColors.activeGreen,
+                title: 'Appointments',
+                subtitle: 'Visits and scheduled appointments',
+              ),
+            if (session.canAccessTraining)
+              const StaffMenuEntry(
+                icon: Icons.school_outlined,
+                iconBackground: AppColors.urgentBackgroundSoft,
+                iconColor: AppColors.urgentAmber,
+                title: 'Training',
+                subtitle: 'Assignments, quizzes, and certificates',
+              ),
             if (session.canAccessInventory)
               const StaffMenuEntry(
                 icon: Icons.inventory_2_outlined,
@@ -179,7 +206,13 @@ class StaffMoreMenuPage extends StatelessWidget {
       case 'Daily Activity':
         Get.to(() => const StaffDailyActivityPage());
       case 'Communication':
-        Get.to(() => const CommunicationPage());
+        Get.to(() => const CommunicationPage(showStaffBottomNav: true));
+      case 'Documents Management':
+        Get.to(() => const StaffDocumentsPage());
+      case 'Appointments':
+        Get.to(() => const StaffAppointmentsPage());
+      case 'Training':
+        Get.to(() => const StaffTrainingPage());
       case 'Inventory':
         Get.to(() => const StaffInventoryPage());
       case 'Admissions':

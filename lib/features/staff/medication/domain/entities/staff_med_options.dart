@@ -45,6 +45,7 @@ class StaffCreateMedicationInput {
   final int? stockUnitsPerDose;
   final String scheduleFrequency;
   final List<String> scheduleTimes;
+  final List<int> scheduleWeekdays;
   final DateTime? startsAt;
   final DateTime? endsAt;
   final bool isControlled;
@@ -59,6 +60,7 @@ class StaffCreateMedicationInput {
     this.stockUnitsPerDose,
     this.scheduleFrequency = 'daily',
     this.scheduleTimes = const [],
+    this.scheduleWeekdays = const [],
     this.startsAt,
     this.endsAt,
     this.isControlled = false,

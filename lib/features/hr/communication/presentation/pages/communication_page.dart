@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../staff/presentation/widgets/staff_bottom_nav_bar.dart';
+import '../../../../staff/staff_shell.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_message_contact.dart';
 import '../../domain/repositories/communication_repository.dart';
@@ -13,11 +15,19 @@ import '../widgets/communication_header.dart';
 import '../widgets/conversations_panel.dart';
 import '../widgets/new_conversation_dialog.dart';
 
-/// HR Communication screen — Messages / Communication Log.
+/// Communication screen — Messages (staff omits Communication Log; not on staff web).
 class CommunicationPage extends StatefulWidget {
   final String? initialConversationId;
 
-  const CommunicationPage({super.key, this.initialConversationId});
+  /// When true, hosts [StaffBottomNavBar] and keeps Messages-only layout
+  /// (staff web has no Communication Log).
+  final bool showStaffBottomNav;
+
+  const CommunicationPage({
+    super.key,
+    this.initialConversationId,
+    this.showStaffBottomNav = false,
+  });
 
   @override
   State<CommunicationPage> createState() => _CommunicationPageState();
@@ -80,12 +90,24 @@ class _CommunicationPageState extends State<CommunicationPage> {
   @override
   Widget build(BuildContext context) {
     final controller = _resolve();
+    final staffNav = widget.showStaffBottomNav;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _seedIfNeeded(controller);
+      // Staff web has Messages only — never leave Log selected.
+      if (staffNav &&
+          controller.selectedTab.value == CommunicationTab.communicationLog) {
+        controller.selectTab(CommunicationTab.messages);
+      }
     });
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
+      bottomNavigationBar: staffNav
+          ? StaffBottomNavBar(
+              currentIndex: 4,
+              onTap: (i) => Get.offAll(() => StaffShell(initialIndex: i)),
+            )
+          : null,
       body: SafeArea(
         child: Column(
           children: [
@@ -96,8 +118,10 @@ class _CommunicationPageState extends State<CommunicationPage> {
             ),
             Expanded(
               child: Obx(() {
-                if (controller.selectedTab.value ==
-                    CommunicationTab.communicationLog) {
+                // Communication Log is not on staff web and remains unwired.
+                if (!staffNav &&
+                    controller.selectedTab.value ==
+                        CommunicationTab.communicationLog) {
                   return const _CommunicationLogPlaceholder();
                 }
 

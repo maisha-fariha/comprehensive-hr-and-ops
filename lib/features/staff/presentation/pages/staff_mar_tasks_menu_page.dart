@@ -92,7 +92,7 @@ class StaffMarTasksMenuPage extends StatelessWidget {
     } else if (title == 'Tasks & Messages') {
       Get.to(() => const StaffTasksMessagesPage());
     } else if (title == 'Communication') {
-      Get.to(() => const CommunicationPage());
+      Get.to(() => const CommunicationPage(showStaffBottomNav: true));
     }
   }
 }

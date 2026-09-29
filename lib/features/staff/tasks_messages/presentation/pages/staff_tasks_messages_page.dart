@@ -51,7 +51,7 @@ class StaffTasksMessagesPage extends StatelessWidget {
     BuildContext context,
     TasksMessagesController controller,
   ) async {
-    await Get.to(() => const CommunicationPage());
+    await Get.to(() => const CommunicationPage(showStaffBottomNav: true));
     await controller.refresh();
   }
 

@@ -310,9 +310,13 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       'schedule': {
         'frequency': input.scheduleFrequency,
         if (input.scheduleTimes.isNotEmpty) 'times': input.scheduleTimes,
+        if (input.scheduleWeekdays.isNotEmpty)
+          'weekdays': input.scheduleWeekdays,
       },
       'scheduleFrequency': input.scheduleFrequency,
       if (input.scheduleTimes.isNotEmpty) 'scheduleTimes': input.scheduleTimes,
+      if (input.scheduleWeekdays.isNotEmpty)
+        'scheduleWeekdays': input.scheduleWeekdays,
       if (input.startsAt != null)
         'startsAt': input.startsAt!.toUtc().toIso8601String(),
       if (input.endsAt != null)

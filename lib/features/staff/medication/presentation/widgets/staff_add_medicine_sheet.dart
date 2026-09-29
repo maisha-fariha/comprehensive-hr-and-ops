@@ -68,6 +68,7 @@ class _MedicineDraft {
   bool controlled = false;
   String frequency = 'daily';
   final List<String> times = ['08:00'];
+  final Set<int> weekdays = <int>{};
   DateTime? startsAt;
   DateTime? endsAt;
   String? requiresCheckScheduleId;
@@ -240,6 +241,14 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
       if (!_isPrn && m.times.isEmpty) {
         return 'Medicine ${i + 1}: add at least one schedule time.';
       }
+      if (!_isPrn && m.frequency == 'weekly' && m.weekdays.isEmpty) {
+        return 'Medicine ${i + 1}: pick at least one weekday for weekly.';
+      }
+      if (m.startsAt != null &&
+          m.endsAt != null &&
+          m.endsAt!.isBefore(m.startsAt!)) {
+        return 'Medicine ${i + 1}: end date must be on or after start date.';
+      }
     }
     return null;
   }
@@ -289,6 +298,9 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                 stockUnitsPerDose: stock,
                 scheduleFrequency: m.frequency,
                 scheduleTimes: List<String>.from(m.times)..sort(),
+                scheduleWeekdays: m.frequency == 'weekly'
+                    ? (m.weekdays.toList()..sort())
+                    : const [],
                 startsAt: m.startsAt,
                 endsAt: m.endsAt,
                 isControlled: m.controlled,
@@ -1022,6 +1034,7 @@ class _MedicineCard extends StatelessWidget {
                     onChanged: (value) {
                       if (value == null) return;
                       draft.frequency = value;
+                      if (value != 'weekly') draft.weekdays.clear();
                       onChanged();
                     },
                   ),
@@ -1078,6 +1091,50 @@ class _MedicineCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (draft.frequency == 'weekly') ...[
+                const SizedBox(height: 14),
+                _Labeled(
+                  label: 'Weekdays',
+                  hint: 'Which days this weekly dose falls on',
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final entry in const [
+                        (1, 'Mon'),
+                        (2, 'Tue'),
+                        (3, 'Wed'),
+                        (4, 'Thu'),
+                        (5, 'Fri'),
+                        (6, 'Sat'),
+                        (7, 'Sun'),
+                      ])
+                        FilterChip(
+                          label: Text(entry.$2),
+                          selected: draft.weekdays.contains(entry.$1),
+                          onSelected: (selected) {
+                            if (selected) {
+                              draft.weekdays.add(entry.$1);
+                            } else {
+                              draft.weekdays.remove(entry.$1);
+                            }
+                            onChanged();
+                          },
+                          selectedColor: AppColors.quickActionCreateShiftBg,
+                          checkmarkColor: AppColors.secondaryTeal,
+                          labelStyle: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            color: draft.weekdays.contains(entry.$1)
+                                ? AppColors.secondaryTeal
+                                : AppColors.textHeading,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 14),
             pair(
