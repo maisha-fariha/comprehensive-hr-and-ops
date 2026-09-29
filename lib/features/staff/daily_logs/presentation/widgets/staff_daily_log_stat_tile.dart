@@ -22,6 +22,30 @@ class _StatTagStyle {
 
 /// Icons from `assets/icons/staff_daily_logs/`.
 const Map<StaffDailyLogStatTag, _StatTagStyle> _statTagStyles = {
+  StaffDailyLogStatTag.entriesLogged: _StatTagStyle(
+    svgAsset: 'assets/icons/staff_daily_logs/circle_check.svg',
+    valueColor: Color(0xFF2E8C58),
+    iconColor: Color(0xFF2E8C58),
+    iconBackground: Color(0xFFE6F6EE),
+  ),
+  StaffDailyLogStatTag.daysToReview: _StatTagStyle(
+    svgAsset: 'assets/icons/staff_daily_logs/clock.svg',
+    valueColor: Color(0xFF2A5DA6),
+    iconColor: Color(0xFF2A5DA6),
+    iconBackground: Color(0xFFEAF0F9),
+  ),
+  StaffDailyLogStatTag.missingLogs: _StatTagStyle(
+    svgAsset: 'assets/icons/staff_daily_logs/clock.svg',
+    valueColor: Color(0xFFE5484D),
+    iconColor: Color(0xFFE5484D),
+    iconBackground: Color(0xFFFFEBEE),
+  ),
+  StaffDailyLogStatTag.openFlags: _StatTagStyle(
+    svgAsset: 'assets/icons/staff_daily_logs/flag.svg',
+    valueColor: Color(0xFFE5484D),
+    iconColor: Color(0xFFE5484D),
+    iconBackground: Color(0xFFFFEBEE),
+  ),
   StaffDailyLogStatTag.submittedToday: _StatTagStyle(
     svgAsset: 'assets/icons/staff_daily_logs/circle_check.svg',
     valueColor: Color(0xFF2E8C58),
@@ -36,12 +60,6 @@ const Map<StaffDailyLogStatTag, _StatTagStyle> _statTagStyles = {
   ),
   StaffDailyLogStatTag.flaggedNotes: _StatTagStyle(
     svgAsset: 'assets/icons/staff_daily_logs/flag.svg',
-    valueColor: Color(0xFFE5484D),
-    iconColor: Color(0xFFE5484D),
-    iconBackground: Color(0xFFFFEBEE),
-  ),
-  StaffDailyLogStatTag.missingLogs: _StatTagStyle(
-    svgAsset: 'assets/icons/staff_daily_logs/clock.svg',
     valueColor: Color(0xFFE5484D),
     iconColor: Color(0xFFE5484D),
     iconBackground: Color(0xFFFFEBEE),
@@ -114,12 +132,28 @@ class StaffDailyLogStatTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'Outfit',
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-              color: AppColors.textMuted,
+              color: AppColors.textHeading,
               height: 1.25,
             ),
           ),
+          if (stat.subtitle != null && stat.subtitle!.isNotEmpty) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+            Text(
+              stat.subtitle!,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w400,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
+                color: AppColors.textMuted,
+                height: 1.2,
+              ),
+            ),
+          ],
         ],
       ),
     );

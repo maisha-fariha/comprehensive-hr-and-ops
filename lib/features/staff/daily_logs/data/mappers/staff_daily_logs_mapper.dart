@@ -17,18 +17,31 @@ abstract final class StaffDailyLogsMapper {
     required dynamic dayBody,
     required dynamic activitiesBody,
     required dynamic clientsBody,
+    dynamic flagsBody,
     String? selectedClientName,
+    DateTime? from,
+    DateTime? to,
   }) {
-    final review = JsonCodec.unwrapList(reviewBody)
+    final reviewRows = JsonCodec.unwrapList(reviewBody)
         .whereType<Map>()
-        .map((item) => _queueRow(JsonCodec.asMap(item), ClientLogStatus.toReview))
+        .map(JsonCodec.asMap)
         .toList();
-    final missing = JsonCodec.unwrapList(missingBody)
+    final missingRows = JsonCodec.unwrapList(missingBody)
         .whereType<Map>()
-        .map((item) => _queueRow(JsonCodec.asMap(item), ClientLogStatus.missing))
+        .map(JsonCodec.asMap)
         .toList();
 
-    final dayMap = dayBody == null ? <String, dynamic>{} : JsonCodec.unwrapMap(dayBody);
+    final review = [
+      for (final json in reviewRows)
+        _queueRow(json, ClientLogStatus.toReview),
+    ];
+    final missing = [
+      for (final json in missingRows)
+        _queueRow(json, ClientLogStatus.missing),
+    ];
+
+    final dayMap =
+        dayBody == null ? <String, dynamic>{} : JsonCodec.unwrapMap(dayBody);
     final dayEntries = <StaffDayLogEntry>[];
     for (final raw in JsonCodec.listAt(dayMap, 'entries').whereType<Map>()) {
       dayEntries.add(_dayEntry(JsonCodec.asMap(raw)));
@@ -36,8 +49,7 @@ abstract final class StaffDailyLogsMapper {
     final dayDate = JsonCodec.dateTime(dayMap['logDate']);
     final dayClientName = selectedClientName ??
         JsonCodec.string(
-          dayMap['clientName'] ??
-              IsoDateRange.personName(dayMap['client']),
+          dayMap['clientName'] ?? IsoDateRange.personName(dayMap['client']),
         );
 
     final activities = JsonCodec.unwrapList(activitiesBody)
@@ -65,23 +77,46 @@ abstract final class StaffDailyLogsMapper {
       JsonCodec.metaOf(activitiesBody)?['total'],
       activities.length,
     );
+    final openFlags = JsonCodec.integerOr(
+      JsonCodec.metaOf(flagsBody)?['total'],
+      JsonCodec.unwrapList(flagsBody).length,
+    );
+
+    // Web "Entries Logged" = sum of entriesCount on review (to-review) days.
+    var entriesLogged = 0;
+    for (final row in reviewRows) {
+      entriesLogged += JsonCodec.integerOr(row['entriesCount'], 0);
+    }
+
+    final rangeSubtitle = (from != null && to != null)
+        ? _shortRangeLabel(from, to)
+        : null;
 
     return StaffDailyLogsOverview(
       stats: [
         StaffDailyLogSummaryStat(
-          tag: StaffDailyLogStatTag.submittedToday,
+          tag: StaffDailyLogStatTag.entriesLogged,
+          value: '$entriesLogged',
+          label: 'Entries Logged',
+          subtitle: rangeSubtitle,
+        ),
+        StaffDailyLogSummaryStat(
+          tag: StaffDailyLogStatTag.daysToReview,
           value: '$reviewTotal',
-          label: 'To review',
+          label: 'Days to Review',
+          subtitle: 'Resident-days with entries',
         ),
         StaffDailyLogSummaryStat(
           tag: StaffDailyLogStatTag.missingLogs,
           value: '$missingTotal',
-          label: 'Missing',
+          label: 'Missing Logs',
+          subtitle: 'Resident-days with nothing written',
         ),
         StaffDailyLogSummaryStat(
-          tag: StaffDailyLogStatTag.flaggedNotes,
-          value: '$activitiesTotal',
-          label: 'House activity',
+          tag: StaffDailyLogStatTag.openFlags,
+          value: '$openFlags',
+          label: 'Open Flags',
+          subtitle: 'Raised and not yet resolved',
         ),
       ],
       toReview: review,
@@ -97,6 +132,24 @@ abstract final class StaffDailyLogsMapper {
       houseActivitiesTotal: activitiesTotal,
       residents: residents,
     );
+  }
+
+  static String _shortRangeLabel(DateTime from, DateTime to) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[from.month - 1]} ${from.day} – ${months[to.month - 1]} ${to.day}';
   }
 
   static StaffClientLogEntry _queueRow(

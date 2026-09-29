@@ -1,8 +1,17 @@
 /// Which segmented tab is selected on Staff Daily Logs (web parity).
 enum StaffDailyLogsTab { toReview, missing, residentDay, houseActivity }
 
-/// Semantic tag for summary stat tiles.
-enum StaffDailyLogStatTag { submittedToday, pendingReview, flaggedNotes, missingLogs }
+/// Semantic tag for summary stat tiles (web parity).
+enum StaffDailyLogStatTag {
+  entriesLogged,
+  daysToReview,
+  missingLogs,
+  openFlags,
+  // legacy aliases still referenced in older tiles
+  submittedToday,
+  pendingReview,
+  flaggedNotes,
+}
 
 /// Status of a client daily-log row.
 enum ClientLogStatus { pending, inProgress, submitted, toReview, missing }

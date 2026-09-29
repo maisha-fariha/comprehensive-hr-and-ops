@@ -29,18 +29,23 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
     required DateTime to,
     String? clientId,
   }) async {
-    final fromIso = IsoDateRange.startOfLocalDay(from).toUtc().toIso8601String();
-    final toIso = IsoDateRange.startOfLocalDay(to)
-        .add(const Duration(days: 1))
-        .subtract(const Duration(milliseconds: 1))
-        .toUtc()
-        .toIso8601String();
+    // Match web: calendar dates as UTC day bounds (not local-midnight shift).
+    // e.g. 23/09/2026 → from=2026-09-23T00:00:00.000Z, to=…T23:59:59.999Z
+    String dayKey(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    final fromIso = '${dayKey(from)}T00:00:00.000Z';
+    final toIso = '${dayKey(to)}T23:59:59.999Z';
+    final hasClient = clientId != null && clientId.isNotEmpty;
+
     final range = <String, dynamic>{
       'residenceId': residenceId,
       'from': fromIso,
       'to': toIso,
       'page': 1,
       'limit': 100,
+      if (hasClient) 'clientId': clientId,
     };
 
     final futures = <Future<Result<dynamic>>>[
@@ -69,6 +74,18 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
           'residenceId': residenceId,
           'page': 1,
           'limit': 100,
+          if (hasClient) 'clientId': clientId,
+        },
+        silent: true,
+      ),
+      _api.get(
+        ApiEndpoints.careFlags,
+        query: {
+          'state': 'open',
+          'page': 1,
+          'limit': 50,
+          'residenceId': residenceId,
+          if (hasClient) 'clientId': clientId,
         },
         silent: true,
       ),
@@ -79,6 +96,7 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
     final missing = results[1];
     final clients = results[2];
     final activities = results[3];
+    final flags = results[4];
 
     if (review.isFailure && missing.isFailure && activities.isFailure) {
       return Result.failure(
@@ -91,18 +109,14 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
 
     Result<dynamic>? dayResult;
     String? selectedClientName;
-    if (clientId != null && clientId.isNotEmpty) {
+    if (hasClient) {
       // Resident day view uses the "To" date as logDate (web day picker).
-      final logDate =
-          '${to.year.toString().padLeft(4, '0')}-'
-          '${to.month.toString().padLeft(2, '0')}-'
-          '${to.day.toString().padLeft(2, '0')}';
       dayResult = await _api.get(
         ApiEndpoints.dailyLogs,
         query: {
           'clientId': clientId,
           'residenceId': residenceId,
-          'logDate': logDate,
+          'logDate': dayKey(to),
         },
         silent: true,
       );
@@ -139,7 +153,10 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
             : null,
         activitiesBody: activities.isSuccess ? activities.value : const [],
         clientsBody: clients.isSuccess ? clients.value : const [],
+        flagsBody: flags.isSuccess ? flags.value : const [],
         selectedClientName: selectedClientName,
+        from: from,
+        to: to,
       ),
     );
   }
