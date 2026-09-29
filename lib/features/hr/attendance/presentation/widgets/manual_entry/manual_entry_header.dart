@@ -11,7 +11,7 @@ extension ManualEntryTabX on ManualEntryTab {
   String get label => switch (this) {
     ManualEntryTab.attendanceDetails => 'Attendance Details',
     ManualEntryTab.timeCorrection => 'Time Correction',
-    ManualEntryTab.evidence => 'Evidence',
+    ManualEntryTab.evidence => 'Reason & Evidence',
     ManualEntryTab.approval => 'Approval',
   };
 }
@@ -19,8 +19,13 @@ extension ManualEntryTabX on ManualEntryTab {
 /// Top header: navy clock badge, title, subtitle, circular close.
 class ManualEntryHeader extends StatelessWidget {
   final VoidCallback? onClose;
+  final String title;
 
-  const ManualEntryHeader({super.key, this.onClose});
+  const ManualEntryHeader({
+    super.key,
+    this.onClose,
+    this.title = 'Manual Attendance Entry',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +61,7 @@ class ManualEntryHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Manual Attendance Entry',
+                  title,
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,

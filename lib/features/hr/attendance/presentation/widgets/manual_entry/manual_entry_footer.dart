@@ -8,6 +8,7 @@ class ManualEntryFooter extends StatelessWidget {
   final VoidCallback? onSave;
   final bool isSubmitting;
   final Key? saveButtonKey;
+  final String saveLabel;
 
   const ManualEntryFooter({
     super.key,
@@ -15,6 +16,7 @@ class ManualEntryFooter extends StatelessWidget {
     this.onSave,
     this.isSubmitting = false,
     this.saveButtonKey,
+    this.saveLabel = 'Save entry',
   });
 
   @override
@@ -52,7 +54,7 @@ class ManualEntryFooter extends StatelessWidget {
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
         _FooterButton(
           key: saveButtonKey,
-          label: isSubmitting ? 'Saving…' : 'Save entry',
+          label: isSubmitting ? 'Saving…' : saveLabel,
           filled: true,
           isLoading: isSubmitting,
           onTap: saveEnabled ? onSave : null,
@@ -101,7 +103,7 @@ class ManualEntryFooter extends StatelessWidget {
                         Expanded(
                           child: _FooterButton(
                             key: saveButtonKey,
-                            label: isSubmitting ? 'Saving…' : 'Save entry',
+                            label: isSubmitting ? 'Saving…' : saveLabel,
                             filled: true,
                             isLoading: isSubmitting,
                             onTap: saveEnabled ? onSave : null,

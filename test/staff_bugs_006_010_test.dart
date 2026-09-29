@@ -700,7 +700,7 @@ void main() {
       );
       expect(find.text('Attendance Details'), findsWidgets);
       expect(find.text('Time Correction'), findsWidgets);
-      expect(find.text('Evidence'), findsWidgets);
+      expect(find.text('Reason & Evidence'), findsWidgets);
       expect(find.text('Approval'), findsWidgets);
       expect(
         find.byKey(const Key('staff-manual-entry-step-attendance-details')),
