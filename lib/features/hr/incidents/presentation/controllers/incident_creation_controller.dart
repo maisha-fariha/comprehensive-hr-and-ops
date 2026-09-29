@@ -91,6 +91,7 @@ class IncidentCreationController extends GetxController {
 
   final TextEditingController incidentDateController = TextEditingController();
   final TextEditingController incidentTimeController = TextEditingController();
+  final TextEditingController endTimeController = TextEditingController();
   final Rx<IncidentSeverity> severity = IncidentSeverity.high.obs;
   final RxnString detectedDuring = RxnString();
 
@@ -121,6 +122,20 @@ class IncidentCreationController extends GetxController {
   final RxnString reportedBy = RxnString();
   final TextEditingController locationController = TextEditingController();
   final RxList<String> witnesses = <String>[].obs;
+
+  // CFS (Child & Family Services) details - optional.
+  static const List<String> cfsStatusOptions = [
+    'ICO',
+    'SFP',
+    'CAY',
+    'PGO',
+    'CAG',
+    'TGO',
+  ];
+  final TextEditingController childIdController = TextEditingController();
+  final RxList<String> cfsStatuses = <String>[].obs;
+  final TextEditingController cipController = TextEditingController();
+  final TextEditingController cipOfficeController = TextEditingController();
 
   // Step 3 - Immediate Action & Investigation
   final TextEditingController immediateActionController = TextEditingController();
@@ -276,20 +291,31 @@ class IncidentCreationController extends GetxController {
 
     _clientSearchDebounceTimer?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _clientSearchRequestId++;
-      isSearchingClients.value = false;
-      clientSuggestions.clear();
-      showClientSuggestions.value = false;
-      clientSearchError.value = '';
-      return;
-    }
-
     showClientSuggestions.value = true;
     _clientSearchDebounceTimer = Timer(
       _clientSearchDebounce,
       () => _searchClients(trimmed),
     );
+  }
+
+  /// Like the web picker, focusing the field lists every client (an empty
+  /// query matches all names).
+  void openClientSuggestions() {
+    if (selectedClient.value != null) return;
+    _clientSearchDebounceTimer?.cancel();
+    showClientSuggestions.value = true;
+    _searchClients(clientController.text.trim());
+  }
+
+  void clearClient() {
+    _clientSearchDebounceTimer?.cancel();
+    _clientSearchRequestId++;
+    selectedClient.value = null;
+    clientController.clear();
+    clientSuggestions.clear();
+    showClientSuggestions.value = false;
+    clientSearchError.value = '';
+    isSearchingClients.value = false;
   }
 
   Future<void> _searchClients(String trimmed) async {
@@ -354,31 +380,46 @@ class IncidentCreationController extends GetxController {
     }
     _involvedClientDebounce?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _involvedClientRequestId++;
-      isSearchingInvolvedClients.value = false;
-      involvedClientSuggestions.clear();
-      showInvolvedClientSuggestions.value = false;
-      return;
-    }
     showInvolvedClientSuggestions.value = true;
-    _involvedClientDebounce = Timer(_clientSearchDebounce, () async {
-      final requestId = ++_involvedClientRequestId;
-      isSearchingInvolvedClients.value = true;
-      final result = await repository.searchClients(trimmed);
-      if (requestId != _involvedClientRequestId) return;
-      isSearchingInvolvedClients.value = false;
-      result.when(
-        success: (options) {
-          involvedClientSuggestions.assignAll(options);
-          showInvolvedClientSuggestions.value = true;
-        },
-        failure: (_) {
-          involvedClientSuggestions.clear();
-          showInvolvedClientSuggestions.value = true;
-        },
-      );
-    });
+    _involvedClientDebounce = Timer(
+      _clientSearchDebounce,
+      () => _searchInvolvedClients(trimmed),
+    );
+  }
+
+  void openInvolvedClientSuggestions() {
+    if (selectedInvolvedClient.value != null) return;
+    _involvedClientDebounce?.cancel();
+    showInvolvedClientSuggestions.value = true;
+    _searchInvolvedClients(involvedClientController.text.trim());
+  }
+
+  Future<void> _searchInvolvedClients(String trimmed) async {
+    final requestId = ++_involvedClientRequestId;
+    isSearchingInvolvedClients.value = true;
+    final result = await repository.searchClients(trimmed);
+    if (requestId != _involvedClientRequestId) return;
+    isSearchingInvolvedClients.value = false;
+    result.when(
+      success: (options) {
+        involvedClientSuggestions.assignAll(options);
+        showInvolvedClientSuggestions.value = true;
+      },
+      failure: (_) {
+        involvedClientSuggestions.clear();
+        showInvolvedClientSuggestions.value = true;
+      },
+    );
+  }
+
+  void clearInvolvedClient() {
+    _involvedClientDebounce?.cancel();
+    _involvedClientRequestId++;
+    selectedInvolvedClient.value = null;
+    involvedClientController.clear();
+    involvedClientSuggestions.clear();
+    showInvolvedClientSuggestions.value = false;
+    isSearchingInvolvedClients.value = false;
   }
 
   void selectInvolvedClient(IncidentClientOption option) {
@@ -697,6 +738,21 @@ class IncidentCreationController extends GetxController {
     incidentTimeController.text = _formatIncidentTime(selected);
   }
 
+  Future<void> pickEndTime(BuildContext context) async {
+    final initial = _parseIncidentTime(endTimeController.text) ??
+        _parseIncidentTime(incidentTimeController.text) ??
+        TimeOfDay.now();
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      builder: _pickerTheme,
+    );
+    if (selected == null) return;
+    endTimeController.text = _formatIncidentTime(selected);
+  }
+
+  void clearEndTime() => endTimeController.clear();
+
   Future<void> pickFollowUpDate(BuildContext context) async {
     final now = DateTime.now();
     final initial = _parseIncidentDate(followUpDateController.text) ?? now;
@@ -740,6 +796,64 @@ class IncidentCreationController extends GetxController {
   }
 
   void removeWitness(String name) => witnesses.remove(name);
+
+  // ── CFS status ─────────────────────────────────────────────────────────
+
+  Future<void> promptAddCfsStatus(BuildContext context) async {
+    final remaining =
+        cfsStatusOptions.where((s) => !cfsStatuses.contains(s)).toList();
+    if (remaining.isEmpty) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'CFS Status',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              for (final option in remaining)
+                ListTile(
+                  title: Text(
+                    option,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  onTap: () => Navigator.of(sheetContext).pop(option),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null) addCfsStatus(selected);
+  }
+
+  void addCfsStatus(String status) {
+    if (!cfsStatusOptions.contains(status) || cfsStatuses.contains(status)) {
+      return;
+    }
+    cfsStatuses.add(status);
+  }
+
+  void removeCfsStatus(String status) => cfsStatuses.remove(status);
 
   Future<void> pickEvidenceFiles() async {
     try {
@@ -1026,6 +1140,22 @@ class IncidentCreationController extends GetxController {
       );
     }
 
+    final endTime = _parseIncidentTime(JsonCodec.stringOr(payload['endTime'], ''));
+    endTimeController.text = endTime == null ? '' : _formatIncidentTime(endTime);
+    childIdController.text = JsonCodec.stringOr(payload['childIdNumber'], '');
+    cipController.text = JsonCodec.stringOr(
+      payload['cipName'] ?? payload['childInterventionPractitioner'],
+      '',
+    );
+    cipOfficeController.text = JsonCodec.stringOr(payload['cipOffice'], '');
+    final cfsRaw = payload['cfsStatus'];
+    cfsStatuses.assignAll(
+      (cfsRaw is List ? cfsRaw : [?cfsRaw])
+          .map((item) => (JsonCodec.string(item) ?? '').trim().toUpperCase())
+          .where(cfsStatusOptions.contains)
+          .toSet(),
+    );
+
     final investigation = JsonCodec.mapAt(json, 'investigation') ?? const {};
     investigationNotesController.text = JsonCodec.stringOr(
       investigation['findings'] ?? payload['investigationNotes'],
@@ -1302,7 +1432,16 @@ class IncidentCreationController extends GetxController {
           ? incidentTitleController.text.trim()
           : summaryParts.join('\n\n'),
       'location': locationController.text.trim(),
+      if (endTimeController.text.trim().isNotEmpty)
+        'endTime': endTimeController.text.trim(),
       if (detectedDuring.value != null) 'detectedDuring': detectedDuring.value,
+      if (childIdController.text.trim().isNotEmpty)
+        'childIdNumber': childIdController.text.trim(),
+      if (cfsStatuses.isNotEmpty) 'cfsStatus': cfsStatuses.toList(),
+      if (cipController.text.trim().isNotEmpty)
+        'cipName': cipController.text.trim(),
+      if (cipOfficeController.text.trim().isNotEmpty)
+        'cipOffice': cipOfficeController.text.trim(),
       if (selectedInvolvedClient.value != null)
         'involvedClientId': selectedInvolvedClient.value!.id,
       if (involvedClientController.text.trim().isNotEmpty)
@@ -1389,9 +1528,13 @@ class IncidentCreationController extends GetxController {
     clientController.dispose();
     incidentDateController.dispose();
     incidentTimeController.dispose();
+    endTimeController.dispose();
     involvedClientController.dispose();
     staffInvolvedController.dispose();
     locationController.dispose();
+    childIdController.dispose();
+    cipController.dispose();
+    cipOfficeController.dispose();
     immediateActionController.dispose();
     investigationNotesController.dispose();
     followUpDateController.dispose();

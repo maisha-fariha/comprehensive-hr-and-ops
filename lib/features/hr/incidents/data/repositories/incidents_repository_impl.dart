@@ -329,19 +329,29 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
 
   @override
   Future<Result<List<IncidentClientOption>>> searchClients(String search) async {
-    final trimmed = search.trim();
-    if (trimmed.isEmpty) {
-      return Result.success(<IncidentClientOption>[]);
-    }
+    final all = _clientOptions ??= await _loadClientOptions();
+    return all.when(
+      success: (options) {
+        final query = search.trim().toLowerCase();
+        return Result.success(
+          options.where((o) => o.name.toLowerCase().contains(query)).toList(),
+        );
+      },
+      failure: (error) {
+        _clientOptions = null;
+        return Result.failure(error);
+      },
+    );
+  }
 
+  Result<List<IncidentClientOption>>? _clientOptions;
+
+  /// The web loads one page of every client the user can see (no residence
+  /// filter) and matches names locally.
+  Future<Result<List<IncidentClientOption>>> _loadClientOptions() async {
     final result = await _api.get(
       ApiEndpoints.clients,
-      query: {
-        'search': trimmed,
-        'page': 1,
-        'limit': 20,
-        'residenceId': ?_session.residenceId,
-      },
+      query: const {'page': 1, 'limit': 100},
       silent: true,
     );
     return result.when(

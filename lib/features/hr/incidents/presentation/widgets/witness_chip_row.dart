@@ -11,12 +11,14 @@ class WitnessChipRow extends StatelessWidget {
   final List<String> witnesses;
   final VoidCallback onAddWitness;
   final ValueChanged<String> onRemoveWitness;
+  final String addLabel;
 
   const WitnessChipRow({
     super.key,
     required this.witnesses,
     required this.onAddWitness,
     required this.onRemoveWitness,
+    this.addLabel = 'Add witness',
   });
 
   @override
@@ -28,7 +30,7 @@ class WitnessChipRow extends StatelessWidget {
       children: [
         for (final witness in witnesses)
           _SelectedWitnessChip(name: witness, onTap: () => onRemoveWitness(witness)),
-        _AddWitnessChip(onTap: onAddWitness),
+        _AddWitnessChip(label: addLabel, onTap: onAddWitness),
       ],
     );
   }
@@ -87,6 +89,7 @@ class _SelectedWitnessChip extends StatelessWidget {
 }
 
 class _AddWitnessChip extends StatelessWidget {
+  final String label;
   final VoidCallback onTap;
 
   /// Light muted teal for the dashed outline (reference ~#A8DADA).
@@ -95,7 +98,7 @@ class _AddWitnessChip extends StatelessWidget {
   /// Foreground teal for icon + label (reference ~#1D7F7D).
   static const Color _foregroundTeal = Color(0xFF1D7F7D);
 
-  const _AddWitnessChip({required this.onTap});
+  const _AddWitnessChip({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +117,7 @@ class _AddWitnessChip extends StatelessWidget {
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
             Text(
-              'Add witness',
+              label,
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w600,

@@ -7,6 +7,7 @@ import '../../features/hr/clients/di/clients_di.dart';
 import '../../features/hr/communication/di/communication_di.dart';
 import '../../features/hr/daily_logs/di/daily_logs_di.dart';
 import '../../features/hr/dashboard/di/dashboard_di.dart';
+import '../../features/hr/emergency/di/emergency_di.dart';
 import '../../features/hr/handovers/di/handovers_di.dart';
 import '../../features/hr/recurring_checks/di/recurring_checks_di.dart';
 import '../../features/hr/incidents/di/incidents_di.dart';
@@ -50,6 +51,7 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupHrAttendanceDependencies();
   await setupHrDailyLogsDependencies();
   await setupHrHandoversDependencies();
+  await setupHrEmergencyDependencies();
   await setupHrRecurringChecksDependencies();
   await setupHrCommunicationDependencies();
   await setupHrIncidentsDependencies();

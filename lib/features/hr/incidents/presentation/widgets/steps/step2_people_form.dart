@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 import '../../controllers/incident_creation_controller.dart';
+import '../incident_selected_client_card.dart';
 import '../wizard_form_fields.dart';
 import '../wizard_section_header.dart';
 import '../witness_chip_row.dart';
@@ -37,17 +38,32 @@ class Step2PeopleForm extends StatelessWidget {
               ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
               const WizardFieldLabel('Involved Client'),
-              WizardSearchField(
-                controller: controller.involvedClientController,
-                hint: 'Search client...',
-                onChanged: controller.onInvolvedClientQueryChanged,
-              ),
               Obx(() {
-                if (!controller.showInvolvedClientSuggestions.value) {
-                  return const SizedBox.shrink();
+                final selected = controller.selectedInvolvedClient.value;
+                if (selected != null) {
+                  return IncidentSelectedClientCard(
+                    client: selected,
+                    onClear: controller.clearInvolvedClient,
+                  );
                 }
-                return _InvolvedClientSuggestions(controller: controller);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    WizardSearchField(
+                      controller: controller.involvedClientController,
+                      hint: 'Search client...',
+                      onChanged: controller.onInvolvedClientQueryChanged,
+                      onTap: controller.openInvolvedClientSuggestions,
+                    ),
+                    if (controller.showInvolvedClientSuggestions.value)
+                      _InvolvedClientSuggestions(controller: controller)
+                    else
+                      const WizardHelperText('Type to search involved client'),
+                  ],
+                );
               }),
+              gap,
+              _CfsDetailsCard(controller: controller),
               gap,
               const WizardFieldLabel('Staff Involved'),
               WizardSearchField(
@@ -133,7 +149,7 @@ class _InvolvedClientSuggestions extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'No clients found.',
+                'No matches found',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize:
@@ -164,11 +180,97 @@ class _InvolvedClientSuggestions extends StatelessWidget {
                     color: AppColors.textHeading,
                   ),
                 ),
+                subtitle: option.subtitle == null
+                    ? null
+                    : Text(
+                        option.subtitle!,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12),
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                 onTap: () => controller.selectInvolvedClient(option),
               );
             },
           );
         }),
+      ),
+    );
+  }
+}
+
+/// "CFS Details (optional)" card - child ID, CFS status chips, CIP and CIP
+/// office, sent as `childIdNumber`, `cfsStatus`, `cipName`, `cipOffice`.
+class _CfsDetailsCard extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _CfsDetailsCard({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14));
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 14,
+        vertical: 14,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        border: Border.all(color: AppColors.searchBorder),
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'CFS Details',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    color: AppColors.textHeading,
+                  ),
+                ),
+                TextSpan(
+                  text: '  (optional)',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          gap,
+          const WizardFieldLabel("Child's I.D. Number"),
+          WizardTextField(controller: controller.childIdController, hint: ''),
+          gap,
+          const WizardFieldLabel('CFS Status'),
+          Obx(
+            () => WitnessChipRow(
+              witnesses: controller.cfsStatuses.toList(),
+              addLabel: 'Add status',
+              onAddWitness: () => controller.promptAddCfsStatus(context),
+              onRemoveWitness: controller.removeCfsStatus,
+            ),
+          ),
+          gap,
+          const WizardFieldLabel('Child Intervention Practitioner (CIP)'),
+          WizardTextField(controller: controller.cipController, hint: ''),
+          gap,
+          const WizardFieldLabel('CIP Office'),
+          WizardTextField(controller: controller.cipOfficeController, hint: ''),
+        ],
       ),
     );
   }

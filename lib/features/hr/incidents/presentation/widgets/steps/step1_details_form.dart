@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 import '../../controllers/incident_creation_controller.dart';
+import '../incident_selected_client_card.dart';
 import '../severity_selector.dart';
 import '../wizard_form_fields.dart';
 import '../wizard_section_header.dart';
@@ -55,16 +56,29 @@ class Step1DetailsForm extends StatelessWidget {
         WizardTextField(controller: controller.incidentTitleController, hint: 'Enter a short title'),
         gap,
         const WizardFieldLabel('Client / Resident', required: true),
-        WizardSearchField(
-          controller: controller.clientController,
-          hint: 'Search client...',
-          onChanged: controller.onClientQueryChanged,
-        ),
         Obx(() {
-          if (!controller.showClientSuggestions.value) {
-            return const SizedBox.shrink();
+          final selected = controller.selectedClient.value;
+          if (selected != null) {
+            return IncidentSelectedClientCard(
+              client: selected,
+              onClear: controller.clearClient,
+            );
           }
-          return _ClientSuggestionsPanel(controller: controller);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              WizardSearchField(
+                controller: controller.clientController,
+                hint: 'Search client...',
+                onChanged: controller.onClientQueryChanged,
+                onTap: controller.openClientSuggestions,
+              ),
+              if (controller.showClientSuggestions.value)
+                _ClientSuggestionsPanel(controller: controller)
+              else
+                const WizardHelperText('Type to search client'),
+            ],
+          );
         }),
         gap,
         const WizardFieldLabel('Residence', required: true),
@@ -109,6 +123,30 @@ class Step1DetailsForm extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        gap,
+        const WizardFieldLabel('Time Ended (optional)'),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller.endTimeController,
+          builder: (context, value, _) => Row(
+            children: [
+              Expanded(
+                child: WizardTimeField(
+                  controller: controller.endTimeController,
+                  onTap: () => controller.pickEndTime(context),
+                ),
+              ),
+              if (value.text.isNotEmpty)
+                IconButton(
+                  tooltip: 'Clear time ended',
+                  onPressed: controller.clearEndTime,
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+            ],
+          ),
         ),
         gap,
         const WizardFieldLabel('Severity', required: true),
@@ -189,7 +227,7 @@ class _ClientSuggestionsPanel extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'No clients found.',
+                'No matches found',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
