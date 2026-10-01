@@ -285,6 +285,7 @@ class _StaffRecordAdministrationDialogState
   }
 
   Future<void> _onClientChanged(StaffMedClientOption? client) async {
+    final previous = _medication;
     setState(() {
       _client = client;
       _medication = null;
@@ -295,15 +296,23 @@ class _StaffRecordAdministrationDialogState
     setState(() => _loadingMeds = true);
     final prescribed = await _repo.getClientMedications(client.id);
     final prn = await _repo.getClientPrnMedications(client.id);
-    if (!mounted) return;
+    if (!mounted || _client != client) return;
     final list = <StaffClientMedicationItem>[
-      ...?prescribed.value,
-      ...?prn.value,
+      ...?prescribed.value?.where((m) => m.isActive),
+      ...?prn.value?.where((m) => m.isActive),
     ];
+    final keep = previous != null && previous.clientId == client.id
+        ? previous
+        : null;
+    if (keep != null && !list.contains(keep)) list.insert(0, keep);
     setState(() {
       _medications = list;
       _loadingMeds = false;
-      if (list.length == 1) _medication = list.first;
+      if (keep != null) {
+        _medication = list.firstWhere((m) => m == keep);
+      } else if (list.length == 1) {
+        _medication = list.first;
+      }
     });
   }
 
@@ -713,6 +722,11 @@ class _StaffRecordAdministrationDialogState
               DropdownMenuItem(
                 value: c,
                 child: Text(c.name, overflow: TextOverflow.ellipsis),
+              ),
+            if (_client != null && !widget.clients.contains(_client))
+              DropdownMenuItem(
+                value: _client,
+                child: Text(_client!.name, overflow: TextOverflow.ellipsis),
               ),
           ],
           onChanged: _onClientChanged,

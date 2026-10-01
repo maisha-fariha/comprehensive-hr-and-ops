@@ -31,6 +31,8 @@ class MarRegistryTabView extends StatelessWidget {
   final ValueChanged<String> onAdminister;
   final ValueChanged<String> onNotGiven;
   final ValueChanged<DueDose>? onOpenClientMedications;
+  final ValueChanged<DueDose>? onEdit;
+  final String Function(DueDose dose)? administeredByName;
   final bool canWriteScheduled;
   final bool canWritePrn;
 
@@ -53,6 +55,8 @@ class MarRegistryTabView extends StatelessWidget {
     required this.onAdminister,
     required this.onNotGiven,
     this.onOpenClientMedications,
+    this.onEdit,
+    this.administeredByName,
     this.canWriteScheduled = true,
     this.canWritePrn = false,
   });
@@ -116,6 +120,9 @@ class MarRegistryTabView extends StatelessWidget {
               onOpenClientMedications: onOpenClientMedications == null
                   ? null
                   : () => onOpenClientMedications!(doses[i]),
+              onEdit: onEdit == null ? null : () => onEdit!(doses[i]),
+              administeredByName:
+                  administeredByName?.call(doses[i]) ?? 'you',
             ),
             if (i != doses.length - 1)
               SizedBox(

@@ -19,6 +19,10 @@ class StaffMedicationOverview {
   final List<MissedDose> missedDoses;
   final List<RefusedDose> refusedDoses;
 
+  /// Every occurrence of the round in API order, whatever its state: the web
+  /// MAR registry rows (given and unscheduled doses included).
+  final List<DueDose> registryDoses;
+
   /// Counts from round `summary` (fallback to list lengths when absent).
   final int dueCount;
   final int administeredCount;
@@ -38,6 +42,7 @@ class StaffMedicationOverview {
     required this.administeredDoses,
     required this.missedDoses,
     required this.refusedDoses,
+    this.registryDoses = const [],
     int? dueCount,
     int? administeredCount,
     int? missedCount,
@@ -69,6 +74,7 @@ class StaffMedicationOverview {
       administeredDoses: administeredDoses,
       missedDoses: missedDoses,
       refusedDoses: refusedDoses,
+      registryDoses: registryDoses,
       dueCount: dueCount,
       administeredCount: administeredCount,
       missedCount: missedCount,

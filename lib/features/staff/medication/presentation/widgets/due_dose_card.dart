@@ -17,6 +17,12 @@ class DueDoseCard extends StatelessWidget {
   final VoidCallback? onOpenClientMedications;
   final bool canWrite;
 
+  /// Web "Edit prescription" (`mar:write`).
+  final VoidCallback? onEdit;
+
+  /// Who signed a charted dose (footer "by …").
+  final String administeredByName;
+
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _metaColor = Color(0xFF7E8B9A);
   static const Color _accentGreen = Color(0xFF2D8A56);
@@ -29,7 +35,41 @@ class DueDoseCard extends StatelessWidget {
     required this.onNotGiven,
     this.onOpenClientMedications,
     this.canWrite = true,
+    this.onEdit,
+    this.administeredByName = 'you',
   });
+
+  static const Map<String, String> _stateLabels = {
+    'given': 'Given',
+    'late': 'Given late',
+    'due': 'Due now',
+    'upcoming': 'Upcoming',
+    'overdue': 'Overdue',
+    'missed': 'Missed',
+    'refused': 'Refused',
+    'withheld': 'Withheld',
+    'not_available': 'Not available',
+  };
+
+  String get _stateLabel => _stateLabels[dose.state] ?? dose.state;
+
+  ({Color fg, Color bg}) get _stateTone => switch (dose.state) {
+        'given' => (fg: AppColors.activeGreen, bg: AppColors.activeBackground),
+        'late' ||
+        'refused' =>
+          (fg: AppColors.urgentAmber, bg: AppColors.urgentBackground),
+        'due' ||
+        'withheld' =>
+          (fg: AppColors.infoBlue, bg: AppColors.infoBackground),
+        'overdue' ||
+        'missed' ||
+        'not_available' =>
+          (fg: AppColors.criticalRed, bg: AppColors.criticalBackgroundSoft),
+        _ => (
+            fg: AppColors.textSecondary,
+            bg: AppColors.filterButtonBackground,
+          ),
+      };
 
   String get _routeLabel =>
       StaffMedicationConstants.routeLabel(dose.route).replaceAll(' · ', '  •  ');
@@ -147,22 +187,103 @@ class DueDoseCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                Text(
-                  dose.timeLabel,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 13),
-                    color: _accentGreen,
-                    height: 1.2,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (dose.slotLabel.isNotEmpty)
+                      Text(
+                        dose.slotLabel,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            11.5,
+                          ),
+                          color: _metaColor,
+                          height: 1.2,
+                        ),
+                      ),
+                    Text(
+                      dose.timeLabel,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 13),
+                        color: _accentGreen,
+                        height: 1.2,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ),
+                    Container(
+                      key: ValueKey('staff-mar-state-${dose.id}'),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _stateTone.bg,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _stateLabel.toUpperCase(),
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            10.5,
+                          ),
+                          color: _stateTone.fg,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+          if (dose.residenceName.isNotEmpty) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            Text(
+              dose.residenceName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                color: _metaColor,
+              ),
+            ),
+          ],
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
           _buildActionArea(context),
+          if (onEdit != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: ValueKey('staff-mar-edit-${dose.id}'),
+                onPressed: onEdit,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.secondaryTeal,
+                ),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text(
+                  'Edit prescription',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -193,17 +314,19 @@ class DueDoseCard extends StatelessWidget {
           ],
         );
       case DueDoseStatus.administered:
-        return const StatusByRow(
-          label: 'Administered',
-          byName: 'you',
+        return StatusByRow(
+          label: _stateLabels.containsKey(dose.state)
+              ? _stateLabel
+              : 'Administered',
+          byName: administeredByName,
           background: AppColors.activeBackground,
           foreground: AppColors.activeGreen,
           svgAsset: AppAssets.checkCircle,
         );
       case DueDoseStatus.notGiven:
-        return const StatusByRow(
-          label: 'Not Given',
-          byName: 'you',
+        return StatusByRow(
+          label: _stateLabels.containsKey(dose.state) ? _stateLabel : 'Not Given',
+          byName: administeredByName,
           background: AppColors.criticalBackground,
           foreground: AppColors.criticalRed,
           materialIcon: Icons.cancel_rounded,

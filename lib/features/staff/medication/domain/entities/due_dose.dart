@@ -23,6 +23,17 @@ class DueDose {
   final String medicationId;
   final bool isPrn;
 
+  /// False for a dose given outside a round (web "Unscheduled").
+  final bool scheduled;
+
+  /// Web `Morning` / `Afternoon` / `Evening` / `Night`.
+  final String slotLabel;
+  final String? administrationId;
+  final DateTime? administeredAt;
+
+  /// Staff id that signed the dose.
+  final String? administeredBy;
+
   const DueDose({
     required this.id,
     required this.residentName,
@@ -40,6 +51,11 @@ class DueDose {
     this.residenceName = '',
     this.medicationId = '',
     this.isPrn = false,
+    this.scheduled = true,
+    this.slotLabel = '',
+    this.administrationId,
+    this.administeredAt,
+    this.administeredBy,
   });
 
   DueDose copyWith({DueDoseStatus? status, String? state}) {
@@ -60,6 +76,11 @@ class DueDose {
       residenceName: residenceName,
       medicationId: medicationId,
       isPrn: isPrn,
+      scheduled: scheduled,
+      slotLabel: slotLabel,
+      administrationId: administrationId,
+      administeredAt: administeredAt,
+      administeredBy: administeredBy,
     );
   }
 }

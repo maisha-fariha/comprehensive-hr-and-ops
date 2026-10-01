@@ -17,6 +17,7 @@ import '../widgets/resident_chart_tab_view.dart';
 import '../widgets/staff_client_medications_sheet.dart';
 import '../widgets/staff_medication_header.dart';
 import '../widgets/staff_medication_metrics_strip.dart';
+import '../widgets/staff_mar_filters_bar.dart';
 import '../widgets/staff_medication_tab_bar.dart';
 import '../widgets/staff_mar_metrics_row.dart';
 
@@ -129,7 +130,7 @@ class StaffMedicationPage extends StatelessWidget {
                     switch (controller.selectedTab.value) {
                       StaffMedicationTab.mar => MarRegistryTabView(
                           doses: controller.filteredScheduledDoses,
-                          scheduledCount: overview.scheduledCount,
+                          scheduledCount: controller.marTabCount,
                           searchController: controller.searchController,
                           residenceId: controller.filterResidenceId.value,
                           clientId: controller.filterClientId.value,
@@ -148,6 +149,10 @@ class StaffMedicationPage extends StatelessWidget {
                           canWritePrn: canPrn,
                           onAdminister: controller.markAdministered,
                           onNotGiven: controller.markNotGiven,
+                          onEdit: controller.canEditMedicines
+                              ? (dose) => controller.editDose(context, dose)
+                              : null,
+                          administeredByName: controller.administeredByName,
                           onOpenClientMedications: (dose) {
                             showStaffClientMedicationsSheet(
                               context,
@@ -157,8 +162,29 @@ class StaffMedicationPage extends StatelessWidget {
                           },
                         ),
                       StaffMedicationTab.prn => PrnRegistryTabView(
-                          items: controller.prnItems.toList(),
+                          items: controller.filteredPrnItems,
+                          filters: StaffMarFiltersBar(
+                            searchController: controller.searchController,
+                            residenceId: controller.filterResidenceId.value,
+                            clientId: controller.filterClientId.value,
+                            medication: controller.filterMedication.value,
+                            state: controller.filterState.value,
+                            residenceOptions:
+                                controller.residenceFilterOptions,
+                            residentOptions: controller.residentFilterOptions,
+                            medicationOptions:
+                                controller.medicationFilterOptions,
+                            hasActiveFilters: controller.hasActiveFilters,
+                            onSearchChanged: (v) =>
+                                controller.updateFilters(search: v),
+                            onFilterChanged: controller.updateFilters,
+                            onClear: controller.clearFilters,
+                          ),
                           canGive: canPrn,
+                          onEdit: controller.canEditMedicines
+                              ? (item) =>
+                                  controller.editMedication(context, item)
+                              : null,
                           onGive: controller.givePrn,
                           onOpenChart: (item) {
                             if (item.clientId.isEmpty) return;

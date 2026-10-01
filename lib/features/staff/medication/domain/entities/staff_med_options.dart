@@ -7,6 +7,14 @@ class StaffMedResidenceOption {
   final String name;
 
   const StaffMedResidenceOption({required this.id, required this.name});
+
+  /// Dropdowns match their value against reloaded items, so identity is the id.
+  @override
+  bool operator ==(Object other) =>
+      other is StaffMedResidenceOption && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 /// Client/resident option for Add Medicine.
@@ -23,6 +31,13 @@ class StaffMedClientOption {
     this.residenceId,
     this.residenceName,
   });
+
+  @override
+  bool operator ==(Object other) =>
+      other is StaffMedClientOption && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 /// Recurring-check schedule option for "Requires a check first".
@@ -32,9 +47,16 @@ class StaffMedCheckOption {
   final String name;
 
   const StaffMedCheckOption({required this.id, required this.name});
+
+  @override
+  bool operator ==(Object other) =>
+      other is StaffMedCheckOption && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
-/// Payload for `POST /medications`.
+/// Payload for `POST /medications` and `PATCH /medications/:id`.
 @immutable
 class StaffCreateMedicationInput {
   final String residenceId;
@@ -50,6 +72,7 @@ class StaffCreateMedicationInput {
   final DateTime? endsAt;
   final bool isControlled;
   final String? requiresCheckScheduleId;
+  final int? requiresCheckWithinMinutes;
 
   const StaffCreateMedicationInput({
     required this.residenceId,
@@ -65,10 +88,11 @@ class StaffCreateMedicationInput {
     this.endsAt,
     this.isControlled = false,
     this.requiresCheckScheduleId,
+    this.requiresCheckWithinMinutes,
   });
 }
 
-/// Payload for `POST /prn-medications`.
+/// Payload for `POST /prn-medications` and `PATCH /prn-medications/:id`.
 @immutable
 class StaffCreatePrnMedicationInput {
   final String residenceId;
@@ -83,6 +107,7 @@ class StaffCreatePrnMedicationInput {
   final bool isControlled;
   final int? minIntervalMinutes;
   final String? requiresCheckScheduleId;
+  final int? requiresCheckWithinMinutes;
 
   const StaffCreatePrnMedicationInput({
     required this.residenceId,
@@ -97,5 +122,6 @@ class StaffCreatePrnMedicationInput {
     this.isControlled = false,
     this.minIntervalMinutes,
     this.requiresCheckScheduleId,
+    this.requiresCheckWithinMinutes,
   });
 }

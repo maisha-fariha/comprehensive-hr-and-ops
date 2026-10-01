@@ -142,22 +142,24 @@ class StaffResidenceListCard extends StatelessWidget {
                   color: AppColors.secondaryTeal,
                   onTap: onView,
                 ),
-                _ActionIconButton(
-                  key: Key('staff-residence-edit-${residence.id}'),
-                  tooltip: 'Edit',
-                  icon: Icons.edit_outlined,
-                  color: AppColors.textSecondary,
-                  onTap: onEdit,
-                ),
-                _ActionIconButton(
-                  key: Key('staff-residence-deactivate-${residence.id}'),
-                  tooltip: residence.isActive ? 'Deactivate' : 'Archived',
-                  icon: Icons.do_not_disturb_on_outlined,
-                  color: residence.isActive
-                      ? AppColors.criticalRed
-                      : AppColors.textMuted,
-                  onTap: residence.isActive ? onDeactivate : null,
-                ),
+                if (onEdit != null)
+                  _ActionIconButton(
+                    key: Key('staff-residence-edit-${residence.id}'),
+                    tooltip: 'Edit',
+                    icon: Icons.edit_outlined,
+                    color: AppColors.textSecondary,
+                    onTap: onEdit,
+                  ),
+                if (onDeactivate != null)
+                  _ActionIconButton(
+                    key: Key('staff-residence-deactivate-${residence.id}'),
+                    tooltip: residence.isActive ? 'Deactivate' : 'Archived',
+                    icon: Icons.do_not_disturb_on_outlined,
+                    color: residence.isActive
+                        ? AppColors.criticalRed
+                        : AppColors.textMuted,
+                    onTap: residence.isActive ? onDeactivate : null,
+                  ),
               ],
             ),
           ],

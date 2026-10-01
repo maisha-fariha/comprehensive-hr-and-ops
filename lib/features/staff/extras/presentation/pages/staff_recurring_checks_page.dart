@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:gems_core/gems_core.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_residence.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
 import '../../../tasks_messages/domain/entities/recurring_check_instance.dart';
@@ -27,6 +29,11 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
   late final StaffTasksMessagesRepository _repository;
   StaffExtrasRepository? _extrasRepository;
   late final TabController _tabController;
+
+  bool get _canWrite =>
+      Get.find<UserSession>().can('recurring-checks:write');
+  bool get _canComplete =>
+      Get.find<UserSession>().can('recurring-checks:complete');
 
   bool _loading = true;
   String? _error;
@@ -409,16 +416,18 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
               onRefresh: _load,
               child: Column(
                 children: [
-                  _ActionsBar(
-                    onRecordProgress: _openRecordProgress,
-                    onNewSchedule: _openNewSchedule,
-                  ),
+                  if (_canComplete || _canWrite)
+                    _ActionsBar(
+                      onRecordProgress: _openRecordProgress,
+                      onNewSchedule: _canWrite ? _openNewSchedule : null,
+                    ),
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
                       children: [
                         _SchedulesTab(
                           schedules: _schedules,
+                          canManage: _canWrite,
                           onEdit: _openEditSchedule,
                           onToggle: _toggleSchedule,
                           onDelete: _deleteSchedule,
@@ -477,11 +486,11 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
 
 class _ActionsBar extends StatelessWidget {
   final VoidCallback onRecordProgress;
-  final VoidCallback onNewSchedule;
+  final VoidCallback? onNewSchedule;
 
   const _ActionsBar({
     required this.onRecordProgress,
-    required this.onNewSchedule,
+    this.onNewSchedule,
   });
 
   @override
@@ -497,11 +506,13 @@ class _ActionsBar extends StatelessWidget {
             icon: const Icon(Icons.playlist_add_check_outlined),
             label: const Text('Record Progress'),
           ),
-          FilledButton.icon(
-            onPressed: onNewSchedule,
-            icon: const Icon(Icons.add),
-            label: const Text('+ New Schedule'),
-          ),
+          if (onNewSchedule != null)
+            FilledButton.icon(
+              key: const Key('staff-recurring-new-schedule'),
+              onPressed: onNewSchedule,
+              icon: const Icon(Icons.add),
+              label: const Text('New Schedule'),
+            ),
         ],
       ),
     );
@@ -629,12 +640,14 @@ class _FiltersBar extends StatelessWidget {
 
 class _SchedulesTab extends StatelessWidget {
   final List<RecurringCheckSchedule> schedules;
+  final bool canManage;
   final ValueChanged<RecurringCheckSchedule> onEdit;
   final ValueChanged<RecurringCheckSchedule> onToggle;
   final ValueChanged<RecurringCheckSchedule> onDelete;
 
   const _SchedulesTab({
     required this.schedules,
+    required this.canManage,
     required this.onEdit,
     required this.onToggle,
     required this.onDelete,
@@ -699,24 +712,26 @@ class _SchedulesTab extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                children: [
-                  TextButton(
-                    onPressed: () => onEdit(schedule),
-                    child: const Text('Edit'),
-                  ),
-                  TextButton(
-                    onPressed: () => onToggle(schedule),
-                    child: Text(schedule.isActive ? 'Pause' : 'Resume'),
-                  ),
-                  TextButton(
-                    onPressed: () => onDelete(schedule),
-                    child: const Text('Delete'),
-                  ),
-                ],
-              ),
+              if (canManage) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: () => onEdit(schedule),
+                      child: const Text('Edit'),
+                    ),
+                    TextButton(
+                      onPressed: () => onToggle(schedule),
+                      child: Text(schedule.isActive ? 'Pause' : 'Resume'),
+                    ),
+                    TextButton(
+                      onPressed: () => onDelete(schedule),
+                      child: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         );

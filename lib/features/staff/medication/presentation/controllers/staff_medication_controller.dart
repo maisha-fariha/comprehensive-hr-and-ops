@@ -18,6 +18,7 @@ import '../widgets/staff_record_administration_dialog.dart';
 /// GetX controller for the Staff Medication MAR screen.
 class StaffMedicationController extends BaseController<StaffMedicationOverview> {
   final StaffMedicationRepository repository;
+  final UserSession? _injectedSession;
 
   final Rx<StaffMedicationTab> selectedTab = StaffMedicationTab.mar.obs;
   final RxBool isRecording = false.obs;
@@ -26,7 +27,19 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   final RxList<AdministeredDose> givenItems = <AdministeredDose>[].obs;
   final RxList<StaffMedClientOption> chartClients =
       <StaffMedClientOption>[].obs;
+
+  /// `GET /residences` — the web "All residences" options.
+  final RxList<StaffMedResidenceOption> residences =
+      <StaffMedResidenceOption>[].obs;
+
+  /// `GET /medications` — the prescriptions behind registry rows (Edit).
+  final RxList<StaffClientMedicationItem> medications =
+      <StaffClientMedicationItem>[].obs;
   final RxBool loadingExtras = false.obs;
+  int _loadSerial = 0;
+
+  static const String notInList =
+      'That prescription is not in the current list.';
 
   /// Web MAR registry filters (client-side, same as console).
   final RxString filterSearch = ''.obs;
@@ -63,15 +76,24 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     (label: 'Other / missed', status: 'missed', doseReason: 'other'),
   ];
 
-  StaffMedicationController({required this.repository}) {
+  StaffMedicationController({
+    required this.repository,
+    UserSession? session,
+  }) : _injectedSession = session {
     loadOverview();
   }
 
+  UserSession get _session => _injectedSession ?? Get.find<UserSession>();
+
   StaffMedicationOverview? get overview => state.value.data;
 
-  int get marTabCount => overview?.scheduledCount ?? 0;
-  int get prnTabCount => prnItems.length;
+  /// Web tab badges count the filtered rows.
+  int get marTabCount => filteredScheduledDoses.length;
+  int get prnTabCount => filteredPrnItems.length;
   int get givenTabCount => givenItems.length;
+
+  /// Web Edit on a registry row (`mar:write`).
+  bool get canEditMedicines => _session.can('mar:write');
 
   bool get hasActiveFilters =>
       filterSearch.value.trim().isNotEmpty ||
@@ -80,14 +102,18 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       filterMedication.value.isNotEmpty ||
       filterState.value.isNotEmpty;
 
+  /// Web MAR tab rows: every occurrence on today's round.
   List<DueDose> get allScheduledDoses {
     final current = overview;
     if (current == null) return const [];
+    if (current.registryDoses.isNotEmpty) return current.registryDoses;
     return [...current.dueNowDoses, ...current.laterTodayDoses];
   }
 
   List<({String value, String label})> get residenceFilterOptions {
-    final map = <String, String>{};
+    final map = <String, String>{
+      for (final r in residences) r.id: r.name,
+    };
     for (final d in allScheduledDoses) {
       if (d.residenceId.isEmpty) continue;
       map.putIfAbsent(
@@ -95,21 +121,28 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
         () => d.residenceName.isEmpty ? d.residenceId : d.residenceName,
       );
     }
-    final list = map.entries
-        .map((e) => (value: e.key, label: e.value))
-        .toList()
-      ..sort((a, b) => a.label.compareTo(b.label));
-    return list;
+    for (final p in prnItems) {
+      if (p.residenceId.isEmpty) continue;
+      map.putIfAbsent(
+        p.residenceId,
+        () => p.residenceName.isEmpty ? p.residenceId : p.residenceName,
+      );
+    }
+    return [
+      for (final e in map.entries) (value: e.key, label: e.value),
+    ];
   }
 
+  /// Residents of the MAR and PRN rows, sorted by name (web `e6`).
   List<({String value, String label})> get residentFilterOptions {
     final map = <String, String>{};
     for (final d in allScheduledDoses) {
       if (d.clientId.isEmpty) continue;
-      map.putIfAbsent(
-        d.clientId,
-        () => d.residentName.isEmpty ? 'Resident' : d.residentName,
-      );
+      map[d.clientId] = d.residentName.isEmpty ? 'Resident' : d.residentName;
+    }
+    for (final p in prnItems) {
+      if (p.clientId.isEmpty) continue;
+      map[p.clientId] = p.clientName.isEmpty ? 'Outside your access' : p.clientName;
     }
     final list = map.entries
         .map((e) => (value: e.key, label: e.value))
@@ -118,15 +151,55 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     return list;
   }
 
+  /// Medicine names of the MAR and PRN rows, sorted (web `e4`).
   List<({String value, String label})> get medicationFilterOptions {
-    final names = <String>{};
-    for (final d in allScheduledDoses) {
-      if (d.medicationName.trim().isEmpty) continue;
-      names.add(d.medicationName.trim());
+    final names = <String>{
+      for (final d in allScheduledDoses)
+        if (d.medicationName.isNotEmpty) d.medicationName,
+      for (final p in prnItems)
+        if (p.name.isNotEmpty) p.name,
+    }.toList()
+      ..sort();
+    return [for (final n in names) (value: n, label: n)];
+  }
+
+  /// Web PRN tab rows after the shared registry filters (a PRN has no
+  /// state, so any status filter hides every PRN row like the web).
+  List<StaffClientMedicationItem> get filteredPrnItems {
+    final q = filterSearch.value.trim().toLowerCase();
+    final residence = filterResidenceId.value;
+    final client = filterClientId.value;
+    final med = filterMedication.value;
+    final state = filterState.value;
+    return prnItems.where((p) {
+      if (residence.isNotEmpty && p.residenceId != residence) return false;
+      if (client.isNotEmpty && p.clientId != client) return false;
+      if (med.isNotEmpty && p.name != med) return false;
+      if (state.isNotEmpty) return false;
+      if (q.isEmpty) return true;
+      final resident =
+          p.clientId.isEmpty ? 'House stock' : p.clientName;
+      return resident.toLowerCase().contains(q) ||
+          p.name.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  /// Name of whoever signed a charted dose, from the Given history.
+  String administeredByName(DueDose dose) {
+    final adminId = dose.administrationId;
+    if (adminId != null) {
+      for (final g in givenItems) {
+        if (g.id == adminId && g.administeredByName != '—') {
+          return g.administeredByName;
+        }
+      }
     }
-    final list = names.map((n) => (value: n, label: n)).toList()
-      ..sort((a, b) => a.label.compareTo(b.label));
-    return list;
+    final own = _session.staffId;
+    if (own != null && own.isNotEmpty && dose.administeredBy == own) {
+      final name = _session.displayName;
+      return name.isEmpty ? 'you' : name;
+    }
+    return '—';
   }
 
   List<DueDose> get filteredScheduledDoses {
@@ -142,14 +215,8 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       if (med.isNotEmpty && d.medicationName != med) return false;
       if (state.isNotEmpty && d.state != state) return false;
       if (q.isEmpty) return true;
-      final haystack = [
-        d.residentName,
-        d.medicationName,
-        d.dose,
-        d.residenceName,
-        d.timeLabel,
-      ].join(' ').toLowerCase();
-      return haystack.contains(q);
+      return d.residentName.toLowerCase().contains(q) ||
+          d.medicationName.toLowerCase().contains(q);
     }).toList();
   }
 
@@ -161,19 +228,25 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     String? state,
   }) {
     if (search != null) filterSearch.value = search;
-    if (residenceId != null) filterResidenceId.value = residenceId;
     if (clientId != null) filterClientId.value = clientId;
     if (medication != null) filterMedication.value = medication;
     if (state != null) filterState.value = state;
+    if (residenceId != null && residenceId != filterResidenceId.value) {
+      filterResidenceId.value = residenceId;
+      // The web re-asks the round and PRN register for the chosen house.
+      loadOverview();
+    }
   }
 
   void clearFilters() {
+    final hadResidence = filterResidenceId.value.isNotEmpty;
     filterSearch.value = '';
     filterResidenceId.value = '';
     filterClientId.value = '';
     filterMedication.value = '';
     filterState.value = '';
     searchController.clear();
+    if (hadResidence) loadOverview();
   }
 
   /// Web Missed panel "Review All" — jump to MAR tab with overdue filter.
@@ -188,10 +261,18 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     super.onClose();
   }
 
+  /// Reloads every list a medicine or dose can appear in — the round, the
+  /// PRN register, the prescriptions, the Given history and the pickers —
+  /// the way the web invalidates every `mar` query after a save.
   Future<void> loadOverview() async {
+    final serial = ++_loadSerial;
+    final residence = filterResidenceId.value.isEmpty
+        ? null
+        : filterResidenceId.value;
     setLoading(true);
     loadingExtras.value = true;
-    final result = await repository.getOverview();
+    final result = await repository.getOverview(residenceId: residence);
+    if (serial != _loadSerial) return;
     result.when(
       success: setSuccess,
       failure: (error) => setError(error.message),
@@ -199,21 +280,58 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     setLoading(false);
 
     // Web loads these separately from the round summary (metrics ≠ tab badges).
-    final prnResult = await repository.listPrnMedications();
+    final (prnResult, givenResult, medsResult, clientsResult, homesResult) =
+        await (
+      repository.listPrnMedications(residenceId: residence),
+      repository.listAdministrations(),
+      repository.listMedications(residenceId: residence),
+      repository.getClients(),
+      repository.getResidences(),
+    ).wait;
+    if (serial != _loadSerial) return;
     prnItems.assignAll(prnResult.value ?? const []);
-
-    final givenResult = await repository.listAdministrations();
     givenItems.assignAll(givenResult.value ?? const []);
-
-    final clientsResult = await repository.getClients();
+    medications.assignAll(medsResult.value ?? const []);
     chartClients.assignAll(clientsResult.value ?? const []);
+    if (homesResult.value case final homes?) residences.assignAll(homes);
     loadingExtras.value = false;
+  }
+
+  /// Web Edit on a MAR row: the prescription behind it, from `/medications`.
+  Future<void> editDose(BuildContext context, DueDose dose) async {
+    StaffClientMedicationItem? match;
+    for (final m in dose.isPrn ? prnItems : medications) {
+      if (m.id == dose.medicationId) {
+        match = m;
+        break;
+      }
+    }
+    if (match == null) {
+      AppSnackbar.show(notInList, '');
+      return;
+    }
+    await editMedication(context, match);
+  }
+
+  Future<void> editMedication(
+    BuildContext context,
+    StaffClientMedicationItem item,
+  ) async {
+    if (!canEditMedicines) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot edit medicine',
+        message: 'Editing medicines needs mar:write permission.',
+      );
+      return;
+    }
+    final saved = await StaffAddMedicineSheet.show(context, editing: item);
+    if (saved == true) await loadOverview();
   }
 
   void selectTab(StaffMedicationTab tab) => selectedTab.value = tab;
 
   Future<void> givePrn(StaffClientMedicationItem item) async {
-    final session = Get.find<UserSession>();
+    final session = _session;
     if (!session.canWriteMar) {
       AppErrorDialog.showPageError(
         title: 'Cannot administer',
@@ -232,7 +350,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   }
 
   Future<void> openAddMedicine(BuildContext context) async {
-    final session = Get.find<UserSession>();
+    final session = _session;
     if (!session.canWriteMar) {
       AppErrorDialog.showPageError(
         title: 'Cannot add medicine',
@@ -240,15 +358,12 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       );
       return;
     }
-    final created = await StaffAddMedicineSheet.show(
-      context,
-      onCreated: () {},
-    );
+    final created = await StaffAddMedicineSheet.show(context);
     if (created == true) await loadOverview();
   }
 
   Future<void> startRecordAdministration(BuildContext context) async {
-    final session = Get.find<UserSession>();
+    final session = _session;
     if (!session.canWriteMar) {
       AppErrorDialog.showPageError(
         title: 'Cannot administer',
@@ -359,7 +474,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   Future<void> markAdministered(String doseId) async {
     final dose = _findDose(doseId);
     if (dose == null) return;
-    final session = Get.find<UserSession>();
+    final session = _session;
     if (!session.canWriteMar) {
       AppErrorDialog.showPageError(
         title: 'Cannot administer',
@@ -386,7 +501,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   Future<void> markNotGiven(String doseId) async {
     final dose = _findDose(doseId);
     if (dose == null) return;
-    final session = Get.find<UserSession>();
+    final session = _session;
     if (!session.canWriteMar) {
       AppErrorDialog.showPageError(
         title: 'Cannot record',
@@ -499,7 +614,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     if (isRecording.value) return;
     final residenceId = dose.residenceId.isNotEmpty
         ? dose.residenceId
-        : (Get.find<UserSession>().residenceId ?? '');
+        : (_session.residenceId ?? '');
     if (dose.clientId.isEmpty ||
         dose.medicationId.isEmpty ||
         residenceId.isEmpty) {
@@ -547,7 +662,11 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   DueDose? _findDose(String doseId) {
     final current = overview;
     if (current == null) return null;
-    for (final dose in [...current.dueNowDoses, ...current.laterTodayDoses]) {
+    for (final dose in [
+      ...allScheduledDoses,
+      ...current.dueNowDoses,
+      ...current.laterTodayDoses,
+    ]) {
       if (dose.id == doseId) return dose;
     }
     return null;

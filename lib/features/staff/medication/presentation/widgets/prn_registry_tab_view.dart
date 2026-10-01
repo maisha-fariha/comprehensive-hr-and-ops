@@ -12,14 +12,20 @@ class PrnRegistryTabView extends StatelessWidget {
   final List<StaffClientMedicationItem> items;
   final ValueChanged<StaffClientMedicationItem>? onGive;
   final ValueChanged<StaffClientMedicationItem>? onOpenChart;
+  final ValueChanged<StaffClientMedicationItem>? onEdit;
   final bool canGive;
+
+  /// The registry search + filters shared with the MAR tab.
+  final Widget? filters;
 
   const PrnRegistryTabView({
     super.key,
     required this.items,
     this.onGive,
     this.onOpenChart,
+    this.onEdit,
     this.canGive = true,
+    this.filters,
   });
 
   @override
@@ -49,6 +55,10 @@ class PrnRegistryTabView extends StatelessWidget {
           ],
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        if (filters != null) ...[
+          filters!,
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        ],
         if (items.isEmpty)
           Container(
             width: double.infinity,
@@ -76,6 +86,7 @@ class PrnRegistryTabView extends StatelessWidget {
               onGive: onGive == null ? null : () => onGive!(items[i]),
               onOpenChart:
                   onOpenChart == null ? null : () => onOpenChart!(items[i]),
+              onEdit: onEdit == null ? null : () => onEdit!(items[i]),
             ),
             if (i != items.length - 1)
               SizedBox(
@@ -92,12 +103,14 @@ class _PrnCard extends StatelessWidget {
   final bool canGive;
   final VoidCallback? onGive;
   final VoidCallback? onOpenChart;
+  final VoidCallback? onEdit;
 
   const _PrnCard({
     required this.item,
     required this.canGive,
     this.onGive,
     this.onOpenChart,
+    this.onEdit,
   });
 
   @override
@@ -212,17 +225,33 @@ class _PrnCard extends StatelessWidget {
                   height: 1.35,
                 ),
               ),
-              if (canGive && onGive != null) ...[
+              if ((canGive && onGive != null) || onEdit != null) ...[
                 const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton(
-                    onPressed: onGive,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.secondaryTeal,
-                    ),
-                    child: const Text('Give PRN'),
-                  ),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (onEdit != null)
+                      TextButton.icon(
+                        key: ValueKey('staff-prn-edit-${item.id}'),
+                        onPressed: onEdit,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.secondaryTeal,
+                        ),
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text('Edit prescription'),
+                      ),
+                    if (canGive && onGive != null)
+                      FilledButton(
+                        onPressed: onGive,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.secondaryTeal,
+                        ),
+                        child: const Text('Give PRN'),
+                      ),
+                  ],
                 ),
               ],
             ],

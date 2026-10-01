@@ -5,18 +5,22 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_med_options.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
 
-/// Add Medicine / Add PRN — styled to match staff form field theme.
+/// Add Medicine / Add PRN, or the web "Correct a medicine" when [editing] is
+/// set — styled to match staff form field theme.
 class StaffAddMedicineSheet extends StatefulWidget {
   final VoidCallback? onCreated;
+  final StaffClientMedicationItem? editing;
 
-  const StaffAddMedicineSheet({super.key, this.onCreated});
+  const StaffAddMedicineSheet({super.key, this.onCreated, this.editing});
 
   static Future<bool?> show(
     BuildContext context, {
     VoidCallback? onCreated,
+    StaffClientMedicationItem? editing,
   }) {
     final height = MediaQuery.sizeOf(context).height;
     final wide = MediaQuery.sizeOf(context).width >= 720;
@@ -33,7 +37,7 @@ class StaffAddMedicineSheet extends StatefulWidget {
           child: SizedBox(
             width: 720,
             height: height * 0.9,
-            child: StaffAddMedicineSheet(onCreated: onCreated),
+            child: StaffAddMedicineSheet(onCreated: onCreated, editing: editing),
           ),
         ),
       );
@@ -48,7 +52,7 @@ class StaffAddMedicineSheet extends StatefulWidget {
       ),
       builder: (_) => SizedBox(
         height: height * 0.94,
-        child: StaffAddMedicineSheet(onCreated: onCreated),
+        child: StaffAddMedicineSheet(onCreated: onCreated, editing: editing),
       ),
     );
   }
@@ -123,6 +127,13 @@ InputDecoration _medFieldDecoration({
   );
 }
 
+/// Web "How often" options (`e_` in the MAR page chunk).
+const List<(String, String)> _frequencies = [
+  ('daily', 'Every day'),
+  ('weekly', 'Weekly'),
+  ('custom', 'Something else'),
+];
+
 const _fieldTextStyle = TextStyle(
   fontFamily: 'Outfit',
   fontWeight: FontWeight.w500,
@@ -137,7 +148,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   final _scroll = ScrollController();
 
   List<StaffMedResidenceOption> _residences = [];
-  List<StaffMedClientOption> _clients = [];
+  List<StaffMedClientOption> _allClients = [];
   List<StaffMedCheckOption> _checks = [];
   bool _loadingOptions = true;
   bool _submitting = false;
@@ -147,14 +158,75 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   StaffMedClientOption? _client;
   final List<_MedicineDraft> _medicines = [_MedicineDraft()];
 
+  bool get _editingMode => widget.editing != null;
+
+  /// Residents of the chosen house, filtered locally like the web form.
+  List<StaffMedClientOption> get _clients {
+    final house = _residence?.id;
+    if (house == null) return const [];
+    final list = [
+      for (final c in _allClients)
+        if (c.residenceId == null ||
+            c.residenceId!.isEmpty ||
+            c.residenceId == house)
+          c,
+    ];
+    final current = _client;
+    if (current != null && !list.contains(current)) list.add(current);
+    return list;
+  }
+
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    final editing = widget.editing;
+    _tabs = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: editing?.isPrn == true ? 1 : 0,
+    );
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) setState(() => _banner = null);
     });
+    if (editing != null) _prefill(editing);
     _loadOptions();
+  }
+
+  void _prefill(StaffClientMedicationItem m) {
+    final draft = _medicines.first;
+    draft.name.text = m.name;
+    draft.dose.text = m.dose == '—' ? '' : m.dose;
+    draft.route.text = m.route;
+    draft.whenToGive.text = m.instructions ?? '';
+    draft.stock.text = m.stockUnitsPerDose?.toString() ?? '';
+    draft.minGap.text = m.minIntervalMinutes?.toString() ?? '';
+    draft.controlled = m.isControlled;
+    // Kept from the record so a correction does not wipe the round times.
+    if (_frequencies.any((f) => f.$1 == m.frequency)) {
+      draft.frequency = m.frequency;
+    }
+    draft.times
+      ..clear()
+      ..addAll(m.times);
+    draft.weekdays
+      ..clear()
+      ..addAll(m.weekdays);
+    draft.startsAt = m.startsAt?.toUtc();
+    draft.endsAt = m.endsAt?.toUtc();
+    draft.requiresCheckScheduleId = m.requiresCheckScheduleId;
+    if (m.residenceId.isNotEmpty) {
+      _residence = StaffMedResidenceOption(
+        id: m.residenceId,
+        name: m.residenceName.isEmpty ? 'Current house' : m.residenceName,
+      );
+    }
+    if (m.clientId.isNotEmpty) {
+      _client = StaffMedClientOption(
+        id: m.clientId,
+        name: m.clientName.isEmpty ? 'Resident' : m.clientName,
+        residenceId: m.residenceId,
+      );
+    }
   }
 
   @override
@@ -168,45 +240,57 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   }
 
   Future<void> _loadOptions() async {
-    setState(() => _loadingOptions = true);
     final residences = await _repo.getResidences();
     residences.when(
       success: (list) => _residences = list,
       failure: (_) {},
     );
-    await _reloadClientsAndChecks();
+    final current = _residence;
+    if (current != null) {
+      final match = _residences.where((r) => r == current).firstOrNull;
+      if (match != null) {
+        _residence = match;
+      } else {
+        _residences = [..._residences, current];
+      }
+    }
+    final clients = await _repo.getClients();
+    clients.when(
+      success: (list) {
+        _allClients = list;
+        final picked = _client;
+        if (picked != null) {
+          _client = list.where((c) => c == picked).firstOrNull ?? picked;
+        }
+      },
+      failure: (_) {},
+    );
+    await _reloadChecks();
     if (mounted) setState(() => _loadingOptions = false);
   }
 
-  Future<void> _reloadClientsAndChecks() async {
-    final clients = await _repo.getClients(residenceId: _residence?.id);
-    clients.when(
-      success: (list) {
-        _clients = list;
-        if (_client != null && list.every((c) => c.id != _client!.id)) {
-          _client = null;
-        }
-      },
-      failure: (_) => _clients = [],
-    );
+  Future<void> _reloadChecks() async {
     final checks = await _repo.getCheckSchedules(residenceId: _residence?.id);
-    checks.when(
-      success: (list) {
-        _checks = list;
-        for (final m in _medicines) {
-          if (m.requiresCheckScheduleId != null &&
-              list.every((c) => c.id != m.requiresCheckScheduleId)) {
-            m.requiresCheckScheduleId = null;
-          }
-        }
-      },
-      failure: (_) => _checks = [],
-    );
+    final list = [...?checks.value];
+    // A dropdown value must be one of its items: a correction keeps the
+    // record's check, a new medicine drops one that is no longer offered.
+    for (final m in _medicines) {
+      final id = m.requiresCheckScheduleId;
+      if (id == null || list.any((c) => c.id == id)) continue;
+      if (_editingMode) {
+        list.add(StaffMedCheckOption(id: id, name: 'Current check'));
+      } else {
+        m.requiresCheckScheduleId = null;
+      }
+    }
+    _checks = list;
   }
 
-  bool get _isPrn => _tabs.index == 1;
+  bool get _isPrn => widget.editing?.isPrn ?? _tabs.index == 1;
 
-  String get _title => _isPrn ? 'Add a PRN medicine' : 'Add a medicine';
+  String get _title => _editingMode
+      ? (_isPrn ? 'Correct a PRN medicine' : 'Correct a medicine')
+      : (_isPrn ? 'Add a PRN medicine' : 'Add a medicine');
 
   String get _subtitle => _isPrn
       ? 'Not prescribed by a doctor — given as needed.'
@@ -266,47 +350,55 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
 
     String? firstError;
     var saved = 0;
+    final editing = widget.editing;
     for (final m in _medicines) {
       final stock = int.tryParse(m.stock.text.trim());
       final gap = int.tryParse(m.minGap.text.trim());
-      final result = _isPrn
-          ? await _repo.createPrnMedication(
-              StaffCreatePrnMedicationInput(
-                residenceId: _residence!.id,
-                clientId: _client?.id,
-                name: m.name.text.trim(),
-                dose: m.dose.text.trim().isEmpty ? null : m.dose.text.trim(),
-                route: m.route.text.trim().isEmpty ? null : m.route.text.trim(),
-                instructions: m.whenToGive.text.trim().isEmpty
-                    ? null
-                    : m.whenToGive.text.trim(),
-                stockUnitsPerDose: stock,
-                startsAt: m.startsAt,
-                endsAt: m.endsAt,
-                isControlled: m.controlled,
-                minIntervalMinutes: gap,
-                requiresCheckScheduleId: m.requiresCheckScheduleId,
-              ),
-            )
-          : await _repo.createMedication(
-              StaffCreateMedicationInput(
-                residenceId: _residence!.id,
-                clientId: _client!.id,
-                name: m.name.text.trim(),
-                dose: m.dose.text.trim().isEmpty ? null : m.dose.text.trim(),
-                route: m.route.text.trim().isEmpty ? null : m.route.text.trim(),
-                stockUnitsPerDose: stock,
-                scheduleFrequency: m.frequency,
-                scheduleTimes: List<String>.from(m.times)..sort(),
-                scheduleWeekdays: m.frequency == 'weekly'
-                    ? (m.weekdays.toList()..sort())
-                    : const [],
-                startsAt: m.startsAt,
-                endsAt: m.endsAt,
-                isControlled: m.controlled,
-                requiresCheckScheduleId: m.requiresCheckScheduleId,
-              ),
+      final prnInput = StaffCreatePrnMedicationInput(
+        residenceId: _residence!.id,
+        clientId: _client?.id,
+        name: m.name.text.trim(),
+        dose: m.dose.text.trim().isEmpty ? null : m.dose.text.trim(),
+        route: m.route.text.trim().isEmpty ? null : m.route.text.trim(),
+        instructions: m.whenToGive.text.trim().isEmpty
+            ? null
+            : m.whenToGive.text.trim(),
+        stockUnitsPerDose: stock,
+        startsAt: m.startsAt,
+        endsAt: m.endsAt,
+        isControlled: m.controlled,
+        minIntervalMinutes: gap,
+        requiresCheckScheduleId: m.requiresCheckScheduleId,
+        requiresCheckWithinMinutes: editing?.requiresCheckWithinMinutes,
+      );
+      final medicationInput = _isPrn
+          ? null
+          : StaffCreateMedicationInput(
+              residenceId: _residence!.id,
+              clientId: _client!.id,
+              name: m.name.text.trim(),
+              dose: m.dose.text.trim().isEmpty ? null : m.dose.text.trim(),
+              route: m.route.text.trim().isEmpty ? null : m.route.text.trim(),
+              stockUnitsPerDose: stock,
+              scheduleFrequency: m.frequency,
+              scheduleTimes: List<String>.from(m.times)..sort(),
+              scheduleWeekdays: m.frequency == 'weekly'
+                  ? (m.weekdays.toList()..sort())
+                  : const [],
+              startsAt: m.startsAt,
+              endsAt: m.endsAt,
+              isControlled: m.controlled,
+              requiresCheckScheduleId: m.requiresCheckScheduleId,
+              requiresCheckWithinMinutes: editing?.requiresCheckWithinMinutes,
             );
+      final result = switch ((editing, medicationInput)) {
+        (final StaffClientMedicationItem e, null) =>
+          await _repo.updatePrnMedication(e.id, prnInput),
+        (final StaffClientMedicationItem e, final input?) =>
+          await _repo.updateMedication(e.id, input),
+        (null, null) => await _repo.createPrnMedication(prnInput),
+        (null, final input?) => await _repo.createMedication(input),
+      };
       if (result.isFailure) {
         firstError ??= result.error?.message ?? 'Could not save.';
         break;
@@ -324,21 +416,24 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
             : 'Saved $saved, then failed: $firstError',
       );
       AppErrorDialog.showPageError(
-        title: 'Could not add medicine',
+        title: _editingMode ? 'Could not save changes' : 'Could not add medicine',
         message: firstError,
       );
       return;
     }
 
     widget.onCreated?.call();
-    AppSnackbar.show(
-      'Medicine added',
-      saved == 1
-          ? (_isPrn
-              ? 'PRN medicine was created.'
-              : 'Scheduled medicine was created.')
-          : '$saved medicines were created.',
-    );
+    final String toast;
+    if (_editingMode) {
+      toast = _isPrn ? 'Medicine updated' : 'Prescription updated';
+    } else if (saved == 1) {
+      toast = _isPrn ? 'Medicine added' : 'Prescription added';
+    } else {
+      toast = _isPrn
+          ? '$saved medicines added'
+          : '$saved medicines prescribed';
+    }
+    AppSnackbar.show(toast, '');
     Navigator.of(context).pop(true);
   }
 
@@ -446,6 +541,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                       ],
                     ),
                   ),
+                  if (!_editingMode)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
                     child: Container(
@@ -531,6 +627,9 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                               _Labeled(
                                 label: 'House',
                                 required: true,
+                                hint: _editingMode
+                                    ? 'Moving a medicine between houses is not an edit.'
+                                    : null,
                                 child: DropdownButtonFormField<
                                     StaffMedResidenceOption>(
                                   key: ValueKey('house-${_residence?.id}'),
@@ -554,14 +653,19 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                                         ),
                                       ),
                                   ],
-                                  onChanged: (value) async {
-                                    setState(() {
-                                      _residence = value;
-                                      _client = null;
-                                    });
-                                    await _reloadClientsAndChecks();
-                                    if (mounted) setState(() {});
-                                  },
+                                  onChanged: _editingMode
+                                      ? null
+                                      : (value) async {
+                                          setState(() {
+                                            _residence = value;
+                                            if (_client?.residenceId !=
+                                                value?.id) {
+                                              _client = null;
+                                            }
+                                          });
+                                          await _reloadChecks();
+                                          if (mounted) setState(() {});
+                                        },
                                 ),
                               ),
                               const SizedBox(height: 14),
@@ -613,6 +717,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                           ),
                         ),
                         const SizedBox(height: 12),
+                        if (!_editingMode)
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
@@ -711,9 +816,9 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text(
-                                  'Add',
-                                  style: TextStyle(
+                              : Text(
+                                  _editingMode ? 'Save changes' : 'Add',
+                                  style: const TextStyle(
                                     fontFamily: 'Outfit',
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -1021,15 +1126,9 @@ class _MedicineCard extends StatelessWidget {
                       color: AppColors.textMuted,
                     ),
                     decoration: _medFieldDecoration(),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'daily',
-                        child: Text('Every day'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'weekly',
-                        child: Text('Weekly'),
-                      ),
+                    items: [
+                      for (final f in _frequencies)
+                        DropdownMenuItem(value: f.$1, child: Text(f.$2)),
                     ],
                     onChanged: (value) {
                       if (value == null) return;

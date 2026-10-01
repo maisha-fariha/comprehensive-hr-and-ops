@@ -70,7 +70,10 @@ class StaffSchedulePage extends StatelessWidget {
                     StaffScheduleHeader(
                       onBackTap: _onBack,
                       onFilterTap: controller.showFilterSheet,
-                      onCreateShiftTap: controller.showCreateShiftDialog,
+                      onCreateShiftTap:
+                          Get.find<UserSession>().can('scheduling:write')
+                              ? controller.showCreateShiftDialog
+                              : null,
                     ),
                     Padding(
                       padding: ResponsiveHelper.getResponsivePadding(

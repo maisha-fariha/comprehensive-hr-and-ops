@@ -16,7 +16,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   final AppApiClient _api;
   final UserSession _session;
 
-  /// Optional user-selected residence filter (overrides session when set).
+  /// Optional user-selected residence filter.
   String? selectedResidenceId;
 
   StaffMedicationRepositoryImpl({
@@ -25,20 +25,24 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   })  : _api = api,
         _session = session;
 
+  /// The web scopes the round and PRN register only by the registry's
+  /// residence filter; a session default would hide rows the web shows.
+  String? _residenceFilter(String? residenceId) {
+    final filter = (residenceId ?? selectedResidenceId)?.trim();
+    return filter == null || filter.isEmpty ? null : filter;
+  }
+
   @override
   Future<Result<StaffMedicationOverview>> getOverview({
     String? residenceId,
   }) async {
-    final filter = (residenceId ?? selectedResidenceId ?? _session.residenceId)
-        ?.trim();
+    final filter = _residenceFilter(residenceId);
 
+    // No `date`: the server's own "today", as the web asks for it.
     final result = await _api.get(
       ApiEndpoints.marRound,
       query: {
-        'date': IsoDateRange.todayDate,
-        // Staff accounts often have no default residence; API allows omit
-        // (web "across all residences").
-        if (filter != null && filter.isNotEmpty) 'residenceId': filter,
+        'residenceId': ?filter,
       },
     );
     return result.when(
@@ -141,14 +145,13 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   Future<Result<List<StaffClientMedicationItem>>> listPrnMedications({
     String? residenceId,
   }) async {
-    final filter = (residenceId ?? selectedResidenceId ?? _session.residenceId)
-        ?.trim();
+    final filter = _residenceFilter(residenceId);
     final result = await _api.get(
       ApiEndpoints.prnMedications,
       query: {
         'page': 1,
         'limit': 100,
-        if (filter != null && filter.isNotEmpty) 'residenceId': filter,
+        'residenceId': ?filter,
       },
       silent: true,
     );
@@ -168,8 +171,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
     int page = 1,
     int limit = 50,
   }) async {
-    final filter = (residenceId ?? selectedResidenceId ?? _session.residenceId)
-        ?.trim();
+    final filter = residenceId?.trim();
     final result = await _api.get(
       ApiEndpoints.marAdministrations,
       query: {
@@ -276,18 +278,10 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
     );
     return [
       for (final item in items)
-        StaffClientMedicationItem(
-          id: item.id,
-          name: item.name,
-          dose: item.dose,
-          scheduleLabel: item.scheduleLabel,
-          instructions: item.instructions,
-          isPrn: item.isPrn,
-          clientId: item.clientId,
+        item.copyWith(
           clientName: item.clientName.isNotEmpty
               ? item.clientName
               : (clientNames[item.clientId] ?? ''),
-          residenceId: item.residenceId,
           residenceName: item.residenceName.isNotEmpty
               ? item.residenceName
               : (names[item.residenceId] ?? ''),
@@ -295,41 +289,102 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
     ];
   }
 
-  @override
-  Future<Result<void>> createMedication(StaffCreateMedicationInput input) async {
-    final data = <String, dynamic>{
+  /// The web sends the picked calendar day as UTC midnight.
+  static String? _day(DateTime? value) => value == null
+      ? null
+      : DateTime.utc(value.year, value.month, value.day).toIso8601String();
+
+  static String? _blank(String? value) {
+    final t = value?.trim() ?? '';
+    return t.isEmpty ? null : t;
+  }
+
+  /// The API rejects `route: null`: a blank route is left out of a create and
+  /// sent as `''` on an update so a cleared route is saved.
+  static String? _route(String? value, {required bool update}) =>
+      update ? (value?.trim() ?? '') : _blank(value);
+
+  Map<String, dynamic> _medicationBody(
+    StaffCreateMedicationInput input, {
+    required bool update,
+  }) {
+    final checkId = _blank(input.requiresCheckScheduleId);
+    return {
       'residenceId': input.residenceId,
       'clientId': input.clientId,
       'name': input.name.trim(),
-      if (input.dose != null && input.dose!.trim().isNotEmpty)
-        'dose': input.dose!.trim(),
-      if (input.route != null && input.route!.trim().isNotEmpty)
-        'route': input.route!.trim(),
-      if (input.stockUnitsPerDose != null)
-        'stockUnitsPerDose': input.stockUnitsPerDose,
+      'dose': ?_blank(input.dose),
+      'route': ?_route(input.route, update: update),
       'schedule': {
         'frequency': input.scheduleFrequency,
         if (input.scheduleTimes.isNotEmpty) 'times': input.scheduleTimes,
-        if (input.scheduleWeekdays.isNotEmpty)
+        if (input.scheduleFrequency == 'weekly')
           'weekdays': input.scheduleWeekdays,
       },
-      'scheduleFrequency': input.scheduleFrequency,
-      if (input.scheduleTimes.isNotEmpty) 'scheduleTimes': input.scheduleTimes,
-      if (input.scheduleWeekdays.isNotEmpty)
-        'scheduleWeekdays': input.scheduleWeekdays,
-      if (input.startsAt != null)
-        'startsAt': input.startsAt!.toUtc().toIso8601String(),
-      if (input.endsAt != null)
-        'endsAt': input.endsAt!.toUtc().toIso8601String(),
       'isControlled': input.isControlled,
-      if (input.requiresCheckScheduleId != null &&
-          input.requiresCheckScheduleId!.isNotEmpty)
-        'requiresCheckScheduleId': input.requiresCheckScheduleId,
+      'startsAt': _day(input.startsAt),
+      'endsAt': _day(input.endsAt),
+      'stockUnitsPerDose': input.stockUnitsPerDose,
+      'requiresCheckScheduleId': checkId,
+      'requiresCheckWithinMinutes': checkId == null
+          ? null
+          : ((input.requiresCheckWithinMinutes ?? 0) == 0
+              ? 60
+              : input.requiresCheckWithinMinutes),
     };
-    final result = await _api.post(ApiEndpoints.medications, data: data);
-    return result.when(
-      success: (_) async => Result.success(null),
-      failure: (error) async => Result.failure(error),
+  }
+
+  Map<String, dynamic> _prnBody(
+    StaffCreatePrnMedicationInput input, {
+    required bool update,
+  }) {
+    final checkId = _blank(input.requiresCheckScheduleId);
+    return {
+      'residenceId': input.residenceId,
+      'name': input.name.trim(),
+      'clientId': ?_blank(input.clientId),
+      'dose': ?_blank(input.dose),
+      'instructions': ?_blank(input.instructions),
+      'isControlled': input.isControlled,
+      'minIntervalMinutes': input.minIntervalMinutes,
+      'stockUnitsPerDose': input.stockUnitsPerDose,
+      'route': ?_route(input.route, update: update),
+      'startsAt': _day(input.startsAt),
+      'endsAt': _day(input.endsAt),
+      'requiresCheckScheduleId': checkId,
+      'requiresCheckWithinMinutes': checkId == null
+          ? null
+          : ((input.requiresCheckWithinMinutes ?? 0) == 0
+              ? 60
+              : input.requiresCheckWithinMinutes),
+    };
+  }
+
+  static Future<Result<void>> _done(Result<dynamic> result) => result.when(
+        success: (_) async => Result.success(null),
+        failure: (error) async => Result.failure(error),
+      );
+
+  @override
+  Future<Result<void>> createMedication(StaffCreateMedicationInput input) async {
+    return _done(
+      await _api.post(
+        ApiEndpoints.medications,
+        data: _medicationBody(input, update: false),
+      ),
+    );
+  }
+
+  @override
+  Future<Result<void>> updateMedication(
+    String id,
+    StaffCreateMedicationInput input,
+  ) async {
+    return _done(
+      await _api.patch(
+        '${ApiEndpoints.medications}/$id',
+        data: _medicationBody(input, update: true),
+      ),
     );
   }
 
@@ -337,34 +392,24 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   Future<Result<void>> createPrnMedication(
     StaffCreatePrnMedicationInput input,
   ) async {
-    final data = <String, dynamic>{
-      'residenceId': input.residenceId,
-      if (input.clientId != null && input.clientId!.trim().isNotEmpty)
-        'clientId': input.clientId!.trim(),
-      'name': input.name.trim(),
-      if (input.dose != null && input.dose!.trim().isNotEmpty)
-        'dose': input.dose!.trim(),
-      if (input.route != null && input.route!.trim().isNotEmpty)
-        'route': input.route!.trim(),
-      if (input.instructions != null && input.instructions!.trim().isNotEmpty)
-        'instructions': input.instructions!.trim(),
-      if (input.stockUnitsPerDose != null)
-        'stockUnitsPerDose': input.stockUnitsPerDose,
-      if (input.startsAt != null)
-        'startsAt': input.startsAt!.toUtc().toIso8601String(),
-      if (input.endsAt != null)
-        'endsAt': input.endsAt!.toUtc().toIso8601String(),
-      'isControlled': input.isControlled,
-      if (input.minIntervalMinutes != null)
-        'minIntervalMinutes': input.minIntervalMinutes,
-      if (input.requiresCheckScheduleId != null &&
-          input.requiresCheckScheduleId!.isNotEmpty)
-        'requiresCheckScheduleId': input.requiresCheckScheduleId,
-    };
-    final result = await _api.post(ApiEndpoints.prnMedications, data: data);
-    return result.when(
-      success: (_) async => Result.success(null),
-      failure: (error) async => Result.failure(error),
+    return _done(
+      await _api.post(
+        ApiEndpoints.prnMedications,
+        data: _prnBody(input, update: false),
+      ),
+    );
+  }
+
+  @override
+  Future<Result<void>> updatePrnMedication(
+    String id,
+    StaffCreatePrnMedicationInput input,
+  ) async {
+    return _done(
+      await _api.patch(
+        '${ApiEndpoints.prnMedications}/$id',
+        data: _prnBody(input, update: true),
+      ),
     );
   }
 

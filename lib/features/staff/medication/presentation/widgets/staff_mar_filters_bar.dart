@@ -101,6 +101,7 @@ class StaffMarFiltersBar extends StatelessWidget {
           runSpacing: 8,
           children: [
             _FilterChip(
+              key: const ValueKey('staff-mar-filter-residence'),
               label: _optionLabel(
                 residenceId,
                 residenceOptions,
@@ -118,6 +119,7 @@ class StaffMarFiltersBar extends StatelessWidget {
               ),
             ),
             _FilterChip(
+              key: const ValueKey('staff-mar-filter-resident'),
               label: _optionLabel(
                 clientId,
                 residentOptions,
@@ -135,6 +137,7 @@ class StaffMarFiltersBar extends StatelessWidget {
               ),
             ),
             _FilterChip(
+              key: const ValueKey('staff-mar-filter-medicine'),
               label: _optionLabel(
                 medication,
                 medicationOptions,
@@ -152,6 +155,7 @@ class StaffMarFiltersBar extends StatelessWidget {
               ),
             ),
             _FilterChip(
+              key: const ValueKey('staff-mar-filter-status'),
               label: _optionLabel(
                 state,
                 statusOptions.where((o) => o.value.isNotEmpty).toList(),
@@ -167,6 +171,7 @@ class StaffMarFiltersBar extends StatelessWidget {
             ),
             if (hasActiveFilters)
               TextButton(
+                key: const ValueKey('staff-mar-filter-clear'),
                 onPressed: onClear,
                 child: const Text(
                   'Clear filters',
@@ -267,7 +272,7 @@ class _FilterChip extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _FilterChip({required this.label, required this.onTap});
+  const _FilterChip({super.key, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

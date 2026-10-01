@@ -29,16 +29,18 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     final residenceId = _session.residenceId;
 
     // Web list uses `mine` without a tight from/to — date filters on the API
-    // drop missed rows (null checkInAt). Keep today-window only for open punch.
+    // drop missed rows (null checkInAt). Open punch uses the web's
+    // `useMyOpenAttendance` window (now-48h → now+1h) so overnight shifts count.
+    final now = DateTime.now().toUtc();
     final futures = <Future<Result<dynamic>>>[
       _api.get(
         ApiEndpoints.attendance,
         query: {
           'mine': true,
-          'from': IsoDateRange.todayStartIso,
-          'to': IsoDateRange.nowIso,
+          'from': now.subtract(const Duration(hours: 48)).toIso8601String(),
+          'to': now.add(const Duration(hours: 1)).toIso8601String(),
           'page': 1,
-          'limit': _pageLimit,
+          'limit': 50,
         },
       ),
       // History: omit from/to so missed / pending rows are returned (web parity).

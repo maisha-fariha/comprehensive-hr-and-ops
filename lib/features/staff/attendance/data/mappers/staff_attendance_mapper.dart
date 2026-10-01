@@ -57,7 +57,6 @@ abstract final class StaffAttendanceMapper {
       open?['checkInAt'] ?? open?['clockInAt'] ?? open?['checkIn'],
     );
     // Only a live clock-in (check-in without check-out) counts as on-shift.
-    // Missed / pending rows often have null check-out and must not flip Clock Out.
     final onShift = checkIn != null;
     final onBreak =
         JsonCodec.boolean(open?['onBreak']) ??
@@ -258,34 +257,18 @@ abstract final class StaffAttendanceMapper {
     );
   }
 
-  /// Live open punch: has check-in, no check-out, not a closed/missed status.
+  /// Live open punch: has check-in, no check-out (web `useMyOpenAttendance`).
+  /// `checkIn` / `checkOut` are geofence metadata objects, not timestamps.
   static Map<String, dynamic>? _findOpenRecord(List<dynamic> records) {
     for (final item in records) {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
-      final checkIn = JsonCodec.dateTime(
-        json['checkInAt'] ?? json['clockInAt'] ?? json['checkIn'],
-      );
+      final checkIn = JsonCodec.dateTime(json['checkInAt'] ?? json['clockInAt']);
       if (checkIn == null) continue;
-
-      final checkOutRaw =
-          json['checkOutAt'] ?? json['clockOutAt'] ?? json['checkOut'];
-      final checkOutEmpty =
-          checkOutRaw == null ||
-          (checkOutRaw is String && checkOutRaw.trim().isEmpty);
-      if (!checkOutEmpty) continue;
-
-      final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
-      if (status == 'missed' ||
-          status == 'completed' ||
-          status == 'closed' ||
-          status == 'checked_out' ||
-          status == 'checkout' ||
-          status == 'rejected' ||
-          status == 'pending_approval') {
-        continue;
-      }
-      return json;
+      final checkOut = JsonCodec.dateTime(
+        json['checkOutAt'] ?? json['clockOutAt'],
+      );
+      if (checkOut == null) return json;
     }
     return null;
   }

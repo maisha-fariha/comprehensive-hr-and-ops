@@ -99,49 +99,50 @@ class StaffScheduleHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              GestureDetector(
-                key: const Key('staff-schedule-create-shift'),
-                onTap: onCreateShiftTap,
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  padding: ResponsiveHelper.getResponsivePadding(
-                    context,
-                    horizontal: 10,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondaryTeal,
-                    borderRadius: BorderRadius.circular(
-                      ResponsiveHelper.getResponsiveRadius(context, 14),
+              if (onCreateShiftTap != null)
+                GestureDetector(
+                  key: const Key('staff-schedule-create-shift'),
+                  onTap: onCreateShiftTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 10,
+                      vertical: 9,
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.add_rounded,
-                        size: ResponsiveHelper.getResponsiveSize(context, 16),
-                        color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: AppColors.secondaryTeal,
+                      borderRadius: BorderRadius.circular(
+                        ResponsiveHelper.getResponsiveRadius(context, 14),
                       ),
-                      SizedBox(
-                        width: ResponsiveHelper.getResponsiveWidth(context, 2),
-                      ),
-                      Text(
-                        'Shift',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w600,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            12.5,
-                          ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add_rounded,
+                          size: ResponsiveHelper.getResponsiveSize(context, 16),
                           color: Colors.white,
                         ),
-                      ),
-                    ],
+                        SizedBox(
+                          width: ResponsiveHelper.getResponsiveWidth(context, 2),
+                        ),
+                        Text(
+                          'Shift',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w600,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              12.5,
+                            ),
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

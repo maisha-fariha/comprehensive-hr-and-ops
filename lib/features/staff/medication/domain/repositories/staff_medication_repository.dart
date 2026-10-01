@@ -7,7 +7,7 @@ import '../entities/staff_medication_overview.dart';
 
 /// Staff Medication MAR — single round fetch fills all four tabs.
 abstract class StaffMedicationRepository {
-  /// `GET /mar/round?date=YYYY-MM-DD` — optional `residenceId`.
+  /// `GET /mar/round` — optional `residenceId` (web registry filter).
   Future<Result<StaffMedicationOverview>> getOverview({String? residenceId});
 
   /// `POST /mar/administrations` — status: administered | refused | missed |
@@ -57,8 +57,20 @@ abstract class StaffMedicationRepository {
   /// `POST /medications`
   Future<Result<void>> createMedication(StaffCreateMedicationInput input);
 
+  /// `PATCH /medications/:id` (web Edit, `mar:write`).
+  Future<Result<void>> updateMedication(
+    String id,
+    StaffCreateMedicationInput input,
+  );
+
   /// `POST /prn-medications`
   Future<Result<void>> createPrnMedication(StaffCreatePrnMedicationInput input);
+
+  /// `PATCH /prn-medications/:id` (web Edit, `mar:write`).
+  Future<Result<void>> updatePrnMedication(
+    String id,
+    StaffCreatePrnMedicationInput input,
+  );
 
   /// `GET /residences` for Add Medicine house picker.
   Future<Result<List<StaffMedResidenceOption>>> getResidences();

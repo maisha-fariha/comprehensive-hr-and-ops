@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
@@ -91,6 +92,7 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
 
     return Material(
+      key: const Key('staff-incidents-add'),
       color: AppColors.secondaryTeal,
       borderRadius: BorderRadius.circular(radius),
       child: InkWell(
@@ -181,7 +183,9 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
               StaffIncidentsHeader(
                 title: 'Incident Reports',
                 onBack: Get.back,
-                trailing: _addIncidentButton(context),
+                trailing: Get.find<UserSession>().can('incidents:write')
+                    ? _addIncidentButton(context)
+                    : null,
               ),
               Expanded(
                 child: RefreshIndicator(

@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_residence.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
 import '../widgets/staff_residence_list_card.dart';
@@ -29,6 +30,8 @@ class _StaffResidencesPageState extends State<StaffResidencesPage> {
   List<StaffResidence> _items = const [];
   int _activeResidentCount = 0;
   String _query = '';
+
+  bool get _canUpdate => Get.find<UserSession>().can('residences:update');
 
   @override
   void initState() {
@@ -250,9 +253,12 @@ class _StaffResidencesPageState extends State<StaffResidencesPage> {
                             StaffResidenceListCard(
                               residence: filtered[i],
                               onView: () => _openDetail(filtered[i]),
-                              onEdit: () => _openEdit(filtered[i]),
-                              onDeactivate: () =>
-                                  _confirmDeactivate(filtered[i]),
+                              onEdit: _canUpdate
+                                  ? () => _openEdit(filtered[i])
+                                  : null,
+                              onDeactivate: _canUpdate
+                                  ? () => _confirmDeactivate(filtered[i])
+                                  : null,
                             ),
                           ],
                         ],

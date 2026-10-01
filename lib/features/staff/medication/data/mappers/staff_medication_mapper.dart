@@ -21,6 +21,7 @@ abstract final class StaffMedicationMapper {
     final administered = <AdministeredDose>[];
     final missed = <MissedDose>[];
     final refused = <RefusedDose>[];
+    final registry = <DueDose>[];
     var overdueFromOcc = 0;
 
     for (final item in occurrences) {
@@ -29,6 +30,7 @@ abstract final class StaffMedicationMapper {
       final state = (JsonCodec.string(row['state'] ?? row['status']) ?? '')
           .toLowerCase()
           .trim();
+      registry.add(_registryRow(row, state));
 
       // Administered: given | late (| administered alias)
       if (state == 'given' || state == 'late' || state == 'administered') {
@@ -105,6 +107,7 @@ abstract final class StaffMedicationMapper {
       administeredDoses: administered,
       missedDoses: missed,
       refusedDoses: refused,
+      registryDoses: registry,
       dueCount: dueSummary,
       administeredCount: administeredSummary,
       missedCount: missedSummary,
@@ -137,6 +140,7 @@ abstract final class StaffMedicationMapper {
       final first = JsonCodec.stringOr(client?['firstName'], '');
       final last = JsonCodec.stringOr(client?['lastName'], '');
       final composed = '$first $last'.trim();
+      final rawWeekdays = schedule['weekdays'] ?? json['scheduleWeekdays'];
       return StaffClientMedicationItem(
         id: JsonCodec.stringOr(json['id'], 'med'),
         name: JsonCodec.stringOr(
@@ -166,8 +170,75 @@ abstract final class StaffMedicationMapper {
           json['residenceName'] ?? residence?['name'],
           '',
         ),
+        route: JsonCodec.stringOr(json['route'], ''),
+        frequency: JsonCodec.stringOr(
+          schedule['frequency'] ?? json['scheduleFrequency'],
+          'daily',
+        ),
+        times: times is List ? [for (final t in times) t.toString()] : const [],
+        weekdays: rawWeekdays is List
+            ? [for (final d in rawWeekdays) ?JsonCodec.integer(d)]
+            : const [],
+        startsAt: JsonCodec.dateTime(json['startsAt']),
+        endsAt: JsonCodec.dateTime(json['endsAt']),
+        stockUnitsPerDose: JsonCodec.integer(json['stockUnitsPerDose']),
+        minIntervalMinutes: JsonCodec.integer(json['minIntervalMinutes']),
+        isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
+        requiresCheckScheduleId: JsonCodec.string(
+          json['requiresCheckScheduleId'],
+        ),
+        requiresCheckWithinMinutes: JsonCodec.integer(
+          json['requiresCheckWithinMinutes'],
+        ),
+        isActive: JsonCodec.boolean(json['isActive']) ?? true,
       );
     }).toList();
+  }
+
+  /// Web registry status labels (`A` in the MAR page chunk).
+  static const Map<String, String> stateLabels = {
+    'given': 'Given',
+    'late': 'Given late',
+    'due': 'Due now',
+    'upcoming': 'Upcoming',
+    'overdue': 'Overdue',
+    'missed': 'Missed',
+    'refused': 'Refused',
+    'withheld': 'Withheld',
+    'not_available': 'Not available',
+  };
+
+  /// Morning before 12, Afternoon before 17, Evening before 21, else Night.
+  static String slotFor(String hhmm) {
+    final hour = int.tryParse(hhmm.split(':').first);
+    if (hour == null || hour < 12) return 'Morning';
+    if (hour < 17) return 'Afternoon';
+    if (hour < 21) return 'Evening';
+    return 'Night';
+  }
+
+  static DueDose _registryRow(Map<String, dynamic> json, String rawState) {
+    final state = switch (rawState) {
+      '' || 'pending' => 'upcoming',
+      'administered' => 'given',
+      _ => rawState,
+    };
+    final status = switch (state) {
+      'given' || 'late' => DueDoseStatus.administered,
+      'missed' ||
+      'refused' ||
+      'withheld' ||
+      'not_available' =>
+        DueDoseStatus.notGiven,
+      'upcoming' => DueDoseStatus.upcoming,
+      _ => DueDoseStatus.pending,
+    };
+    return _due(
+      json,
+      state == 'upcoming' ? DueDoseSection.laterToday : DueDoseSection.dueNow,
+      status,
+      webState: state,
+    );
   }
 
   static DueDose _due(
@@ -180,6 +251,23 @@ abstract final class StaffMedicationMapper {
     final scheduled = JsonCodec.dateTime(
       json['scheduledAt'] ?? json['dueAt'] ?? json['time'],
     );
+    final inRound = JsonCodec.boolean(json['scheduled']) ?? true;
+    final scheduledTime = JsonCodec.stringOr(json['scheduledTime'], '');
+    final dueLocal = scheduled?.toLocal();
+    final dueHhmm = dueLocal == null
+        ? ''
+        : '${dueLocal.hour.toString().padLeft(2, '0')}:'
+            '${dueLocal.minute.toString().padLeft(2, '0')}';
+    final String timeLabel;
+    if (!inRound) {
+      timeLabel = 'Unscheduled';
+    } else if (scheduledTime.isNotEmpty) {
+      timeLabel = scheduledTime;
+    } else {
+      timeLabel = dueLocal == null
+          ? JsonCodec.stringOr(json['timeLabel'], '')
+          : IsoDateRange.timeLabel(dueLocal);
+    }
     return DueDose(
       id: JsonCodec.stringOr(
         json['id'] ?? json['occurrenceId'],
@@ -191,9 +279,12 @@ abstract final class StaffMedicationMapper {
       medicationName: _medName(json),
       dose: _dose(json),
       route: _route(json),
-      timeLabel: scheduled == null
-          ? JsonCodec.stringOr(json['timeLabel'], '')
-          : IsoDateRange.timeLabel(scheduled.toLocal()),
+      timeLabel: timeLabel,
+      scheduled: inRound,
+      slotLabel: slotFor(!inRound && dueHhmm.isNotEmpty ? dueHhmm : scheduledTime),
+      administrationId: JsonCodec.string(json['administrationId']),
+      administeredAt: JsonCodec.dateTime(json['administeredAt']),
+      administeredBy: JsonCodec.string(json['administeredBy']),
       section: section,
       status: status,
       state: webState,

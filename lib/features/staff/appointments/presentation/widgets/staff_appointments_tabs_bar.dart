@@ -35,7 +35,7 @@ class StaffAppointmentsTabsBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               _TabChip(
-                label: 'Approved',
+                label: 'Approved (${summary.approved})',
                 selected: selected == StaffAppointmentTab.approved,
                 onTap: () => onChanged(StaffAppointmentTab.approved),
               ),
@@ -53,13 +53,13 @@ class StaffAppointmentsTabsBar extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               _TabChip(
-                label: 'Rejected',
+                label: 'Rejected (${summary.rejected})',
                 selected: selected == StaffAppointmentTab.rejected,
                 onTap: () => onChanged(StaffAppointmentTab.rejected),
               ),
               const SizedBox(width: 8),
               _TabChip(
-                label: 'All',
+                label: 'All (${summary.total})',
                 selected: selected == StaffAppointmentTab.all,
                 onTap: () => onChanged(StaffAppointmentTab.all),
               ),

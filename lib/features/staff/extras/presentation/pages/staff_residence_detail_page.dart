@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_residence.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
 import 'staff_residence_edit_page.dart';
@@ -224,7 +225,9 @@ class _StaffResidenceDetailPageState extends State<StaffResidenceDetailPage>
                       _Footer(
                         updatedAt: residence.updatedAt,
                         onClose: Get.back,
-                        onEdit: _openEdit,
+                        onEdit: Get.find<UserSession>().can('residences:update')
+                            ? _openEdit
+                            : null,
                       ),
                     ],
                   ),
@@ -794,12 +797,12 @@ class _RowsTab extends StatelessWidget {
 class _Footer extends StatelessWidget {
   final DateTime? updatedAt;
   final VoidCallback onClose;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
 
   const _Footer({
     required this.updatedAt,
     required this.onClose,
-    required this.onEdit,
+    this.onEdit,
   });
 
   @override
@@ -835,13 +838,15 @@ class _Footer extends StatelessWidget {
             onPressed: onClose,
             child: const Text('Close'),
           ),
-          const SizedBox(width: 8),
-          OutlinedButton.icon(
-            key: const Key('staff-residence-detail-edit'),
-            onPressed: onEdit,
-            icon: const Icon(Icons.edit_outlined, size: 16),
-            label: const Text('Edit Residence'),
-          ),
+          if (onEdit != null) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              key: const Key('staff-residence-detail-edit'),
+              onPressed: onEdit,
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: const Text('Edit Residence'),
+            ),
+          ],
         ],
       ),
     );
