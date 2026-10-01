@@ -14,7 +14,10 @@ import '../../scheduling_constants.dart';
 class BoardTabView extends StatelessWidget {
   final BoardOverview data;
 
-  const BoardTabView({super.key, required this.data});
+  /// Opens a shift for editing (web `onOpenShift`); `null` when read-only.
+  final ValueChanged<BoardShift>? onShiftTap;
+
+  const BoardTabView({super.key, required this.data, this.onShiftTap});
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +59,14 @@ class BoardTabView extends StatelessWidget {
           for (var i = 0; i < data.shifts.length; i++) ...[
             if (i != 0)
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-            _BoardShiftCard(shift: data.shifts[i]),
+            GestureDetector(
+              key: ValueKey('board-shift-${data.shifts[i].id}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: onShiftTap == null
+                  ? null
+                  : () => onShiftTap!(data.shifts[i]),
+              child: _BoardShiftCard(shift: data.shifts[i]),
+            ),
           ],
         ],
       ),

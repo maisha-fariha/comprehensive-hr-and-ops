@@ -14,6 +14,9 @@ class CreateShiftFooter extends StatelessWidget {
   final VoidCallback? onNext;
   final VoidCallback? onSubmit;
 
+  /// Edit Shift mode: the submit reads "Save changes".
+  final bool isEdit;
+
   const CreateShiftFooter({
     super.key,
     required this.isFirstStep,
@@ -24,12 +27,13 @@ class CreateShiftFooter extends StatelessWidget {
     this.onBack,
     this.onNext,
     this.onSubmit,
+    this.isEdit = false,
   });
 
   String get _submitLabel {
     if (isSubmitting) return 'Saving…';
     if (plannedOccurrences > 1) return 'Create $plannedOccurrences shifts';
-    return 'Create shift';
+    return isEdit ? 'Save changes' : 'Create shift';
   }
 
   @override

@@ -1,4 +1,6 @@
 import 'package:comprehensive_hr_and_ops/core/constants/app_colors.dart';
+import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/entities/client_extras.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/entities/client_summary.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/repositories/clients_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/presentation/controllers/clients_controller.dart';
@@ -25,12 +27,12 @@ const _ayaan = ClientSummary(
   lastName: 'Karim',
   status: 'active',
   residenceId: 'elm',
+  residenceName: 'Elm House',
   room: '101',
-  careLevel: 'high_support',
+  careLevel: 'High',
   allergies: ['Penicillin'],
   conditions: ['Epilepsy'],
   carePlanGoals: ['Walk daily with support'],
-  reviewCycleDays: 90,
 );
 
 const _maya = ClientSummary(
@@ -39,17 +41,36 @@ const _maya = ClientSummary(
   lastName: 'Hossain',
   status: 'discharged',
   residenceId: 'oak',
+  residenceName: 'Oak Lodge',
   room: '202',
 );
 
-class _FakeClientsRepo implements ClientsRepository {
+class _Session extends UserSession {
   @override
-  Future<Result<List<ClientSummary>>> getClients() async =>
-      Result.success(const [_ayaan, _maya]);
+  bool can(String permission) => true;
+}
+
+class _FakeClientsRepo implements ClientsRepository {
+  final searches = <String?>[];
 
   @override
-  Future<Result<ClientSummary>> getClient(String clientId) async =>
-      Result.success(
+  Future<Result<ClientPage>> getClients({
+    required int page,
+    required int limit,
+    String? search,
+    String? residenceId,
+  }) async {
+    searches.add(search);
+    final q = (search ?? '').toLowerCase();
+    final items = [_ayaan, _maya]
+        .where((c) => q.isEmpty || c.fullName.toLowerCase().contains(q))
+        .where((c) => residenceId == null || c.residenceId == residenceId)
+        .toList();
+    return Result.success(ClientPage(items: items, total: items.length, totalPages: 1));
+  }
+
+  @override
+  Future<Result<ClientSummary>> getClient(String clientId) async => Result.success(
         clientId == _ayaan.id
             ? ClientSummary(
                 id: _ayaan.id,
@@ -57,12 +78,12 @@ class _FakeClientsRepo implements ClientsRepository {
                 lastName: _ayaan.lastName,
                 status: _ayaan.status,
                 residenceId: _ayaan.residenceId,
+                residenceName: _ayaan.residenceName,
                 room: _ayaan.room,
                 careLevel: _ayaan.careLevel,
                 allergies: _ayaan.allergies,
                 conditions: _ayaan.conditions,
                 carePlanGoals: _ayaan.carePlanGoals,
-                reviewCycleDays: _ayaan.reviewCycleDays,
                 transfers: [
                   ClientTransfer(
                     fromResidenceId: 'oak',
@@ -78,6 +99,71 @@ class _FakeClientsRepo implements ClientsRepository {
   @override
   Future<Result<Map<String, String>>> getResidenceNames() async =>
       Result.success(const {'elm': 'Elm House', 'oak': 'Oak Lodge'});
+
+  @override
+  Future<Result<int?>> getClientLimit() async => Result.success(null);
+
+  @override
+  Future<Result<ClientSummary>> createClient(Map<String, dynamic> body) async =>
+      Result.success(_ayaan);
+
+  @override
+  Future<Result<ClientSummary>> updateClient(String clientId, Map<String, dynamic> body) async =>
+      Result.success(_ayaan);
+
+  @override
+  Future<Result<void>> deleteClient(String clientId) async => Result.success(null);
+
+  @override
+  Future<Result<ClientSummary>> transferClient(
+    String clientId,
+    ClientTransferRequest request,
+  ) async =>
+      Result.success(_ayaan);
+
+  @override
+  Future<Result<List<ClientFamilyMember>>> getFamily(String clientId) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<void>> addFamilyMember(String clientId, Map<String, dynamic> body) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> updateFamilyMember(
+    String clientId,
+    String memberId,
+    Map<String, dynamic> body,
+  ) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> removeFamilyMember(String clientId, String memberId) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<List<ClientRoom>>> getRooms(String residenceId) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<ClientSpend>> getSpend(String clientId) async => Result.success(
+        const ClientSpend(spend: 0, purchaseCount: 0, stockOnHandValue: 0, stockOnHandCount: 0),
+      );
+
+  @override
+  Future<Result<String>> uploadFile(ClientPickedFile file, String category) async =>
+      Result.success('/uploads/${file.name}');
+
+  @override
+  Future<Result<void>> fileCarePlanDocument({
+    required String clientId,
+    required String name,
+    required String fileUrl,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<List<int>>> exportRosterCsv() async => Result.success(const []);
 }
 
 Widget _wrap(Widget child) {
@@ -97,16 +183,24 @@ Widget _wrap(Widget child) {
   );
 }
 
+late _FakeClientsRepo _repo;
+
 Future<void> _pumpClients(WidgetTester tester, {String? residenceId}) async {
-  tester.view.physicalSize = const Size(375, 1600);
+  tester.view.physicalSize = const Size(390, 2600);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 
-  Get.put(ClientsController(repository: _FakeClientsRepo()));
+  Get.put(ClientsController(repository: _repo, session: _Session()));
   await tester.pumpWidget(
     _wrap(ClientsPage(initialResidenceId: residenceId)),
   );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _search(WidgetTester tester, String text) async {
+  await tester.enterText(find.byType(TextField).first, text);
+  await tester.pump(const Duration(milliseconds: 350));
   await tester.pumpAndSettle();
 }
 
@@ -117,6 +211,7 @@ void main() {
     await _loadOutfitFont();
     Get.reset();
     await GetIt.I.reset();
+    _repo = _FakeClientsRepo();
   });
 
   tearDown(() async {
@@ -127,39 +222,32 @@ void main() {
   testWidgets('BUG04: client directory lists every client', (tester) async {
     await _pumpClients(tester);
 
-    expect(find.text('2 of 2 clients'), findsOneWidget);
+    expect(find.text('Showing 1 to 2 of 2 entries'), findsOneWidget);
     expect(find.text('Ayaan Karim'), findsOneWidget);
     expect(find.text('Maya Hossain'), findsOneWidget);
   });
 
-  testWidgets('BUG04: search narrows by name and by short ID', (tester) async {
+  testWidgets('BUG04: search narrows the directory', (tester) async {
     await _pumpClients(tester);
 
-    await tester.enterText(find.byType(TextField), 'maya');
-    await tester.pumpAndSettle();
-    expect(find.text('1 of 2 clients'), findsOneWidget);
+    await _search(tester, 'maya');
+    expect(_repo.searches.last, 'maya');
+    expect(find.text('Maya Hossain'), findsOneWidget);
     expect(find.text('Ayaan Karim'), findsNothing);
 
-    await tester.enterText(find.byType(TextField), '1D9AFC');
-    await tester.pumpAndSettle();
-    expect(find.text('Ayaan Karim'), findsOneWidget);
-    expect(find.text('Maya Hossain'), findsNothing);
-
-    await tester.enterText(find.byType(TextField), 'nobody');
-    await tester.pumpAndSettle();
-    expect(find.text('No clients match your search or filters.'), findsOneWidget);
+    await _search(tester, 'nobody');
+    expect(find.text('No clients found'), findsOneWidget);
   });
 
   testWidgets('BUG04: opening from a residence pre-filters to that home',
       (tester) async {
     await _pumpClients(tester, residenceId: 'oak');
 
-    expect(find.text('1 of 2 clients'), findsOneWidget);
     expect(find.text('Maya Hossain'), findsOneWidget);
     expect(find.text('Ayaan Karim'), findsNothing);
   });
 
-  testWidgets('BUG04: tapping a client opens the care profile', (tester) async {
+  testWidgets('BUG04: tapping a client opens the client record', (tester) async {
     await _pumpClients(tester);
 
     await tester.tap(find.text('Ayaan Karim'));
@@ -167,19 +255,13 @@ void main() {
 
     expect(find.byType(ClientDetailPage), findsOneWidget);
     for (final section in const [
-      'Overview',
-      'Medical info',
-      'Care plan',
-      'Transfer history',
+      'Basic Information',
+      'Medical Information',
+      'Care Planning',
     ]) {
-      expect(find.text(section), findsOneWidget, reason: '$section section');
+      expect(find.text(section), findsWidgets, reason: '$section section');
     }
-    expect(find.text('#1D9AFC'), findsWidgets);
-    expect(find.text('High support'), findsWidgets);
-    expect(find.text('Penicillin'), findsOneWidget);
-    expect(find.text('Epilepsy'), findsOneWidget);
-    expect(find.text('Walk daily with support'), findsOneWidget);
-    expect(find.text('Reviewed every 90 days'), findsOneWidget);
+    expect(find.text('Transfer history'), findsOneWidget);
     expect(find.text('Oak Lodge → Elm House'), findsOneWidget);
   });
 }

@@ -4,27 +4,38 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/constants/app_text_styles.dart';
-import '../../../../../core/widgets/status_badge.dart';
 import '../../../../../core/widgets/surface_card.dart';
+import '../../../attendance/presentation/widgets/attendance_record_card.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
 import '../../domain/entities/residence_summary.dart';
+import '../residences_labels.dart';
 
+/// Row Actions menu entries of the web residences table.
+enum ResidenceRowAction { view, edit, toggleStatus, delete }
+
+/// One row of the web residences table: name / address, type / service,
+/// capacity, assigned staff, primary manager, status, GPS radius, Actions.
 class ResidenceCard extends StatelessWidget {
   final ResidenceSummary residence;
   final VoidCallback? onTap;
 
-  const ResidenceCard({super.key, required this.residence, this.onTap});
+  /// Entries to offer in the Actions menu; empty hides the menu.
+  final List<ResidenceRowAction> actions;
+  final ValueChanged<ResidenceRowAction>? onAction;
+  final bool busy;
+
+  const ResidenceCard({
+    super.key,
+    required this.residence,
+    this.onTap,
+    this.actions = const [],
+    this.onAction,
+    this.busy = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final r = residence;
-    final ratio = r.bedCapacity == 0
-        ? 0.0
-        : (r.residents / r.bedCapacity).clamp(0.0, 1.0);
-    final barColor = r.atCapacity
-        ? AppColors.urgentAmber
-        : AppColors.secondaryTeal;
-
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -46,73 +57,47 @@ class ResidenceCard extends StatelessWidget {
                     children: [
                       Text(
                         r.name,
-                        style: AppTextStyles.base(
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                          fontWeight: AppFontWeight.semiBold,
-                          color: AppColors.textHeading,
-                        ),
+                        style: _style(context, 15, AppFontWeight.semiBold, AppColors.textHeading),
                       ),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                      Text(
-                        r.address ?? 'No address on file',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.base(
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                          fontWeight: AppFontWeight.regular,
-                          color: AppColors.textSecondary,
+                      if (r.address != null) ...[
+                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+                        Text(
+                          r.address!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: _style(context, 12, AppFontWeight.regular, AppColors.infoBlue),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
                 SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                StatusBadge.pill(
-                  label: r.statusLabel.toUpperCase(),
-                  background: r.isActive
-                      ? AppColors.activeBackground
-                      : AppColors.filterButtonBackground,
-                  foreground: r.isActive
-                      ? AppColors.activeGreen
-                      : AppColors.textSecondary,
+                AttendancePill(
+                  label: r.statusLabel,
+                  tone: ResidencesLabels.statusTone(r.status),
                 ),
+                if (actions.isNotEmpty) _menu(context),
               ],
             ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-            Row(
-              children: [
-                if (r.residenceType != null) ...[
-                  StatusBadge.chip(
-                    label: hrHumanize(r.residenceType),
-                    background: AppColors.infoBackground,
-                    foreground: AppColors.infoBlue,
-                  ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                ],
-                if (r.gpsRadiusMeters != null)
-                  _meta(context, Icons.my_location_rounded, '${r.gpsRadiusMeters} m'),
-                const Spacer(),
-                Text(
-                  '${r.residents}/${r.bedCapacity} Beds',
-                  style: AppTextStyles.base(
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                    fontWeight: AppFontWeight.semiBold,
-                    color: AppColors.textHeading,
-                  ),
-                ),
-                if (onTap != null)
-                  const Icon(Icons.chevron_right_rounded, color: AppColors.iconChevron),
-              ],
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+            _line(
+              context,
+              'Type',
+              r.residenceType == null ? '—' : hrHumanize(r.residenceType),
+              sub: r.serviceType,
             ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: ratio,
-                minHeight: ResponsiveHelper.getResponsiveHeight(context, 5),
-                backgroundColor: AppColors.dividerLight,
-                valueColor: AlwaysStoppedAnimation(barColor),
-              ),
+            _line(
+              context,
+              'Capacity',
+              '${r.residents} / ${r.bedCapacity} Beds',
+              color: r.atCapacity ? AppColors.criticalRed : null,
+            ),
+            _line(context, 'Assigned Staff', '${r.assignedStaffCount} Members'),
+            _line(context, 'Primary Manager', r.primaryManager?.name ?? '—'),
+            _line(
+              context,
+              'GPS Radius',
+              r.gpsRadiusMeters == null ? '—' : '${r.gpsRadiusMeters}m',
             ),
           ],
         ),
@@ -120,21 +105,96 @@ class ResidenceCard extends StatelessWidget {
     );
   }
 
-  Widget _meta(BuildContext context, IconData icon, String text) {
+  Widget _menu(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 28,
+      child: busy
+          ? const Center(
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.secondaryTeal),
+              ),
+            )
+          : PopupMenuButton<ResidenceRowAction>(
+              key: ValueKey('residence-actions-${residence.id}'),
+              padding: EdgeInsets.zero,
+              tooltip: 'Actions',
+              icon: const Icon(Icons.more_vert_rounded, color: AppColors.textSecondary, size: 20),
+              color: AppColors.surfaceWhite,
+              onSelected: onAction,
+              itemBuilder: (_) => [
+                for (final action in actions)
+                  PopupMenuItem(
+                    value: action,
+                    child: _menuRow(context, action),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  Widget _menuRow(BuildContext context, ResidenceRowAction action) {
+    final (icon, label, danger) = switch (action) {
+      ResidenceRowAction.view => (Icons.visibility_outlined, 'View', false),
+      ResidenceRowAction.edit => (Icons.edit_outlined, 'Edit', false),
+      ResidenceRowAction.toggleStatus => residence.isActive
+          ? (Icons.block_rounded, 'Take out of service', false)
+          : (Icons.check_circle_outline_rounded, 'Activate', false),
+      ResidenceRowAction.delete => (Icons.delete_outline_rounded, 'Delete', true),
+    };
+    final color = danger ? AppColors.criticalRed : AppColors.textHeading;
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: AppColors.textMuted),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: AppTextStyles.base(
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
-            fontWeight: AppFontWeight.medium,
-            color: AppColors.textSecondary,
-          ),
-        ),
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 10),
+        Text(label, style: _style(context, 13.5, AppFontWeight.medium, color)),
       ],
     );
   }
+
+  Widget _line(
+    BuildContext context,
+    String label,
+    String value, {
+    String? sub,
+    Color? color,
+  }) {
+    return Padding(
+      padding: ResponsiveHelper.getResponsivePadding(context, vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: ResponsiveHelper.getResponsiveWidth(context, 112),
+            child: Text(
+              label,
+              style: _style(context, 12, AppFontWeight.medium, AppColors.textSecondary),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: _style(context, 12.5, AppFontWeight.semiBold, color ?? AppColors.textHeading),
+                ),
+                if (sub != null)
+                  Text(sub, style: _style(context, 11.5, AppFontWeight.regular, AppColors.infoBlue)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  TextStyle _style(BuildContext context, double size, FontWeight weight, Color color) =>
+      AppTextStyles.base(
+        fontSize: ResponsiveHelper.getResponsiveFontSize(context, size),
+        fontWeight: weight,
+        color: color,
+      );
 }

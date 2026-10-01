@@ -21,12 +21,16 @@ class CalendarTabView extends StatelessWidget {
   final VoidCallback? onNextWeek;
   final ValueChanged<CalendarDay>? onDaySelected;
 
+  /// Opens a shift for editing (web `onOpenShift`); `null` when read-only.
+  final ValueChanged<CalendarShift>? onShiftTap;
+
   const CalendarTabView({
     super.key,
     required this.data,
     this.onPreviousWeek,
     this.onNextWeek,
     this.onDaySelected,
+    this.onShiftTap,
   });
 
   @override
@@ -92,9 +96,16 @@ class CalendarTabView extends StatelessWidget {
                 ),
                 SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                 for (var i = 0; i < data.shifts.length; i++)
-                  _ShiftTimelineRow(
-                    shift: data.shifts[i],
-                    isLast: i == data.shifts.length - 1,
+                  GestureDetector(
+                    key: ValueKey('calendar-shift-${data.shifts[i].id}'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onShiftTap == null
+                        ? null
+                        : () => onShiftTap!(data.shifts[i]),
+                    child: _ShiftTimelineRow(
+                      shift: data.shifts[i],
+                      isLast: i == data.shifts.length - 1,
+                    ),
                   ),
               ],
             ),

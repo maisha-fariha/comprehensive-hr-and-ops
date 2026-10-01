@@ -4,6 +4,7 @@ import 'package:comprehensive_hr_and_ops/core/network/app_api_client.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/data/mappers/scheduling_mapper.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/data/repositories/scheduling_repository_impl.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/create_shift_draft.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_enums.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_residence_option.dart';
@@ -62,6 +63,18 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   @override
   Future<Result<int>> createShift(Map<String, dynamic> payload) async =>
       Result.success(1);
+
+  @override
+  Future<Result<CreateShiftDraft>> getShiftDraft(String shiftId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> updateShift({
+    required String shiftId,
+    required Map<String, dynamic> payload,
+    required List<String> staffIds,
+  }) =>
+      throw UnimplementedError();
 
   @override
   Future<Result<void>> decideShiftSwap({

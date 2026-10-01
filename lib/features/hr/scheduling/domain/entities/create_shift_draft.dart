@@ -397,6 +397,14 @@ class CreateShiftDraft {
     };
   }
 
+  /// `PATCH /shifts/{id}` body: the create body minus the fields the web
+  /// strips on edit (assignments go through `PUT /shifts/{id}/assignments`).
+  Map<String, dynamic> toUpdateBody() => toCreateBody()
+    ..remove('staffIds')
+    ..remove('recurrence')
+    ..remove('tasks')
+    ..remove('notifyAssignedStaff');
+
   /// Every user-editable value; differs from the initial snapshot when the
   /// form has unsaved edits.
   String snapshot() => jsonEncode({

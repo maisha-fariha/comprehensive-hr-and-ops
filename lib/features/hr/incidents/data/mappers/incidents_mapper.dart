@@ -8,6 +8,7 @@ import '../../domain/entities/incident_investigation_summary.dart';
 import '../../domain/entities/incident_residence_option.dart';
 import '../../domain/entities/incident_staff_option.dart';
 import '../../domain/entities/incident_stat.dart';
+import '../../domain/entities/incident_witness_statement.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../../domain/entities/investigation_incident.dart';
@@ -15,6 +16,34 @@ import '../../domain/entities/open_incident.dart';
 import '../cir_answer_formatter.dart';
 
 abstract final class IncidentsMapper {
+  /// Parse `GET /incidents/:id/witness-statements`.
+  static List<IncidentWitnessStatement> witnessStatementsFrom(dynamic body) {
+    final statements = <IncidentWitnessStatement>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id']);
+      if (id == null) continue;
+      final takenBy = JsonCodec.mapAt(json, 'takenBy');
+      final takenByName = takenBy == null
+          ? null
+          : '${JsonCodec.stringOr(takenBy['firstName'], '')} '
+                  '${JsonCodec.stringOr(takenBy['lastName'], '')}'
+              .trim();
+      statements.add(
+        IncidentWitnessStatement(
+          id: id,
+          witnessType: JsonCodec.stringOr(json['witnessType'], 'staff'),
+          witnessName: JsonCodec.stringOr(json['witnessName'], ''),
+          statementText: JsonCodec.stringOr(json['statementText'], ''),
+          takenByName: takenByName,
+          signedAt: JsonCodec.dateTime(json['signedAt'])?.toLocal(),
+        ),
+      );
+    }
+    return statements;
+  }
+
   /// Parse `GET /residences` into dropdown options.
   static List<IncidentResidenceOption> residencesFrom(dynamic body) {
     final source = JsonCodec.unwrapList(body);

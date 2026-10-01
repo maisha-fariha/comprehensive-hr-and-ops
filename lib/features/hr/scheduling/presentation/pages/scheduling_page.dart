@@ -44,6 +44,18 @@ class SchedulingPage extends StatelessWidget {
     }
   }
 
+  Future<void> _openEditShift(
+    SchedulingController controller,
+    String shiftId,
+  ) async {
+    final saved = await Get.to<bool>(
+      () => CreateShiftPage(editShiftId: shiftId),
+    );
+    if (saved == true) {
+      await controller.refresh();
+    }
+  }
+
   Future<void> _pickDate(
     BuildContext context,
     SchedulingController controller,
@@ -143,8 +155,16 @@ class SchedulingPage extends StatelessWidget {
                       onNextWeek: controller.goToNextWeek,
                       onDaySelected: (day) =>
                           controller.selectCalendarDay(day.date),
+                      onShiftTap: controller.canWrite
+                          ? (shift) => _openEditShift(controller, shift.id)
+                          : null,
                     ),
-                    SchedulingTab.board => BoardTabView(data: overview.board),
+                    SchedulingTab.board => BoardTabView(
+                      data: overview.board,
+                      onShiftTap: controller.canWrite
+                          ? (shift) => _openEditShift(controller, shift.id)
+                          : null,
+                    ),
                     SchedulingTab.requests => RequestsTabView(
                       data: overview.requests,
                       onApprove: controller.approveRequest,

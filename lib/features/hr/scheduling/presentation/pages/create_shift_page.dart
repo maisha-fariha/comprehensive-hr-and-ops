@@ -26,10 +26,14 @@ class CreateShiftPage extends StatefulWidget {
   /// Pre-filled shift date (the scheduling page's selected day).
   final DateTime? initialShiftDate;
 
+  /// Opens the wizard as the web "Edit Shift" dialog for this shift.
+  final String? editShiftId;
+
   const CreateShiftPage({
     super.key,
     this.initialResidenceId,
     this.initialShiftDate,
+    this.editShiftId,
   });
 
   @override
@@ -38,8 +42,12 @@ class CreateShiftPage extends StatefulWidget {
 
 class _CreateShiftPageState extends State<CreateShiftPage> {
   late final SchedulingRepository _repository;
-  late final CreateShiftDraft _draft;
-  late final String _initialSnapshot;
+  late CreateShiftDraft _draft;
+  late String _initialSnapshot;
+  bool _isLoadingShift = false;
+  String? _shiftError;
+
+  bool get _isEdit => widget.editShiftId != null;
 
   late final TextEditingController _titleController;
   late final TextEditingController _notesController;
@@ -84,8 +92,58 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     _messageController =
         TextEditingController(text: _draft.notificationMessage);
     _initialSnapshot = _draft.snapshot();
+    if (_isEdit) _loadShift();
     _loadResidences();
     _loadStaff();
+  }
+
+  Future<void> _loadShift() async {
+    setState(() {
+      _isLoadingShift = true;
+      _shiftError = null;
+    });
+    final result = await _repository.getShiftDraft(widget.editShiftId!);
+    if (!mounted) return;
+    result.when(
+      success: (draft) => setState(() {
+        _isLoadingShift = false;
+        _draft = draft;
+        _labelAssignedStaff();
+        _titleController.text = draft.title;
+        _notesController.text = draft.notes;
+        _requiredStaffCountController.text = draft.requiredStaffCount;
+        _maxBidsController.text = draft.maxBids;
+        _noteToBiddersController.text = draft.noteToBidders;
+        _occurrenceController.text = draft.occurrenceCount;
+        _messageController.text = draft.notificationMessage;
+        _initialSnapshot = draft.snapshot();
+      }),
+      failure: (error) => setState(() {
+        _isLoadingShift = false;
+        _shiftError = error.message;
+      }),
+    );
+  }
+
+  /// Fills each assigned person's role/residence from the staff list, like
+  /// the web's `shiftToFormValues` staff-label lookup.
+  void _labelAssignedStaff() {
+    final staff = _draft.assignedStaff;
+    for (var i = 0; i < staff.length; i++) {
+      final current = staff[i];
+      if (current.roleLabel.isNotEmpty || current.residenceLabel.isNotEmpty) {
+        continue;
+      }
+      final option =
+          _staffOptions.where((o) => o.id == current.staffId).firstOrNull;
+      if (option == null) continue;
+      staff[i] = AssignedShiftStaff(
+        staffId: current.staffId,
+        staffName: current.staffName,
+        roleLabel: option.role ?? '',
+        residenceLabel: option.residenceLabel ?? '',
+      );
+    }
   }
 
   @override
@@ -136,6 +194,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         _staffOptions
           ..clear()
           ..addAll(data);
+        _labelAssignedStaff();
       }),
       failure: (error) => setState(() {
         _isLoadingStaff = false;
@@ -209,6 +268,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       _isSubmitting = true;
       _submitError = null;
     });
+    if (_isEdit) {
+      await _saveEdit();
+      return;
+    }
     final result = await _repository.createShift(_draft.toCreateBody());
     if (!mounted) return;
     result.when(
@@ -219,6 +282,30 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
             count == 1 ? 'Shift created' : '$count shifts created',
             '',
           );
+        });
+      },
+      failure: (error) {
+        setState(() {
+          _isSubmitting = false;
+          _submitError = error.message;
+        });
+        if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      },
+    );
+  }
+
+  Future<void> _saveEdit() async {
+    final result = await _repository.updateShift(
+      shiftId: widget.editShiftId!,
+      payload: _draft.toUpdateBody(),
+      staffIds: [for (final staff in _draft.assignedStaff) staff.staffId],
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        Navigator.of(context).pop(true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          AppSnackbar.show('Shift updated', '');
         });
       },
       failure: (error) {
@@ -414,7 +501,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       context: context,
       initialTime: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
         child: _pickerTheme(context, child),
       ),
     );
@@ -477,12 +564,16 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     return '${_months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
-  String? _formatTime(int? minutes) {
+  /// "07:00 AM" — the 12-hour form the web's time inputs show.
+  static String? formatShiftTime(int? minutes) {
     if (minutes == null) return null;
-    final h = (minutes ~/ 60).toString().padLeft(2, '0');
+    final hour = minutes ~/ 60;
+    final h12 = hour % 12 == 0 ? 12 : hour % 12;
     final m = (minutes % 60).toString().padLeft(2, '0');
-    return '$h:$m';
+    return '${h12.toString().padLeft(2, '0')}:$m ${hour < 12 ? 'AM' : 'PM'}';
   }
+
+  String? _formatTime(int? minutes) => formatShiftTime(minutes);
 
   String? get _residenceLabel {
     if (_draft.residenceId.isEmpty) return null;
@@ -512,42 +603,77 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           child: Column(
             children: [
               CreateShiftHeader(
+                title: _isEdit ? 'Edit Shift' : 'Add New Shift',
                 onClose: _isSubmitting ? null : _requestClose,
               ),
-              CreateShiftStepTabs(
-                selected: _step,
-                completed: completed,
-                onSelected: _isSubmitting ? null : _goTo,
-              ),
-              CreateShiftCompletionBar(
-                currentStep: _draft.completedSteps,
-                totalSteps: CreateShiftStep.values.length,
-                percent: _draft.completionPercent.toDouble(),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (_submitError != null) _SubmitErrorBanner(_submitError!),
-                      _bodyForStep(),
-                    ],
+              if (_isLoadingShift || _shiftError != null)
+                Expanded(child: _shiftLoadState())
+              else ...[
+                CreateShiftStepTabs(
+                  selected: _step,
+                  completed: completed,
+                  onSelected: _isSubmitting ? null : _goTo,
+                ),
+                CreateShiftCompletionBar(
+                  currentStep: _draft.completedSteps,
+                  totalSteps: CreateShiftStep.values.length,
+                  percent: _draft.completionPercent.toDouble(),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_submitError != null) _SubmitErrorBanner(_submitError!),
+                        _bodyForStep(),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              CreateShiftFooter(
-                isFirstStep: isFirst,
-                isLastStep: isLast,
-                isSubmitting: _isSubmitting,
-                plannedOccurrences: _draft.plannedOccurrences(),
-                onCancel: _requestClose,
-                onBack: _back,
-                onNext: _next,
-                onSubmit: _submit,
-              ),
+                CreateShiftFooter(
+                  isFirstStep: isFirst,
+                  isLastStep: isLast,
+                  isSubmitting: _isSubmitting,
+                  plannedOccurrences: _draft.plannedOccurrences(),
+                  onCancel: _requestClose,
+                  onBack: _back,
+                  onNext: _next,
+                  onSubmit: _submit,
+                  isEdit: _isEdit,
+                ),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _shiftLoadState() {
+    if (_isLoadingShift) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+      );
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _shiftError ?? 'Could not load this shift.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton(onPressed: _loadShift, child: const Text('Retry')),
+          ],
         ),
       ),
     );

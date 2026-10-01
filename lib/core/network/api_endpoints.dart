@@ -239,6 +239,10 @@ abstract final class ApiEndpoints {
   static String incidentEvidence(String id) => '$incidents/$id/evidence';
   static String incidentAcknowledge(String id) => '$incidents/$id/acknowledge';
   static String incidentActivity(String id) => '$incidents/$id/activity';
+  static String incidentWitnessStatements(String id) =>
+      '$incidents/$id/witness-statements';
+  static String incidentWitnessStatementSign(String id, String statementId) =>
+      '$incidents/$id/witness-statements/$statementId/sign';
   static String incidentCirPdf(String id) => '$incidents/$id/cir.pdf';
   static String incidentCirPdfLink(String id) => '$incidents/$id/cir-pdf-link';
   static String notificationRead(String id) => '$notifications/$id/read';

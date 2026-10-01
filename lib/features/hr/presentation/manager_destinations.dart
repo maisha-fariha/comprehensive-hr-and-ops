@@ -3,13 +3,19 @@ import 'package:get/get.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/roles/user_session.dart';
+import '../admissions/presentation/pages/admissions_page.dart';
+import '../appointments/presentation/pages/hr_appointments_page.dart';
 import '../clients/presentation/pages/clients_page.dart';
 import '../communication/presentation/pages/communication_page.dart';
+import '../daily_activity/presentation/pages/daily_activity_page.dart';
 import '../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../documents/presentation/pages/hr_documents_page.dart';
 import '../emergency/presentation/pages/emergency_page.dart';
 import '../handovers/presentation/pages/handovers_page.dart';
 import '../hr_shell.dart';
+import '../inventory/presentation/pages/inventory_page.dart';
 import '../medication/presentation/pages/medication_page.dart';
+import '../training/presentation/pages/hr_training_page.dart';
 import '../profile_settings/presentation/pages/hr_profile_settings_page.dart';
 import '../recurring_checks/presentation/pages/recurring_checks_page.dart';
 import '../residences/presentation/pages/residences_page.dart';
@@ -98,6 +104,16 @@ List<ManagerDestination> managerDestinations() {
         open: () => Get.to(() => const ClientsPage()),
         keywords: const ['residents', 'directory', 'care plan'],
       ),
+    if (can('admissions:read'))
+      ManagerDestination(
+        title: 'Admissions',
+        subtitle: 'Referrals, waitlist, intake forms and admitting',
+        icon: Icons.person_add_alt_1_outlined,
+        iconBackground: AppColors.quickActionCreateShiftBg,
+        iconColor: AppColors.secondaryTeal,
+        open: () => Get.to(() => const AdmissionsPage()),
+        keywords: const ['admissions', 'admission', 'referral', 'referrals', 'waitlist', 'intake', 'admit'],
+      ),
     ManagerDestination(
       title: 'Scheduling',
       subtitle: 'Shifts, coverage & swap requests',
@@ -167,15 +183,66 @@ List<ManagerDestination> managerDestinations() {
         open: () => Get.to(() => const RecurringChecksPage()),
         keywords: const ['recurring', 'checks', 'welfare', 'vitals', 'schedule'],
       ),
-    ManagerDestination(
-      title: 'Medication',
-      subtitle: 'MAR oversight across all residences',
-      icon: Icons.medication_outlined,
-      iconBackground: AppColors.activeBackground,
-      iconColor: AppColors.activeGreen,
-      open: () => Get.to(() => const MedicationPage()),
-      keywords: const ['mar', 'meds'],
-    ),
+    if (can('mar:read'))
+      ManagerDestination(
+        title: 'Medication',
+        subtitle: 'MAR oversight across all residences',
+        icon: Icons.medication_outlined,
+        iconBackground: AppColors.activeBackground,
+        iconColor: AppColors.activeGreen,
+        open: () => Get.to(() => const MedicationPage()),
+        keywords: const ['mar', 'meds'],
+      ),
+    if (can('client-activities:read'))
+      ManagerDestination(
+        title: 'Daily Activity',
+        subtitle: 'What residents did — outings, programmes and observations',
+        icon: Icons.monitor_heart_outlined,
+        iconBackground: AppColors.quickActionCreateShiftBg,
+        iconColor: AppColors.secondaryTeal,
+        open: () => Get.to(() => const DailyActivityPage()),
+        keywords: const ['activity', 'activities', 'daily activity', 'outing', 'programme', 'school', 'resident history'],
+      ),
+    if (can('appointments:read'))
+      ManagerDestination(
+        title: 'Appointments',
+        subtitle: 'Family visit requests, approvals and bookings',
+        icon: Icons.event_available_rounded,
+        iconBackground: AppColors.urgentBackground,
+        iconColor: AppColors.urgentAmber,
+        open: () => Get.to(() => const HrAppointmentsPage()),
+        keywords: const ['appointments', 'appointment', 'visits', 'family visit', 'approvals', 'booking'],
+      ),
+    if (can('inventory:read'))
+      ManagerDestination(
+        title: 'Inventory',
+        subtitle: 'Stock, counts, transfers & purchasing',
+        icon: Icons.inventory_2_outlined,
+        iconBackground: AppColors.urgentBackground,
+        iconColor: AppColors.urgentAmber,
+        open: () => Get.to(() => const InventoryPage()),
+        keywords: const ['inventory', 'stock', 'supplies', 'items', 'counts', 'transfers', 'purchasing', 'orders', 'suppliers'],
+      ),
+    if (can('documents:read'))
+      ManagerDestination(
+        title: 'Documents',
+        subtitle: 'Certificates, care plans & policies on file',
+        icon: Icons.folder_copy_outlined,
+        iconBackground: AppColors.infoBackground,
+        iconColor: AppColors.infoBlue,
+        open: () => Get.to(() => const HrDocumentsPage()),
+        keywords: const ['documents', 'documentation', 'certificates', 'files', 'compliance', 'expiry', 'registry'],
+      ),
+    if (can('training:read'))
+      ManagerDestination(
+        title: 'Training',
+        subtitle: 'Courses, assignments, sittings & certificates',
+        icon: Icons.school_outlined,
+        iconBackground: AppColors.nightBackground,
+        iconColor: AppColors.nightPurple,
+        open: () => Get.to(() => const HrTrainingPage()),
+        keywords: const ['training', 'course', 'courses', 'certificate', 'quiz', 'assignment', 'learning'],
+      ),
     ManagerDestination(
       title: 'Tasks & Compliance',
       subtitle: 'Due tasks, compliance checks & corrective actions',

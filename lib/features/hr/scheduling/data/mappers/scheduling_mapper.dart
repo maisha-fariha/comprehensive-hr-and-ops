@@ -6,6 +6,7 @@ import '../../domain/entities/calendar_day.dart';
 import '../../domain/entities/calendar_schedule.dart';
 import '../../domain/entities/calendar_shift.dart';
 import '../../domain/entities/coverage_summary.dart';
+import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/open_position.dart';
 import '../../domain/entities/requests_overview.dart';
 import '../../domain/entities/scheduling_enums.dart';
@@ -16,6 +17,65 @@ import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/staff_avatar.dart';
 
 abstract final class SchedulingMapper {
+  /// Parse `GET /shifts/{id}` into the Edit Shift form, field-for-field
+  /// with the web `shiftToFormValues`.
+  static CreateShiftDraft draftFromShift(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final startsAt = JsonCodec.dateTime(json['startsAt'])?.toLocal();
+    final endsAt = JsonCodec.dateTime(json['endsAt'])?.toLocal();
+    final bidding = JsonCodec.mapAt(json, 'biddingConfig');
+    final closesAt = bidding == null
+        ? null
+        : JsonCodec.dateTime(bidding['biddingClosesAt'])?.toLocal();
+    final requiredCount = JsonCodec.integer(json['requiredStaffCount']);
+    final maxBids = bidding == null ? null : JsonCodec.integer(bidding['maxBids']);
+    final reminder = JsonCodec.integer(json['reminderMinutesBefore']);
+
+    final draft = CreateShiftDraft(
+      residenceId: JsonCodec.string(json['residenceId']),
+      shiftDate: startsAt,
+    )
+      ..shiftType = JsonCodec.string(json['shiftType']) ?? 'custom'
+      ..startMinutes =
+          startsAt == null ? null : startsAt.hour * 60 + startsAt.minute
+      ..endMinutes = endsAt == null ? null : endsAt.hour * 60 + endsAt.minute
+      ..breakMinutes = JsonCodec.integer(json['breakMinutes']) ?? 0
+      ..requiredStaffCount =
+          requiredCount == null || requiredCount == 0 ? '' : '$requiredCount'
+      ..title = JsonCodec.string(json['title']) ?? ''
+      ..notes = JsonCodec.string(json['notes']) ?? ''
+      ..isOpenShift = json['status'] == 'open' || bidding != null
+      ..noteToBidders =
+          (bidding == null ? null : JsonCodec.string(bidding['noteToBidders'])) ??
+              ''
+      ..reminderMinutes = reminder == null || reminder == 0 ? null : reminder;
+    if (closesAt != null) {
+      draft
+        ..biddingDeadlineDate =
+            DateTime(closesAt.year, closesAt.month, closesAt.day)
+        ..biddingDeadlineMinutes = closesAt.hour * 60 + closesAt.minute;
+    }
+    if (maxBids != null && maxBids != 0) draft.maxBids = '$maxBids';
+    final priority = bidding == null ? null : JsonCodec.string(bidding['priority']);
+    if (priority != null) draft.priority = priority;
+    final award = bidding == null ? null : JsonCodec.string(bidding['awardMethod']);
+    if (award != null) draft.awardMethod = award;
+
+    for (final person in JsonCodec.listAt(json, 'staff')) {
+      if (person is! Map) continue;
+      final staff = JsonCodec.asMap(person);
+      final id = JsonCodec.string(staff['id']);
+      if (id == null) continue;
+      draft.assignedStaff.add(
+        AssignedShiftStaff(
+          staffId: id,
+          staffName: JsonCodec.string(staff['name']) ?? 'Unnamed',
+        ),
+      );
+    }
+    return draft;
+  }
+
   /// Parse `GET /staff` into Create Shift assign-staff options.
   static List<ShiftStaffOption> staffFrom(dynamic body) {
     final source = JsonCodec.unwrapList(body);

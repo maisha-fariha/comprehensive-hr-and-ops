@@ -73,6 +73,18 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   }
 
   @override
+  Future<Result<CreateShiftDraft>> getShiftDraft(String shiftId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> updateShift({
+    required String shiftId,
+    required Map<String, dynamic> payload,
+    required List<String> staffIds,
+  }) =>
+      throw UnimplementedError();
+
+  @override
   Future<Result<void>> decideShiftSwap({
     required String swapId,
     required bool approve,
@@ -222,8 +234,8 @@ void main() {
       expect(_label(removed), findsNothing, reason: removed);
     }
     expect(find.text('Morning (07:00 – 15:00)'), findsOneWidget);
-    expect(find.text('07:00'), findsOneWidget);
-    expect(find.text('15:00'), findsOneWidget);
+    expect(find.text('07:00 AM'), findsOneWidget);
+    expect(find.text('03:00 PM'), findsOneWidget);
     expect(find.text('30 minutes'), findsOneWidget);
     expect(find.text('Oct 5, 2026'), findsOneWidget);
     expect(find.text('Select residence'), findsOneWidget);
@@ -356,7 +368,7 @@ void main() {
     ]) {
       expect(_label(field), findsWidgets, reason: field);
     }
-    expect(find.text('18:00'), findsOneWidget);
+    expect(find.text('06:00 PM'), findsOneWidget);
     expect(find.text('Medium'), findsOneWidget);
     expect(find.text('Manager selects winner'), findsOneWidget);
 

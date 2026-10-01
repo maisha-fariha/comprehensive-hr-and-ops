@@ -17,6 +17,7 @@ import '../../domain/entities/incident_evidence_file.dart';
 import '../../domain/entities/incident_investigation_summary.dart';
 import '../../domain/entities/incident_residence_option.dart';
 import '../../domain/entities/incident_staff_option.dart';
+import '../../domain/entities/incident_witness_statement.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/repositories/incidents_repository.dart';
 import '../mappers/incidents_mapper.dart';
@@ -557,6 +558,58 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
       return server;
     }
     return _buildIncidentListCsvFromApi();
+  }
+
+  @override
+  Future<Result<List<IncidentWitnessStatement>>> getWitnessStatements(
+    String incidentId,
+  ) async {
+    final result = await _api.get(
+      ApiEndpoints.incidentWitnessStatements(incidentId),
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(IncidentsMapper.witnessStatementsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> addWitnessStatement({
+    required String incidentId,
+    required String witnessType,
+    required String witnessName,
+    required String statementText,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.incidentWitnessStatements(incidentId),
+      data: {
+        'witnessType': witnessType,
+        'witnessName': witnessName,
+        'statementText': statementText,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> signWitnessStatement({
+    required String incidentId,
+    required String statementId,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.incidentWitnessStatementSign(incidentId, statementId),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
   }
 
   /// Web path: `POST /reports/exports` with `reportKey: incident_log`, poll,

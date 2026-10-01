@@ -15,6 +15,7 @@ class IncidentDetailsActions extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onAcknowledge;
   final bool showAcknowledge;
+  final bool showEdit;
 
   const IncidentDetailsActions({
     super.key,
@@ -22,6 +23,7 @@ class IncidentDetailsActions extends StatelessWidget {
     this.onEdit,
     this.onAcknowledge,
     this.showAcknowledge = true,
+    this.showEdit = true,
   });
 
   @override
@@ -55,47 +57,48 @@ class IncidentDetailsActions extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(width: gap),
-            Expanded(
-              child: _ActionButton(
-                height: height,
-                radius: radius,
-                background: AppColors.surfaceWhite,
-                borderColor: _teal,
-                onTap: onEdit ?? () {},
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppSvgIcon(
-                      'assets/icons/staff_incidents/edit.svg',
-                      size: ResponsiveHelper.getResponsiveSize(context, 16),
-                      color: _teal,
-                    ),
-                    SizedBox(
-                      width: ResponsiveHelper.getResponsiveWidth(context, 8),
-                    ),
-                    Flexible(
-                      child: Text(
-                        'Edit',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            15,
+            if (showEdit) SizedBox(width: gap),
+            if (showEdit)
+              Expanded(
+                child: _ActionButton(
+                  height: height,
+                  radius: radius,
+                  background: AppColors.surfaceWhite,
+                  borderColor: _teal,
+                  onTap: onEdit ?? () {},
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppSvgIcon(
+                        'assets/icons/staff_incidents/edit.svg',
+                        size: ResponsiveHelper.getResponsiveSize(context, 16),
+                        color: _teal,
+                      ),
+                      SizedBox(
+                        width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                      ),
+                      Flexible(
+                        child: Text(
+                          'Edit',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              15,
+                            ),
+                            color: _teal,
+                            height: 1,
                           ),
-                          color: _teal,
-                          height: 1,
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         if (showAcknowledge) ...[

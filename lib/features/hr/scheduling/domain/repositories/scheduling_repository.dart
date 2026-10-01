@@ -1,5 +1,6 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../entities/create_shift_draft.dart';
 import '../entities/scheduling_enums.dart';
 import '../entities/scheduling_overview.dart';
 import '../entities/shift_residence_option.dart';
@@ -35,6 +36,17 @@ abstract class SchedulingRepository {
   /// Creates a shift (or a recurring series) via `POST /shifts`.
   /// Returns how many shifts were created.
   Future<Result<int>> createShift(Map<String, dynamic> payload);
+
+  /// Loads one shift (`GET /shifts/{id}`) as an Edit Shift form.
+  Future<Result<CreateShiftDraft>> getShiftDraft(String shiftId);
+
+  /// Saves an edited shift like the web: `PATCH /shifts/{id}` with
+  /// [payload], then `PUT /shifts/{id}/assignments` with [staffIds].
+  Future<Result<void>> updateShift({
+    required String shiftId,
+    required Map<String, dynamic> payload,
+    required List<String> staffIds,
+  });
 
   /// Manager decision on a pending shift-swap request.
   Future<Result<void>> decideShiftSwap({

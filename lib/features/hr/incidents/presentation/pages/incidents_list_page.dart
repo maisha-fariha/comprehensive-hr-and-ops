@@ -6,6 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../domain/entities/incidents_board.dart';
@@ -18,6 +19,7 @@ import '../widgets/incident_stat_tile_row.dart';
 import '../widgets/investigation_incident_card.dart';
 import '../widgets/investigation_summary_sheet.dart';
 import '../widgets/open_incident_card.dart';
+import 'hr_incident_details_page.dart';
 import 'incident_creation_page.dart';
 
 /// The Incidents list screen — "Open / Under Review / Closed" tabs.
@@ -36,6 +38,23 @@ class IncidentsListPage extends StatelessWidget {
   Future<void> _openCreationWizard(IncidentsController controller) async {
     final created = await Get.to<bool>(() => const IncidentCreationPage());
     if (created == true) {
+      await controller.refresh();
+    }
+  }
+
+  Future<void> _openDetails(
+    IncidentsController controller,
+    String incidentId,
+  ) async {
+    final session =
+        Get.isRegistered<UserSession>() ? Get.find<UserSession>() : null;
+    final changed = await Get.to<bool>(
+      () => HrIncidentDetailsPage(
+        incidentId: incidentId,
+        canWrite: session?.can('incidents:write') ?? true,
+      ),
+    );
+    if (changed == true) {
       await controller.refresh();
     }
   }
@@ -165,7 +184,11 @@ class IncidentsListPage extends StatelessWidget {
           ),
           gap10,
           for (final incident in section.incidents) ...[
-            OpenIncidentCard(incident: incident),
+            OpenIncidentCard(
+              key: ValueKey('incident-open-${incident.id}'),
+              incident: incident,
+              onTap: () => _openDetails(controller, incident.id),
+            ),
             gap10,
           ],
         ];
@@ -182,21 +205,26 @@ class IncidentsListPage extends StatelessWidget {
           ),
           gap10,
           for (final incident in section.incidents) ...[
-            InvestigationIncidentCard(
-              incident: incident,
-              onViewInvestigation: () => showInvestigationSummarySheet(
-                context,
+            GestureDetector(
+              key: ValueKey('incident-review-${incident.id}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openDetails(controller, incident.id),
+              child: InvestigationIncidentCard(
                 incident: incident,
-              ),
-              onAddNote: () async {
-                final saved = await showAddInvestigationNoteSheet(
+                onViewInvestigation: () => showInvestigationSummarySheet(
                   context,
                   incident: incident,
-                );
-                if (saved) {
-                  await controller.refresh();
-                }
-              },
+                ),
+                onAddNote: () async {
+                  final saved = await showAddInvestigationNoteSheet(
+                    context,
+                    incident: incident,
+                  );
+                  if (saved) {
+                    await controller.refresh();
+                  }
+                },
+              ),
             ),
             gap10,
           ],
@@ -234,7 +262,12 @@ class IncidentsListPage extends StatelessWidget {
           ),
           gap10,
           for (final incident in section.incidents) ...[
-            ClosedIncidentCard(incident: incident),
+            GestureDetector(
+              key: ValueKey('incident-closed-${incident.id}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openDetails(controller, incident.id),
+              child: ClosedIncidentCard(incident: incident),
+            ),
             gap10,
           ],
         ];

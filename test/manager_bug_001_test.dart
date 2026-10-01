@@ -173,6 +173,17 @@ void main() {
       'Incidents',
       'Daily Logs',
     ]) {
+      await tester.scrollUntilVisible(
+        find.text(page),
+        80,
+        scrollable: find.descendant(
+          of: find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.byType(ListView),
+          ),
+          matching: find.byType(Scrollable),
+        ),
+      );
       expect(find.text(page), findsOneWidget, reason: '$page should be listed');
     }
     // The filter tap must not fall through to the full-text search screen.

@@ -9,13 +9,36 @@ class ClientSummary {
   final String? photoUrl;
   final String? residenceId;
   final String? residenceName;
+
+  /// Display room: the room name, else the free-text `roomNumber`.
   final String? room;
+  final String? roomId;
+  final String? roomNumber;
+
+  /// API `level` (`Low` / `Medium` / `High`).
   final String? careLevel;
+
+  /// Raw API status (`Active`, `active`, `Pending`, ...).
   final String status;
   final DateTime? dateOfBirth;
+  final DateTime? admissionDate;
+  final String? gender;
+  final String? fundingSource;
+  final Map<String, bool> portalVisibility;
   final List<String> allergies;
   final List<String> conditions;
+  final List<String> diagnoses;
+  final List<String> currentMedications;
+  final String doctorName;
+  final String pharmacyName;
+  final String behavioralTriggers;
+  final String safetyPlanNotes;
   final List<String> carePlanGoals;
+  final List<String> outcomes;
+  final String servicePlan;
+  final String progressNotes;
+  final String assignmentNotes;
+  final String contactNotes;
   final int? reviewCycleDays;
   final List<ClientTransfer> transfers;
 
@@ -28,11 +51,28 @@ class ClientSummary {
     this.residenceId,
     this.residenceName,
     this.room,
+    this.roomId,
+    this.roomNumber,
     this.careLevel,
     this.dateOfBirth,
+    this.admissionDate,
+    this.gender,
+    this.fundingSource,
+    this.portalVisibility = const {},
     this.allergies = const [],
     this.conditions = const [],
+    this.diagnoses = const [],
+    this.currentMedications = const [],
+    this.doctorName = '',
+    this.pharmacyName = '',
+    this.behavioralTriggers = '',
+    this.safetyPlanNotes = '',
     this.carePlanGoals = const [],
+    this.outcomes = const [],
+    this.servicePlan = '',
+    this.progressNotes = '',
+    this.assignmentNotes = '',
+    this.contactNotes = '',
     this.reviewCycleDays,
     this.transfers = const [],
   });
@@ -48,11 +88,8 @@ class ClientSummary {
     return letters.isEmpty ? '?' : letters;
   }
 
-  /// Short display id, e.g. `#A1F320`.
-  String get shortId {
-    final compact = id.replaceAll('-', '').toUpperCase();
-    return '#${compact.length <= 6 ? compact : compact.substring(0, 6)}';
-  }
+  /// The web's short id: the first 8 characters of the UUID.
+  String get shortId => id.length <= 8 ? id : id.substring(0, 8);
 
   bool get isActive => status.toLowerCase() == 'active';
 

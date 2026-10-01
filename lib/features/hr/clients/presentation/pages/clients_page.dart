@@ -5,14 +5,19 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
-import '../../../../../core/constants/app_text_styles.dart';
+import '../../../attendance/presentation/widgets/attendance_pagination.dart';
+import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
+import '../../domain/entities/client_summary.dart';
+import '../clients_labels.dart';
 import '../controllers/clients_controller.dart';
+import '../widgets/add_client_sheet.dart';
 import '../widgets/client_card.dart';
+import '../widgets/clients_common.dart';
+import '../widgets/move_client_sheet.dart';
 import 'client_detail_page.dart';
 
-/// Manager "Client Directory": search by name/ID, residence and status
-/// filters, and the list of residents in the manager's scope.
+/// Web `/dashboard/clients` ("Client Directory").
 class ClientsPage extends StatefulWidget {
   /// Pre-selects the residence filter (e.g. from a residence detail page).
   final String? initialResidenceId;
@@ -25,6 +30,7 @@ class ClientsPage extends StatefulWidget {
 
 class _ClientsPageState extends State<ClientsPage> {
   late final ClientsController _controller;
+  int _searchGeneration = 0;
 
   @override
   void initState() {
@@ -34,8 +40,39 @@ class _ClientsPageState extends State<ClientsPage> {
     } catch (_) {
       _controller = Get.put(GetIt.instance<ClientsController>());
     }
-    if (widget.initialResidenceId != null) {
-      _controller.residenceFilter.value = widget.initialResidenceId;
+    _controller.openWith(residenceId: widget.initialResidenceId);
+  }
+
+  void _clearFilters() {
+    setState(() => _searchGeneration++);
+    _controller.clearFilters();
+  }
+
+  Future<void> _open(ClientSummary client, {bool editing = false}) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => ClientDetailPage(client: client, editing: editing)),
+    );
+    if (changed == true) await _controller.loadClients();
+  }
+
+  Future<void> _onAction(ClientSummary client, ClientRowAction action) async {
+    switch (action) {
+      case ClientRowAction.view:
+        await _open(client);
+      case ClientRowAction.edit:
+        await _open(client, editing: true);
+      case ClientRowAction.move:
+        await showMoveClientSheet(context, _controller, client);
+      case ClientRowAction.delete:
+        final ok = await confirmClientAction(
+          context,
+          title: 'Delete ${client.firstName} ${client.lastName}?',
+          description: 'This removes the client from the directory along with their '
+              'daily logs, care plan, and family portal access.',
+          confirmLabel: 'Delete Client',
+          confirmKey: const ValueKey('client-delete-confirm'),
+        );
+        if (ok) await _controller.deleteClient(client);
     }
   }
 
@@ -46,27 +83,13 @@ class _ClientsPageState extends State<ClientsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      appBar: hrSubPageAppBar(context, 'Clients'),
+      appBar: hrSubPageAppBar(context, 'Client Directory'),
       body: SafeArea(
         top: false,
         child: Obx(() {
-          final all = controller.clients;
-          if (all.isEmpty && controller.isLoading.value) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.secondaryTeal),
-            );
-          }
-          if (all.isEmpty && controller.errorMessage.value.isNotEmpty) {
-            return Center(
-              child: HrMessageView(
-                icon: Icons.error_outline_rounded,
-                message: controller.errorMessage.value,
-                onRetry: controller.refresh,
-              ),
-            );
-          }
-
-          final items = controller.filtered;
+          final items = controller.clients.toList();
+          final loading = controller.isLoading.value;
+          final error = controller.loadError.value;
           return RefreshIndicator(
             color: AppColors.secondaryTeal,
             onRefresh: controller.refresh,
@@ -78,65 +101,137 @@ class _ClientsPageState extends State<ClientsPage> {
                 vertical: 16,
               ),
               children: [
+                _actions(context),
+                SizedBox(height: gap),
                 HrSearchField(
-                  hint: 'Search by client name or ID',
-                  onChanged: (v) => controller.query.value = v,
+                  key: ValueKey('clients-search-$_searchGeneration'),
+                  hint: 'Search clients...',
+                  onChanged: controller.setSearch,
                 ),
                 SizedBox(height: gap),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     HrFilterPill(
-                      allLabel: 'All residences',
+                      allLabel: 'All Residences',
                       value: controller.residenceFilter.value,
                       options: controller.residenceOptions,
                       labelOf: controller.residenceLabel,
-                      onChanged: (v) => controller.residenceFilter.value = v,
+                      onChanged: controller.setResidence,
                     ),
-                    HrFilterPill(
-                      allLabel: 'All statuses',
-                      value: controller.statusFilter.value,
-                      options: controller.statuses,
-                      labelOf: hrHumanize,
-                      onChanged: (v) => controller.statusFilter.value = v,
-                    ),
+                    if (controller.hasFilters)
+                      TextButton(
+                        onPressed: _clearFilters,
+                        child: Text(
+                          'Clear filters',
+                          style: handoverText(context, 13, color: AppColors.infoBlue),
+                        ),
+                      ),
                   ],
                 ),
                 SizedBox(height: gap),
-                Text(
-                  '${items.length} of ${all.length} clients',
-                  style: AppTextStyles.base(
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    fontWeight: AppFontWeight.medium,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-                if (items.isEmpty)
-                  HrMessageView(
-                    icon: Icons.people_outline_rounded,
-                    message: all.isEmpty
-                        ? 'No clients in your residences yet.'
-                        : 'No clients match your search or filters.',
+                if (items.isEmpty && loading)
+                  const Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+                    ),
                   )
-                else
+                else if (items.isEmpty && error != null)
+                  HrMessageView(
+                    icon: Icons.error_outline_rounded,
+                    message: error,
+                    onRetry: controller.refresh,
+                  )
+                else if (items.isEmpty)
+                  _empty(context)
+                else ...[
                   for (final client in items) ...[
                     ClientCard(
                       client: client,
-                      residenceName: client.residenceId == null
-                          ? client.residenceName
-                          : controller.residenceLabel(client.residenceId!),
-                      onTap: () => Get.to(
-                        () => ClientDetailPage(client: client),
-                      ),
+                      residenceName: client.residenceName ??
+                          (client.residenceId == null
+                              ? null
+                              : controller.residenceLabel(client.residenceId!)),
+                      canUpdate: controller.canUpdate,
+                      canDelete: controller.canDelete,
+                      onTap: () => _open(client),
+                      onAction: (a) => _onAction(client, a),
                     ),
                     SizedBox(height: gap),
                   ],
+                  AttendancePagination(
+                    page: controller.page.value,
+                    limit: controller.limit.value,
+                    total: controller.total.value,
+                    totalPages: controller.totalPages.value,
+                    limitOptions: ClientsLabels.pageSizes,
+                    onPage: controller.setPage,
+                    onLimit: controller.setLimit,
+                  ),
+                ],
               ],
             ),
           );
         }),
+      ),
+    );
+  }
+
+  Widget _actions(BuildContext context) {
+    final c = _controller;
+    final limited = c.isLimitReached;
+    final cap = c.clientLimit.value;
+    final exporting = c.isExporting.value;
+    final add = HandoverButton(
+      key: const ValueKey('clients-add'),
+      label: limited ? 'Limit Exceeded' : 'Add Client',
+      icon: Icons.add_rounded,
+      filled: true,
+      onPressed: limited ? null : () => showAddClientSheet(context, c),
+    );
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.end,
+      children: [
+        if (c.canCreate)
+          limited && cap != null
+              ? Tooltip(
+                  message: ClientsLabels.planLimitTooltip(c.limitCount, cap),
+                  child: add,
+                )
+              : add,
+        if (c.canExport)
+          HandoverButton(
+            key: const ValueKey('clients-export'),
+            label: exporting ? 'Preparing…' : 'Export List',
+            icon: Icons.download_rounded,
+            onPressed: exporting ? null : c.exportList,
+          ),
+      ],
+    );
+  }
+
+  Widget _empty(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Column(
+        children: [
+          const Icon(Icons.people_outline_rounded, size: 40, color: AppColors.textMuted),
+          const SizedBox(height: 10),
+          Text('No clients found', style: handoverText(context, 15, weight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(
+            _controller.hasFilters
+                ? 'No client matches these filters.'
+                : 'Clients you add will appear here.',
+            textAlign: TextAlign.center,
+            style: handoverText(context, 13, color: AppColors.textMuted),
+          ),
+        ],
       ),
     );
   }

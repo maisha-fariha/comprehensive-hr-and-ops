@@ -5,6 +5,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/entities/shift_residence_option.dart';
@@ -219,6 +220,39 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     );
     return result.when(
       success: (body) async => Result.success(_createdCount(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<CreateShiftDraft>> getShiftDraft(String shiftId) async {
+    final result = await _api.get(ApiEndpoints.shiftById(shiftId));
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.draftFromShift(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> updateShift({
+    required String shiftId,
+    required Map<String, dynamic> payload,
+    required List<String> staffIds,
+  }) async {
+    final patched = await _api.patch(
+      ApiEndpoints.shiftById(shiftId),
+      data: payload,
+      allowQueue: false,
+    );
+    if (patched.isFailure) return Result.failure(patched.error!);
+    final assigned = await _api.put(
+      ApiEndpoints.shiftAssignments(shiftId),
+      data: {'staffIds': staffIds},
+      allowQueue: false,
+    );
+    return assigned.when(
+      success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
   }

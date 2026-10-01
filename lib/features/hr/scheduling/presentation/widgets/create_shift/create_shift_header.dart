@@ -26,8 +26,13 @@ extension CreateShiftStepX on CreateShiftStep {
 
 class CreateShiftHeader extends StatelessWidget {
   final VoidCallback? onClose;
+  final String title;
 
-  const CreateShiftHeader({super.key, this.onClose});
+  const CreateShiftHeader({
+    super.key,
+    this.onClose,
+    this.title = 'Add New Shift',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +71,7 @@ class CreateShiftHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Add New Shift',
+                      title,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
