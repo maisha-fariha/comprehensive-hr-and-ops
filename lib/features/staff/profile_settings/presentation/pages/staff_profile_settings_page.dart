@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/widgets/change_password_dialog.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../staff_shell.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
@@ -114,43 +115,10 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
     BuildContext context,
     StaffProfileSettingsController controller,
   ) async {
-    final current = TextEditingController();
-    final next = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: current,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current password'),
-            ),
-            TextField(
-              controller: next,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New password'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
-        ],
-      ),
+    await showChangePasswordDialog(
+      context,
+      onSubmit: controller.changePassword,
     );
-    final currentValue = current.text;
-    final nextValue = next.text;
-    current.dispose();
-    next.dispose();
-    if (confirmed == true && currentValue.isNotEmpty && nextValue.isNotEmpty) {
-      await controller.changePassword(
-        currentPassword: currentValue,
-        newPassword: nextValue,
-      );
-    }
   }
 
   Future<void> _openNotificationPreferences(

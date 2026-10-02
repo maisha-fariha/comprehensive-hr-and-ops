@@ -36,8 +36,17 @@ abstract final class StaffHomeMapper {
       replace: true,
     );
 
-    final onShift = JsonCodec.boolean(attendance['onShift']) ?? false;
-    final onBreak = JsonCodec.boolean(attendance['onBreak']) ?? false;
+    // `/mobile/home` also reports `onShift: true` for a missed record that was
+    // never clocked into; check-out then 404s. Like the web, only a punch with
+    // `checkInAt` and no `checkOutAt` is open.
+    final neverClockedIn = attendance.containsKey('checkInAt') &&
+        JsonCodec.dateTime(attendance['checkInAt']) == null;
+    final clockedOut = JsonCodec.dateTime(attendance['checkOutAt']) != null;
+    final onShift = (JsonCodec.boolean(attendance['onShift']) ?? false) &&
+        !neverClockedIn &&
+        !clockedOut;
+    final onBreak =
+        onShift && (JsonCodec.boolean(attendance['onBreak']) ?? false);
     final clients = _tileInt(tiles, 'clients');
     final tasksDue = _tileInt(tiles, 'tasksDue');
     final medsDue = _tileInt(tiles, 'medicationsDue');

@@ -108,6 +108,7 @@ class HrProfileSettingsRepositoryImpl implements HrProfileSettingsRepository {
         'currentPassword': currentPassword,
         'newPassword': newPassword,
       },
+      silent: true,
     );
     return result.when(
       success: (_) async => Result.success(null),

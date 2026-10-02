@@ -21,6 +21,10 @@ abstract final class FamilyNotificationsMapper {
       body: JsonCodec.stringOr(json['body'] ?? json['message'] ?? json['text'], ''),
       timeLabel: at == null ? '' : IsoDateRange.dateTimeLabel(at),
       isRead: JsonCodec.boolean(json['isRead'] ?? json['read']) ?? false,
+      entityType: JsonCodec.string(json['entityType']),
+      entityId: JsonCodec.string(json['entityId']),
+      eventKey: JsonCodec.string(json['eventKey']),
+      meta: JsonCodec.mapAt(json, 'metaJson') ?? const {},
     );
   }
 

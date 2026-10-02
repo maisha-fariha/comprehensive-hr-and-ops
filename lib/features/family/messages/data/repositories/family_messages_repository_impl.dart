@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' show Get, Inst;
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/entities/message_attachment.dart';
@@ -12,8 +14,32 @@ import '../mappers/family_messages_mapper.dart';
 
 class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
   final AppApiClient _api;
+  final String? Function() _currentUserId;
 
-  FamilyMessagesRepositoryImpl({required AppApiClient api}) : _api = api;
+  FamilyMessagesRepositoryImpl({
+    required AppApiClient api,
+    String? Function()? currentUserId,
+  })  : _api = api,
+        _currentUserId = currentUserId ?? _sessionUserId;
+
+  static String? _sessionUserId() => Get.isRegistered<UserSession>()
+      ? Get.find<UserSession>().userId
+      : null;
+
+  @override
+  Future<Result<List<String>>> getLinkedClientIds() async {
+    final result = await _api.get(ApiEndpoints.familyClients, silent: true);
+    return result.when(
+      success: (body) async => Result.success(
+        JsonCodec.unwrapList(body)
+            .whereType<Map>()
+            .map((item) => JsonCodec.string(JsonCodec.asMap(item)['id']) ?? '')
+            .where((id) => id.isNotEmpty)
+            .toList(),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<List<ConversationPreview>>> getConversations() async {
@@ -32,8 +58,9 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
   Future<Result<FamilyConversationThread>> getConversation(String id) async {
     final result = await _api.get(ApiEndpoints.familyConversation(id));
     return result.when(
-      success: (body) async =>
-          Result.success(FamilyMessagesMapper.threadFrom(body)),
+      success: (body) async => Result.success(
+        FamilyMessagesMapper.threadFrom(body, currentUserId: _currentUserId()),
+      ),
       failure: (error) async => Result.failure(error),
     );
   }
@@ -91,7 +118,7 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
   }
 
   @override
-  Future<Result<void>> sendInConversation({
+  Future<Result<FamilyChatMessage?>> sendInConversation({
     required String conversationId,
     required String body,
     bool highPriority = false,
@@ -109,13 +136,22 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
       },
     );
     return result.when(
-      success: (_) async => Result.success(null),
+      success: (response) async {
+        final map = JsonCodec.unwrapMap(response);
+        if (JsonCodec.string(map['id']) == null) return Result.success(null);
+        return Result.success(
+          FamilyMessagesMapper.messageFrom(
+            map,
+            currentUserId: _currentUserId(),
+          ),
+        );
+      },
       failure: (error) async => Result.failure(error),
     );
   }
 
   @override
-  Future<Result<void>> startConversation({
+  Future<Result<String?>> startConversation({
     required String clientId,
     required String body,
     bool highPriority = false,
@@ -134,7 +170,13 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
       },
     );
     return result.when(
-      success: (_) async => Result.success(null),
+      success: (response) async {
+        final map = JsonCodec.unwrapMap(response);
+        final conversation = JsonCodec.mapAt(map, 'conversation') ?? map;
+        return Result.success(
+          JsonCodec.string(conversation['id'] ?? map['conversationId']),
+        );
+      },
       failure: (error) async => Result.failure(error),
     );
   }

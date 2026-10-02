@@ -4,6 +4,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/family_appointment.dart';
 import '../../domain/entities/family_appointments_enums.dart';
+import 'family_appointment_status_style.dart';
 
 class _IconVisual {
   final String asset;
@@ -14,18 +15,6 @@ class _IconVisual {
     required this.asset,
     required this.accent,
     required this.background,
-  });
-}
-
-class _StatusVisual {
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  const _StatusVisual({
-    required this.label,
-    required this.background,
-    required this.foreground,
   });
 }
 
@@ -84,51 +73,10 @@ class FamilyAppointmentCard extends StatelessWidget {
     }
   }
 
-  _StatusVisual get _statusVisual {
-    switch (appointment.status) {
-      case FamilyAppointmentStatus.upcoming:
-        return const _StatusVisual(
-          label: 'Upcoming',
-          background: Color(0xFFE7EFFA),
-          foreground: Color(0xFF2A5DA6),
-        );
-      case FamilyAppointmentStatus.pending:
-        return const _StatusVisual(
-          label: 'Pending',
-          background: Color(0xFFFFF3E0),
-          foreground: Color(0xFFE65100),
-        );
-      case FamilyAppointmentStatus.approved:
-        return const _StatusVisual(
-          label: 'Approved',
-          background: Color(0xFFE6F4F1),
-          foreground: Color(0xFF006E5C),
-        );
-      case FamilyAppointmentStatus.rescheduleRequested:
-        return const _StatusVisual(
-          label: 'Reschedule requested',
-          background: Color(0xFFFFF3E0),
-          foreground: Color(0xFFE65100),
-        );
-      case FamilyAppointmentStatus.completed:
-        return const _StatusVisual(
-          label: 'Completed',
-          background: Color(0xFFEAEDF2),
-          foreground: Color(0xFF58687E),
-        );
-      case FamilyAppointmentStatus.rejected:
-        return const _StatusVisual(
-          label: 'Rejected',
-          background: Color(0xFFFDECEC),
-          foreground: Color(0xFFE53935),
-        );
-      case FamilyAppointmentStatus.cancelled:
-        return const _StatusVisual(
-          label: 'Cancelled',
-          background: Color(0xFFEAEDF2),
-          foreground: Color(0xFF58687E),
-        );
-    }
+  String get _locationLine {
+    final client = appointment.clientName.trim();
+    if (client.isEmpty || client == 'Unknown') return appointment.location;
+    return '$client • ${appointment.location}';
   }
 
   static String _assetFor(FamilyAppointmentIconKind kind) {
@@ -147,7 +95,8 @@ class FamilyAppointmentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = _iconVisual;
-    final status = _statusVisual;
+    final status = FamilyAppointmentStatusStyle.of(appointment.status);
+    final description = appointment.statusDescription;
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 48);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 20);
 
@@ -214,6 +163,7 @@ class FamilyAppointmentCard extends StatelessWidget {
                     ),
                     SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
                     Container(
+                      key: ValueKey('family-appointment-status-${appointment.id}'),
                       padding: ResponsiveHelper.getResponsivePadding(
                         context,
                         horizontal: 10,
@@ -224,7 +174,7 @@ class FamilyAppointmentCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
-                        status.label,
+                        appointment.statusLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -268,7 +218,7 @@ class FamilyAppointmentCard extends StatelessWidget {
                     SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
                     Expanded(
                       child: Text(
-                        appointment.location,
+                        _locationLine,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -282,6 +232,19 @@ class FamilyAppointmentCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (description != null) ...[
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontWeight: FontWeight.w400,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                      color: _locationColor,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
                 if (appointment.hasRejectionDecision) ...[
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
                   Container(

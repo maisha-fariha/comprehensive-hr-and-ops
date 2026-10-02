@@ -2,28 +2,38 @@ import 'package:flutter/foundation.dart';
 
 import 'family_visit_requests_enums.dart';
 import 'my_visit_request.dart';
-import 'visit_request.dart';
 
-/// Aggregate root for everything shown on the Visit Requests list screen -
-/// one list per tab, fetched together so the screen has a single loading/
-/// error state (mirroring `DashboardOverview` in the HR dashboard feature).
+/// Every family visit request of the signed-in family member, with per-tab
+/// filtering and counts derived from the same list so a tab's count always
+/// equals the number of cards it shows.
 @immutable
 class FamilyVisitRequestsOverview {
-  final List<VisitRequest> allRequests;
-  final List<MyVisitRequest> myRequests;
-  final List<VisitRequest> historyRequests;
+  final List<MyVisitRequest> requests;
 
-  const FamilyVisitRequestsOverview({
-    required this.allRequests,
-    required this.myRequests,
-    required this.historyRequests,
-  });
+  const FamilyVisitRequestsOverview({required this.requests});
 
-  int get pendingCount =>
-      myRequests.where((request) => request.status == VisitRequestStatus.pending).length;
-  int get approvedCount =>
-      myRequests.where((request) => request.status == VisitRequestStatus.approved).length;
-  int get rejectedCount => historyRequests
-      .where((request) => request.status == VisitRequestStatus.rejected)
-      .length;
+  static VisitRequestStatus? statusOf(FamilyVisitRequestsTab tab) {
+    switch (tab) {
+      case FamilyVisitRequestsTab.all:
+        return null;
+      case FamilyVisitRequestsTab.pending:
+        return VisitRequestStatus.pending;
+      case FamilyVisitRequestsTab.approved:
+        return VisitRequestStatus.approved;
+      case FamilyVisitRequestsTab.rejected:
+        return VisitRequestStatus.rejected;
+      case FamilyVisitRequestsTab.cancelled:
+        return VisitRequestStatus.cancelled;
+      case FamilyVisitRequestsTab.completed:
+        return VisitRequestStatus.completed;
+    }
+  }
+
+  List<MyVisitRequest> requestsFor(FamilyVisitRequestsTab tab) {
+    final status = statusOf(tab);
+    if (status == null) return requests;
+    return requests.where((request) => request.status == status).toList();
+  }
+
+  int countFor(FamilyVisitRequestsTab tab) => requestsFor(tab).length;
 }

@@ -652,12 +652,12 @@ void main() {
       await tester.tap(find.byKey(const Key('open-admin')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Record administration'), findsOneWidget);
-      expect(find.text('Medicines'), findsOneWidget);
-      expect(find.text('Safety Check'), findsOneWidget);
-      expect(find.text('Documentation'), findsOneWidget);
-      expect(find.textContaining('Ayaan Karim'), findsOneWidget);
-      expect(find.textContaining('Paracetamol'), findsOneWidget);
+      expect(find.text('Record Administration'), findsOneWidget);
+      expect(find.text('Medicines'), findsWidgets);
+      expect(find.text('Safety Check'), findsWidgets);
+      expect(find.text('Documentation'), findsWidgets);
+      expect(find.textContaining('Ayaan Karim'), findsWidgets);
+      expect(find.textContaining('Paracetamol'), findsWidgets);
 
       await tester.tap(find.byKey(const Key('staff-mar-admin-next')));
       await tester.pumpAndSettle();

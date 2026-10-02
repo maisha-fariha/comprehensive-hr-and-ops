@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/widgets/app_svg_icon.dart';
-
 /// Squircle teal FAB with a white "+" used to start a new message.
 class NewMessageFab extends StatelessWidget {
   final VoidCallback onTap;

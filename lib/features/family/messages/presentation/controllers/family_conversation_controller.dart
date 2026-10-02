@@ -5,10 +5,12 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/network/iso_date_range.dart';
 import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/entities/family_messages_enums.dart';
 import '../../domain/entities/message_attachment.dart';
 import '../../domain/repositories/family_messages_repository.dart';
+import 'family_messages_controller.dart';
 
 class FamilyConversationController
     extends BaseController<FamilyConversationThread> {
@@ -80,38 +82,130 @@ class FamilyConversationController
     );
   }
 
-  Future<void> load() async {
-    setLoading(true);
+  /// Last thread from the server plus messages confirmed by a POST since.
+  FamilyConversationThread? _serverThread;
+
+  /// Outgoing bubbles appended before the server confirmed them.
+  final List<FamilyChatMessage> _localMessages = [];
+
+  /// Bumped on every load and every confirmed send so a slower, older GET
+  /// cannot overwrite a message that was appended after it started.
+  int _loadGeneration = 0;
+
+  Future<void> load({bool silent = false}) async {
+    final generation = ++_loadGeneration;
+    if (!silent) setLoading(true);
     final result = await repository.getConversation(conversationId);
-    result.when(
-      success: setSuccess,
-      failure: (error) => setError(error.message),
-    );
-    setLoading(false);
+    if (generation == _loadGeneration) {
+      result.when(
+        success: (thread) {
+          _serverThread = thread;
+          _publish();
+        },
+        failure: (error) {
+          if (thread == null) setError(error.message);
+        },
+      );
+    }
+    if (!silent) setLoading(false);
   }
 
+  /// Mirrors the web reply flow: the input clears as soon as Send is tapped,
+  /// the message shows straight away, and a failure restores the text.
   Future<void> send() async {
     final body = textController.text.trim();
     if ((body.isEmpty && attachments.isEmpty) || isSending.value) return;
+
+    final text = body.isEmpty ? '(Attachment)' : body;
+    final sentAttachments = List<MessageAttachment>.from(attachments);
+    final wasPriority = isPriority.value;
+    final local = FamilyChatMessage(
+      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      text: text,
+      direction: FamilyMessageDirection.outgoing,
+      timeLabel: IsoDateRange.timeLabel(DateTime.now()),
+      senderName: 'You',
+      delivery: FamilyMessageDelivery.sending,
+    );
+
+    textController.clear();
+    attachments.clear();
+    isPriority.value = false;
+    _localMessages.add(local);
+    _publish();
+
     isSending.value = true;
     final result = await repository.sendInConversation(
       conversationId: conversationId,
-      body: body.isEmpty ? '(Attachment)' : body,
-      highPriority: isPriority.value,
-      attachments: List<MessageAttachment>.from(attachments),
+      body: text,
+      highPriority: wasPriority,
+      attachments: sentAttachments,
     );
     isSending.value = false;
+    _localMessages.remove(local);
+
     result.when(
-      success: (_) async {
-        textController.clear();
-        attachments.clear();
-        isPriority.value = false;
-        await load();
+      success: (message) {
+        if (message == null) {
+          _localMessages.add(
+            local.copyWith(delivery: FamilyMessageDelivery.queued),
+          );
+          _publish();
+          return;
+        }
+        _loadGeneration++;
+        final base = _serverThread;
+        if (base != null) {
+          _serverThread = base.copyWith(
+            messages: [
+              ...base.messages,
+              message.copyWith(
+                direction: FamilyMessageDirection.outgoing,
+                senderName: 'You',
+                timeLabel:
+                    message.timeLabel.isEmpty ? local.timeLabel : null,
+              ),
+            ],
+          );
+        }
+        _publish();
+        if (Get.isRegistered<FamilyMessagesController>()) {
+          Get.find<FamilyMessagesController>().refresh();
+        }
+        load(silent: true);
       },
-      failure: (error) => AppErrorDialog.showResultError(
-        error,
-        fallbackTitle: 'Could not send',
-      ),
+      failure: (error) {
+        _publish();
+        final typed = textController.text;
+        if (body.isNotEmpty) {
+          textController.text = typed.isEmpty ? body : '$body\n$typed';
+          textController.selection = TextSelection.collapsed(
+            offset: textController.text.length,
+          );
+        }
+        attachments.insertAll(0, sentAttachments);
+        isPriority.value = wasPriority;
+        AppErrorDialog.showResultError(error, fallbackTitle: 'Could not send');
+      },
+    );
+  }
+
+  void _publish() {
+    final base = _serverThread;
+    if (base == null) return;
+    final serverOutgoing = {
+      for (final message in base.messages)
+        if (message.direction == FamilyMessageDirection.outgoing) message.text,
+    };
+    _localMessages.removeWhere(
+      (message) =>
+          message.delivery == FamilyMessageDelivery.queued &&
+          serverOutgoing.contains(message.text),
+    );
+    setSuccess(
+      _localMessages.isEmpty
+          ? base
+          : base.copyWith(messages: [...base.messages, ..._localMessages]),
     );
   }
 

@@ -112,7 +112,8 @@ class MyVisitRequestCard extends StatelessWidget {
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: StatusBadge.pill(
-                    label: statusStyle.label,
+                    key: ValueKey('visit-request-status-${request.id}'),
+                    label: request.statusLabel,
                     background: statusStyle.background,
                     foreground: statusStyle.color,
                   ),

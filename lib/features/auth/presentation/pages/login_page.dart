@@ -61,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
     );
     if (!ok && mounted && _auth.errorMessage.value.isNotEmpty) {
       await AppErrorDialog.showPageError(
-        title: 'Sign in failed',
+        title: _auth.errorTitle.value,
         message: _auth.errorMessage.value,
       );
     }

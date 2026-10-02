@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
@@ -25,13 +26,15 @@ class AppointmentFieldLabel extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            text,
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-              color: AppColors.textHeading,
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                color: AppColors.textHeading,
+              ),
             ),
           ),
           if (required)
@@ -62,6 +65,31 @@ class AppointmentFieldLabel extends StatelessWidget {
   }
 }
 
+/// Muted helper line shown under a field (e.g. visitor limit).
+class AppointmentFieldHelper extends StatelessWidget {
+  final String text;
+
+  const AppointmentFieldHelper(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        top: ResponsiveHelper.getResponsiveHeight(context, 6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: 'Manrope',
+          fontWeight: FontWeight.w400,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+          color: AppColors.textMuted,
+        ),
+      ),
+    );
+  }
+}
+
 /// Soft pink validation banner matching the web "Request a visit" modal.
 class AppointmentFormErrorBanner extends StatelessWidget {
   final String message;
@@ -71,6 +99,7 @@ class AppointmentFormErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: const ValueKey('appointment-form-error'),
       width: double.infinity,
       padding: ResponsiveHelper.getResponsivePadding(
         context,
@@ -164,15 +193,19 @@ class AppointmentDropdownField extends StatelessWidget {
   }
 }
 
-/// Single-line outlined text field (Where).
+/// Single-line outlined text field (e.g. Number of Visitors).
 class AppointmentTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AppointmentTextField({
     super.key,
     required this.controller,
     required this.hint,
+    this.keyboardType,
+    this.inputFormatters,
   });
 
   @override
@@ -193,6 +226,8 @@ class AppointmentTextField extends StatelessWidget {
       ),
       child: TextField(
         controller: controller,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         style: TextStyle(
           fontFamily: 'Manrope',
           fontWeight: FontWeight.w600,

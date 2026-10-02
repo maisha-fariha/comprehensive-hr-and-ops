@@ -81,6 +81,7 @@ class AuthRepositoryImpl implements AuthRepository {
     final result = await _api.post(
       ApiEndpoints.mobileLogin,
       data: {'email': email.trim(), 'password': password},
+      silent: true,
     );
     return result.when(
       success: (body) async {
@@ -100,6 +101,15 @@ class AuthRepositoryImpl implements AuthRepository {
     return result.when(
       success: (raw) async {
         var body = raw;
+        if (AuthMapper.isWebOnlyAccount(body)) {
+          await logout();
+          return Result.failure(
+            const PermissionError(
+              message: AuthMapper.restrictedAccountMessage,
+              code: 'restricted_role',
+            ),
+          );
+        }
         var profile = AuthMapper.profileFromJson(body);
         if (profile == null) {
           return Result.failure(

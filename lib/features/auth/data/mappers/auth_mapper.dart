@@ -118,6 +118,37 @@ abstract final class AuthMapper {
     );
   }
 
+  static const restrictedAccountMessage =
+      'This app is for managers, staff and family members. Tenant admin '
+      'accounts cannot sign in here — please use the web dashboard.';
+
+  static const _webOnlyRoles = {'tenant_admin', 'platform_admin', 'super_admin'};
+
+  /// Tenant admins and platform users only have the web dashboard.
+  static bool isWebOnlyAccount(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final user = JsonCodec.mapAt(json, 'user') ??
+        JsonCodec.mapAt(json, 'profile') ??
+        json;
+    final realm = JsonCodec.string(user['realm']) ?? JsonCodec.string(json['realm']);
+    if (realm?.toLowerCase() == 'platform') return true;
+    final roles = [
+      ...JsonCodec.listAt(user, 'roles'),
+      if (!identical(user, json)) ...JsonCodec.listAt(json, 'roles'),
+      _roleRaw(user),
+    ];
+    return roles.any((role) {
+      final raw = role is Map
+          ? JsonCodec.string(JsonCodec.asMap(role)['key']) ??
+              JsonCodec.string(JsonCodec.asMap(role)['name'])
+          : JsonCodec.string(role);
+      if (raw == null) return false;
+      final normalized =
+          raw.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+      return _webOnlyRoles.contains(normalized);
+    });
+  }
+
   static String? _roleRaw(Map<String, dynamic> json) {
     final roleValue = json['role'];
     if (roleValue is Map) {

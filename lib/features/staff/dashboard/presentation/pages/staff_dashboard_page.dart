@@ -141,7 +141,7 @@ class StaffDashboardPage extends StatelessWidget {
                           switch (action.id) {
                             case 'clock-in-out':
                               // POST /attendance/check-in | check-out
-                              controller.toggleClockInOut();
+                              _confirmClockInOut(context, controller);
                             case 'daily-logs':
                               // Opens Daily Logs tab (My Clients / notes).
                               Get.offAll(() => const StaffShell(initialIndex: 2));
@@ -163,6 +163,47 @@ class StaffDashboardPage extends StatelessWidget {
         );
       }),
     );
+  }
+
+  Future<void> _confirmClockInOut(
+    BuildContext context,
+    StaffDashboardController controller,
+  ) async {
+    final shift = controller.overview?.todayShift;
+    if (shift == null || controller.clockBusy.value) return;
+    final clockingOut = shift.onShift;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          clockingOut ? 'Clock out?' : 'Clock in?',
+          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          clockingOut
+              ? 'This ends your shift attendance now.'
+              : 'This starts your shift attendance now.',
+          style: const TextStyle(fontFamily: 'Outfit'),
+        ),
+        actions: [
+          TextButton(
+            key: const ValueKey('clock-confirm-cancel'),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('clock-confirm-submit'),
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor:
+                  clockingOut ? AppColors.criticalRed : AppColors.activeGreen,
+            ),
+            child: Text(clockingOut ? 'Clock out' : 'Clock in'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await controller.toggleClockInOut();
   }
 }
 

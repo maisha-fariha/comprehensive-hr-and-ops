@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../data/mappers/staff_profile_mapper.dart';
 import '../../domain/entities/staff_profile_settings_overview.dart';
@@ -78,7 +79,8 @@ class StaffProfileSettingsController extends BaseController<StaffProfileSettings
     );
   }
 
-  Future<void> changePassword({
+  /// Returns `null` on success, otherwise the message for the dialog.
+  Future<String?> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
@@ -86,16 +88,9 @@ class StaffProfileSettingsController extends BaseController<StaffProfileSettings
       currentPassword: currentPassword,
       newPassword: newPassword,
     );
-    result.when(
-      success: (_) => Get.snackbar(
-        'Password updated',
-        'Use your new password the next time you sign in.',
-        snackPosition: SnackPosition.BOTTOM,
-      ),
-      failure: (error) => AppErrorDialog.showResultError(
-        error,
-        fallbackTitle: 'Could not update password',
-      ),
+    return result.when(
+      success: (_) => null,
+      failure: (error) => AppErrorMapper.from(error).message,
     );
   }
 

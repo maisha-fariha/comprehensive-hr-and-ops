@@ -897,7 +897,7 @@ void main() {
     expect(find.text('Due'), findsOneWidget);
     expect(find.text('Checks'), findsOneWidget);
     expect(find.text('Record Progress'), findsOneWidget);
-    expect(find.text('+ New Schedule'), findsOneWidget);
+    expect(find.text('New Schedule'), findsOneWidget);
     expect(find.text('Room check — Sunrise'), findsOneWidget);
 
     await tester.tap(find.text('Due'));
@@ -910,7 +910,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Evening check'), findsOneWidget);
 
-    await tester.tap(find.text('+ New Schedule'));
+    await tester.tap(find.text('New Schedule'));
     await tester.pumpAndSettle();
     expect(find.text('New recurring check'), findsOneWidget);
     expect(find.textContaining('Residence'), findsWidgets);

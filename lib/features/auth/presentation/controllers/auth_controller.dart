@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
@@ -17,6 +18,7 @@ class AuthController extends GetxController {
 
   final RxBool isBusy = false.obs;
   final RxString errorMessage = ''.obs;
+  final RxString errorTitle = 'Sign in failed'.obs;
 
   String get savedWorkspaceCode =>
       GetIt.instance<TenantStore>().subdomain ?? '';
@@ -37,8 +39,19 @@ class AuthController extends GetxController {
         return false;
       }
       final result = await repository.login(email: email, password: password);
-      return _completeSignIn(result.value, result.error?.message);
+      return _completeSignIn(result.value, _loginErrorMessage(result.error));
     });
+  }
+
+  String? _loginErrorMessage(AppError? error) {
+    if (error == null) return null;
+    if (error is AuthError && error.code == '401') {
+      return 'Email or password is incorrect.';
+    }
+    if (error is PermissionError && error.code == 'restricted_role') {
+      errorTitle.value = 'Access restricted';
+    }
+    return error.message;
   }
 
   Future<bool> sendPasswordReset(String email) async {
@@ -156,6 +169,7 @@ class AuthController extends GetxController {
     if (isBusy.value) return false;
     isBusy.value = true;
     errorMessage.value = '';
+    errorTitle.value = 'Sign in failed';
     try {
       return await action();
     } finally {

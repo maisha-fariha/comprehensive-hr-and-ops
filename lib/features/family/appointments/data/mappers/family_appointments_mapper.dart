@@ -1,5 +1,6 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../profile_settings/domain/entities/family_linked_client.dart';
 import '../../domain/entities/family_appointment.dart';
 import '../../domain/entities/family_appointments_enums.dart';
 
@@ -13,26 +14,31 @@ abstract final class FamilyAppointmentsMapper {
 
   static FamilyAppointment fromJson(Map<String, dynamic> json) {
     final type = (JsonCodec.string(json['type']) ?? '').toLowerCase();
-    final status = _status(json['status'], json['scheduledAt']);
+    final rawStatus = JsonCodec.string(json['status']) ?? '';
     final at = JsonCodec.dateTime(json['scheduledAt'] ?? json['startsAt']);
     final decidedByRaw = json['decidedBy'];
     final decidedBy = decidedByRaw is Map
         ? IsoDateRange.personName(decidedByRaw)
         : JsonCodec.string(decidedByRaw);
+    final client = JsonCodec.mapAt(json, 'client');
+    final residence = JsonCodec.mapAt(json, 'residence');
     return FamilyAppointment(
       id: JsonCodec.stringOr(json['id'], json['title'] ?? 'appointment'),
       dateTimeLabel: at == null
-          ? JsonCodec.stringOr(json['dateLabel'], '')
+          ? JsonCodec.stringOr(json['dateLabel'], 'Time to be confirmed')
           : IsoDateRange.dateTimeLabel(at),
-      status: status,
-      title: JsonCodec.stringOr(
-        json['title'] ?? json['purpose'] ?? json['type'],
-        _titleForType(type),
-      ),
-      location: JsonCodec.stringOr(json['location'] ?? json['mode'], ''),
+      status: statusFrom(rawStatus),
+      statusLabel: humanise(rawStatus),
+      title: JsonCodec.string(json['title']) ??
+          JsonCodec.string(json['purpose']) ??
+          typeLabel(type),
+      location: JsonCodec.string(json['location']) ??
+          JsonCodec.string(residence?['name']) ??
+          'Main Residence',
       iconKind: _icon(type, json['title']),
       type: type,
       scheduledAt: at,
+      clientName: client == null ? '' : IsoDateRange.personName(client),
       notes: JsonCodec.string(json['notes']),
       decidedBy: decidedBy == 'Unknown' ? null : decidedBy,
       decidedAt: JsonCodec.dateTime(json['decidedAt']),
@@ -40,28 +46,38 @@ abstract final class FamilyAppointmentsMapper {
     );
   }
 
-  static String _titleForType(String type) {
+  /// Web `humanise`: `family_visit` -> "Family visit", `cancelled` ->
+  /// "Cancelled", empty -> "—".
+  static String humanise(String? raw) {
+    if (raw == null || raw.isEmpty) return '—';
+    final text = raw.replaceAll(RegExp(r'[_-]+'), ' ');
+    return '${text[0].toUpperCase()}${text.substring(1)}';
+  }
+
+  /// Card title for an appointment type; mirrors the web register's
+  /// `typeLabel` ("Family Visit" for `family_visit`).
+  static String typeLabel(String type) {
     switch (type) {
+      case '':
+        return 'Appointment';
       case 'visit':
       case 'family_visit':
         return 'Family Visit';
-      case 'therapy':
-        return 'Therapy';
-      case 'activity':
-        return 'Activity';
-      case 'medical':
-        return 'Medical Appointment';
+      case 'external':
+        return 'External';
       default:
-        return 'Appointment';
+        return humanise(type);
     }
   }
 
-  static FamilyAppointmentStatus _status(dynamic raw, dynamic scheduledAt) {
+  static FamilyAppointmentStatus statusFrom(dynamic raw) {
     switch ((raw ?? '').toString().toLowerCase()) {
+      case 'pending':
+        return FamilyAppointmentStatus.pending;
       case 'approved':
+      case 'confirmed':
         return FamilyAppointmentStatus.approved;
       case 'completed':
-      case 'done':
         return FamilyAppointmentStatus.completed;
       case 'rejected':
       case 'declined':
@@ -69,18 +85,41 @@ abstract final class FamilyAppointmentsMapper {
       case 'cancelled':
       case 'canceled':
         return FamilyAppointmentStatus.cancelled;
-      case 'reschedule':
+      case 'rescheduled':
       case 'reschedule_requested':
         return FamilyAppointmentStatus.rescheduleRequested;
-      case 'pending':
-        return FamilyAppointmentStatus.pending;
       default:
-        final at = JsonCodec.dateTime(scheduledAt);
-        if (at != null && at.isAfter(DateTime.now())) {
-          return FamilyAppointmentStatus.upcoming;
-        }
-        return FamilyAppointmentStatus.pending;
+        return FamilyAppointmentStatus.other;
     }
+  }
+
+  /// `GET /family/clients` rows (`id`, `firstName`, `lastName`, optional
+  /// `residence`/`room`) as pickable residents.
+  static List<FamilyLinkedClient> residentsFrom(dynamic body) {
+    return JsonCodec.unwrapList(body)
+        .whereType<Map>()
+        .map((item) {
+          final json = JsonCodec.asMap(item);
+          final name = IsoDateRange.personName(
+            json['preferredName'] ?? json['name'] ?? json,
+          );
+          final room = JsonCodec.string(json['room'] ?? json['roomNumber']);
+          final residence = JsonCodec.string(
+            json['residenceName'] ?? JsonCodec.mapAt(json, 'residence')?['name'],
+          );
+          return FamilyLinkedClient(
+            id: JsonCodec.stringOr(json['id'], ''),
+            initials: IsoDateRange.initials(name),
+            name: name,
+            subtitle: [
+              ?residence,
+              if (room != null) 'Room $room',
+            ].join(' · '),
+            statusLabel: humanise(JsonCodec.string(json['status']) ?? 'active'),
+          );
+        })
+        .where((client) => client.id.isNotEmpty)
+        .toList();
   }
 
   static FamilyAppointmentIconKind _icon(String type, dynamic title) {
