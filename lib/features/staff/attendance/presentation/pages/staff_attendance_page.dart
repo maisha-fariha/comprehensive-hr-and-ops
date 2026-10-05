@@ -5,6 +5,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/offline/outbox_feature.dart';
+import '../../../../../core/offline/presentation/pending_outbox_section.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
@@ -82,6 +84,10 @@ class StaffAttendancePage extends StatelessWidget {
                   onManualEntryTap: controller.showManualEntryDialog,
                 ),
               ),
+            ),
+            PendingOutboxSection(
+              features: const {OutboxFeature.attendance},
+              onSynced: () => controller.refresh(),
             ),
             Expanded(
               child: RefreshIndicator(

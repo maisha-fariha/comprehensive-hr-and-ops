@@ -8,6 +8,7 @@ abstract final class AppRoutes {
   static const String staff = '/staff';
   static const String family = '/family';
   static const String accessDenied = '/access-denied';
+  static const String pendingChanges = '/pending-changes';
 
   const AppRoutes._();
 }

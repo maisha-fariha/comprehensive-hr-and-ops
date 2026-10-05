@@ -9,6 +9,9 @@ class TenantStore {
   final SharedPreferences _prefs;
   String? _subdomain;
 
+  /// Called after the subdomain changes (previous, next).
+  void Function(String? previous, String? next)? onChanged;
+
   TenantStore(this._prefs);
 
   String? get subdomain => _subdomain;
@@ -22,6 +25,7 @@ class TenantStore {
   }
 
   Future<void> setSubdomain(String? value) async {
+    final previous = _subdomain;
     final next = value?.trim();
     _subdomain = (next == null || next.isEmpty) ? null : next;
     if (_subdomain == null) {
@@ -29,6 +33,7 @@ class TenantStore {
     } else {
       await _prefs.setString(_prefsKey, _subdomain!);
     }
+    if (previous != _subdomain) onChanged?.call(previous, _subdomain);
   }
 
   Future<void> clear() => setSubdomain(null);

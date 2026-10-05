@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/offline/presentation/pending_sync_chip.dart';
 import '../../domain/entities/due_dose.dart';
 import 'administered_tab_view.dart';
 import 'due_dose_card.dart';
@@ -33,6 +34,7 @@ class MarRegistryTabView extends StatelessWidget {
   final ValueChanged<DueDose>? onOpenClientMedications;
   final ValueChanged<DueDose>? onEdit;
   final String Function(DueDose dose)? administeredByName;
+  final bool Function(DueDose dose)? isPendingSync;
   final bool canWriteScheduled;
   final bool canWritePrn;
 
@@ -57,6 +59,7 @@ class MarRegistryTabView extends StatelessWidget {
     this.onOpenClientMedications,
     this.onEdit,
     this.administeredByName,
+    this.isPendingSync,
     this.canWriteScheduled = true,
     this.canWritePrn = false,
   });
@@ -112,6 +115,14 @@ class MarRegistryTabView extends StatelessWidget {
           )
         else ...[
           for (var i = 0; i < doses.length; i++) ...[
+            if (isPendingSync?.call(doses[i]) ?? false)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6),
+                child: PendingSyncChip(
+                  key: Key('mar-dose-pending-sync'),
+                  label: 'Recorded offline – pending sync',
+                ),
+              ),
             DueDoseCard(
               dose: doses[i],
               canWrite: _canWrite(doses[i]),

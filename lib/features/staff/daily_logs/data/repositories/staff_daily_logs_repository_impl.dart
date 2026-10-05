@@ -5,6 +5,7 @@ import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/offline/outbox_context.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/daily_note_attachment.dart';
 import '../../domain/entities/daily_note_overview.dart';
@@ -319,11 +320,14 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
       final form = FormData.fromMap({
         'file': await MultipartFile.fromFile(localPath, filename: fileName),
       });
-      final result = await _api.post(
-        ApiEndpoints.uploads,
-        data: form,
-        query: const {'category': 'daily-logs'},
-        allowQueue: false,
+      final result = await OutboxContext.run(
+        () => _api.post(
+          ApiEndpoints.uploads,
+          data: form,
+          query: const {'category': 'daily-logs'},
+          allowQueue: false,
+        ),
+        stageUploads: true,
       );
       return result.when(
         success: (body) async {

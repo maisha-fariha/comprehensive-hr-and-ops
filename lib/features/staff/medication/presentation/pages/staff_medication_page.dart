@@ -4,6 +4,9 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/offline/offline_outbox.dart';
+import '../../../../../core/offline/outbox_feature.dart';
+import '../../../../../core/offline/presentation/pending_outbox_section.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../extras/presentation/pages/staff_residences_page.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
@@ -58,6 +61,7 @@ class StaffMedicationPage extends StatelessWidget {
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;
+        OfflineOutbox.maybe?.store.items.length;
 
         if (overview == null && controller.isLoading.value) {
           return const Center(
@@ -127,6 +131,14 @@ class StaffMedicationPage extends StatelessWidget {
                     ResponsiveHelper.getResponsiveHeight(context, 32),
                   ),
                   children: [
+                    PendingOutboxSection(
+                      features: const {
+                        OutboxFeature.mar,
+                        OutboxFeature.medications,
+                      },
+                      onSynced: () => controller.refresh(),
+                      padding: const EdgeInsets.only(top: 8, bottom: 4),
+                    ),
                     switch (controller.selectedTab.value) {
                       StaffMedicationTab.mar => MarRegistryTabView(
                           doses: controller.filteredScheduledDoses,
@@ -153,6 +165,7 @@ class StaffMedicationPage extends StatelessWidget {
                               ? (dose) => controller.editDose(context, dose)
                               : null,
                           administeredByName: controller.administeredByName,
+                          isPendingSync: controller.isPendingSync,
                           onOpenClientMedications: (dose) {
                             showStaffClientMedicationsSheet(
                               context,

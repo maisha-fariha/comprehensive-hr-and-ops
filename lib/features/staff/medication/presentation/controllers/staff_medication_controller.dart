@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/offline/offline_outbox.dart';
+import '../../../../../core/offline/outbox_context.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/administered_dose.dart';
 import '../../domain/entities/due_dose.dart';
@@ -482,6 +484,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       );
       return;
     }
+    if (_blockIfRecordedOffline(dose)) return;
 
     var clients = chartClients.toList();
     if (clients.isEmpty) {
@@ -509,6 +512,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       );
       return;
     }
+    if (_blockIfRecordedOffline(dose)) return;
 
     final outcome = await _promptNotGiven();
     if (outcome == null) return;
@@ -625,18 +629,28 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       return;
     }
 
+    if (_blockIfRecordedOffline(dose)) return;
+
     isRecording.value = true;
-    final result = await repository.recordAdministration(
-      clientId: dose.clientId,
-      residenceId: residenceId,
-      medicationId: dose.medicationId,
-      status: status,
-      notes: notes,
-      clinicalNotes: clinicalNotes,
-      doseReason: doseReason,
-      isPrn: dose.isPrn,
-      safetyChecks: safetyChecks,
-      vitals: vitals,
+    final result = await OutboxContext.run(
+      () => repository.recordAdministration(
+        clientId: dose.clientId,
+        residenceId: residenceId,
+        medicationId: dose.medicationId,
+        status: status,
+        notes: notes,
+        clinicalNotes: clinicalNotes,
+        doseReason: doseReason,
+        isPrn: dose.isPrn,
+        safetyChecks: safetyChecks,
+        vitals: vitals,
+      ),
+      meta: {
+        if (_isTrackedScheduledDose(dose)) 'doseId': dose.id,
+        'clientId': dose.clientId,
+        'medicationId': dose.medicationId,
+        if (dose.slotLabel.isNotEmpty) 'slot': dose.slotLabel,
+      },
     );
     isRecording.value = false;
 
@@ -657,6 +671,38 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
           : 'Dose marked as $status.',
     );
     await loadOverview();
+  }
+
+  /// A scheduled round dose from the loaded MAR (not PRN, not a dose built
+  /// from the medicine picker).
+  bool _isTrackedScheduledDose(DueDose dose) =>
+      !dose.isPrn && dose.scheduled && _findDose(dose.id) != null;
+
+  /// True when [dose] was recorded on this device and has not reached the
+  /// server yet, so the card can show "Pending sync".
+  bool isPendingSync(DueDose dose) {
+    final outbox = OfflineOutbox.maybe;
+    if (outbox == null || !_isTrackedScheduledDose(dose)) return false;
+    outbox.store.items.length;
+    return outbox.hasUnsentDose(
+      doseId: dose.id,
+      clientId: dose.clientId,
+      medicationId: dose.medicationId,
+      slot: dose.slotLabel,
+    );
+  }
+
+  /// Stops a scheduled dose being recorded twice while the first record is
+  /// still waiting on this device.
+  bool _blockIfRecordedOffline(DueDose dose) {
+    if (!isPendingSync(dose)) return false;
+    AppErrorDialog.showPageError(
+      title: 'Recorded offline – pending sync',
+      message: 'This dose is already recorded on this device and will be '
+          'sent when you are back online. Check Unsent changes in Profile '
+          'before recording it again.',
+    );
+    return true;
   }
 
   DueDose? _findDose(String doseId) {

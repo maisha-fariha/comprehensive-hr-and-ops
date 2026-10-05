@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/offline/outbox_feature.dart';
+import '../../../../../core/offline/presentation/pending_outbox_section.dart';
 import '../../../staff_shell.dart';
 import '../../domain/entities/daily_note_client_info.dart';
 import '../../domain/entities/staff_client_log_entry.dart';
@@ -153,6 +155,10 @@ class StaffDailyLogsPage extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              PendingOutboxSection(
+                features: const {OutboxFeature.dailyLogs},
+                onSynced: () => controller.refresh(),
               ),
               Expanded(
                 child: RefreshIndicator(

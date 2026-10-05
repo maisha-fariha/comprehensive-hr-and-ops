@@ -8,6 +8,7 @@ import '../../../core/network/app_api_client.dart';
 import '../../../core/network/connectivity_monitor.dart';
 import '../../../core/network/response_cache.dart';
 import '../../../core/network/tenant_store.dart';
+import '../../../core/offline/offline_bootstrap.dart';
 import '../../../core/network/token_store.dart';
 import '../../../core/push/device_registration_service.dart';
 import '../data/repositories/auth_repository_impl.dart';
@@ -32,18 +33,19 @@ Future<void> setupAuthDependencies() async {
   );
   getIt<TokenStore>().applyToClient();
 
-  final cache = ResponseCache(getIt<DatabaseService>());
-  await cache.ensureReady();
-  DIHelper.registerRepository<ResponseCache>(
-    factory: () => cache,
-    lazy: false,
-  );
+  final cache = OfflineBootstrap.cache;
+  if (cache != null) {
+    DIHelper.registerRepository<ResponseCache>(
+      factory: () => cache,
+      lazy: false,
+    );
+  }
 
   DIHelper.registerRepository<AppApiClient>(
     factory: () => AppApiClient(
       getIt<ApiService>(),
       getIt<TenantStore>(),
-      cache: getIt<ResponseCache>(),
+      cache: cache,
       sync: getIt<SyncService>(),
       connectivity: Get.isRegistered<ConnectivityMonitor>()
           ? Get.find<ConnectivityMonitor>()
@@ -56,7 +58,7 @@ Future<void> setupAuthDependencies() async {
       api: getIt<AppApiClient>(),
       tokens: getIt<TokenStore>(),
       tenant: getIt<TenantStore>(),
-      cache: getIt<ResponseCache>(),
+      cache: cache,
     ),
   );
 

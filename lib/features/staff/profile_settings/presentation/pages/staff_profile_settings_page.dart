@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/offline/presentation/unsent_changes_tile.dart';
 import '../../../../../core/widgets/change_password_dialog.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../staff_shell.dart';
@@ -244,6 +245,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'App Settings'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                    const UnsentChangesTile(),
                     const StaffLogOutRow(),
                   ],
                 ),

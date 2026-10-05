@@ -9,6 +9,14 @@ import '../errors/app_error_dialog.dart';
 /// [Get.back] then crashes with `LateInitializationError` on
 /// `SnackbarController._controller` while trying to close the snackbar.
 abstract final class AppSnackbar {
+  static DateTime? _holdUntil;
+
+  /// Keeps the snackbar on screen by skipping non-forced [show] calls for
+  /// [duration] (e.g. a feature's "Saved" right after an offline notice).
+  static void holdFor(Duration duration) {
+    _holdUntil = DateTime.now().add(duration);
+  }
+
   static void show(
     String title,
     String message, {
@@ -17,6 +25,10 @@ abstract final class AppSnackbar {
   }) {
     if (!force &&
         (Get.isDialogOpen == true || AppErrorDialog.recentlyShown)) {
+      return;
+    }
+    final holdUntil = _holdUntil;
+    if (!force && holdUntil != null && DateTime.now().isBefore(holdUntil)) {
       return;
     }
 

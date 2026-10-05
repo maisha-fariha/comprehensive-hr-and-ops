@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/offline/outbox_feature.dart';
+import '../../../../../core/offline/presentation/pending_outbox_section.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
@@ -186,6 +188,10 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                 trailing: Get.find<UserSession>().can('incidents:write')
                     ? _addIncidentButton(context)
                     : null,
+              ),
+              PendingOutboxSection(
+                features: const {OutboxFeature.incidents},
+                onSynced: () => _controller.refresh(),
               ),
               Expanded(
                 child: RefreshIndicator(

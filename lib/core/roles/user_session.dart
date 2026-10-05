@@ -65,6 +65,7 @@ class UserSession extends GetxService {
   bool get isSignedIn => _role.value != null;
   bool get isSigningOut => _signingOut;
   String? get userId => _userId.value;
+  RxnString get userIdListenable => _userId;
   String get displayName => _displayName.value;
   String get email => _email.value;
   String get avatarInitials => _avatarInitials.value;

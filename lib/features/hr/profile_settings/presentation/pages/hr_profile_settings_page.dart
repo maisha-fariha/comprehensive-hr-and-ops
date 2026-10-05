@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/offline/presentation/unsent_changes_tile.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../hr_shell.dart';
@@ -235,6 +236,7 @@ class HrProfileSettingsPage extends StatelessWidget {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'App Settings'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                    const UnsentChangesTile(),
                     const HrLogOutRow(),
                   ],
                 ),

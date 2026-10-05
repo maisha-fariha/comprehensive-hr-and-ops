@@ -3,6 +3,9 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/offline/offline_outbox.dart';
+import '../../../../../core/offline/outbox_feature.dart';
 import '../../data/mappers/staff_tasks_messages_mapper.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/message_contact.dart';
@@ -30,7 +33,39 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
 
   TasksMessagesOverview? get overview => state.value.data;
 
-  List<StaffTask> get _allTasks => overview?.tasks ?? const [];
+  List<StaffTask> get _allTasks {
+    final tasks = overview?.tasks ?? const <StaffTask>[];
+    final completedOffline = pendingCompletedTaskIds;
+    if (completedOffline.isEmpty) return tasks;
+    return [
+      for (final t in tasks)
+        completedOffline.contains(t.id) && t.status != TaskStatus.done
+            ? StaffTask(
+                id: t.id,
+                title: t.title,
+                dueTimeLabel: t.dueTimeLabel,
+                location: t.location,
+                status: TaskStatus.done,
+              )
+            : t,
+    ];
+  }
+
+  /// Tasks marked complete on this device that have not reached the server.
+  Set<String> get pendingCompletedTaskIds {
+    final outbox = OfflineOutbox.maybe;
+    if (outbox == null) return const {};
+    final prefix = '${ApiEndpoints.tasks}/';
+    return {
+      for (final item in outbox.itemsFor({OutboxFeature.tasks}))
+        if (item.method == 'PATCH' &&
+            item.path.startsWith(prefix) &&
+            !item.path.substring(prefix.length).contains('/') &&
+            item.jsonBody is Map &&
+            (item.jsonBody as Map)['status'] == 'completed')
+          item.path.substring(prefix.length),
+    };
+  }
 
   List<StaffTask> get filteredTasks =>
       StaffTasksMessagesMapper.filterTasks(_allTasks, selectedFilter.value);
@@ -158,7 +193,12 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
   Future<void> openTask(StaffTask task) async {
     final context = Get.overlayContext ?? Get.context;
     if (context == null) return;
-    await showStaffTaskDetailSheet(context, taskId: task.id, controller: this);
+    await showStaffTaskDetailSheet(
+      context,
+      taskId: task.id,
+      controller: this,
+      summary: task,
+    );
   }
 
   Future<void> completeTask(String taskId) async {
