@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/offline/offline_image.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../clients_labels.dart';
 
@@ -612,7 +613,7 @@ class ClientFileField extends StatelessWidget {
                   CircleAvatar(
                     radius: 18,
                     backgroundColor: AppColors.filterButtonBackground,
-                    backgroundImage: NetworkImage(existingUrl!),
+                    backgroundImage: OfflineImage.provider(existingUrl!),
                     onBackgroundImageError: (_, _) {},
                   )
                 else

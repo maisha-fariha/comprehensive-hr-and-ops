@@ -32,6 +32,28 @@ class StagedUploadStore {
   static bool isToken(Object? value) =>
       value is String && value.startsWith(OfflineConfig.stagedUploadScheme);
 
+  /// Local file behind a placeholder URL, while it is still on the device
+  /// (staged, or claimed by a queued write in [claimed]).
+  String? localPathFor(String token, Iterable<OutboxAttachment> claimed) {
+    final match = _tokenPattern.firstMatch(token);
+    if (match == null) return null;
+    final id = match.group(1)!;
+    final raw = _box.get(id);
+    if (raw != null) {
+      try {
+        final map = (jsonDecode(raw) as Map).cast<String, dynamic>();
+        final attachment = OutboxAttachment.fromJson(
+          (map['attachment'] as Map).cast<String, dynamic>(),
+        );
+        return attachment.localPath;
+      } catch (_) {}
+    }
+    for (final attachment in claimed) {
+      if (attachment.id == id) return attachment.localPath;
+    }
+    return null;
+  }
+
   /// Ids of staged uploads referenced anywhere inside a JSON body.
   static Set<String> referencedIds(dynamic body) {
     final ids = <String>{};

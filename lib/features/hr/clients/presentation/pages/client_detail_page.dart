@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/offline/offline_image.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
 import '../../domain/entities/client_summary.dart';
@@ -238,7 +239,7 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
           CircleAvatar(
             radius: 22,
             backgroundColor: const Color(0xFFB4805A),
-            foregroundImage: photo == null ? null : NetworkImage(photo),
+            foregroundImage: photo == null ? null : OfflineImage.provider(photo),
             onForegroundImageError: photo == null ? null : (_, _) {},
             child: const Icon(Icons.person_outline_rounded, color: AppColors.surfaceWhite),
           ),

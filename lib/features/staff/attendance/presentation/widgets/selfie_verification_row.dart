@@ -3,6 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/offline/offline_image.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../staff_core_constants.dart';
 
@@ -143,7 +144,7 @@ class SelfieVerificationRow extends StatelessWidget {
                     ],
                     image: selfieUrl != null && selfieUrl!.isNotEmpty
                         ? DecorationImage(
-                            image: NetworkImage(selfieUrl!),
+                            image: OfflineImage.provider(selfieUrl!),
                             fit: BoxFit.cover,
                           )
                         : null,

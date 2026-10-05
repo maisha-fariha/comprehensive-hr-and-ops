@@ -4,6 +4,7 @@ import 'package:gems_core/gems_core.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/authorized_file.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/offline/offline_file_cache.dart';
 import '../../domain/entities/daily_activity.dart';
 import '../../domain/repositories/daily_activity_repository.dart';
 import '../daily_activity_endpoints.dart';
@@ -167,7 +168,14 @@ class DailyActivityRepositoryImpl implements DailyActivityRepository {
   }
 
   @override
-  Future<Result<List<int>>> download(String fileUrl) async {
+  Future<Result<List<int>>> download(String fileUrl) =>
+      OfflineFileCache.remember(
+        'file:${fileUrl.trim()}',
+        () => _download(fileUrl),
+        source: fileUrl,
+      );
+
+  Future<Result<List<int>>> _download(String fileUrl) async {
     try {
       final response = await Dio().get<List<int>>(
         AuthorizedFile.resolveUrl(fileUrl),

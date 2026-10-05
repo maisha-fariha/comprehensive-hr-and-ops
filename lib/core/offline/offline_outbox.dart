@@ -83,6 +83,12 @@ class OfflineOutbox {
     return item;
   }
 
+  /// Local file for a placeholder upload URL, if it has not been sent yet.
+  String? localPathForUpload(String url) => uploads.localPathFor(
+        url,
+        [for (final item in store.items) ...item.attachments],
+      );
+
   /// Unsent items (not needing attention) for reads served from the device.
   List<OutboxItem> get overlayItems =>
       scopedItems.where((i) => !i.status.needsAttention).toList();

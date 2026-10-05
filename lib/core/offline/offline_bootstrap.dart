@@ -17,6 +17,7 @@ import '../network/tenant_store.dart';
 import '../roles/user_session.dart';
 import 'background_sync.dart';
 import 'offline_config.dart';
+import 'offline_file_cache.dart';
 import 'offline_outbox.dart';
 import 'offline_overlay.dart';
 import 'offline_prewarm.dart';
@@ -50,6 +51,8 @@ abstract final class OfflineBootstrap {
       );
       await cache.ensureReady();
       _cache = cache;
+      OfflineFileCache.scope = _cacheScope;
+      OfflineFileCache.enabled = true;
     } catch (error) {
       debugPrint('OfflineBootstrap: storage unavailable ($error)');
     }

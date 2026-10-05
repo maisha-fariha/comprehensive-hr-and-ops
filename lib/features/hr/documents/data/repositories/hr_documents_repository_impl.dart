@@ -6,6 +6,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
+import '../../../../../core/offline/offline_file_cache.dart';
 import '../../domain/entities/hr_document.dart';
 import '../../domain/repositories/hr_documents_repository.dart';
 import '../hr_documents_endpoints.dart';
@@ -205,6 +206,28 @@ class HrDocumentsRepositoryImpl implements HrDocumentsRepository {
 
   @override
   Future<Result<HrDocumentFile>> download(String fileUrl, String fallbackName) async {
+    var fileName = fallbackName;
+    final bytes = await OfflineFileCache.remember('file:${fileUrl.trim()}', () async {
+      final file = await _download(fileUrl, fallbackName);
+      final value = file.value;
+      if (value == null) {
+        return Result.failure(
+          file.error ?? const ApiError(message: 'This file is no longer available.'),
+        );
+      }
+      fileName = value.fileName;
+      return Result.success(value.bytes);
+    }, source: fileUrl);
+    final value = bytes.value;
+    if (value == null) {
+      return Result.failure(
+        bytes.error ?? const ApiError(message: 'This file is no longer available.'),
+      );
+    }
+    return Result.success(HrDocumentFile(bytes: value, fileName: fileName));
+  }
+
+  Future<Result<HrDocumentFile>> _download(String fileUrl, String fallbackName) async {
     final path = HrDocumentsEndpoints.apiFilePath(fileUrl);
     if (path == null) {
       return Result.failure(const ApiError(message: 'This file is no longer available.'));

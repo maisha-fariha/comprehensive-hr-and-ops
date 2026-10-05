@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/network/authorized_file.dart';
+import '../../../../../core/offline/offline_image.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../attendance_formatters.dart';
 
@@ -272,9 +272,8 @@ class AttendanceRecordCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.network(
-              AuthorizedFile.resolveUrl(url),
-              headers: AuthorizedFile.headers(),
+            Image(
+              image: OfflineImage.provider(url, withAuth: true),
               fit: BoxFit.contain,
               errorBuilder: (_, _, _) => const Padding(
                 padding: EdgeInsets.all(24),

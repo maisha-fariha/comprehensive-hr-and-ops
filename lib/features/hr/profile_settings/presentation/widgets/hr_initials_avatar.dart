@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/network/authorized_file.dart';
+import '../../../../../core/offline/offline_image.dart';
 
 /// Circular avatar that shows [imageUrl] when available and falls back to
 /// [initials] while loading or when the image fails.
@@ -43,10 +43,9 @@ class HrInitialsAvatar extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: url == null || url.isEmpty
           ? fallback
-          : Image.network(
-              AuthorizedFile.resolveUrl(url),
+          : Image(
+              image: OfflineImage.provider(url, withAuth: true),
               key: ValueKey(url),
-              headers: AuthorizedFile.headers(),
               width: resolvedSize,
               height: resolvedSize,
               fit: BoxFit.cover,

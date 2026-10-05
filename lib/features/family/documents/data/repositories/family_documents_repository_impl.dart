@@ -9,6 +9,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
+import '../../../../../core/offline/offline_file_cache.dart';
 import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_document_enums.dart';
 import '../../domain/entities/family_documents_overview.dart';
@@ -42,18 +43,24 @@ class FamilyDocumentsRepositoryImpl implements FamilyDocumentsRepository {
   Future<Result<FamilyDocumentOpenPayload>> openDocument(
     FamilyDocument document,
   ) async {
-    final resolved = await _resolveOpenUrl(document);
-    if (resolved.isFailure) {
-      return Result.failure(
-        resolved.error ??
-            const ApiError(message: 'This document does not have a file yet.'),
-      );
-    }
-
-    final target = resolved.value!;
-    final bytesResult = await _downloadBytes(
-      target.url,
-      authUnlessSigned: target.needsAuth,
+    final bytesResult = await OfflineFileCache.remember(
+      'family-doc:${document.id}',
+      () async {
+        final resolved = await _resolveOpenUrl(document);
+        if (resolved.isFailure) {
+          return Result.failure(
+            resolved.error ??
+                const ApiError(
+                  message: 'This document does not have a file yet.',
+                ),
+          );
+        }
+        final target = resolved.value!;
+        return _downloadBytes(
+          target.url,
+          authUnlessSigned: target.needsAuth,
+        );
+      },
     );
     if (bytesResult.isFailure) {
       return Result.failure(

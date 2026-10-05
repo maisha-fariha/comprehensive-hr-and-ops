@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
-import 'package:get/get.dart' hide FormData, Response;
+import 'package:get/get.dart' hide FormData, MultipartFile, Response;
 import 'package:hive_ce/hive_ce.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -417,6 +417,48 @@ void main() {
       final rows = (list.value as Map)['data'] as List;
       expect(rows.first, containsPair('status', 'approved'));
       expect(rows.last, containsPair('title', 'GP visit'));
+    });
+
+    Future<FormData> form(String name) async {
+      final file = File('${tmp.path}/$name')..writeAsBytesSync([1, 2, 3]);
+      return FormData.fromMap({
+        'file': await MultipartFile.fromFile(file.path, filename: name),
+      });
+    }
+
+    test('file uploads made offline are kept on the device', () async {
+      monitor.isOnline.value = false;
+      final result = await client.post(
+        '/uploads',
+        data: await form('photo.jpg'),
+        query: const {'category': 'incidents'},
+        allowQueue: false,
+      );
+      expect(result.isSuccess, isTrue);
+      final url = '${(result.value as Map)['fileUrl']}';
+      expect(StagedUploadStore.isToken(url), isTrue);
+      expect(api.requests, isEmpty);
+
+      final local = outbox.localPathForUpload(url);
+      expect(local, isNotNull);
+      expect(File(local!).readAsBytesSync(), [1, 2, 3]);
+
+      await client.post('/incidents', data: {'evidence': url});
+      expect(outbox.store.items.single.attachments, hasLength(1));
+      expect(outbox.localPathForUpload(url), local);
+    });
+
+    test('avatar uploads are not kept offline', () async {
+      monitor.isOnline.value = false;
+      final result = await client.post(
+        '/uploads',
+        data: await form('me.jpg'),
+        query: const {'category': 'avatars'},
+        allowQueue: false,
+        silent: true,
+      );
+      expect(result.isFailure, isTrue);
+      expect(api.requests, isEmpty);
     });
   });
 }

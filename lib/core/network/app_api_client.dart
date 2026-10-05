@@ -78,6 +78,11 @@ class AppApiClient implements OutboxTransport {
 
   bool _isUploadPath(String path) => path == '/uploads';
 
+  /// Avatar uploads feed `/auth/avatar`, which is never queued, so a
+  /// placeholder URL could not be used.
+  bool _stagesWhenOffline(String path, Map<String, dynamic>? query) =>
+      _isUploadPath(path) && query?['category'] != 'avatars';
+
   /// Swaps temp ids of offline creates that have since reached the server.
   String _resolvePath(String path) => outbox?.resolveTempIds(path) ?? path;
 
@@ -140,9 +145,10 @@ class AppApiClient implements OutboxTransport {
     );
   }
 
-  /// Uploads made inside `OutboxContext.run(stageUploads: true)` are kept on
-  /// the device while offline and answered with a placeholder URL; a queued
-  /// write that references it uploads the file first on replay.
+  /// File uploads (and any upload inside `OutboxContext.run(stageUploads:
+  /// true)`) are kept on the device while offline and answered with a
+  /// placeholder URL; a queued write that references it uploads the file
+  /// first on replay.
   Future<Result<dynamic>> post(
     String path, {
     dynamic data,
@@ -156,10 +162,11 @@ class AppApiClient implements OutboxTransport {
     query = _resolveJson(query);
     data = _resolveJson(data);
     final identity = _writeIdentity('POST', path);
-    final staging =
-        OutboxContext.stageUploads && data is FormData && outbox != null
-            ? data.clone()
-            : null;
+    final staging = data is FormData &&
+            outbox != null &&
+            (OutboxContext.stageUploads || _stagesWhenOffline(path, query))
+        ? data.clone()
+        : null;
     return _send(
       method: 'POST',
       path: path,
