@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get_it/get_it.dart';
@@ -12,6 +13,7 @@ import '../../domain/entities/create_task_request.dart';
 import '../../domain/entities/task_client_option.dart';
 import '../../domain/entities/task_staff_option.dart';
 import '../../domain/entities/task_residence_option.dart';
+import '../../domain/entities/task_shift_option.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
 
 /// Opens the "New Task" create form matched to the Tasks & Compliance
@@ -45,29 +47,63 @@ class _CreateTaskSheet extends StatefulWidget {
 }
 
 class _CreateTaskSheetState extends State<_CreateTaskSheet> {
-  static const _roomOptions = [
-    '101',
-    '102',
-    '103',
-    '201',
-    '202',
-    '203',
-  ];
   static const _taskTypes = [
-    'Care',
-    'Administrative',
-    'Maintenance',
-    'Inventory',
-    'Compliance',
-    'Follow-up',
-    'Other',
+    ('administrative', 'Administrative'),
+    ('maintenance', 'Maintenance'),
+    ('inventory', 'Inventory'),
+    ('compliance', 'Compliance'),
+    ('follow_up', 'Follow-up'),
+    ('other', 'Other'),
   ];
-  static const _priorities = ['Low', 'Medium', 'High', 'Urgent'];
+  static const _priorities = [
+    ('low', 'Low'),
+    ('medium', 'Medium'),
+    ('high', 'High'),
+    ('urgent', 'Urgent'),
+  ];
+  static const _frequencies = [
+    ('daily', 'Daily'),
+    ('weekly', 'Weekly'),
+    ('monthly', 'Monthly'),
+  ];
+  static const _rotations = [
+    ('fixed', 'Everyone, every time'),
+    ('rotating', 'One person in turn'),
+  ];
+  static const _endConditions = [
+    ('never', 'Never'),
+    ('on_date', 'On a specific date'),
+  ];
+  static const _weekdayOptions = [
+    (1, 'Monday'),
+    (2, 'Tuesday'),
+    (3, 'Wednesday'),
+    (4, 'Thursday'),
+    (5, 'Friday'),
+    (6, 'Saturday'),
+    (0, 'Sunday'),
+  ];
 
   late final TasksComplianceRepository _repository;
   List<TaskResidenceOption> _residences = const [];
   bool _loadingResidences = true;
   bool _submitting = false;
+
+  List<String> _rooms = const [];
+  List<TaskShiftOption> _shifts = const [];
+  bool _loadingShifts = false;
+  TaskShiftOption? _shift;
+  int _optionsRequestId = 0;
+
+  String _frequency = 'daily';
+  TimeOfDay _timeOfDay = const TimeOfDay(hour: 9, minute: 0);
+  String _rotation = 'fixed';
+  final Set<int> _weekdays = {};
+  final _dayOfMonthController = TextEditingController();
+  String _endCondition = 'never';
+  DateTime? _endDate;
+
+  Map<String, String> _errors = const {};
 
   final _residentController = TextEditingController();
   final _staffController = TextEditingController();
@@ -79,13 +115,13 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
 
   TaskResidenceOption? _residence;
   String? _roomArea;
-  String _taskType = 'Care';
-  String _priority = 'Medium';
+  String _taskType = 'administrative';
+  String _priority = 'medium';
   DateTime? _dueAt;
   bool _requiresReview = false;
   bool _recurring = false;
   final List<_ChecklistDraft> _checklist = [];
-  final List<String> _docNames = [];
+  final List<CreateTaskAttachment> _attachments = [];
 
   Timer? _residentSearchDebounce;
   int _residentSearchRequestId = 0;
@@ -123,6 +159,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
             _residence = items.first;
           }
         });
+        _loadResidenceOptions();
       },
       failure: (error) {
         setState(() => _loadingResidences = false);
@@ -131,10 +168,47 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     );
   }
 
+  /// Rooms and shifts belong to the chosen residence.
+  Future<void> _loadResidenceOptions() async {
+    final residenceId = _residence?.id;
+    final requestId = ++_optionsRequestId;
+    setState(() {
+      _rooms = const [];
+      _shifts = const [];
+      _loadingShifts = residenceId != null;
+    });
+    if (residenceId == null) return;
+    final roomsRequest = _repository.getRooms(residenceId);
+    final shiftsRequest = _repository.getShiftOptions(residenceId);
+    final rooms = await roomsRequest;
+    final shifts = await shiftsRequest;
+    if (!mounted || requestId != _optionsRequestId) return;
+    setState(() {
+      _loadingShifts = false;
+      rooms.when(success: (items) => _rooms = items, failure: (_) {});
+      shifts.when(success: (items) => _shifts = items, failure: (_) {});
+    });
+  }
+
+  void _selectResidence(TaskResidenceOption? residence) {
+    setState(() {
+      _residence = residence;
+      _roomArea = null;
+      _shift = null;
+      _selectedResident = null;
+      _residentController.clear();
+      _residentSuggestions = const [];
+      _showResidentSuggestions = false;
+      _errors = Map.of(_errors)..remove('residenceId');
+    });
+    _loadResidenceOptions();
+  }
+
   @override
   void dispose() {
     _residentSearchDebounce?.cancel();
     _staffSearchDebounce?.cancel();
+    _dayOfMonthController.dispose();
     _residentController.dispose();
     _staffController.dispose();
     _titleController.dispose();
@@ -299,13 +373,21 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
       _showResidentSuggestions = false;
       _residentSearchError = '';
       _searchingResidents = false;
-      if (option.residenceId != null && option.residenceId!.isNotEmpty) {
-        final match = _residences.where((item) => item.id == option.residenceId);
-        if (match.isNotEmpty) {
-          _residence = match.first;
-        }
-      }
     });
+    final residenceId = option.residenceId;
+    if (residenceId != null &&
+        residenceId.isNotEmpty &&
+        residenceId != _residence?.id) {
+      final match = _residences.where((item) => item.id == residenceId);
+      if (match.isNotEmpty) {
+        setState(() {
+          _residence = match.first;
+          _roomArea = null;
+          _shift = null;
+        });
+        _loadResidenceOptions();
+      }
+    }
   }
 
   void _onStaffQueryChanged(String value) {
@@ -410,45 +492,133 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     });
   }
 
+  /// The web form's validation messages, keyed by field.
+  Map<String, String> _validate() {
+    final errors = <String, String>{};
+    if (_residence == null) errors['residenceId'] = 'Residence is required';
+    if (_titleController.text.trim().isEmpty) {
+      errors['title'] = 'Task title is required';
+    }
+    if (!_recurring) {
+      if (_shift == null) {
+        errors['shiftId'] = 'Choose the shift this task belongs to';
+      }
+      if (_selectedStaff.isEmpty) {
+        errors['assignedStaffIds'] = 'Assign at least one person to the task';
+      }
+    } else {
+      if (_frequency == 'weekly' && _weekdays.isEmpty) {
+        errors['weekdays'] = 'Pick the days it falls on';
+      }
+      final day = int.tryParse(_dayOfMonthController.text.trim());
+      if (_frequency == 'monthly' && (day == null || day < 1 || day > 31)) {
+        errors['dayOfMonth'] = 'Pick the day of the month';
+      }
+      if (_endCondition == 'on_date' && _endDate == null) {
+        errors['endDate'] = 'Pick the date it stops';
+      }
+    }
+    return errors;
+  }
+
+  Future<void> _pickAttachments() async {
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      for (final file in picked.files) {
+        final path = file.path;
+        if (path != null) {
+          _attachments.add(CreateTaskAttachment(path: path, name: file.name));
+        }
+      }
+    });
+  }
+
+  Future<void> _pickTimeOfDay() async {
+    final picked = await showTimePicker(context: context, initialTime: _timeOfDay);
+    if (picked != null && mounted) setState(() => _timeOfDay = picked);
+  }
+
+  Future<void> _pickEndDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _endDate = picked;
+        _errors = Map.of(_errors)..remove('endDate');
+      });
+    }
+  }
+
+  static String _two(int v) => v.toString().padLeft(2, '0');
+
+  String _labelOf(List<(String, String)> options, String value) =>
+      options.firstWhere((o) => o.$1 == value, orElse: () => (value, value)).$2;
+
+  Future<void> _pickValue(
+    String title,
+    List<(String, String)> options,
+    ValueChanged<String> onSelected,
+  ) =>
+      _pickOption(
+        title: title,
+        options: [for (final o in options) o.$2],
+        onSelected: (label) => onSelected(
+          options.firstWhere((o) => o.$2 == label).$1,
+        ),
+      );
+
   Future<void> _onCreate() async {
     if (_submitting) return;
-    if (_residence == null) {
-      AppSnackbar.show('Residence required', 'Select a residence to continue.');
-      return;
-    }
-    if (_titleController.text.trim().isEmpty) {
-      AppSnackbar.show('Task title required', 'Enter a task title to continue.');
-      return;
-    }
+    final errors = _validate();
+    setState(() => _errors = errors);
+    if (errors.isNotEmpty) return;
 
+    final title = _titleController.text.trim();
+    final description = _descriptionController.text.trim();
+    final notes = _notesController.text.trim();
     setState(() => _submitting = true);
     final result = await _repository.createTask(
       CreateTaskRequest(
         residenceId: _residence!.id,
-        title: _titleController.text.trim(),
+        title: title,
         roomArea: _roomArea,
         clientId: _selectedResident?.id,
-        description: _descriptionController.text.trim().isEmpty
-            ? null
-            : _descriptionController.text.trim(),
+        shiftId: _recurring ? null : _shift?.id,
+        description: description.isEmpty ? null : description,
         taskType: _taskType,
         priority: _priority,
         dueAt: _dueAt,
         requiresReview: _requiresReview,
-        recurring: _recurring,
-        assignedStaffIds: [
-          for (final staff in _selectedStaff) staff.id,
-        ],
+        assignedStaffIds: [for (final staff in _selectedStaff) staff.id],
         checklist: [
           for (final step in _checklist)
-            CreateTaskChecklistItem(
-              label: step.label,
-              required: step.mustBeDone,
-            ),
+            CreateTaskChecklistItem(label: step.label, required: step.mustBeDone),
         ],
-        notes: _notesController.text.trim().isEmpty
-            ? null
-            : _notesController.text.trim(),
+        notes: _recurring || notes.isEmpty ? null : notes,
+        attachments: _recurring ? const [] : List.of(_attachments),
+        recurrence: _recurring
+            ? TaskRecurrence(
+                frequency: _frequency,
+                timeOfDayMinutes: _timeOfDay.hour * 60 + _timeOfDay.minute,
+                weekdays: [
+                  for (final (day, _) in _weekdayOptions)
+                    if (_weekdays.contains(day)) day,
+                ],
+                dayOfMonth: int.tryParse(_dayOfMonthController.text.trim()),
+                rotating: _rotation == 'rotating',
+                endsOn: _endCondition == 'on_date' ? _endDate : null,
+              )
+            : null,
       ),
     );
     if (!mounted) return;
@@ -459,10 +629,10 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
         _close();
         widget.onCreated?.call();
         AppSnackbar.show(
-          'Task created',
+          _recurring ? 'Recurring task created' : 'Task created',
           _recurring
-              ? 'Recurring task “${_titleController.text.trim()}” was created.'
-              : '“${_titleController.text.trim()}” was created.',
+              ? 'The first occurrence appears within a day.'
+              : '“$title” was created.',
         );
       },
       failure: (error) {
@@ -521,28 +691,42 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                       selectedResidentId: _selectedResident?.id,
                       onResidentQueryChanged: _onResidentQueryChanged,
                       onResidentSelected: _selectResident,
+                      residenceError: _errors['residenceId'],
                       onPickResidence: () => _pickOption(
                         title: 'Select Residence',
                         options: _residences.map((item) => item.name).toList(),
-                        onSelected: (value) => setState(() {
+                        onSelected: (value) {
                           final match =
                               _residences.where((item) => item.name == value);
-                          _residence = match.isEmpty ? null : match.first;
-                          _roomArea = null;
-                          _selectedResident = null;
-                          _residentController.clear();
-                          _residentSuggestions = const [];
-                          _showResidentSuggestions = false;
-                        }),
+                          _selectResidence(match.isEmpty ? null : match.first);
+                        },
                       ),
-                      onPickRoom: !roomEnabled
+                      onPickRoom: !roomEnabled || _rooms.isEmpty
                           ? null
                           : () => _pickOption(
                                 title: 'Room / Area',
-                                options: _roomOptions,
+                                options: _rooms,
                                 onSelected: (value) =>
                                     setState(() => _roomArea = value),
                               ),
+                      shiftField: _recurring
+                          ? null
+                          : _ShiftField(
+                              residenceChosen: _residence != null,
+                              loading: _loadingShifts,
+                              shifts: _shifts,
+                              selected: _shift,
+                              error: _errors['shiftId'],
+                              onPick: () => _pickOption(
+                                title: 'Shift',
+                                options: [for (final s in _shifts) s.label],
+                                onSelected: (label) => setState(() {
+                                  _shift = _shifts
+                                      .firstWhere((s) => s.label == label);
+                                  _errors = Map.of(_errors)..remove('shiftId');
+                                }),
+                              ),
+                            ),
                     ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                   const WizardFieldLabel('Assigned Staff'),
@@ -578,14 +762,16 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
                   const _Hint(
-                    'Select one staff member or several — or leave unassigned',
+                    'A task can wait unassigned, but somebody has to pick it up',
                   ),
+                  _FieldError(_errors['assignedStaffIds']),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                   const WizardFieldLabel('Task Title', required: true),
                   WizardTextField(
                     controller: _titleController,
                     hint: 'e.g. Fridge Temperature Check',
                   ),
+                  _FieldError(_errors['title']),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                   const WizardFieldLabel('Description'),
                   WizardTextField(
@@ -596,23 +782,23 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                   const WizardFieldLabel('Task Type', required: true),
                   WizardDropdownField(
-                    value: _taskType,
+                    value: _labelOf(_taskTypes, _taskType),
                     placeholder: 'Select type',
-                    onTap: () => _pickOption(
-                      title: 'Task Type',
-                      options: _taskTypes,
-                      onSelected: (value) => setState(() => _taskType = value),
+                    onTap: () => _pickValue(
+                      'Task Type',
+                      _taskTypes,
+                      (value) => setState(() => _taskType = value),
                     ),
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                   const WizardFieldLabel('Priority', required: true),
                   WizardDropdownField(
-                    value: _priority,
+                    value: _labelOf(_priorities, _priority),
                     placeholder: 'Select priority',
-                    onTap: () => _pickOption(
-                      title: 'Priority',
-                      options: _priorities,
-                      onSelected: (value) => setState(() => _priority = value),
+                    onTap: () => _pickValue(
+                      'Priority',
+                      _priorities,
+                      (value) => setState(() => _priority = value),
                     ),
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
@@ -668,29 +854,220 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                   const WizardFieldLabel('Docs (Optional)'),
                   _DocsDropzone(
-                    files: _docNames,
-                    onTap: () {
-                      // UI placeholder until file picker is wired.
-                      setState(() {
-                        _docNames.add('attachment_${_docNames.length + 1}.pdf');
-                      });
-                    },
-                    onRemove: (index) => setState(() => _docNames.removeAt(index)),
+                    files: [for (final file in _attachments) file.name],
+                    onTap: _pickAttachments,
+                    onRemove: (index) =>
+                        setState(() => _attachments.removeAt(index)),
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                   _ToggleBlock(
+                    key: const ValueKey('create-task-recurring'),
                     title: 'Recurring Task',
                     subtitle:
                         'Repeat this task on a schedule and share it between staff',
                     value: _recurring,
-                    onChanged: (value) => setState(() => _recurring = value),
+                    onChanged: (value) => setState(() {
+                      _recurring = value;
+                      _errors = const {};
+                    }),
                     bordered: true,
+                    child: _recurring ? _buildRecurrence(context) : null,
                   ),
                 ],
               ),
             ),
-            _Footer(onCancel: _close, onCreate: _onCreate),
+            _Footer(
+              onCancel: _close,
+              onCreate: _onCreate,
+              saving: _submitting,
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecurrence(BuildContext context) {
+    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12));
+    final timeLabel = '${_two(_timeOfDay.hour)}:${_two(_timeOfDay.minute)}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        gap,
+        const WizardFieldLabel('Frequency', required: true),
+        WizardDropdownField(
+          key: const ValueKey('create-task-frequency'),
+          value: _labelOf(_frequencies, _frequency),
+          placeholder: 'Select frequency',
+          onTap: () => _pickValue(
+            'Frequency',
+            _frequencies,
+            (value) => setState(() => _frequency = value),
+          ),
+        ),
+        gap,
+        const WizardFieldLabel('Time of day', required: true),
+        WizardDropdownField(
+          key: const ValueKey('create-task-time-of-day'),
+          value: timeLabel,
+          placeholder: '09:00',
+          onTap: _pickTimeOfDay,
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+        const _Hint("In the home's own clock"),
+        gap,
+        const WizardFieldLabel('Rotation'),
+        WizardDropdownField(
+          key: const ValueKey('create-task-rotation'),
+          value: _labelOf(_rotations, _rotation),
+          placeholder: 'Rotation',
+          onTap: () => _pickValue(
+            'Rotation',
+            _rotations,
+            (value) => setState(() => _rotation = value),
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+        _Hint(
+          _rotation == 'rotating'
+              ? 'Each occurrence goes to one person, in turn'
+              : 'Everybody named gets every occurrence',
+        ),
+        if (_frequency == 'weekly') ...[
+          gap,
+          const WizardFieldLabel('Days'),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final (day, label) in _weekdayOptions)
+                FilterChip(
+                  key: ValueKey('create-task-weekday-$day'),
+                  label: Text(label),
+                  selected: _weekdays.contains(day),
+                  selectedColor: AppColors.activeBackground,
+                  checkmarkColor: AppColors.secondaryTeal,
+                  onSelected: (on) => setState(() {
+                    on ? _weekdays.add(day) : _weekdays.remove(day);
+                    _errors = Map.of(_errors)..remove('weekdays');
+                  }),
+                ),
+            ],
+          ),
+          _FieldError(_errors['weekdays']),
+        ],
+        if (_frequency == 'monthly') ...[
+          gap,
+          const WizardFieldLabel('Day of the month', required: true),
+          TextField(
+            key: const ValueKey('create-task-day-of-month'),
+            controller: _dayOfMonthController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              isDense: true,
+              hintText: '1–31',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+          const _Hint('29 to 31 fall back to the last day of a short month'),
+          _FieldError(_errors['dayOfMonth']),
+        ],
+        gap,
+        const WizardFieldLabel('End Condition'),
+        WizardDropdownField(
+          key: const ValueKey('create-task-end-condition'),
+          value: _labelOf(_endConditions, _endCondition),
+          placeholder: 'Never',
+          onTap: () => _pickValue(
+            'End Condition',
+            _endConditions,
+            (value) => setState(() => _endCondition = value),
+          ),
+        ),
+        if (_endCondition == 'on_date') ...[
+          gap,
+          const WizardFieldLabel('Stops on', required: true),
+          WizardDropdownField(
+            key: const ValueKey('create-task-end-date'),
+            value: _endDate == null
+                ? null
+                : '${_two(_endDate!.day)}/${_two(_endDate!.month)}/${_endDate!.year}',
+            placeholder: 'dd/mm/yyyy',
+            onTap: _pickEndDate,
+          ),
+          _FieldError(_errors['endDate']),
+        ],
+      ],
+    );
+  }
+}
+
+/// The web's "Shift" select: required for one-off tasks, listing the
+/// residence's shifts from a day ago to a week ahead.
+class _ShiftField extends StatelessWidget {
+  final bool residenceChosen;
+  final bool loading;
+  final List<TaskShiftOption> shifts;
+  final TaskShiftOption? selected;
+  final String? error;
+  final VoidCallback onPick;
+
+  const _ShiftField({
+    required this.residenceChosen,
+    required this.loading,
+    required this.shifts,
+    required this.selected,
+    required this.error,
+    required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = shifts.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const WizardFieldLabel('Shift', required: true),
+        Opacity(
+          opacity: enabled ? 1 : 0.72,
+          child: WizardDropdownField(
+            key: const ValueKey('create-task-shift'),
+            value: selected?.label,
+            placeholder: residenceChosen
+                ? (loading ? 'Loading shifts…' : 'Select the shift')
+                : 'Pick a residence first',
+            onTap: enabled ? onPick : null,
+          ),
+        ),
+        if (residenceChosen && !loading && shifts.isEmpty) ...[
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+          const _Hint('No shifts rostered at this home in the next week'),
+        ],
+        _FieldError(error),
+      ],
+    );
+  }
+}
+
+class _FieldError extends StatelessWidget {
+  final String? message;
+
+  const _FieldError(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    final text = message;
+    if (text == null) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(top: ResponsiveHelper.getResponsiveHeight(context, 5)),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w500,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+          color: AppColors.criticalRed,
         ),
       ),
     );
@@ -790,8 +1167,12 @@ class _ResidenceCard extends StatelessWidget {
   final ValueChanged<TaskClientOption> onResidentSelected;
   final VoidCallback onPickResidence;
   final VoidCallback? onPickRoom;
+  final String? residenceError;
+  final Widget? shiftField;
 
   const _ResidenceCard({
+    this.residenceError,
+    this.shiftField,
     required this.residence,
     required this.roomArea,
     required this.roomEnabled,
@@ -834,10 +1215,12 @@ class _ResidenceCard extends StatelessWidget {
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
           const WizardFieldLabel('Select Residence', required: true),
           WizardDropdownField(
+            key: const ValueKey('create-task-residence'),
             value: residence,
             placeholder: 'Select Residence',
             onTap: onPickResidence,
           ),
+          _FieldError(residenceError),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
           Text(
             'Room / Area',
@@ -852,11 +1235,16 @@ class _ResidenceCard extends StatelessWidget {
           Opacity(
             opacity: roomEnabled ? 1 : 0.72,
             child: WizardDropdownField(
+              key: const ValueKey('create-task-room'),
               value: roomArea,
               placeholder: roomEnabled ? 'Select Room / Area' : 'Pick a residence first',
               onTap: onPickRoom,
             ),
           ),
+          if (shiftField case final field?) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+            field,
+          ],
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
           const WizardFieldLabel('Resident (Optional)'),
           WizardSearchField(
@@ -1335,8 +1723,11 @@ class _ToggleBlock extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
   final bool bordered;
+  final Widget? child;
 
   const _ToggleBlock({
+    super.key,
+    this.child,
     required this.title,
     required this.subtitle,
     required this.value,
@@ -1402,7 +1793,12 @@ class _ToggleBlock extends StatelessWidget {
         ),
         border: Border.all(color: AppColors.searchBorder),
       ),
-      child: content,
+      child: child == null
+          ? content
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [content, child!],
+            ),
     );
   }
 }
@@ -1551,8 +1947,13 @@ class _DocsDropzone extends StatelessWidget {
 class _Footer extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onCreate;
+  final bool saving;
 
-  const _Footer({required this.onCancel, required this.onCreate});
+  const _Footer({
+    required this.onCancel,
+    required this.onCreate,
+    this.saving = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1608,7 +2009,8 @@ class _Footer extends StatelessWidget {
                 color: AppColors.primaryNavy,
                 borderRadius: BorderRadius.circular(radius),
                 child: InkWell(
-                  onTap: onCreate,
+                  key: const ValueKey('create-task-submit'),
+                  onTap: saving ? null : onCreate,
                   borderRadius: BorderRadius.circular(radius),
                   child: Padding(
                     padding: ResponsiveHelper.getResponsivePadding(
@@ -1617,7 +2019,7 @@ class _Footer extends StatelessWidget {
                       vertical: 12,
                     ),
                     child: Text(
-                      'Create Task',
+                      saving ? 'Saving…' : 'Create Task',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,

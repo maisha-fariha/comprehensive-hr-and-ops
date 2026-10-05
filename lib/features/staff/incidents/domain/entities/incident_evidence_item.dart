@@ -7,12 +7,16 @@ class IncidentEvidenceItem {
   final String fileUrl;
   final String fileType;
   final String? sizeLabel;
+  final String? uploadedByName;
+  final String? uploadedAtLabel;
 
   const IncidentEvidenceItem({
     required this.fileName,
     required this.fileUrl,
     this.fileType = 'file',
     this.sizeLabel,
+    this.uploadedByName,
+    this.uploadedAtLabel,
   });
 
   String get extensionLabel {
@@ -27,7 +31,28 @@ class IncidentEvidenceItem {
     return 'FILE';
   }
 
+  /// Primary line — web shows mime type when no file name is stored.
+  String get displayName {
+    final name = fileName.trim();
+    if (name.isNotEmpty && !name.startsWith('http') && name.contains('.')) {
+      return name;
+    }
+    final type = fileType.trim();
+    if (type.isNotEmpty && type != 'file') return type;
+    if (name.isNotEmpty) return name;
+    return 'Attachment';
+  }
+
   String get metaLabel {
+    final uploader = uploadedByName?.trim();
+    final when = uploadedAtLabel?.trim();
+    if ((uploader != null && uploader.isNotEmpty) ||
+        (when != null && when.isNotEmpty)) {
+      return [
+        if (uploader != null && uploader.isNotEmpty) uploader,
+        if (when != null && when.isNotEmpty) when,
+      ].join(' · ');
+    }
     if (sizeLabel != null && sizeLabel!.isNotEmpty) return sizeLabel!;
     if (fileType.toLowerCase().contains('pdf')) return 'PDF Document';
     if (fileType.toLowerCase().startsWith('image/')) return 'Image';

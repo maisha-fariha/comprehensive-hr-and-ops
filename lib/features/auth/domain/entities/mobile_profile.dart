@@ -17,7 +17,9 @@ class MobileProfile {
   final String? staffId;
   final String? relationship;
   final String avatarInitials;
+  final String? avatarUrl;
   final bool medAdminCertified;
+  final bool medAdminApproved;
 
   const MobileProfile({
     required this.id,
@@ -26,6 +28,7 @@ class MobileProfile {
     required this.role,
     required this.roleRaw,
     required this.avatarInitials,
+    this.avatarUrl,
     this.firstName,
     this.lastName,
     this.permissions = const [],
@@ -36,5 +39,6 @@ class MobileProfile {
     this.staffId,
     this.relationship,
     this.medAdminCertified = false,
+    this.medAdminApproved = false,
   });
 }

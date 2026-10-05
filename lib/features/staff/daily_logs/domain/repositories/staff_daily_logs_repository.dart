@@ -4,22 +4,22 @@ import '../entities/daily_note_attachment.dart';
 import '../entities/daily_note_overview.dart';
 import '../entities/staff_daily_logs_overview.dart';
 
-/// Contract for Staff Daily Logs (My Clients) and Daily Note.
+/// Contract for Staff Daily Logs (web-parity queues + Daily Note).
 abstract class StaffDailyLogsRepository {
-  /// My Clients + In Progress (`entryStatus=draft`) + Submitted
-  /// (`entryStatus=submitted`) + open care-flags.
-  Future<Result<StaffDailyLogsOverview>> getOverview();
+  /// Loads To review / Missing / Resident day / House activity for filters.
+  ///
+  /// [residenceId] is required by the API for review/missing queues.
+  Future<Result<StaffDailyLogsOverview>> getOverview({
+    required String residenceId,
+    required DateTime from,
+    required DateTime to,
+    String? clientId,
+  });
 
-  /// `GET /daily-logs/entries/{entryId}` — details of one entry.
   Future<Result<DailyNoteOverview>> getEntryDetail(String entryId);
 
-  /// Empty form scaffold when there is no existing entry yet.
   Future<Result<DailyNoteOverview>> getEmptyDailyNote();
 
-  /// Save draft / edit draft / submit.
-  /// - no [entryId] + draft → `POST /daily-logs/entries` `{status: draft}`
-  /// - [entryId] + draft → `PATCH /daily-logs/entries/{id}`
-  /// - [entryId] + submit → `PATCH` with `{status: submitted}`
   Future<Result<String>> saveEntry({
     required String clientId,
     required String residenceId,
@@ -33,20 +33,17 @@ abstract class StaffDailyLogsRepository {
     List<DailyNoteAttachment> attachments = const [],
   });
 
-  /// `POST /daily-logs/entries/{entryId}/amendments` — correct a submitted note.
   Future<Result<String>> amendEntry({
     required String entryId,
     required String body,
     required String reason,
   });
 
-  /// `POST /uploads?category=daily-logs` → URL for [attachments].
   Future<Result<DailyNoteAttachment>> uploadAttachment({
     required String localPath,
     required String fileName,
   });
 
-  /// `POST /shift-handovers` — separate from the daily-log entry.
   Future<Result<void>> createHandover({
     required String residenceId,
     required String summary,
@@ -56,4 +53,12 @@ abstract class StaffDailyLogsRepository {
     bool flagForAttention = false,
     bool submit = true,
   });
+
+  Future<Result<String>> createClient({
+    required String name,
+    required String residenceId,
+    String? room,
+  });
+
+  Future<Result<List<({String id, String name})>>> getResidenceOptions();
 }

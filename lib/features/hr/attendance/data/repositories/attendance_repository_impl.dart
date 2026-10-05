@@ -3,10 +3,9 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
-import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
-import '../../domain/entities/attendance_overview.dart';
+import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/repositories/attendance_repository.dart';
 import '../mappers/attendance_mapper.dart';
@@ -24,71 +23,138 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
         _session = session;
 
   @override
-  Future<Result<AttendanceOverview>> getOverview({
-    DateTime? from,
-    DateTime? to,
+  Future<Result<AttendanceRecordPage>> getRecords({
+    required int page,
+    required int limit,
+    String? residenceId,
+    String? status,
+    String? from,
+    String? to,
+    bool mine = false,
   }) async {
-    final rangeStart = from == null
-        ? IsoDateRange.startOfLocalDay()
-        : DateTime(from.year, from.month, from.day);
-    final rangeEndExclusive = to == null
-        ? rangeStart.add(const Duration(days: 1))
-        : DateTime(to.year, to.month, to.day).add(const Duration(days: 1));
-
-    final fromIso = rangeStart.toUtc().toIso8601String();
-    final toIso = rangeEndExclusive.toUtc().toIso8601String();
-    final residenceId = _session.residenceId;
-    final rangeQuery = <String, dynamic>{
-      'from': fromIso,
-      'to': toIso,
-      'residenceId': ?residenceId,
-    };
-
-    final results = await Future.wait([
-      _api.get(
-        ApiEndpoints.attendance,
-        query: {
-          ...rangeQuery,
-          'page': 1,
-          'limit': 200,
-        },
+    final result = await _api.get(
+      ApiEndpoints.attendance,
+      query: {
+        'page': page,
+        'limit': limit,
+        'residenceId': ?residenceId,
+        'status': ?status,
+        'from': ?from,
+        'to': ?to,
+        if (mine) 'mine': true,
+      },
+    );
+    return result.when(
+      success: (body) async => Result.success(
+        AttendanceMapper.recordPageFrom(body, page: page, limit: limit),
       ),
-      _api.get(ApiEndpoints.attendanceOvertime, query: rangeQuery),
-      _api.get(ApiEndpoints.attendanceSummary, query: rangeQuery),
-      if (residenceId != null && residenceId.isNotEmpty)
-        _api.get(ApiEndpoints.residenceById(residenceId))
-      else
-        Future.value(Result<dynamic>.success(null)),
-    ]);
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
-    final attendance = results[0];
-    if (attendance.isFailure) {
-      return Result.failure(
-        attendance.error ??
-            const ApiError(message: 'Could not load attendance.'),
-      );
-    }
+  @override
+  Future<Result<AttendanceSummary>> getSummary({
+    String? residenceId,
+    required String from,
+    required String to,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.attendanceSummary,
+      query: {'residenceId': ?residenceId, 'from': from, 'to': to},
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AttendanceMapper.summaryFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
-    final overtime = results[1];
-    if (overtime.isFailure) {
-      return Result.failure(
-        overtime.error ??
-            const ApiError(message: 'Could not load overtime records.'),
-      );
-    }
+  @override
+  Future<Result<OpenAttendance?>> getMyOpenAttendance() async {
+    final now = DateTime.now().toUtc();
+    final result = await _api.get(
+      ApiEndpoints.attendance,
+      query: {
+        'mine': true,
+        'from': now.subtract(const Duration(hours: 48)).toIso8601String(),
+        'to': now.add(const Duration(hours: 1)).toIso8601String(),
+        'limit': 50,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AttendanceMapper.openAttendanceFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
-    // Summary powers the stat tiles; if it fails, list-derived counts still work.
-    final summaryBody = results[2].isSuccess ? results[2].value : null;
+  @override
+  Future<Result<AttendanceShiftWindow?>> getMyShiftWindow(
+    String staffId,
+  ) async {
+    final now = DateTime.now();
+    final utc = now.toUtc();
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'staffId': staffId,
+        'limit': 20,
+        'from': utc.subtract(const Duration(hours: 14)).toIso8601String(),
+        'to': utc.add(const Duration(hours: 14)).toIso8601String(),
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AttendanceMapper.shiftWindowFrom(body, now)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
-    return Result.success(
-      AttendanceMapper.compose(
-        attendanceBody: attendance.value,
-        overtimeBody: overtime.value,
-        summaryBody: summaryBody,
-        residenceBody: results[3].isSuccess ? results[3].value : null,
-        fallbackResidenceName: _session.residenceName,
-        multiDay: rangeEndExclusive.difference(rangeStart).inDays > 1,
-      ),
+  @override
+  Future<Result<void>> clockIn(Map<String, dynamic> body) =>
+      _voidPost(ApiEndpoints.attendanceCheckIn, body);
+
+  @override
+  Future<Result<void>> clockOut(Map<String, dynamic> body) =>
+      _voidPost(ApiEndpoints.attendanceCheckOut, body);
+
+  @override
+  Future<Result<String>> uploadSelfie(String localPath, String fileName) async {
+    final result = await _upload(localPath, fileName, 'attendance-selfies');
+    return result.when(
+      success: (url) async => Result.success(url),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> updateAttendance(
+    String attendanceId,
+    Map<String, dynamic> body,
+  ) async {
+    final result = await _api.patch(
+      ApiEndpoints.attendanceById(attendanceId),
+      data: body,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> deleteAttendance(String attendanceId) async {
+    final result = await _api.delete(
+      ApiEndpoints.attendanceById(attendanceId),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
     );
   }
 
@@ -104,7 +170,11 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
 
   @override
   Future<Result<List<ManualEntryResidenceOption>>> getResidences() async {
-    final result = await _api.get(ApiEndpoints.residences, silent: true);
+    final result = await _api.get(
+      ApiEndpoints.residences,
+      query: const {'page': 1, 'limit': 100},
+      silent: true,
+    );
     return result.when(
       success: (body) async =>
           Result.success(AttendanceMapper.residencesFrom(body)),
@@ -139,29 +209,15 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
   Future<Result<List<ManualEntryShiftOption>>> getRosteredShifts({
     required String staffId,
     String? residenceId,
-    DateTime? around,
   }) async {
-    final day = IsoDateRange.startOfLocalDay(around);
-    final from = day.subtract(const Duration(days: 3));
-    final to = day.add(const Duration(days: 4));
-    final scopedResidenceId = residenceId ?? _session.residenceId;
-
     final result = await _api.get(
       ApiEndpoints.shifts,
-      query: {
-        'page': 1,
-        'limit': _pageSize,
-        'from': from.toUtc().toIso8601String(),
-        'to': to.toUtc().toIso8601String(),
-        'residenceId': ?scopedResidenceId,
-      },
+      query: {'limit': 50, 'staffId': staffId, 'residenceId': ?residenceId},
       silent: true,
     );
-
     return result.when(
-      success: (body) async => Result.success(
-        AttendanceMapper.shiftsForStaff(body, staffId: staffId),
-      ),
+      success: (body) async =>
+          Result.success(AttendanceMapper.rosteredShiftsFrom(body)),
       failure: (error) async => Result.failure(error),
     );
   }
@@ -170,49 +226,17 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
   Future<Result<ManualEntryEvidenceFile>> uploadEvidenceFile(
     ManualEntryEvidenceFile file,
   ) async {
-    try {
-      final form = FormData.fromMap({
-        'file': await MultipartFile.fromFile(
-          file.localPath,
-          filename: file.fileName,
-        ),
-      });
-
-      final result = await _api.post(
-        ApiEndpoints.uploads,
-        data: form,
-        query: const {'category': 'documents'},
-        allowQueue: false,
-      );
-
-      return result.when(
-        success: (body) async {
-          final map = JsonCodec.unwrapMap(body);
-          final url = JsonCodec.string(
-            map['fileUrl'] ?? map['url'] ?? map['publicUrl'],
-          );
-          if (url == null || url.isEmpty) {
-            return Result.failure(
-              const ApiError(
-                message: 'Upload succeeded but file URL was missing.',
-              ),
-            );
-          }
-          return Result.success(
-            file.copyWith(
-              fileUrl: url,
-              isUploading: false,
-              clearError: true,
-            ),
-          );
-        },
-        failure: (error) async => Result.failure(error),
-      );
-    } catch (error) {
-      return Result.failure(
-        ApiError(message: 'Could not upload ${file.fileName}: $error'),
-      );
-    }
+    final result = await _upload(
+      file.localPath,
+      file.fileName,
+      'attendance-evidence',
+    );
+    return result.when(
+      success: (url) async => Result.success(
+        file.copyWith(fileUrl: url, isUploading: false, clearError: true),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
   }
 
   @override
@@ -225,16 +249,55 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       allowQueue: false,
     );
     return result.when(
-      success: (body) async {
-        final id = _extractId(body);
-        return Result.success(id ?? '');
-      },
+      success: (body) async => Result.success(_extractId(body) ?? ''),
       failure: (error) async => Result.failure(error),
     );
   }
 
-  Future<Result<void>> _voidPost(String path) async {
-    final result = await _api.post(path, data: const <String, dynamic>{});
+  Future<Result<String>> _upload(
+    String localPath,
+    String fileName,
+    String category,
+  ) async {
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(localPath, filename: fileName),
+      });
+      final result = await _api.post(
+        ApiEndpoints.uploads,
+        data: form,
+        query: {'category': category},
+        allowQueue: false,
+      );
+      return result.when(
+        success: (body) async {
+          final map = JsonCodec.unwrapMap(body);
+          final url = JsonCodec.string(
+            map['fileUrl'] ?? map['url'] ?? map['publicUrl'],
+          );
+          if (url == null) {
+            return Result.failure(
+              const ApiError(
+                message: 'Upload succeeded but file URL was missing.',
+              ),
+            );
+          }
+          return Result.success(url);
+        },
+        failure: (error) async => Result.failure(error),
+      );
+    } catch (error) {
+      return Result.failure(
+        ApiError(message: 'Could not upload $fileName: $error'),
+      );
+    }
+  }
+
+  Future<Result<void>> _voidPost(
+    String path, [
+    Map<String, dynamic> body = const <String, dynamic>{},
+  ]) async {
+    final result = await _api.post(path, data: body, allowQueue: false);
     return result.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),

@@ -59,6 +59,38 @@ class ComposeMessagePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Obx(() {
+                      if (controller.hasLinkedResident.value != false) {
+                        return const SizedBox.shrink();
+                      }
+                      return Container(
+                        key: const Key('compose-not-linked-notice'),
+                        width: double.infinity,
+                        margin: EdgeInsets.only(
+                          bottom: ResponsiveHelper.getResponsiveHeight(context, 16),
+                        ),
+                        padding: ResponsiveHelper.getResponsivePadding(
+                          context,
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.urgentAmber.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(
+                            ResponsiveHelper.getResponsiveRadius(context, 12),
+                          ),
+                        ),
+                        child: Text(
+                          ComposeMessageController.notLinkedMessage,
+                          style: TextStyle(
+                            fontFamily: 'Manrope',
+                            fontWeight: FontWeight.w600,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                            color: AppColors.textHeading,
+                          ),
+                        ),
+                      );
+                    }),
                     const ComposeFieldLabel('To'),
                     Container(
                       width: double.infinity,
@@ -163,10 +195,13 @@ class ComposeMessagePage extends StatelessWidget {
                 padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 12, bottom: 12),
                 child: Obx(
                   () => SendMessageButton(
-                    onTap: controller.isSending.value ||
-                            controller.isUploading.value
-                        ? () {}
-                        : controller.sendMessage,
+                    isSending: controller.isSending.value,
+                    onTap: !controller.canSend
+                        ? null
+                        : controller.isSending.value ||
+                                controller.isUploading.value
+                            ? () {}
+                            : controller.sendMessage,
                   ),
                 ),
               ),

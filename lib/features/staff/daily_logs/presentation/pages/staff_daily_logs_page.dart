@@ -8,23 +8,17 @@ import '../../../staff_shell.dart';
 import '../../domain/entities/daily_note_client_info.dart';
 import '../../domain/entities/staff_client_log_entry.dart';
 import '../../domain/entities/staff_daily_logs_enums.dart';
+import '../../domain/entities/staff_daily_logs_overview.dart';
 import '../controllers/staff_daily_logs_controller.dart';
-import '../widgets/in_progress_tab_view.dart';
-import '../widgets/my_clients_tab_view.dart';
 import '../widgets/staff_daily_logs_app_bar.dart';
+import '../widgets/staff_daily_logs_filters_card.dart';
+import '../widgets/staff_daily_logs_queue_tab_view.dart';
 import '../widgets/staff_daily_logs_tab_bar.dart';
-import '../widgets/submitted_tab_view.dart';
+import '../widgets/staff_house_activity_tab_view.dart';
+import '../widgets/staff_resident_day_tab_view.dart';
 import 'daily_note_page.dart';
 
-/// The Staff "Daily Logs" screen: a single page hosting three segmented
-/// tabs (My Clients / In Progress / Submitted) that all share the same
-/// white app bar and tab-bar header.
-///
-/// Pixel-accurate reproduction of the "My Clients - Daily Logs" /
-/// "In Progress - Daily Logs" / "Submitted - Daily Logs" reference
-/// screenshots. Built from reference screenshots (live Figma MCP access
-/// was unavailable while this screen was authored - see implementation
-/// report).
+/// Staff Daily Logs — web-parity filters + tabs.
 class StaffDailyLogsPage extends StatelessWidget {
   const StaffDailyLogsPage({super.key});
 
@@ -32,7 +26,10 @@ class StaffDailyLogsPage extends StatelessWidget {
     try {
       return Get.find<StaffDailyLogsController>();
     } catch (_) {
-      return Get.put(GetIt.instance<StaffDailyLogsController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<StaffDailyLogsController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -52,8 +49,39 @@ class StaffDailyLogsPage extends StatelessWidget {
     );
   }
 
+  void _openNoteForSelected(StaffDailyLogsController controller) {
+    final clientId = controller.selectedClientId.value;
+    final residenceId = controller.selectedResidenceId.value;
+    if (clientId == null || residenceId == null) return;
+    var name = controller.overview?.dayClientName;
+    if (name == null || name.isEmpty) {
+      for (final r in controller.residentOptions) {
+        if (r.id == clientId) {
+          name = r.name;
+          break;
+        }
+      }
+    }
+    name ??= 'Resident';
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+    final initials = parts.isEmpty
+        ? 'R'
+        : parts.take(2).map((p) => p[0].toUpperCase()).join();
+    Get.to(
+      () => DailyNotePage(
+        client: DailyNoteClientInfo(
+          initials: initials,
+          name: name!,
+          dobLabel: '',
+          roomLabel: '',
+          clientId: clientId,
+          residenceId: residenceId,
+        ),
+      ),
+    );
+  }
+
   void _onBack() {
-    // Clients tab is rooted in the shell — nothing to pop; go Home like Schedule.
     Get.offAll(() => const StaffShell(initialIndex: 0));
   }
 
@@ -67,19 +95,27 @@ class StaffDailyLogsPage extends StatelessWidget {
         child: Obx(() {
           final response = controller.state.value;
           final overview = response.data;
+          final residenceId = controller.selectedResidenceId.value;
+          final hasResidence = residenceId != null && residenceId.isNotEmpty;
 
-          if (overview == null && controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+          if (overview == null &&
+              controller.isLoading.value &&
+              hasResidence) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+            );
           }
 
-          if (overview == null) {
+          if (overview == null &&
+              controller.errorMessage.value.isNotEmpty &&
+              hasResidence) {
             return _StaffDailyLogsError(
-              message: controller.errorMessage.value.isEmpty
-                  ? 'Something went wrong while loading Daily Logs.'
-                  : controller.errorMessage.value,
+              message: controller.errorMessage.value,
               onRetry: controller.refresh,
             );
           }
+
+          final safeOverview = overview ?? StaffDailyLogsOverview.empty;
 
           return Column(
             children: [
@@ -89,12 +125,31 @@ class StaffDailyLogsPage extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     StaffDailyLogsAppBar(onBack: _onBack),
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 16,
+                        bottom: 8,
+                      ),
+                      child: StaffDailyLogsFiltersCard(
+                        residenceId: controller.selectedResidenceId.value,
+                        clientId: controller.selectedClientId.value,
+                        fromDate: controller.fromDate.value,
+                        toDate: controller.toDate.value,
+                        residences: controller.residenceOptions.toList(),
+                        residents: controller.residentOptions,
+                        onResidenceChanged: controller.setResidence,
+                        onResidentChanged: controller.setResident,
+                        onFromChanged: controller.setFromDate,
+                        onToChanged: controller.setToDate,
+                        formatDate: controller.formatFilterDate,
+                      ),
+                    ),
                     StaffDailyLogsTabBar(
                       selectedTab: controller.selectedTab.value,
                       onTabSelected: controller.selectTab,
-                      myClientsCount: overview.myClientsTotalCount,
-                      inProgressCount: overview.inProgressClients.length,
-                      submittedCount: overview.submittedTotalCount,
+                      toReviewCount: safeOverview.toReviewTotal,
+                      missingCount: safeOverview.missingTotal,
                     ),
                   ],
                 ),
@@ -103,30 +158,94 @@ class StaffDailyLogsPage extends StatelessWidget {
                 child: RefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
-                  child: switch (controller.selectedTab.value) {
-                    StaffDailyLogsTab.myClients => MyClientsTabView(
-                        stats: overview.stats,
-                        myClients: overview.myClients,
-                        myClientsTotalCount: overview.myClientsTotalCount,
-                        onClientTap: _openDailyNote,
-                      ),
-                    StaffDailyLogsTab.inProgress => InProgressTabView(
-                        stats: overview.stats,
-                        inProgressClients: overview.inProgressClients,
-                        onClientTap: _openDailyNote,
-                      ),
-                    StaffDailyLogsTab.submitted => SubmittedTabView(
-                        stats: overview.stats,
-                        submittedClients: overview.submittedClients,
-                        submittedTotalCount: overview.submittedTotalCount,
-                        onClientTap: _openDailyNote,
-                      ),
-                  },
+                  child: !hasResidence
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 80),
+                            _ChooseResidenceEmpty(),
+                          ],
+                        )
+                      : switch (controller.selectedTab.value) {
+                          StaffDailyLogsTab.toReview =>
+                            StaffDailyLogsQueueTabView(
+                              stats: safeOverview.stats,
+                              items: controller.filteredToReview,
+                              totalCount: safeOverview.toReviewTotal,
+                              sectionTitle: 'To review',
+                              emptyMessage:
+                                  'No logs awaiting review for these filters.',
+                              onItemTap: _openDailyNote,
+                            ),
+                          StaffDailyLogsTab.missing =>
+                            StaffDailyLogsQueueTabView(
+                              stats: safeOverview.stats,
+                              items: controller.filteredMissing,
+                              totalCount: safeOverview.missingTotal,
+                              sectionTitle: 'Missing',
+                              emptyMessage:
+                                  'No missing logs for these filters.',
+                              onItemTap: _openDailyNote,
+                            ),
+                          StaffDailyLogsTab.residentDay =>
+                            StaffResidentDayTabView(
+                              hasResidence: true,
+                              hasResident:
+                                  (controller.selectedClientId.value ?? '')
+                                      .isNotEmpty,
+                              clientName: safeOverview.dayClientName,
+                              dateLabel: safeOverview.dayLogDateLabel,
+                              entries: safeOverview.dayEntries,
+                              onWriteNote: () =>
+                                  _openNoteForSelected(controller),
+                            ),
+                          StaffDailyLogsTab.houseActivity =>
+                            StaffHouseActivityTabView(
+                              hasResidence: true,
+                              activities: safeOverview.houseActivities,
+                              totalCount: safeOverview.houseActivitiesTotal,
+                            ),
+                        },
                 ),
               ),
             ],
           );
         }),
+      ),
+    );
+  }
+}
+
+class _ChooseResidenceEmpty extends StatelessWidget {
+  const _ChooseResidenceEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: [
+          Text(
+            'Choose a residence to begin',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Daily logs are read one residence at a time.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: AppColors.textMuted,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -146,7 +265,11 @@ class _StaffDailyLogsError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.criticalRed, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.criticalRed,
+              size: 40,
+            ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Text(
               message,
@@ -160,7 +283,9 @@ class _StaffDailyLogsError extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+              ),
               child: const Text('Retry'),
             ),
           ],

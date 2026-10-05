@@ -123,18 +123,14 @@ class _StaffEmergencyDetailsSheetState
     final media = MediaQuery.of(context);
     final maxWidth =
         ResponsiveHelper.getResponsiveWidth(context, 440).clamp(300.0, 480.0);
-    // Fixed height avoids Dialog + Expanded unbounded-height crashes.
-    final dialogHeight = (media.size.height - media.viewInsets.bottom - 48)
-        .clamp(360.0, media.size.height * 0.9);
+    // Fixed height avoids Dialog + Expanded unbounded-height crashes. Dialog
+    // already pads by the keyboard inset and clamps this to the space left.
+    final dialogHeight = media.size.height * 0.9;
 
     return Dialog(
+      key: const Key('staff-emergency-details'),
       backgroundColor: Colors.transparent,
-      insetPadding: EdgeInsets.fromLTRB(
-        16,
-        20,
-        16,
-        20 + media.viewInsets.bottom,
-      ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       child: SizedBox(
         width: maxWidth,
         height: dialogHeight,

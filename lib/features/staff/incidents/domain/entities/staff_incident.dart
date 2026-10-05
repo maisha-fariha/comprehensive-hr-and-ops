@@ -2,33 +2,26 @@ import 'package:flutter/foundation.dart';
 
 import 'staff_incidents_enums.dart';
 
-/// A single row shown on both tabs of the Staff Incidents list screen.
-///
-/// The same 3 incidents back both the "My Incidents" and "All Incidents"
-/// tabs in the Figma screenshots - only the footer content (resident/client
-/// avatar+name vs. "Assigned: {staff}" text) and the presence of the
-/// "View Details" button differ per tab, which the presentation widgets
-/// handle rather than the model.
+/// A single row on the Staff Incidents list (web table columns, mobile card).
 @immutable
 class StaffIncident {
   final String id;
   final String title;
+  final String categoryLabel;
+  final String residenceName;
+  final String reportedByName;
+  final String reportedAtLabel;
+  final String? acknowledgedAtLabel;
+  final bool acknowledged;
   final StaffIncidentIconKind iconKind;
   final IncidentSeverity severity;
   final String dateTimeLabel;
 
-  /// The resident/client the incident concerns, shown with a small avatar
-  /// next to the date on the "My Incidents" tab (e.g. avatar "JD" +
-  /// "James D."). The source screenshot doesn't label this row, and cross
-  /// referencing the sibling "Daily Note" screen confirms e.g. "James D."
-  /// is a resident, not the reporting staff member - so this is modeled as
-  /// the resident/client rather than a "reporter".
+  /// Resident/client the incident concerns.
   final String personInitials;
   final String personName;
 
-  /// Staff assigned to the incident, shown as "Assigned: {name}" (plus a
-  /// "+N" suffix for extra assignees, e.g. "Assigned: David L. +1") on the
-  /// "All Incidents" tab.
+  /// Staff assigned (All Incidents footer).
   final List<String> assignedNames;
 
   final IncidentStatus status;
@@ -43,5 +36,16 @@ class StaffIncident {
     required this.personName,
     required this.assignedNames,
     required this.status,
+    this.categoryLabel = '',
+    this.residenceName = '',
+    this.reportedByName = '',
+    this.reportedAtLabel = '',
+    this.acknowledgedAtLabel,
+    this.acknowledged = false,
   });
+
+  String get shortId {
+    if (id.length <= 8) return id;
+    return id.substring(0, 8);
+  }
 }

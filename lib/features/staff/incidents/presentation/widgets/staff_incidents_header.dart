@@ -83,30 +83,67 @@ class StaffIncidentsHeader extends StatelessWidget {
                 top: 8,
                 bottom: 12,
               ),
-              child: SizedBox(
-                height: buttonSize,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
-                        color: AppColors.textHeading,
-                        height: 1.2,
+              child: trailing == null
+                  ? SizedBox(
+                      height: buttonSize,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Text(
+                            title,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                18,
+                              ),
+                              color: AppColors.textHeading,
+                              height: 1.2,
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: backButton,
+                          ),
+                        ],
                       ),
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        backButton,
+                        SizedBox(
+                          width:
+                              ResponsiveHelper.getResponsiveWidth(context, 10),
+                        ),
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                17,
+                              ),
+                              color: AppColors.textHeading,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width:
+                              ResponsiveHelper.getResponsiveWidth(context, 8),
+                        ),
+                        trailing!,
+                      ],
                     ),
-                    Align(alignment: Alignment.centerLeft, child: backButton),
-                    if (trailing != null)
-                      Align(alignment: Alignment.centerRight, child: trailing!),
-                  ],
-                ),
-              ),
             ),
           ],
         ),

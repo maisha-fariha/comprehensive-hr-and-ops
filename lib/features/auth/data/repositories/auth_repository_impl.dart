@@ -81,6 +81,7 @@ class AuthRepositoryImpl implements AuthRepository {
     final result = await _api.post(
       ApiEndpoints.mobileLogin,
       data: {'email': email.trim(), 'password': password},
+      silent: true,
     );
     return result.when(
       success: (body) async {
@@ -98,8 +99,18 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Result<MobileProfile>> fetchMe({bool silent = false}) async {
     final result = await _api.get(ApiEndpoints.mobileMe, silent: silent);
     return result.when(
-      success: (body) async {
-        final profile = AuthMapper.profileFromJson(body);
+      success: (raw) async {
+        var body = raw;
+        if (AuthMapper.isWebOnlyAccount(body)) {
+          await logout();
+          return Result.failure(
+            const PermissionError(
+              message: AuthMapper.restrictedAccountMessage,
+              code: 'restricted_role',
+            ),
+          );
+        }
+        var profile = AuthMapper.profileFromJson(body);
         if (profile == null) {
           return Result.failure(
             const AuthError(
@@ -107,6 +118,10 @@ class AuthRepositoryImpl implements AuthRepository {
                   'This account does not map to a Manager, Staff, or Family portal.',
             ),
           );
+        }
+        if (profile.avatarUrl == null) {
+          body = await _withAuthMeAvatar(body);
+          profile = AuthMapper.profileFromJson(body) ?? profile;
         }
         await _tokens.saveLastMe(body);
         if (profile.tenantSubdomain != null &&
@@ -117,6 +132,16 @@ class AuthRepositoryImpl implements AuthRepository {
       },
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  /// `/mobile/me` omits the profile photo; `/auth/me` carries `avatarUrl`.
+  Future<dynamic> _withAuthMeAvatar(dynamic mobileMeBody) async {
+    final result = await _api.get(ApiEndpoints.authMe, silent: true);
+    final avatarUrl = result.isSuccess
+        ? JsonCodec.string(JsonCodec.unwrapMap(result.value)['avatarUrl'])
+        : null;
+    if (avatarUrl == null) return mobileMeBody;
+    return {...JsonCodec.unwrapMap(mobileMeBody), 'avatarUrl': avatarUrl};
   }
 
   @override

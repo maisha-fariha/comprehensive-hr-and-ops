@@ -342,23 +342,28 @@ class _AvatarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = ResponsiveHelper.getResponsiveSize(context, 42);
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8EEF0),
-          borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 12),
-          ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: const Key('staff-home-profile-avatar'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 12),
         ),
-        alignment: Alignment.center,
-        child: Icon(
-          Icons.person_rounded,
-          size: ResponsiveHelper.getResponsiveSize(context, 22),
-          color: const Color(0xFF8A97A8),
+        child: Ink(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8EEF0),
+            borderRadius: BorderRadius.circular(
+              ResponsiveHelper.getResponsiveRadius(context, 12),
+            ),
+          ),
+          child: Icon(
+            Icons.person_rounded,
+            size: ResponsiveHelper.getResponsiveSize(context, 22),
+            color: const Color(0xFF8A97A8),
+          ),
         ),
       ),
     );

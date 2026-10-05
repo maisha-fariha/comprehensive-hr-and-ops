@@ -7,6 +7,7 @@ import '../entities/incident_evidence_file.dart';
 import '../entities/incident_investigation_summary.dart';
 import '../entities/incident_residence_option.dart';
 import '../entities/incident_staff_option.dart';
+import '../entities/incident_witness_statement.dart';
 import '../entities/incidents_board.dart';
 
 /// Contract for the Incidents list board and create-incident flow.
@@ -100,4 +101,31 @@ abstract class IncidentsRepository {
     String? correctiveActions,
     String status = 'open',
   });
+
+  /// Witness accounts for Incident Details
+  /// (`GET /incidents/:id/witness-statements`).
+  Future<Result<List<IncidentWitnessStatement>>> getWitnessStatements(
+    String incidentId,
+  );
+
+  /// Web "Take a statement" (`POST /incidents/:id/witness-statements`).
+  Future<Result<void>> addWitnessStatement({
+    required String incidentId,
+    required String witnessType,
+    required String witnessName,
+    required String statementText,
+  });
+
+  /// Web "Sign" (`POST /incidents/:id/witness-statements/:sid/sign`).
+  Future<Result<void>> signWitnessStatement({
+    required String incidentId,
+    required String statementId,
+  });
+
+  /// Web "Export List" for Incident Reports.
+  ///
+  /// Tries `POST /reports/exports` (`reportKey: incident_log`) then download.
+  /// When status/download is forbidden (role has `incidents:export` but not
+  /// `reports:read`), falls back to CSV built from `GET /incidents`.
+  Future<Result<List<int>>> exportIncidentListCsv();
 }

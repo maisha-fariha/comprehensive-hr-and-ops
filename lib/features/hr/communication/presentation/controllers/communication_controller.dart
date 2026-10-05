@@ -4,21 +4,21 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_conversation.dart';
 import '../../domain/entities/hr_message_contact.dart';
 import '../../domain/repositories/communication_repository.dart';
 
-/// GetX controller for Manager Communication (A11 Messaging).
-class CommunicationController
-    extends BaseController<List<HrConversation>> {
+/// GetX controller for Communication (web parity).
+class CommunicationController extends BaseController<List<HrConversation>> {
   final CommunicationRepository repository;
 
-  CommunicationController({
-    required this.repository,
-  }) {
+  CommunicationController({required this.repository}) {
     loadConversations();
     loadContacts();
+    loadResidences();
+    loadClients();
   }
 
   final selectedTab = CommunicationTab.messages.obs;
@@ -31,6 +31,8 @@ class CommunicationController
   final isLoadingMessages = false.obs;
   final isLoadingContacts = false.obs;
   final contacts = <HrMessageContact>[].obs;
+  final residences = <CommunicationResidenceOption>[].obs;
+  final clients = <CommunicationClientOption>[].obs;
   final activeMessages = <HrChatMessage>[].obs;
 
   late final TextEditingController searchController;
@@ -94,16 +96,12 @@ class CommunicationController
       success: (items) {
         setSuccess(items);
         final selected = selectedConversationId.value;
-        if (selected == null ||
+        if (selected != null &&
             items.every((conversation) => conversation.id != selected)) {
-          selectedConversationId.value =
-              items.isEmpty ? null : items.first.id;
-        }
-        final id = selectedConversationId.value;
-        if (id != null) {
-          loadMessages(id);
-        } else {
+          selectedConversationId.value = null;
           activeMessages.clear();
+        } else if (selected != null) {
+          loadMessages(selected);
         }
       },
       failure: (error) {
@@ -125,6 +123,22 @@ class CommunicationController
       failure: (_) {},
     );
     isLoadingContacts.value = false;
+  }
+
+  Future<void> loadResidences() async {
+    final result = await repository.getResidences();
+    result.when(
+      success: (items) => residences.assignAll(items),
+      failure: (_) {},
+    );
+  }
+
+  Future<void> loadClients() async {
+    final result = await repository.getClients();
+    result.when(
+      success: (items) => clients.assignAll(items),
+      failure: (_) {},
+    );
   }
 
   Future<void> selectConversation(String id) async {
@@ -186,18 +200,22 @@ class CommunicationController
   }
 
   Future<void> startConversation({
-    required String title,
-    required List<String> memberUserIds,
+    required ConversationCreateType type,
+    List<String> memberUserIds = const [],
+    String? title,
+    String? residenceId,
+    String? clientId,
     String firstMessage = '',
   }) async {
     if (isStarting.value) return;
-    final trimmedTitle = title.trim();
-    if (trimmedTitle.isEmpty || memberUserIds.isEmpty) return;
 
     isStarting.value = true;
     final result = await repository.startConversation(
-      title: trimmedTitle,
+      type: type,
       memberUserIds: memberUserIds,
+      title: title,
+      residenceId: residenceId,
+      clientId: clientId,
     );
 
     await result.when(
@@ -231,10 +249,7 @@ class CommunicationController
           );
         }
 
-        AppSnackbar.show(
-          'Conversation started',
-          conversation.title,
-        );
+        AppSnackbar.show('Conversation started', conversation.title);
       },
       failure: (error) async {
         AppErrorDialog.showResultError(
@@ -290,4 +305,12 @@ class CommunicationController
   }
 
   Future<void> refreshConversations() => loadConversations();
+
+  String? get preferredResidenceId {
+    try {
+      return Get.find<UserSession>().residenceId;
+    } catch (_) {
+      return null;
+    }
+  }
 }

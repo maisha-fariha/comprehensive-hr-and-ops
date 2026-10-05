@@ -13,8 +13,6 @@ import '../../domain/repositories/staff_daily_logs_repository.dart';
 import '../mappers/staff_daily_logs_mapper.dart';
 
 class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
-  static const _pageLimit = 20;
-
   final AppApiClient _api;
   final UserSession _session;
 
@@ -25,119 +23,142 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
         _session = session;
 
   @override
-  Future<Result<StaffDailyLogsOverview>> getOverview() async {
-    // My Clients list
-    final clients = await _api.get(
-      ApiEndpoints.clients,
-      query: {
-        'assignedToMe': true,
-        'page': 1,
-        'limit': _pageLimit,
-      },
-    );
-    if (clients.isFailure) {
+  Future<Result<StaffDailyLogsOverview>> getOverview({
+    required String residenceId,
+    required DateTime from,
+    required DateTime to,
+    String? clientId,
+  }) async {
+    // Match web: calendar dates as UTC day bounds (not local-midnight shift).
+    // e.g. 23/09/2026 → from=2026-09-23T00:00:00.000Z, to=…T23:59:59.999Z
+    String dayKey(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    final fromIso = '${dayKey(from)}T00:00:00.000Z';
+    final toIso = '${dayKey(to)}T23:59:59.999Z';
+    final hasClient = clientId != null && clientId.isNotEmpty;
+
+    final range = <String, dynamic>{
+      'residenceId': residenceId,
+      'from': fromIso,
+      'to': toIso,
+      'page': 1,
+      'limit': 100,
+      if (hasClient) 'clientId': clientId,
+    };
+
+    final futures = <Future<Result<dynamic>>>[
+      _api.get(
+        ApiEndpoints.dailyLogs,
+        query: {...range, 'status': 'review'},
+        silent: true,
+      ),
+      _api.get(
+        ApiEndpoints.dailyLogs,
+        query: {...range, 'status': 'missing'},
+        silent: true,
+      ),
+      _api.get(
+        ApiEndpoints.clients,
+        query: {
+          'residenceId': residenceId,
+          'page': 1,
+          'limit': 100,
+        },
+        silent: true,
+      ),
+      _api.get(
+        ApiEndpoints.clientActivities,
+        query: {
+          'residenceId': residenceId,
+          'page': 1,
+          'limit': 100,
+          if (hasClient) 'clientId': clientId,
+        },
+        silent: true,
+      ),
+      _api.get(
+        ApiEndpoints.careFlags,
+        query: {
+          'state': 'open',
+          'page': 1,
+          'limit': 50,
+          'residenceId': residenceId,
+          if (hasClient) 'clientId': clientId,
+        },
+        silent: true,
+      ),
+    ];
+
+    final results = await Future.wait(futures);
+    final review = results[0];
+    final missing = results[1];
+    final clients = results[2];
+    final activities = results[3];
+    final flags = results[4];
+
+    if (review.isFailure && missing.isFailure && activities.isFailure) {
       return Result.failure(
-        clients.error ??
-            const ApiError(message: 'Could not load assigned clients.'),
+        review.error ??
+            missing.error ??
+            activities.error ??
+            const ApiError(message: 'Could not load daily logs.'),
       );
     }
 
-    final clientMaps = JsonCodec.unwrapList(clients.value)
-        .whereType<Map>()
-        .map(JsonCodec.asMap)
-        .toList();
-
-    String? fallbackResidenceId = _session.residenceId;
-    if (fallbackResidenceId == null || fallbackResidenceId.isEmpty) {
-      for (final json in clientMaps) {
-        fallbackResidenceId = JsonCodec.string(
-          json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
-        );
-        if (fallbackResidenceId != null && fallbackResidenceId.isNotEmpty) {
+    Result<dynamic>? dayResult;
+    String? selectedClientName;
+    if (hasClient) {
+      // Resident day view uses the "To" date as logDate (web day picker).
+      dayResult = await _api.get(
+        ApiEndpoints.dailyLogs,
+        query: {
+          'clientId': clientId,
+          'residenceId': residenceId,
+          'logDate': dayKey(to),
+        },
+        silent: true,
+      );
+      if (clients.isSuccess) {
+        for (final raw
+            in JsonCodec.unwrapList(clients.value).whereType<Map>()) {
+          final json = JsonCodec.asMap(raw);
+          if (JsonCodec.string(json['id']) != clientId) continue;
+          final preferred = JsonCodec.string(json['preferredName']);
+          if (preferred != null && preferred.isNotEmpty) {
+            selectedClientName = preferred;
+            break;
+          }
+          final full = JsonCodec.string(json['fullName'] ?? json['name']);
+          if (full != null && full.isNotEmpty) {
+            selectedClientName = full;
+            break;
+          }
+          final first = JsonCodec.string(json['firstName']) ?? '';
+          final last = JsonCodec.string(json['lastName']) ?? '';
+          final joined = '$first $last'.trim();
+          selectedClientName = joined.isEmpty ? null : joined;
           break;
         }
       }
     }
 
-    final logDate = IsoDateRange.todayDate;
-    final draftLogs = <({String clientId, dynamic body})>[];
-    final submittedLogs = <({String clientId, dynamic body})>[];
-
-    // In Progress + Submitted tabs filter the day view with entryStatus.
-    await Future.wait(
-      clientMaps.expand((json) {
-        final clientId = JsonCodec.string(json['id']);
-        if (clientId == null || clientId.isEmpty) {
-          return const <Future<void>>[];
-        }
-        final residenceId = JsonCodec.string(
-              json['residenceId'] ??
-                  JsonCodec.mapAt(json, 'residence')?['id'],
-            ) ??
-            fallbackResidenceId;
-        if (residenceId == null || residenceId.isEmpty) {
-          return const <Future<void>>[];
-        }
-
-        return [
-          _fetchDayLog(
-            clientId: clientId,
-            residenceId: residenceId,
-            logDate: logDate,
-            entryStatus: 'draft',
-            into: draftLogs,
-          ),
-          _fetchDayLog(
-            clientId: clientId,
-            residenceId: residenceId,
-            logDate: logDate,
-            entryStatus: 'submitted',
-            into: submittedLogs,
-          ),
-        ];
-      }),
-    );
-
-    final flags = await _api.get(
-      ApiEndpoints.careFlags,
-      query: {
-        'page': 1,
-        'limit': _pageLimit,
-        'state': 'open',
-        if (fallbackResidenceId != null && fallbackResidenceId.isNotEmpty)
-          'residenceId': fallbackResidenceId,
-      },
-    );
-
     return Result.success(
       StaffDailyLogsMapper.compose(
-        clientsBody: clients.value,
-        draftLogs: draftLogs,
-        submittedLogs: submittedLogs,
+        reviewBody: review.isSuccess ? review.value : const [],
+        missingBody: missing.isSuccess ? missing.value : const [],
+        dayBody: dayResult != null && dayResult.isSuccess
+            ? dayResult.value
+            : null,
+        activitiesBody: activities.isSuccess ? activities.value : const [],
+        clientsBody: clients.isSuccess ? clients.value : const [],
         flagsBody: flags.isSuccess ? flags.value : const [],
+        selectedClientName: selectedClientName,
+        from: from,
+        to: to,
       ),
     );
-  }
-
-  Future<void> _fetchDayLog({
-    required String clientId,
-    required String residenceId,
-    required String logDate,
-    required String entryStatus,
-    required List<({String clientId, dynamic body})> into,
-  }) async {
-    final result = await _api.get(
-      ApiEndpoints.dailyLogs,
-      query: {
-        'clientId': clientId,
-        'residenceId': residenceId,
-        'logDate': logDate,
-        'entryStatus': entryStatus,
-      },
-    );
-    if (result.isSuccess) {
-      into.add((clientId: clientId, body: result.value));
-    }
   }
 
   @override
@@ -370,6 +391,70 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
     return result.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<String>> createClient({
+    required String name,
+    required String residenceId,
+    String? room,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.clients,
+      data: {
+        'preferredName': name,
+        'name': name,
+        'residenceId': residenceId,
+        if (room != null && room.trim().isNotEmpty) 'room': room.trim(),
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        final id = JsonCodec.string(json['id']) ?? '';
+        return Result.success(id);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<({String id, String name})>>> getResidenceOptions() async {
+    final result = await _api.get(ApiEndpoints.residences, silent: true);
+    return result.when(
+      success: (body) async {
+        final options = <({String id, String name})>[];
+        for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
+          final json = JsonCodec.asMap(item);
+          final id = JsonCodec.string(json['id']);
+          final name = JsonCodec.string(json['name'] ?? json['title']);
+          if (id == null || id.isEmpty || name == null || name.isEmpty) continue;
+          options.add((id: id, name: name));
+        }
+        final sessionId = _session.residenceId;
+        final sessionName = _session.residenceName;
+        if (sessionId != null &&
+            sessionId.isNotEmpty &&
+            sessionName != null &&
+            sessionName.isNotEmpty &&
+            !options.any((o) => o.id == sessionId)) {
+          options.insert(0, (id: sessionId, name: sessionName));
+        }
+        return Result.success(options);
+      },
+      failure: (error) async {
+        final sessionId = _session.residenceId;
+        final sessionName = _session.residenceName;
+        if (sessionId != null &&
+            sessionId.isNotEmpty &&
+            sessionName != null &&
+            sessionName.isNotEmpty) {
+          return Result.success([(id: sessionId, name: sessionName)]);
+        }
+        return Result.failure(error);
+      },
     );
   }
 

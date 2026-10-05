@@ -7,11 +7,27 @@ class StaffAttendanceHistoryItem {
   final String dateLabel;
   final String timeRange;
   final String durationLabel;
+  final DateTime? occurredAt;
+  final bool isOpen;
+  final String status;
+  final String statusLabel;
+  final String residenceId;
+  final String residenceName;
+  final String whereAndPhotoLabel;
+  final bool isManual;
 
   const StaffAttendanceHistoryItem({
     required this.id,
     required this.dateLabel,
     required this.timeRange,
     required this.durationLabel,
+    this.occurredAt,
+    this.isOpen = false,
+    this.status = '',
+    this.statusLabel = '',
+    this.residenceId = '',
+    this.residenceName = '',
+    this.whereAndPhotoLabel = '',
+    this.isManual = false,
   });
 }

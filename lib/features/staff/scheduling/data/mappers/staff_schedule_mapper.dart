@@ -5,10 +5,114 @@ import '../../domain/entities/shift_avatar.dart';
 import '../../domain/entities/staff_appointment.dart';
 import '../../domain/entities/staff_schedule_overview.dart';
 import '../../domain/entities/staff_shift.dart';
+import '../../domain/entities/staff_shift_form_option.dart';
 import '../../domain/entities/staff_shift_swap.dart';
 import '../../domain/entities/week_day.dart';
 
 abstract final class StaffScheduleMapper {
+  /// Parse `GET /residences` into Create Shift dropdown options.
+  static List<StaffShiftResidenceOption> residencesFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final options = <StaffShiftResidenceOption>[];
+
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final name =
+          JsonCodec.string(
+            json['name'] ??
+                json['label'] ??
+                json['title'] ??
+                json['residenceName'] ??
+                json['displayName'],
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+      options.add(
+        StaffShiftResidenceOption(
+          id: JsonCodec.stringOr(
+            json['id'] ?? json['residenceId'] ?? name,
+            name,
+          ),
+          name: name,
+        ),
+      );
+    }
+    return options;
+  }
+
+  /// Parse `GET /staff` into Create Shift assign-staff options.
+  static List<StaffShiftStaffOption> staffFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final options = <StaffShiftStaffOption>[];
+
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final user =
+          JsonCodec.mapAt(json, 'user') ??
+          JsonCodec.mapAt(json, 'profile') ??
+          json;
+      final category =
+          JsonCodec.mapAt(json, 'category') ??
+          JsonCodec.mapAt(json, 'staffCategory') ??
+          JsonCodec.mapAt(user, 'category') ??
+          const {};
+      final name =
+          JsonCodec.string(
+            user['preferredName'] ??
+                user['fullName'] ??
+                user['displayName'] ??
+                user['name'] ??
+                [
+                      user['firstName'] ?? json['firstName'],
+                      user['lastName'] ?? json['lastName'],
+                    ]
+                    .where((part) {
+                      return part != null && part.toString().trim().isNotEmpty;
+                    })
+                    .join(' '),
+          ) ??
+          '';
+      if (name.isEmpty) continue;
+
+      final role = JsonCodec.string(
+        category['name'] ??
+            json['categoryName'] ??
+            json['role'] ??
+            json['jobTitle'] ??
+            json['title'] ??
+            user['role'] ??
+            user['jobTitle'],
+      );
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final location = JsonCodec.string(
+        json['residenceName'] ??
+            residence['name'] ??
+            json['location'] ??
+            json['city'] ??
+            json['site'],
+      );
+      final detail = [
+        if (role != null && role.isNotEmpty) role,
+        if (location != null && location.isNotEmpty) location,
+      ].join(' · ');
+
+      options.add(
+        StaffShiftStaffOption(
+          id: JsonCodec.stringOr(
+            json['id'] ?? json['staffId'] ?? user['id'] ?? name,
+            name,
+          ),
+          name: name,
+          detail: detail.isEmpty ? 'Staff' : detail,
+          initials: IsoDateRange.initials(name),
+        ),
+      );
+    }
+    return options;
+  }
+
   static StaffScheduleOverview compose({
     required dynamic mineBody,
     required dynamic openBody,
@@ -29,11 +133,11 @@ abstract final class StaffScheduleMapper {
       const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       final isSelected = selected != null
           ? day.year == selected.year &&
-              day.month == selected.month &&
-              day.day == selected.day
+                day.month == selected.month &&
+                day.day == selected.day
           : day.year == today.year &&
-              day.month == today.month &&
-              day.day == today.day;
+                day.month == today.month &&
+                day.day == today.day;
       return WeekDay(
         date: day,
         dayLabel: labels[index],
@@ -85,7 +189,8 @@ abstract final class StaffScheduleMapper {
     );
     final now = DateTime.now();
     final localStart = start?.toLocal();
-    final isToday = localStart != null &&
+    final isToday =
+        localStart != null &&
         localStart.year == now.year &&
         localStart.month == now.month &&
         localStart.day == now.day;
@@ -93,22 +198,23 @@ abstract final class StaffScheduleMapper {
     final people = _assignedPeople(json);
     final assignedPeople = people.where((person) {
       if (person is! Map) return true;
-      final status =
-          (JsonCodec.string(JsonCodec.asMap(person)['status']) ?? '')
-              .toLowerCase();
+      final status = (JsonCodec.string(JsonCodec.asMap(person)['status']) ?? '')
+          .toLowerCase();
       return status.isEmpty ||
           status == 'assigned' ||
           status == 'confirmed' ||
           status == 'accepted';
     }).toList();
-    final avatarSource =
-        assignedPeople.isNotEmpty ? assignedPeople : people;
+    final avatarSource = assignedPeople.isNotEmpty ? assignedPeople : people;
 
     final avatars = avatarSource.take(3).map((person) {
-      return ShiftAvatar(IsoDateRange.initials(IsoDateRange.personName(person)));
+      return ShiftAvatar(
+        IsoDateRange.initials(IsoDateRange.personName(person)),
+      );
     }).toList();
 
-    final filled = JsonCodec.integer(
+    final filled =
+        JsonCodec.integer(
           json['assignedCount'] ?? json['filled'] ?? json['staffCount'],
         ) ??
         assignedPeople.length;
@@ -151,21 +257,21 @@ abstract final class StaffScheduleMapper {
       if (timePart.isNotEmpty) '$timePart ($hoursLabel)',
     ].join(' · ');
 
-    final statusRaw =
-        (JsonCodec.string(json['status']) ?? 'Confirmed').toLowerCase();
+    final statusRaw = (JsonCodec.string(json['status']) ?? 'Confirmed')
+        .toLowerCase();
     final statusLabel = switch (statusRaw) {
       'published' || 'confirmed' || 'assigned' => 'Confirmed',
       'open' => 'Open',
       'cancelled' || 'canceled' => 'Cancelled',
-      _ => statusRaw.isEmpty
-          ? 'Confirmed'
-          : '${statusRaw[0].toUpperCase()}${statusRaw.substring(1)}',
+      _ =>
+        statusRaw.isEmpty
+            ? 'Confirmed'
+            : '${statusRaw[0].toUpperCase()}${statusRaw.substring(1)}',
     };
 
     final shiftType = JsonCodec.string(json['shiftType']);
-    final title = JsonCodec.string(
-          json['name'] ?? json['title'] ?? json['period'],
-        ) ??
+    final title =
+        JsonCodec.string(json['name'] ?? json['title'] ?? json['period']) ??
         _shiftTypeTitle(shiftType) ??
         JsonCodec.string(json['requiredCategoryName']) ??
         'Shift';
@@ -198,8 +304,8 @@ abstract final class StaffScheduleMapper {
       staffingLevel: ratio >= 0.9
           ? StaffingLevel.high
           : ratio >= 0.7
-              ? StaffingLevel.medium
-              : StaffingLevel.low,
+          ? StaffingLevel.medium
+          : StaffingLevel.low,
       startAt: localStart,
     );
   }
@@ -258,8 +364,7 @@ abstract final class StaffScheduleMapper {
             if (shiftDay.isBefore(todayStart)) return null;
           }
 
-          final status =
-              (JsonCodec.string(json['status']) ?? '').toLowerCase();
+          final status = (JsonCodec.string(json['status']) ?? '').toLowerCase();
           // Only actionable / in-flight swaps on the schedule page.
           if (status != 'awaiting_peer' && status != 'awaiting_manager') {
             return null;
@@ -274,21 +379,23 @@ abstract final class StaffScheduleMapper {
           );
           final identityKnown =
               currentStaffId != null && currentStaffId.isNotEmpty;
-          final isIncoming = identityKnown &&
+          final isIncoming =
+              identityKnown &&
               targetId == currentStaffId &&
               requesterId != currentStaffId;
-          final isOutgoing =
-              identityKnown && requesterId == currentStaffId;
+          final isOutgoing = identityKnown && requesterId == currentStaffId;
           final kind = (JsonCodec.string(json['kind']) ?? '').toLowerCase();
           final requester = IsoDateRange.personName(
             json['requester'] ?? json['fromStaff'],
           );
-          final target =
-              IsoDateRange.personName(json['target'] ?? json['toStaff']);
+          final target = IsoDateRange.personName(
+            json['target'] ?? json['toStaff'],
+          );
           final counterpart = isIncoming ? requester : target;
           final fromLabel = _swapShiftLabel(fromShift);
-          final toLabel =
-              _swapShiftLabel(json['toShift'] ?? json['receivingShift']);
+          final toLabel = _swapShiftLabel(
+            json['toShift'] ?? json['receivingShift'],
+          );
 
           final awaitingPeer = status == 'awaiting_peer';
           final awaitingManager = status == 'awaiting_manager';
@@ -302,19 +409,20 @@ abstract final class StaffScheduleMapper {
               _ => 'Swap',
             },
             statusLabel: switch (status) {
-              'awaiting_peer' =>
-                isIncoming ? 'Awaiting you' : 'Awaiting peer',
+              'awaiting_peer' => isIncoming ? 'Awaiting you' : 'Awaiting peer',
               'awaiting_manager' => 'Awaiting manager',
               _ => 'Pending',
             },
             fromShiftLabel: fromLabel,
             toShiftLabel: toLabel == 'Shift' ? null : toLabel,
-            counterpartName:
-                counterpart == 'Unknown' ? 'Colleague' : counterpart,
+            counterpartName: counterpart == 'Unknown'
+                ? 'Colleague'
+                : counterpart,
             note: JsonCodec.string(json['note']),
             isIncoming: isIncoming,
             canRespond: awaitingPeer && (!identityKnown || isIncoming),
-            canCancel: (awaitingPeer || awaitingManager) &&
+            canCancel:
+                (awaitingPeer || awaitingManager) &&
                 (!identityKnown || isOutgoing),
           );
         })
@@ -335,9 +443,8 @@ abstract final class StaffScheduleMapper {
     if (value is Map) {
       final json = JsonCodec.asMap(value);
       final start = _shiftStart(json);
-      final name = JsonCodec.string(
-            json['name'] ?? json['title'],
-          ) ??
+      final name =
+          JsonCodec.string(json['name'] ?? json['title']) ??
           _shiftTypeTitle(JsonCodec.string(json['shiftType'])) ??
           JsonCodec.string(json['period']);
       final residence = JsonCodec.string(
@@ -402,9 +509,10 @@ abstract final class StaffScheduleMapper {
           statusLabel: switch (status) {
             'approved' || 'upcoming' || 'scheduled' => 'Upcoming',
             'pending' => 'Pending',
-            _ => status.isEmpty
-                ? (at != null && at.isAfter(now) ? 'Upcoming' : 'Scheduled')
-                : '${status[0].toUpperCase()}${status.substring(1)}',
+            _ =>
+              status.isEmpty
+                  ? (at != null && at.isAfter(now) ? 'Upcoming' : 'Scheduled')
+                  : '${status[0].toUpperCase()}${status.substring(1)}',
           },
         ),
         at: at,
@@ -433,11 +541,12 @@ abstract final class StaffScheduleMapper {
       'activity' => 'Activity',
       'medical' || 'appointment' => 'Medical Appointment',
       '' => 'Appointment',
-      _ => type
-          .split(RegExp(r'[_\s]+'))
-          .where((p) => p.isNotEmpty)
-          .map((p) => '${p[0].toUpperCase()}${p.substring(1)}')
-          .join(' '),
+      _ =>
+        type
+            .split(RegExp(r'[_\s]+'))
+            .where((p) => p.isNotEmpty)
+            .map((p) => '${p[0].toUpperCase()}${p.substring(1)}')
+            .join(' '),
     };
   }
 

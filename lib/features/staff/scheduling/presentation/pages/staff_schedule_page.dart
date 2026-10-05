@@ -67,7 +67,14 @@ class StaffSchedulePage extends StatelessWidget {
                 color: AppColors.surfaceWhite,
                 child: Column(
                   children: [
-                    StaffScheduleHeader(onBackTap: _onBack),
+                    StaffScheduleHeader(
+                      onBackTap: _onBack,
+                      onFilterTap: controller.showFilterSheet,
+                      onCreateShiftTap:
+                          Get.find<UserSession>().can('scheduling:write')
+                              ? controller.showCreateShiftDialog
+                              : null,
+                    ),
                     Padding(
                       padding: ResponsiveHelper.getResponsivePadding(
                         context,

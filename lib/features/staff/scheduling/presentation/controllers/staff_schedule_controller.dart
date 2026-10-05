@@ -9,14 +9,14 @@ import '../../domain/entities/staff_schedule_overview.dart';
 import '../../domain/entities/staff_shift.dart';
 import '../../domain/entities/week_day.dart';
 import '../../domain/repositories/staff_schedule_repository.dart';
+import '../pages/staff_create_shift_page.dart';
 
 /// GetX controller for the "My Schedule" screen.
 class StaffScheduleController extends BaseController<StaffScheduleOverview> {
   final StaffScheduleRepository repository;
 
   /// Monday of the week currently displayed.
-  final Rx<DateTime> weekStart =
-      IsoDateRange.startOfWeek(DateTime.now()).obs;
+  final Rx<DateTime> weekStart = IsoDateRange.startOfWeek(DateTime.now()).obs;
 
   /// Selected day chip within [weekStart]'s week.
   final Rx<DateTime> selectedDate = DateTime(
@@ -25,16 +25,19 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
     DateTime.now().day,
   ).obs;
 
+  /// BUG_Report004 — optional status filter (`null` = all).
+  final RxnString statusFilter = RxnString();
+
   StaffScheduleController({required this.repository});
 
   StaffScheduleOverview? get overview => state.value.data;
 
   /// Shifts that start on the selected day (falls back to full week if none
-  /// have parseable dates).
+  /// have parseable dates), then optionally filtered by [statusFilter].
   List<StaffShift> get shiftsForSelectedDay {
     final all = overview?.shifts ?? const <StaffShift>[];
     final day = selectedDate.value;
-    final filtered = all.where((shift) {
+    var filtered = all.where((shift) {
       final start = shift.startAt;
       if (start == null) return false;
       return start.year == day.year &&
@@ -42,9 +45,15 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
           start.day == day.day;
     }).toList();
     if (filtered.isEmpty && all.any((s) => s.startAt == null)) {
-      return all;
+      filtered = List<StaffShift>.from(all);
     }
-    return filtered;
+    final status = statusFilter.value?.toLowerCase();
+    if (status == null || status.isEmpty || status == 'all') {
+      return filtered;
+    }
+    return filtered
+        .where((shift) => shift.statusLabel.toLowerCase().contains(status))
+        .toList();
   }
 
   String get selectedDayShiftsLabel {
@@ -111,7 +120,8 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
         weekDays: [
           for (final d in current.weekDays)
             d.copyWith(
-              isSelected: d.date.year == date.year &&
+              isSelected:
+                  d.date.year == date.year &&
                   d.date.month == date.month &&
                   d.date.day == date.day,
             ),
@@ -223,6 +233,75 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
     }
     AppSnackbar.show('Request cancelled', 'Your swap request was withdrawn.');
     await loadOverview();
+  }
+
+  void setStatusFilter(String? status) {
+    statusFilter.value = (status == null || status.isEmpty || status == 'all')
+        ? null
+        : status;
+  }
+
+  Future<void> showFilterSheet() async {
+    final current = statusFilter.value ?? 'all';
+    final selected = await Get.bottomSheet<String>(
+      SafeArea(
+        child: Container(
+          key: const Key('staff-schedule-filter-sheet'),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Filter shifts',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (final option in const [
+                'all',
+                'scheduled',
+                'open',
+                'completed',
+              ])
+                ListTile(
+                  title: Text(
+                    option == 'all'
+                        ? 'All statuses'
+                        : option[0].toUpperCase() + option.substring(1),
+                  ),
+                  trailing: current == option
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: Color(0xFF0E7C7B),
+                        )
+                      : null,
+                  onTap: () => Get.back(result: option),
+                ),
+            ],
+          ),
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+    );
+    if (selected != null) setStatusFilter(selected);
+  }
+
+  Future<void> showCreateShiftDialog() async {
+    final created = await Get.to<bool>(
+      () => StaffCreateShiftPage(
+        repository: repository,
+        initialDate: selectedDate.value,
+      ),
+    );
+    if (created == true) await loadOverview();
   }
 
   Future<String?> _promptNote({

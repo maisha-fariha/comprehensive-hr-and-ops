@@ -59,6 +59,9 @@ class SchedulingTopBar extends StatelessWidget {
               ),
             ),
           ),
+          if (onCreateShiftTap == null)
+            SizedBox(width: buttonBoxSize)
+          else
           GestureDetector(
             onTap: onCreateShiftTap,
             behavior: HitTestBehavior.opaque,

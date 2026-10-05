@@ -6,59 +6,74 @@ import '../../domain/entities/calendar_day.dart';
 import '../../domain/entities/calendar_schedule.dart';
 import '../../domain/entities/calendar_shift.dart';
 import '../../domain/entities/coverage_summary.dart';
+import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/open_position.dart';
 import '../../domain/entities/requests_overview.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
-import '../../domain/entities/shift_qualification_option.dart';
 import '../../domain/entities/shift_request.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/staff_avatar.dart';
 
 abstract final class SchedulingMapper {
-  /// Unique qualification options from `GET /staff` (`categoryId` + name).
-  static List<ShiftQualificationOption> qualificationsFrom(dynamic body) {
-    final source = JsonCodec.unwrapList(body);
-    final seen = <String>{};
-    final options = <ShiftQualificationOption>[];
+  /// Parse `GET /shifts/{id}` into the Edit Shift form, field-for-field
+  /// with the web `shiftToFormValues`.
+  static CreateShiftDraft draftFromShift(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final startsAt = JsonCodec.dateTime(json['startsAt'])?.toLocal();
+    final endsAt = JsonCodec.dateTime(json['endsAt'])?.toLocal();
+    final bidding = JsonCodec.mapAt(json, 'biddingConfig');
+    final closesAt = bidding == null
+        ? null
+        : JsonCodec.dateTime(bidding['biddingClosesAt'])?.toLocal();
+    final requiredCount = JsonCodec.integer(json['requiredStaffCount']);
+    final maxBids = bidding == null ? null : JsonCodec.integer(bidding['maxBids']);
+    final reminder = JsonCodec.integer(json['reminderMinutesBefore']);
 
-    for (final item in source) {
-      if (item is! Map) continue;
-      final json = JsonCodec.asMap(item);
-      final category = JsonCodec.mapAt(json, 'category') ??
-          JsonCodec.mapAt(json, 'staffCategory') ??
-          JsonCodec.mapAt(json, 'qualificationCategory') ??
-          const {};
-      final label = JsonCodec.string(
-            category['name'] ??
-                category['label'] ??
-                category['title'] ??
-                json['categoryName'] ??
-                json['qualification'] ??
-                json['qualificationName'] ??
-                json['role'] ??
-                json['jobTitle'] ??
-                json['title'],
-          ) ??
-          '';
-      if (label.isEmpty) continue;
-
-      final id = JsonCodec.stringOr(
-        json['categoryId'] ??
-            category['id'] ??
-            json['qualificationId'] ??
-            json['staffCategoryId'] ??
-            label,
-        label,
-      );
-      if (!seen.add(id.toLowerCase())) continue;
-
-      options.add(ShiftQualificationOption(id: id, label: label));
+    final draft = CreateShiftDraft(
+      residenceId: JsonCodec.string(json['residenceId']),
+      shiftDate: startsAt,
+    )
+      ..shiftType = JsonCodec.string(json['shiftType']) ?? 'custom'
+      ..startMinutes =
+          startsAt == null ? null : startsAt.hour * 60 + startsAt.minute
+      ..endMinutes = endsAt == null ? null : endsAt.hour * 60 + endsAt.minute
+      ..breakMinutes = JsonCodec.integer(json['breakMinutes']) ?? 0
+      ..requiredStaffCount =
+          requiredCount == null || requiredCount == 0 ? '' : '$requiredCount'
+      ..title = JsonCodec.string(json['title']) ?? ''
+      ..notes = JsonCodec.string(json['notes']) ?? ''
+      ..isOpenShift = json['status'] == 'open' || bidding != null
+      ..noteToBidders =
+          (bidding == null ? null : JsonCodec.string(bidding['noteToBidders'])) ??
+              ''
+      ..reminderMinutes = reminder == null || reminder == 0 ? null : reminder;
+    if (closesAt != null) {
+      draft
+        ..biddingDeadlineDate =
+            DateTime(closesAt.year, closesAt.month, closesAt.day)
+        ..biddingDeadlineMinutes = closesAt.hour * 60 + closesAt.minute;
     }
+    if (maxBids != null && maxBids != 0) draft.maxBids = '$maxBids';
+    final priority = bidding == null ? null : JsonCodec.string(bidding['priority']);
+    if (priority != null) draft.priority = priority;
+    final award = bidding == null ? null : JsonCodec.string(bidding['awardMethod']);
+    if (award != null) draft.awardMethod = award;
 
-    options.sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
-    return options;
+    for (final person in JsonCodec.listAt(json, 'staff')) {
+      if (person is! Map) continue;
+      final staff = JsonCodec.asMap(person);
+      final id = JsonCodec.string(staff['id']);
+      if (id == null) continue;
+      draft.assignedStaff.add(
+        AssignedShiftStaff(
+          staffId: id,
+          staffName: JsonCodec.string(staff['name']) ?? 'Unnamed',
+        ),
+      );
+    }
+    return draft;
   }
 
   /// Parse `GET /staff` into Create Shift assign-staff options.
@@ -105,14 +120,20 @@ abstract final class SchedulingMapper {
             json['qualificationId'] ??
             json['staffCategoryId'],
       );
-      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      final residences = json['residences'];
+      final firstResidence = residences is List && residences.isNotEmpty
+          ? residences.first
+          : null;
+      final residence = firstResidence is Map
+          ? JsonCodec.asMap(firstResidence)
+          : JsonCodec.mapAt(json, 'residence') ?? const {};
       final location = JsonCodec.string(
-        json['residenceName'] ??
-            residence['name'] ??
+        residence['name'] ??
+            json['residenceName'] ??
             json['location'] ??
             json['city'] ??
             json['site'],
-      );
+      )?.trim();
       final detail = [
         if (role != null && role.isNotEmpty) role,
         if (location != null && location.isNotEmpty) location,
@@ -129,6 +150,7 @@ abstract final class SchedulingMapper {
           initials: IsoDateRange.initials(name),
           role: role,
           categoryId: categoryId,
+          residenceLabel: location,
         ),
       );
     }

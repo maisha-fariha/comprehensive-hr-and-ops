@@ -9,6 +9,7 @@ class VisitRequestDetail {
   final String id;
   final VisitRequestType type;
   final VisitRequestStatus status;
+  final String statusLabel;
   final String dateTimeLabel;
   final String locationModeLabel;
   final String patientName;
@@ -24,6 +25,7 @@ class VisitRequestDetail {
     required this.id,
     required this.type,
     required this.status,
+    required this.statusLabel,
     required this.dateTimeLabel,
     required this.locationModeLabel,
     required this.patientName,

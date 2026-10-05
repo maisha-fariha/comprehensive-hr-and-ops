@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../appointments/presentation/pages/create_appointment_page.dart';
+import '../../../appointments/presentation/widgets/family_primary_button.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
@@ -12,12 +14,10 @@ import '../controllers/family_visit_requests_controller.dart';
 import '../widgets/family_visit_requests_header.dart';
 import '../widgets/family_visit_requests_tab_bar.dart';
 import '../widgets/my_visit_request_card.dart';
-import '../widgets/my_visit_requests_stat_chips.dart';
-import '../widgets/visit_request_row_card.dart';
 import 'visit_request_details_page.dart';
 
-/// Family Visit Requests — own `family_visit` appointments with Pending /
-/// History filters (no cross-family "All" list).
+/// Family Visit Requests — own `family_visit` appointments with status tabs
+/// (All / Pending / Approved / Rejected / Cancelled / Completed).
 ///
 /// Pushed as a standalone route from the Family "More" hub, so it owns its
 /// own `Scaffold` rather than being embedded in a shell.
@@ -44,15 +44,22 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
   }
 
   FamilyVisitRequestsController _resolveController() {
-    try {
+    if (Get.isRegistered<FamilyVisitRequestsController>()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _controller.refresh();
+      });
       return Get.find<FamilyVisitRequestsController>();
-    } catch (_) {
-      return Get.put(GetIt.instance<FamilyVisitRequestsController>(), permanent: true);
     }
+    return Get.put(GetIt.instance<FamilyVisitRequestsController>(), permanent: true);
   }
 
-  void _openRequestDetails(String requestId) {
-    Get.to(() => VisitRequestDetailsPage(requestId: requestId));
+  Future<void> _openRequestDetails(String requestId) async {
+    await Get.to(() => VisitRequestDetailsPage(requestId: requestId));
+    _controller.refresh();
+  }
+
+  void _openRequestVisit() {
+    Get.to(() => const CreateAppointmentPage());
   }
 
   void _onBack() {
@@ -99,6 +106,7 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
                         ),
                         child: FamilyVisitRequestsTabBar(
                           selected: selectedTab,
+                          countFor: overview.countFor,
                           onSelected: _controller.selectTab,
                         ),
                       ),
@@ -106,6 +114,21 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
                 ),
               ),
               Expanded(child: _buildBody(overview, selectedTab)),
+              ColoredBox(
+                color: AppColors.surfaceWhite,
+                child: Padding(
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: FamilyPrimaryButton(
+                    label: 'Request a Visit',
+                    icon: Icons.add_rounded,
+                    onTap: _openRequestVisit,
+                  ),
+                ),
+              ),
             ],
           );
         }),
@@ -132,129 +155,60 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
       );
     }
 
+    final requests = overview.requestsFor(selectedTab);
     return RefreshIndicator(
       color: AppColors.secondaryTeal,
       onRefresh: _controller.refresh,
-      child: _buildTabContent(context, selectedTab),
-    );
-  }
-
-  Widget _buildTabContent(BuildContext context, FamilyVisitRequestsTab tab) {
-    switch (tab) {
-      case FamilyVisitRequestsTab.pending:
-        return _PendingRequestsTab(
-          controller: _controller,
-          onViewDetails: _openRequestDetails,
-        );
-      case FamilyVisitRequestsTab.history:
-        return _HistoryTab(
-          controller: _controller,
-          onViewDetails: _openRequestDetails,
-        );
-    }
-  }
-}
-
-class _HistoryTab extends StatelessWidget {
-  final FamilyVisitRequestsController controller;
-  final ValueChanged<String> onViewDetails;
-
-  static const Color _sectionTitle = Color(0xFF1A2B48);
-
-  const _HistoryTab({required this.controller, required this.onViewDetails});
-
-  @override
-  Widget build(BuildContext context) {
-    final requests = controller.historyRequests;
-
-    return ListView.separated(
-      padding: EdgeInsets.fromLTRB(
-        ResponsiveHelper.getResponsiveWidth(context, 16),
-        ResponsiveHelper.getResponsiveHeight(context, 18),
-        ResponsiveHelper.getResponsiveWidth(context, 16),
-        ResponsiveHelper.getResponsiveHeight(context, 24),
-      ),
-      itemCount: requests.length + 1,
-      separatorBuilder: (context, index) =>
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Text(
-            'Past Requests',
-            style: TextStyle(
-              fontFamily: 'Manrope',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-              color: _sectionTitle,
-              height: 1.2,
-            ),
-          );
-        }
-        return VisitRequestRowCard(
-          request: requests[index - 1],
-          onTap: () => onViewDetails(requests[index - 1].id),
-        );
-      },
-    );
-  }
-}
-
-class _PendingRequestsTab extends StatelessWidget {
-  final FamilyVisitRequestsController controller;
-  final ValueChanged<String> onViewDetails;
-
-  static const Color _sectionTitle = Color(0xFF1A2B48);
-
-  const _PendingRequestsTab({
-    required this.controller,
-    required this.onViewDetails,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final requests = controller.myRequests;
-
-    return ListView.separated(
-      padding: EdgeInsets.fromLTRB(
-        ResponsiveHelper.getResponsiveWidth(context, 16),
-        ResponsiveHelper.getResponsiveHeight(context, 18),
-        ResponsiveHelper.getResponsiveWidth(context, 16),
-        ResponsiveHelper.getResponsiveHeight(context, 24),
-      ),
-      itemCount: requests.length + 2,
-      separatorBuilder: (context, index) =>
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return MyVisitRequestsStatChips(
-            pendingCount: controller.pendingCount,
-            approvedCount: controller.approvedCount,
-            rejectedCount: controller.rejectedCount,
-          );
-        }
-        if (index == 1) {
-          return Padding(
-            padding: EdgeInsets.only(
-              top: ResponsiveHelper.getResponsiveHeight(context, 4),
-            ),
-            child: Text(
-              'My Requests',
-              style: TextStyle(
-                fontFamily: 'Manrope',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-                color: _sectionTitle,
-                height: 1.2,
+      child: requests.isEmpty
+          ? ListView(
+              padding: EdgeInsets.symmetric(
+                horizontal: ResponsiveHelper.getResponsiveWidth(context, 16),
+                vertical: ResponsiveHelper.getResponsiveHeight(context, 40),
               ),
+              children: [_EmptyRequests(tab: selectedTab)],
+            )
+          : ListView.separated(
+              padding: EdgeInsets.fromLTRB(
+                ResponsiveHelper.getResponsiveWidth(context, 16),
+                ResponsiveHelper.getResponsiveHeight(context, 18),
+                ResponsiveHelper.getResponsiveWidth(context, 16),
+                ResponsiveHelper.getResponsiveHeight(context, 24),
+              ),
+              itemCount: requests.length,
+              separatorBuilder: (context, index) =>
+                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              itemBuilder: (context, index) {
+                final request = requests[index];
+                return MyVisitRequestCard(
+                  key: ValueKey('visit-request-${request.id}'),
+                  request: request,
+                  onViewDetails: () => _openRequestDetails(request.id),
+                );
+              },
             ),
-          );
-        }
-        final request = requests[index - 2];
-        return MyVisitRequestCard(
-          request: request,
-          onViewDetails: () => onViewDetails(request.id),
-        );
-      },
+    );
+  }
+}
+
+class _EmptyRequests extends StatelessWidget {
+  final FamilyVisitRequestsTab tab;
+
+  const _EmptyRequests({required this.tab});
+
+  @override
+  Widget build(BuildContext context) {
+    final message = tab == FamilyVisitRequestsTab.all
+        ? 'No visit requests yet.'
+        : 'No ${tab.name} visit requests.';
+    return Text(
+      message,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontFamily: 'Manrope',
+        fontWeight: FontWeight.w500,
+        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+        color: AppColors.textSecondary,
+      ),
     );
   }
 }

@@ -193,10 +193,42 @@ class ApiService {
     }
 
     return ApiResponse.error(
-      response.data['message'] ?? 'Request failed',
+      _bodyMessage(response.data) ?? 'Request failed',
       statusCode: response.statusCode,
-      errors: response.data['errors'],
+      errors: _bodyErrors(response.data),
     );
+  }
+
+  /// Top-level `message`, or the `{ error: { message } }` envelope.
+  String? _bodyMessage(dynamic data) {
+    if (data is! Map) return null;
+    final message = data['message'];
+    if (message is String && message.trim().isNotEmpty) return message;
+    final error = data['error'];
+    if (error is Map) {
+      final nested = error['message'];
+      if (nested is String && nested.trim().isNotEmpty) return nested;
+    }
+    if (error is String && error.trim().isNotEmpty) return error;
+    return null;
+  }
+
+  /// Top-level `errors`, or `{ error: { details: { fieldErrors } } }`.
+  Map<String, dynamic>? _bodyErrors(dynamic data) {
+    if (data is! Map) return null;
+    final errors = data['errors'];
+    if (errors is Map<String, dynamic>) return errors;
+    final error = data['error'];
+    if (error is Map) {
+      final details = error['details'];
+      if (details is Map) {
+        final fieldErrors = details['fieldErrors'];
+        if (fieldErrors is Map && fieldErrors.isNotEmpty) {
+          return Map<String, dynamic>.from(fieldErrors);
+        }
+      }
+    }
+    return null;
   }
 
   /// Handle error response
@@ -213,7 +245,7 @@ class ApiService {
       } else if (error.type == DioExceptionType.connectionError) {
         message = 'Connection error. Unable to reach the server.';
       } else if (error.type == DioExceptionType.badResponse) {
-        message = error.response?.data['message'] ??
+        message = _bodyMessage(error.response?.data) ??
             error.message ??
             'Server error occurred';
       } else {
@@ -223,7 +255,7 @@ class ApiService {
       return ApiResponse.error(
         message,
         statusCode: statusCode ?? 500,
-        errors: error.response?.data['errors'],
+        errors: _bodyErrors(error.response?.data),
       );
     }
 

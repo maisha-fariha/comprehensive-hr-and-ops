@@ -49,11 +49,13 @@ class _FieldShell extends StatelessWidget {
   final Widget child;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final bool hasError;
 
   const _FieldShell({
     required this.child,
     this.trailing,
     this.onTap,
+    this.hasError = false,
   });
 
   @override
@@ -67,7 +69,9 @@ class _FieldShell extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
-        border: Border.all(color: AppColors.searchBorder),
+        border: Border.all(
+          color: hasError ? AppColors.criticalRed : AppColors.searchBorder,
+        ),
         borderRadius: BorderRadius.circular(
           ResponsiveHelper.getResponsiveRadius(context, 12),
         ),
@@ -105,18 +109,21 @@ class CreateShiftDropdownField extends StatelessWidget {
   final String? value;
   final String placeholder;
   final VoidCallback? onTap;
+  final bool hasError;
 
   const CreateShiftDropdownField({
     super.key,
     this.value,
     required this.placeholder,
     this.onTap,
+    this.hasError = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return _FieldShell(
       onTap: onTap,
+      hasError: hasError,
       trailing: const AppSvgIcon(
         AppAssets.chevronDown,
         size: 14,
@@ -133,49 +140,63 @@ class CreateShiftDropdownField extends StatelessWidget {
 }
 
 class CreateShiftDateField extends StatelessWidget {
-  final String value;
+  final String? value;
+  final String placeholder;
   final VoidCallback? onTap;
+  final bool hasError;
 
   const CreateShiftDateField({
     super.key,
     required this.value,
+    this.placeholder = 'Select date',
     this.onTap,
+    this.hasError = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return _FieldShell(
       onTap: onTap,
+      hasError: hasError,
       trailing: Icon(
         Icons.calendar_today_outlined,
         size: ResponsiveHelper.getResponsiveSize(context, 16),
         color: AppColors.textFaint,
       ),
-      child: Text(value, style: _fieldStyle(context, placeholder: false)),
+      child: Text(
+        value ?? placeholder,
+        style: _fieldStyle(context, placeholder: value == null),
+      ),
     );
   }
 }
 
 class CreateShiftTimeField extends StatelessWidget {
-  final String value;
+  final String? value;
   final VoidCallback? onTap;
+  final bool hasError;
 
   const CreateShiftTimeField({
     super.key,
     required this.value,
     this.onTap,
+    this.hasError = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return _FieldShell(
       onTap: onTap,
+      hasError: hasError,
       trailing: const AppSvgIcon(
         AppAssets.clock,
         size: 16,
         color: AppColors.textFaint,
       ),
-      child: Text(value, style: _fieldStyle(context, placeholder: false)),
+      child: Text(
+        value ?? '--:--',
+        style: _fieldStyle(context, placeholder: value == null),
+      ),
     );
   }
 }
@@ -185,6 +206,10 @@ class CreateShiftTextField extends StatelessWidget {
   final String hint;
   final TextInputType? keyboardType;
   final int maxLines;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
+  final bool hasError;
 
   const CreateShiftTextField({
     super.key,
@@ -192,14 +217,22 @@ class CreateShiftTextField extends StatelessWidget {
     required this.hint,
     this.keyboardType,
     this.maxLines = 1,
+    this.onChanged,
+    this.onSubmitted,
+    this.textInputAction,
+    this.hasError = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return _FieldShell(
+      hasError: hasError,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        textInputAction: textInputAction,
         maxLines: maxLines,
         minLines: maxLines > 1 ? maxLines : null,
         style: _fieldStyle(context, placeholder: false),
@@ -233,6 +266,207 @@ class CreateShiftHelperText extends StatelessWidget {
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
           color: AppColors.textMuted,
           height: 1.35,
+        ),
+      ),
+    );
+  }
+}
+
+class CreateShiftErrorText extends StatelessWidget {
+  final String? text;
+
+  const CreateShiftErrorText(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final message = text;
+    if (message == null || message.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(
+        top: ResponsiveHelper.getResponsiveHeight(context, 6),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w500,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+          color: AppColors.criticalRed,
+          height: 1.35,
+        ),
+      ),
+    );
+  }
+}
+
+/// Section title + description shown at the top of every wizard step.
+class CreateShiftSectionHeader extends StatelessWidget {
+  final String title;
+  final String description;
+
+  const CreateShiftSectionHeader({
+    super.key,
+    required this.title,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: ResponsiveHelper.getResponsiveHeight(context, 20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
+              color: AppColors.textHeading,
+            ),
+          ),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+          Text(
+            description,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bordered label + description + switch row used by the toggle steps.
+class CreateShiftSwitchCard extends StatelessWidget {
+  final String label;
+  final String description;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const CreateShiftSwitchCard({
+    super.key,
+    required this.label,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceWhite,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 14),
+        ),
+        side: const BorderSide(color: AppColors.searchBorder),
+      ),
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 14),
+        ),
+        child: Padding(
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 16,
+            vertical: 16,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          14.5,
+                        ),
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12.5,
+                        ),
+                        color: AppColors.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+              Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: Colors.white,
+                activeTrackColor: AppColors.secondaryTeal,
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: AppColors.cardBorder,
+                trackOutlineColor:
+                    const WidgetStatePropertyAll(Colors.transparent),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Muted rounded note box (recurring summary, tenant settings hint).
+class CreateShiftNoteBox extends StatelessWidget {
+  final String text;
+
+  const CreateShiftNoteBox(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 14,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.filterButtonBackground,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 10),
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w400,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+          color: AppColors.textSecondary,
+          height: 1.4,
         ),
       ),
     );

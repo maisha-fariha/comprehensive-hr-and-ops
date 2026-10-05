@@ -3,10 +3,12 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../data/mappers/scheduling_mapper.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/entities/shift_request.dart';
+import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
 
 /// GetX controller for the HR/Manager Scheduling screen.
@@ -27,8 +29,65 @@ class SchedulingController extends BaseController<SchedulingOverview> {
 
   int _loadGeneration = 0;
 
-  SchedulingController({required this.repository}) {
+  /// Filters sheet: `null` means "All homes" / every shift status.
+  final RxnString residenceFilter = RxnString();
+  final Rxn<ShiftStatusFilter> statusFilter = Rxn<ShiftStatusFilter>();
+
+  /// Homes for the Filters sheet "Home" dropdown.
+  final RxList<ShiftResidenceOption> residences = <ShiftResidenceOption>[].obs;
+  bool _residencesLoaded = false;
+
+  /// Web "My shifts" toggle: only the signed-in user's shifts.
+  final RxBool mineOnly = false.obs;
+
+  final UserSession? session;
+
+  SchedulingController({required this.repository, this.session}) {
     loadOverview();
+  }
+
+  /// `scheduling:write` gates "My shifts" and "Create Shift", as on the web.
+  bool get canWrite => session?.can('scheduling:write') ?? true;
+
+  Future<void> toggleMine() {
+    mineOnly.toggle();
+    return loadOverview();
+  }
+
+  int get activeFilterCount =>
+      (residenceFilter.value == null ? 0 : 1) +
+      (statusFilter.value == null ? 0 : 1);
+
+  Future<void> loadResidences() async {
+    if (_residencesLoaded) return;
+    final result = await repository.getResidences();
+    result.when(
+      success: (items) {
+        _residencesLoaded = true;
+        residences.assignAll(items);
+      },
+      failure: (_) {},
+    );
+  }
+
+  Future<void> applyFilters({
+    String? residenceId,
+    ShiftStatusFilter? status,
+  }) {
+    residenceFilter.value = residenceId;
+    statusFilter.value = status;
+    return loadOverview();
+  }
+
+  Future<void> clearFilters() => applyFilters();
+
+  /// Jumps the week strip to the week containing [date] and selects it.
+  Future<void> jumpToDate(DateTime date) async {
+    final day = DateTime(date.year, date.month, date.day);
+    _userPickedDay = true;
+    weekOf.value = IsoDateRange.startOfWeek(day);
+    selectedDay.value = day;
+    await loadOverview();
   }
 
   SchedulingOverview? get overview => state.value.data;
@@ -91,6 +150,9 @@ class SchedulingController extends BaseController<SchedulingOverview> {
     final result = await repository.getOverview(
       weekOf: requestedWeek,
       selectedDay: requestedDay,
+      residenceId: residenceFilter.value,
+      status: statusFilter.value,
+      mine: mineOnly.value,
     );
     if (generation != _loadGeneration) return;
 

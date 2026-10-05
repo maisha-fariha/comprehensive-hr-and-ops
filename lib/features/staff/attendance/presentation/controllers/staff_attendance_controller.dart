@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
@@ -8,15 +7,24 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
+import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
+import '../pages/staff_manual_attendance_entry_page.dart';
+import '../widgets/staff_clock_action_sheet.dart';
 
 /// GetX controller for the "Attendance" screen.
-class StaffAttendanceController extends BaseController<StaffAttendanceOverview> {
+class StaffAttendanceController
+    extends BaseController<StaffAttendanceOverview> {
   final StaffAttendanceRepository repository;
 
   /// Live HH:MM:SS from [StaffAttendanceOverview.checkInAt].
   final RxString liveElapsedLabel = '00:00:00'.obs;
+
+  /// Residence options for filters + clock dialog.
+  final RxList<ManualEntryResidenceOption> residenceOptions =
+      <ManualEntryResidenceOption>[].obs;
 
   Timer? _ticker;
 
@@ -28,6 +36,7 @@ class StaffAttendanceController extends BaseController<StaffAttendanceOverview> 
   void onInit() {
     super.onInit();
     loadOverview();
+    _loadResidences();
   }
 
   @override
@@ -65,93 +74,34 @@ class StaffAttendanceController extends BaseController<StaffAttendanceOverview> 
     });
   }
 
-  Future<void> clockIn() => _clock(isCheckIn: true);
+  Future<void> clockIn() => _openClockSheet(isCheckIn: true);
 
-  Future<void> clockOut() => _clock(isCheckIn: false);
+  Future<void> clockOut() => _openClockSheet(isCheckIn: false);
 
-  Future<void> _clock({required bool isCheckIn}) async {
+  Future<void> _openClockSheet({required bool isCheckIn}) async {
+    if (residenceOptions.isEmpty) await _loadResidences();
+    final context = Get.context;
+    if (context == null || !context.mounted) return;
     final current = overview;
-    final selfieUrl = await _pickAndUploadSelfieOptional();
 
-    setLoading(true);
-    final result = isCheckIn
-        ? await repository.checkIn(
-            shiftId: current?.shiftId,
-            residenceId: current?.residenceId,
-            selfieUrl: selfieUrl,
-          )
-        : await repository.checkOut(
-            shiftId: current?.shiftId,
-            residenceId: current?.residenceId,
-            selfieUrl: selfieUrl,
-          );
-    setLoading(false);
-
-    if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: isCheckIn ? 'Could not clock in' : 'Could not clock out',
+    final saved = await StaffClockActionSheet.show(
+      context,
+      isCheckIn: isCheckIn,
+      residences: residenceOptions.toList(),
+      initialResidenceId: current?.residenceId,
+      shiftId: current?.shiftId,
+      showNotRosteredWarning:
+          isCheckIn && !(current?.hasRosteredShiftNow ?? false),
+    );
+    if (saved == true) {
+      Get.snackbar(
+        'Attendance',
+        isCheckIn ? 'Clocked in.' : 'Clocked out.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.white,
       );
-      return;
+      await loadOverview();
     }
-
-    Get.snackbar(
-      'Attendance',
-      isCheckIn ? 'Clocked in.' : 'Clocked out.',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.white,
-    );
-    await loadOverview();
-  }
-
-  /// Optional selfie → `POST /uploads?category=attendance`.
-  /// Returns URL, or null if skipped / cancelled.
-  Future<String?> _pickAndUploadSelfieOptional() async {
-    final choice = await Get.dialog<String>(
-      AlertDialog(
-        title: const Text('Selfie verification'),
-        content: const Text(
-          'Optionally attach a selfie for this clock action. '
-          'It is uploaded to attendance before check-in/out.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: 'skip'),
-            child: const Text('Skip'),
-          ),
-          TextButton(
-            onPressed: () => Get.back(result: 'pick'),
-            child: const Text('Choose photo'),
-          ),
-        ],
-      ),
-    );
-    if (choice != 'pick') return null;
-
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-      withData: false,
-    );
-    final file = picked?.files.single;
-    final path = file?.path;
-    if (path == null || path.isEmpty) return null;
-
-    setLoading(true);
-    final upload = await repository.uploadAttendanceSelfie(
-      localPath: path,
-      fileName: file!.name,
-    );
-    setLoading(false);
-
-    if (upload.isFailure) {
-      AppErrorDialog.showResultError(
-        upload.error,
-        fallbackTitle: 'Could not upload selfie',
-      );
-      return null;
-    }
-    return upload.value;
   }
 
   Future<void> toggleBreak() {
@@ -192,6 +142,73 @@ class StaffAttendanceController extends BaseController<StaffAttendanceOverview> 
     await loadOverview();
   }
 
+  /// History date filter (`null` = all dates).
+  final Rxn<DateTime> historyDateFilter = Rxn<DateTime>();
+
+  /// `all` or a residence id.
+  final RxString historyResidenceFilter = 'all'.obs;
+
+  /// `all` | `present` | `late` | `missed` | `pending_approval`.
+  final RxString historyStatusFilter = 'all'.obs;
+
+  List<StaffAttendanceHistoryItem> get filteredHistory {
+    final items = overview?.history ?? const <StaffAttendanceHistoryItem>[];
+    final date = historyDateFilter.value;
+    final residence = historyResidenceFilter.value;
+    final status = historyStatusFilter.value;
+    return items.where((item) {
+      if (date != null) {
+        final at = item.occurredAt;
+        if (at == null ||
+            at.year != date.year ||
+            at.month != date.month ||
+            at.day != date.day) {
+          return false;
+        }
+      }
+      if (residence != 'all' && item.residenceId != residence) return false;
+      if (status != 'all') {
+        final s = item.status;
+        if (status == 'present') {
+          if (s != 'present' &&
+              s != 'on_time' &&
+              s != 'ontime' &&
+              s != 'completed') {
+            return false;
+          }
+        } else if (s != status) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+  }
+
+  void setHistoryDateFilter(DateTime? date) => historyDateFilter.value = date;
+
+  void setHistoryResidenceFilter(String residenceId) =>
+      historyResidenceFilter.value = residenceId;
+
+  void setHistoryStatusFilter(String status) =>
+      historyStatusFilter.value = status;
+
+  Future<void> _loadResidences() async {
+    final result = await repository.getResidences();
+    result.when(
+      success: (items) => residenceOptions.assignAll(items),
+      failure: (_) {},
+    );
+  }
+
+  Future<void> showManualEntryDialog() async {
+    final saved = await Get.to<bool>(
+      () => const StaffManualAttendanceEntryPage(),
+    );
+    if (saved == true) await loadOverview();
+  }
+
   @override
-  Future<void> refresh() => loadOverview();
+  Future<void> refresh() async {
+    await Future.wait([loadOverview(), _loadResidences()]);
+  }
 }

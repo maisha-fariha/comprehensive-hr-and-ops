@@ -1,56 +1,163 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/appointment_request_controller.dart';
 import '../widgets/appointment_form_fields.dart';
-import '../widgets/family_appointments_header.dart';
-import '../widgets/family_primary_button.dart';
-import '../widgets/request_type_toggle.dart';
 
-/// The single-page "Request Visit" / "Request Appointment" create form,
-/// reached from the "+ Create Appointment" button on the Family
-/// Appointments list screen.
+/// Family "Request a Visit" form — the web Family Portal modal (resident,
+/// date of visit, preferred time slot, visiting area, number of visitors,
+/// special notes + Cancel / Submit Visit Request).
 ///
-/// One page backs both states of the Figma "Request Visit - Appointments"
-/// and "Request Appointment - Appointments" screenshots - the "Request
-/// Type" segmented toggle at the top switches the AppBar title plus a
-/// handful of field labels/values, matching the reference structure of the
-/// Staff Incidents feature's single-page "Create Incident" form.
-///
-/// Hosts [FamilyBottomNavBar] with "Appointments" selected so the pushed
-/// route still matches reference frames that show the family bottom nav.
-class CreateAppointmentPage extends StatelessWidget {
+/// On success it leaves the form (back to the list that opened it) and shows
+/// the web's success toast; the lists are refetched by the controller.
+class CreateAppointmentPage extends StatefulWidget {
   const CreateAppointmentPage({super.key});
 
-  /// Index of the "Appointments" slot in [FamilyBottomNavBar.items].
+  @override
+  State<CreateAppointmentPage> createState() => _CreateAppointmentPageState();
+}
+
+class _CreateAppointmentPageState extends State<CreateAppointmentPage> {
   static const int _appointmentsTabIndex = 2;
 
-  /// Always starts a fresh controller instance for a new draft rather than
-  /// resolving the `get_it`-registered singleton - reusing the same
-  /// instance across multiple "Create Appointment" sessions would resurface
-  /// a previous draft's field values, and its `TextEditingController` would
-  /// already be disposed after the first time this page is closed (see the
-  /// identical rationale on the Staff Incidents feature's create-form page).
-  AppointmentRequestController _resolveController() {
+  late final AppointmentRequestController _controller;
+
+  @override
+  void initState() {
+    super.initState();
     if (Get.isRegistered<AppointmentRequestController>()) {
       Get.delete<AppointmentRequestController>(force: true);
     }
-    return Get.put(AppointmentRequestController());
+    _controller = Get.put(AppointmentRequestController());
+  }
+
+  @override
+  void dispose() {
+    if (Get.isRegistered<AppointmentRequestController>() &&
+        identical(Get.find<AppointmentRequestController>(), _controller)) {
+      Get.delete<AppointmentRequestController>(force: true);
+    }
+    super.dispose();
   }
 
   void _onBottomNavTap(int index) {
     Get.offAll(() => FamilyShell(initialIndex: index));
   }
 
+  void _close() => Navigator.of(context).maybePop();
+
+  Future<void> _onSubmit() async {
+    final sent = await _controller.submit();
+    if (!sent || !mounted) return;
+    Navigator.of(context).pop(true);
+    AppSnackbar.show(AppointmentRequestController.successMessage, '', force: true);
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final current = _controller.visitDate.value;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: current == null || current.isBefore(today) ? today : current,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 365)),
+    );
+    if (date != null) _controller.selectDate(date);
+  }
+
+  Future<void> _pickResident() async {
+    final selected = await _pickOption(
+      title: 'Resident',
+      options: [
+        for (final r in _controller.residents) VisitFormOption(r.id, r.name),
+      ],
+      selected: _controller.selectedResident?.id,
+    );
+    if (selected != null) _controller.selectResident(selected);
+  }
+
+  Future<void> _pickTimeSlot() async {
+    final selected = await _pickOption(
+      title: 'Preferred Time Slot',
+      options: AppointmentRequestController.timeSlots,
+      selected: _controller.timeSlot.value,
+    );
+    if (selected != null) _controller.timeSlot.value = selected;
+  }
+
+  Future<void> _pickVisitingArea() async {
+    final selected = await _pickOption(
+      title: 'Visiting Area',
+      options: AppointmentRequestController.visitingAreas,
+      selected: _controller.visitingArea.value,
+    );
+    if (selected != null) _controller.visitingArea.value = selected;
+  }
+
+  Future<String?> _pickOption({
+    required String title,
+    required List<VisitFormOption> options,
+    String? selected,
+  }) {
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: Color(0xFF14263B),
+                  ),
+                ),
+              ),
+            ),
+            for (final option in options)
+              ListTile(
+                title: Text(
+                  option.label,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                trailing: option.value == selected
+                    ? const Icon(Icons.check_rounded, color: AppColors.secondaryTeal)
+                    : null,
+                onTap: () => Navigator.pop(ctx, option.value),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
-    final fieldGap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final controller = _controller;
+    final fieldGap =
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -61,65 +168,93 @@ class CreateAppointmentPage extends StatelessWidget {
       body: SafeArea(
         bottom: false,
         child: Obx(() {
+          final error = controller.formError.value;
+          final resident = controller.selectedResident;
           return Column(
             children: [
-              Container(
-                color: AppColors.surfaceWhite,
-                child: FamilyAppointmentsHeader(title: controller.pageTitle, onBack: Get.back),
-              ),
+              _RequestVisitHeader(onClose: _close),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, vertical: 20),
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 20,
+                    vertical: 20,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const AppointmentFieldLabel('Request Type'),
-                      RequestTypeToggle(selected: controller.requestType.value, onSelected: controller.selectRequestType),
-                      fieldGap,
-                      const AppointmentFieldLabel('Preferred Date'),
+                      if (error != null && error.isNotEmpty) ...[
+                        AppointmentFormErrorBanner(message: error),
+                        fieldGap,
+                      ],
+                      if (controller.residents.length > 1) ...[
+                        const AppointmentFieldLabel('Resident'),
+                        AppointmentDropdownField(
+                          key: const ValueKey('visit-form-resident'),
+                          value: resident?.name ?? 'Select an option',
+                          isPlaceholder: resident == null,
+                          trailingIcon: Icons.keyboard_arrow_down_rounded,
+                          onTap: _pickResident,
+                        ),
+                        fieldGap,
+                      ],
+                      const AppointmentFieldLabel('Date of Visit', required: true),
                       AppointmentDropdownField(
-                        value: controller.preferredDate,
-                        leadingIcon: AppAssets.navCalendar,
-                        onTap: () => controller.pickDate(context),
+                        key: const ValueKey('visit-form-date'),
+                        value: controller.visitDateLabel,
+                        isPlaceholder: controller.visitDate.value == null,
+                        trailingIcon: Icons.calendar_today_outlined,
+                        onTap: _pickDate,
                       ),
                       fieldGap,
-                      const AppointmentFieldLabel('Preferred Time'),
+                      const AppointmentFieldLabel('Preferred Time Slot'),
                       AppointmentDropdownField(
-                        value: controller.preferredTime,
-                        leadingIcon: AppAssets.clock,
-                        onTap: () => controller.pickTime(context),
+                        key: const ValueKey('visit-form-time-slot'),
+                        value: controller.timeSlotLabel,
+                        trailingIcon: Icons.keyboard_arrow_down_rounded,
+                        onTap: _pickTimeSlot,
                       ),
                       fieldGap,
-                      AppointmentFieldLabel(controller.thirdFieldLabel),
+                      const AppointmentFieldLabel('Visiting Area'),
                       AppointmentDropdownField(
-                        value: controller.thirdFieldValue,
-                        onTap: controller.isVisit
-                            ? null
-                            : () => controller.pickAppointmentKind(context),
+                        key: const ValueKey('visit-form-area'),
+                        value: controller.visitingAreaLabel,
+                        trailingIcon: Icons.keyboard_arrow_down_rounded,
+                        onTap: _pickVisitingArea,
                       ),
                       fieldGap,
-                      const AppointmentFieldLabel('Location / Mode'),
+                      const AppointmentFieldLabel('Number of Visitors'),
                       AppointmentTextField(
-                        controller: controller.locationController,
-                        hint: 'Residence, clinic, or video call',
+                        controller: controller.visitorsController,
+                        hint: '2',
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                      ),
+                      const AppointmentFieldHelper(
+                        'Max 6 per party in private rooms',
                       ),
                       fieldGap,
-                      const AppointmentFieldLabel('Add a Note', suffix: '(Optional)'),
+                      const AppointmentFieldLabel(
+                        'Special Notes or Requests (Optional)',
+                      ),
                       AppointmentNoteField(
                         controller: controller.noteController,
-                        hint: controller.notePlaceholder,
-                        length: controller.noteLength.value,
+                        hint:
+                            'e.g. Bringing birthday flowers, wheelchair assistance needed, outdoor walk if sunny',
+                        showCounter: false,
                       ),
-                      fieldGap,
-                      AppointmentInfoBanner(message: controller.bannerMessage),
-                      Padding(
-                        padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 0, top: 12, bottom: 12),
-                        child: FamilyPrimaryButton(
-                          label: controller.isSubmitting.value
-                              ? 'Submitting…'
-                              : 'Submit Request',
-                          onTap: controller.submit,
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          24,
                         ),
+                      ),
+                      _RequestVisitActions(
+                        isSubmitting: controller.isSubmitting.value,
+                        onCancel: _close,
+                        onSend: _onSubmit,
                       ),
                     ],
                   ),
@@ -129,6 +264,168 @@ class CreateAppointmentPage extends StatelessWidget {
           );
         }),
       ),
+    );
+  }
+}
+
+class _RequestVisitHeader extends StatelessWidget {
+  final VoidCallback onClose;
+
+  const _RequestVisitHeader({required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.surfaceWhite,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 16,
+        vertical: 14,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: ResponsiveHelper.getResponsiveSize(context, 44),
+            height: ResponsiveHelper.getResponsiveSize(context, 44),
+            decoration: BoxDecoration(
+              color: AppColors.primaryNavy,
+              borderRadius: BorderRadius.circular(
+                ResponsiveHelper.getResponsiveRadius(context, 12),
+              ),
+            ),
+            child: Icon(
+              Icons.calendar_month_rounded,
+              color: Colors.white,
+              size: ResponsiveHelper.getResponsiveSize(context, 22),
+            ),
+          ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Request a Visit',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w800,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 18),
+                    color: AppColors.primaryNavy,
+                    height: 1.2,
+                  ),
+                ),
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+                Text(
+                  'Choose a date and preferred time. The care home will confirm your visit.',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w500,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    color: AppColors.textMuted,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+          Material(
+            color: AppColors.filterButtonBackground,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onClose,
+              child: Padding(
+                padding: EdgeInsets.all(
+                  ResponsiveHelper.getResponsiveSize(context, 8),
+                ),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: ResponsiveHelper.getResponsiveSize(context, 18),
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestVisitActions extends StatelessWidget {
+  final bool isSubmitting;
+  final VoidCallback onCancel;
+  final VoidCallback onSend;
+
+  const _RequestVisitActions({
+    required this.isSubmitting,
+    required this.onCancel,
+    required this.onSend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: isSubmitting ? null : onCancel,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.textHeading,
+              side: const BorderSide(color: AppColors.searchBorder),
+              backgroundColor: AppColors.surfaceWhite,
+              padding: EdgeInsets.symmetric(
+                vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(radius),
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+        Expanded(
+          child: FilledButton(
+            key: const ValueKey('visit-form-submit'),
+            onPressed: isSubmitting ? null : onSend,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryNavy,
+              disabledBackgroundColor:
+                  AppColors.primaryNavy.withValues(alpha: 0.5),
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(radius),
+              ),
+            ),
+            child: Text(
+              isSubmitting ? 'Sending Request...' : 'Submit Visit Request',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

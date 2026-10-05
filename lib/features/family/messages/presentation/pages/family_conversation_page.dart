@@ -88,89 +88,111 @@ class FamilyConversationPage extends StatelessWidget {
                 child: FamilyMessagesHeader(title: thread.title),
               ),
               Expanded(
-                child: ListView.builder(
-                  padding: ResponsiveHelper.getResponsivePadding(
-                    context,
-                    all: 16,
-                  ),
-                  itemCount: thread.messages.length,
-                  itemBuilder: (context, index) {
-                    final message = thread.messages[index];
-                    final outgoing =
-                        message.direction == FamilyMessageDirection.outgoing;
-                    return Align(
-                      alignment: outgoing
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: EdgeInsets.only(
-                          bottom: ResponsiveHelper.getResponsiveHeight(
+                child: thread.messages.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: ResponsiveHelper.getResponsivePadding(
                             context,
-                            10,
+                            all: 24,
+                          ),
+                          child: const Text(
+                            'No messages in this conversation yet. Send a note below.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Manrope',
+                              color: AppColors.textFaint,
+                            ),
                           ),
                         ),
+                      )
+                    : ListView.builder(
+                        reverse: true,
                         padding: ResponsiveHelper.getResponsivePadding(
                           context,
-                          horizontal: 14,
-                          vertical: 10,
+                          all: 16,
                         ),
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.sizeOf(context).width * 0.78,
-                        ),
-                        decoration: BoxDecoration(
-                          color: outgoing
-                              ? AppColors.secondaryTeal
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: outgoing
-                              ? CrossAxisAlignment.end
-                              : CrossAxisAlignment.start,
-                          children: [
-                            if (!outgoing)
-                              Text(
-                                message.senderName,
-                                style: TextStyle(
-                                  fontFamily: 'Manrope',
-                                  fontWeight: FontWeight.w700,
-                                  fontSize:
-                                      ResponsiveHelper.getResponsiveFontSize(
-                                    context,
-                                    11,
-                                  ),
-                                  color: AppColors.secondaryTeal,
-                                ),
-                              ),
-                            Text(
-                              message.text,
-                              style: TextStyle(
-                                fontFamily: 'Manrope',
-                                color: outgoing
-                                    ? Colors.white
-                                    : AppColors.textHeading,
-                              ),
-                            ),
-                            Text(
-                              message.timeLabel,
-                              style: TextStyle(
-                                fontFamily: 'Manrope',
-                                fontSize:
-                                    ResponsiveHelper.getResponsiveFontSize(
+                        itemCount: thread.messages.length,
+                        itemBuilder: (context, index) {
+                          final message = thread
+                              .messages[thread.messages.length - 1 - index];
+                          final outgoing =
+                              message.direction ==
+                              FamilyMessageDirection.outgoing;
+                          return Align(
+                            alignment: outgoing
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              margin: EdgeInsets.only(
+                                bottom: ResponsiveHelper.getResponsiveHeight(
                                   context,
                                   10,
                                 ),
+                              ),
+                              padding: ResponsiveHelper.getResponsivePadding(
+                                context,
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.sizeOf(context).width * 0.78,
+                              ),
+                              decoration: BoxDecoration(
                                 color: outgoing
-                                    ? Colors.white70
-                                    : AppColors.textFaint,
+                                    ? AppColors.secondaryTeal
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: outgoing
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  if (!outgoing)
+                                    Text(
+                                      message.senderName,
+                                      style: TextStyle(
+                                        fontFamily: 'Manrope',
+                                        fontWeight: FontWeight.w700,
+                                        fontSize:
+                                            ResponsiveHelper.getResponsiveFontSize(
+                                              context,
+                                              11,
+                                            ),
+                                        color: AppColors.secondaryTeal,
+                                      ),
+                                    ),
+                                  Text(
+                                    message.text,
+                                    style: TextStyle(
+                                      fontFamily: 'Manrope',
+                                      color: outgoing
+                                          ? Colors.white
+                                          : AppColors.textHeading,
+                                    ),
+                                  ),
+                                  if (outgoing)
+                                    _OutgoingStatus(message: message)
+                                  else
+                                    Text(
+                                      message.timeLabel,
+                                      style: TextStyle(
+                                        fontFamily: 'Manrope',
+                                        fontSize:
+                                            ResponsiveHelper.getResponsiveFontSize(
+                                              context,
+                                              10,
+                                            ),
+                                        color: AppColors.textFaint,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
               ColoredBox(
                 color: AppColors.surfaceWhite,
@@ -247,7 +269,6 @@ class FamilyConversationPage extends StatelessWidget {
                               controller: controller.textController,
                               minLines: 1,
                               maxLines: 4,
-                              enabled: !controller.isSending.value,
                               decoration: const InputDecoration(
                                 hintText: 'Message the care team…',
                                 border: InputBorder.none,
@@ -284,6 +305,42 @@ class FamilyConversationPage extends StatelessWidget {
           );
         }),
       ),
+    );
+  }
+}
+
+class _OutgoingStatus extends StatelessWidget {
+  final FamilyChatMessage message;
+
+  const _OutgoingStatus({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final (IconData icon, String label) = switch (message.delivery) {
+      FamilyMessageDelivery.sending => (Icons.schedule_rounded, 'Sending…'),
+      FamilyMessageDelivery.queued => (
+        Icons.cloud_off_rounded,
+        'Waiting for connection',
+      ),
+      FamilyMessageDelivery.sent => (Icons.done_all_rounded, 'Sent'),
+    };
+    final style = TextStyle(
+      fontFamily: 'Manrope',
+      fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10),
+      color: Colors.white70,
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          message.delivery == FamilyMessageDelivery.sent
+              ? message.timeLabel
+              : label,
+          style: style,
+        ),
+        const SizedBox(width: 4),
+        Icon(icon, size: 12, color: Colors.white70, semanticLabel: label),
+      ],
     );
   }
 }

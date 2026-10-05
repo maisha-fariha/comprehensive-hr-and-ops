@@ -8,15 +8,53 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../data/mappers/attendance_mapper.dart';
+import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/repositories/attendance_repository.dart';
+import '../attendance_formatters.dart';
 import '../widgets/manual_entry/manual_entry_footer.dart';
 import '../widgets/manual_entry/manual_entry_forms.dart';
 import '../widgets/manual_entry/manual_entry_header.dart';
 
-/// Multi-step Manual Attendance Entry screen matching the HR design reference.
+const manualEntryReasons = <(String, String)>[
+  ('forgot_clock_in', 'Forgot clock-in'),
+  ('forgot_clock_out', 'Forgot clock-out'),
+  ('system_error', 'System error'),
+  ('device_sync_issue', 'Device sync issue'),
+  ('shift_swap', "Covered someone else's shift"),
+  ('other', 'Other'),
+];
+
+const manualEntryStatuses = <(String, String)>[
+  ('pending_approval', 'Pending approval'),
+  ('present', 'Present'),
+  ('late', 'Late'),
+  ('missed', 'Missed — nobody worked it'),
+];
+
+const manualEntryBreaks = <(int, String)>[
+  (0, 'None'),
+  (15, '15 minutes'),
+  (30, '30 minutes'),
+  (45, '45 minutes'),
+  (60, '60 minutes'),
+];
+
+/// Web "Manual Attendance Entry" (create) and "Edit Attendance Entry"
+/// (the row's Correct action) four-step wizard.
 class ManualAttendanceEntryPage extends StatefulWidget {
-  const ManualAttendanceEntryPage({super.key});
+  /// The record being corrected; null creates a new manual entry.
+  final AttendanceRecord? record;
+
+  /// Pre-selected residence for a new entry (the list's residence filter).
+  final String? defaultResidenceId;
+
+  const ManualAttendanceEntryPage({
+    super.key,
+    this.record,
+    this.defaultResidenceId,
+  });
 
   @override
   State<ManualAttendanceEntryPage> createState() =>
@@ -48,41 +86,18 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
   DateTime? _correctedCheckInAt;
   DateTime? _correctedCheckOutAt;
 
-  String _unpaidBreakLabel = 'None';
-  String? _reasonCategoryLabel;
-  String _approvalStatusLabel = 'Pending approval';
+  int _breakMinutes = 0;
+  String? _reasonCategory;
+  String _status = 'pending_approval';
 
   bool _isLoadingResidences = false;
   bool _isLoadingStaff = false;
   bool _isLoadingShifts = false;
   bool _isSubmitting = false;
 
-  /// Residence auto-filled from session; changing away from this counts as an edit.
-  String? _bootstrappedResidenceId;
-
-  static const _unpaidBreakOptions = [
-    'None',
-    '15 minutes',
-    '30 minutes',
-    '45 minutes',
-    '60 minutes',
-  ];
-
-  static const _reasonOptions = [
-    'Forgot clock-in',
-    'Forgot clock-out',
-    'System error',
-    'Device sync issue',
-    "Covered someone else's shift",
-    'Other',
-  ];
-
-  static const _approvalStatusOptions = [
-    'Pending approval',
-    'Present',
-    'Late',
-    'Missed — nobody worked it',
-  ];
+  Map<String, String> _errors = const {};
+  String? _formError;
+  String _initialSignature = '';
 
   static const _allowedEvidenceExtensions = {
     'pdf',
@@ -93,50 +108,79 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     'jpeg',
   };
 
-  static const _reasonCategoryCodes = {
-    'Forgot clock-in': 'forgot_clock_in',
-    'Forgot clock-out': 'forgot_clock_out',
-    'System error': 'system_error',
-    'Device sync issue': 'device_sync_issue',
-    "Covered someone else's shift": 'covered_someone_elses_shift',
-    'Other': 'other',
-  };
+  bool get _isEdit => widget.record != null;
 
-  static const _approvalStatusCodes = {
-    'Pending approval': 'pending_approval',
-    'Present': 'present',
-    'Late': 'late',
-    'Missed — nobody worked it': 'missed',
-  };
+  bool get _canDecide => _session.can('attendance:manage');
 
   @override
   void initState() {
     super.initState();
     _repository = GetIt.instance<AttendanceRepository>();
     _session = Get.find<UserSession>();
+    final record = widget.record;
+    if (record != null) _prefill(record);
+    _initialSignature = _signature();
     _bootstrap();
+  }
+
+  void _prefill(AttendanceRecord record) {
+    _selectedResidence = ManualEntryResidenceOption(
+      id: record.residenceId,
+      name: record.residenceName,
+    );
+    _selectedStaff = ManualEntryStaffOption(
+      id: record.staffId,
+      name: record.staffName,
+      detail: [
+        if (record.staffRole != null) record.staffRole!,
+        if (record.residenceName.isNotEmpty) record.residenceName,
+      ].join(' · '),
+      initials: record.staffInitials,
+    );
+    final shiftId = record.shiftId;
+    if (shiftId != null) {
+      final startsAt = record.shiftStartsAt;
+      final endsAt = record.shiftEndsAt;
+      _selectedShift = ManualEntryShiftOption(
+        id: shiftId,
+        label: startsAt != null && endsAt != null
+            ? '${AttendanceMapper.formatDateTime(startsAt)} – '
+                '${AttendanceMapper.formatDateTime(endsAt)}'
+            : 'Rostered shift',
+        startsAt: startsAt ?? DateTime.now(),
+        endsAt: endsAt ?? DateTime.now(),
+      );
+    }
+    _originalCheckInAt = record.originalCheckInAt ?? record.checkInAt;
+    _originalCheckOutAt = record.originalCheckOutAt ?? record.checkOutAt;
+    _correctedCheckInAt = record.checkInAt;
+    _correctedCheckOutAt = record.checkOutAt;
+    _breakMinutes = record.breakMinutes;
+    _reasonCategory = record.reasonCategory;
+    _status = record.status;
+    _notesController.text = record.notes ?? '';
+    _approvalNoteController.text = record.adminNote ?? '';
+    for (final evidence in record.evidence) {
+      final name = evidence.fileUrl.split('/').last;
+      _evidenceFiles.add(
+        ManualEntryEvidenceFile(
+          localPath: evidence.fileUrl,
+          fileName: name,
+          mimeType: evidence.fileType,
+          fileUrl: evidence.fileUrl,
+        ),
+      );
+    }
   }
 
   Future<void> _bootstrap() async {
     await _loadResidences();
-    final sessionResidenceId = _session.residenceId;
-    if (sessionResidenceId != null && sessionResidenceId.isNotEmpty) {
-      final match = _residences.where((r) => r.id == sessionResidenceId);
-      if (match.isNotEmpty) {
-        setState(() {
-          _selectedResidence = match.first;
-          _bootstrappedResidenceId = match.first.id;
-        });
-      } else if (_session.residenceName != null &&
-          _session.residenceName!.isNotEmpty) {
-        setState(() {
-          _selectedResidence = ManualEntryResidenceOption(
-            id: sessionResidenceId,
-            name: _session.residenceName!,
-          );
-          _bootstrappedResidenceId = sessionResidenceId;
-        });
-      }
+    final defaultId = widget.defaultResidenceId;
+    if (_isEdit || defaultId == null || defaultId.isEmpty) return;
+    final match = _residences.where((r) => r.id == defaultId);
+    if (match.isNotEmpty && mounted) {
+      setState(() => _selectedResidence = match.first);
+      _initialSignature = _signature();
     }
   }
 
@@ -149,28 +193,24 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     super.dispose();
   }
 
-  bool get _hasUnsavedChanges {
-    if (_selectedStaff != null) return true;
-    if (_selectedShift != null) return true;
-    if (_originalCheckInAt != null ||
-        _originalCheckOutAt != null ||
-        _correctedCheckInAt != null ||
-        _correctedCheckOutAt != null) {
-      return true;
-    }
-    if (_unpaidBreakLabel != 'None') return true;
-    if (_reasonCategoryLabel != null) return true;
-    if (_approvalStatusLabel != 'Pending approval') return true;
-    if (_notesController.text.trim().isNotEmpty) return true;
-    if (_approvalNoteController.text.trim().isNotEmpty) return true;
-    if (_evidenceFiles.isNotEmpty) return true;
-    if (_staffSearchController.text.trim().isNotEmpty) return true;
-    if (_selectedResidence != null &&
-        _selectedResidence!.id != _bootstrappedResidenceId) {
-      return true;
-    }
-    return false;
-  }
+  String _signature() => [
+        _selectedResidence?.id,
+        _selectedStaff?.id,
+        _selectedShift?.id,
+        _originalCheckInAt,
+        _originalCheckOutAt,
+        _correctedCheckInAt,
+        _correctedCheckOutAt,
+        _breakMinutes,
+        _reasonCategory,
+        _status,
+        _notesController.text.trim(),
+        _approvalNoteController.text.trim(),
+        _staffSearchController.text.trim(),
+        _evidenceFiles.map((f) => f.localPath).join(','),
+      ].join('|');
+
+  bool get _hasUnsavedChanges => _signature() != _initialSignature;
 
   Future<void> _close() async {
     if (_isSubmitting) return;
@@ -243,24 +283,27 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     );
   }
 
-  int get _unpaidBreakMinutes {
-    final match = RegExp(r'(\d+)').firstMatch(_unpaidBreakLabel);
-    return int.tryParse(match?.group(1) ?? '') ?? 0;
+  static String _labelOf<T>(List<(T, String)> options, T? value) {
+    for (final option in options) {
+      if (option.$1 == value) return option.$2;
+    }
+    return value?.toString() ?? '';
   }
 
+  int? _minutesBetween(DateTime? from, DateTime? to) =>
+      from == null || to == null ? null : to.difference(from).inMinutes;
+
   String? get _paySummaryText {
-    final start = _correctedCheckInAt;
-    final end = _correctedCheckOutAt;
-    if (start == null || end == null) return null;
-    var minutes = end.difference(start).inMinutes - _unpaidBreakMinutes;
-    if (minutes < 0) minutes = 0;
-    final hours = minutes ~/ 60;
-    final mins = minutes % 60;
-    final worked = hours > 0
-        ? (mins > 0 ? '${hours}h ${mins}m' : '${hours}h')
-        : '${mins}m';
-    return 'This entry covers $worked of worked time'
-        '${_unpaidBreakMinutes > 0 ? ' after unpaid break.' : '.'}';
+    final span = _minutesBetween(_correctedCheckInAt, _correctedCheckOutAt);
+    if (span == null) return null;
+    final worked = (span - _breakMinutes) < 0 ? 0 : span - _breakMinutes;
+    return 'This entry works out at ${AttendanceFormat.span(worked)} — '
+        '${AttendanceFormat.span(span)} less a $_breakMinutes-minute break.';
+  }
+
+  String? get _recordedSpan {
+    final span = _minutesBetween(_originalCheckInAt, _originalCheckOutAt);
+    return span == null ? null : AttendanceFormat.span(span);
   }
 
   String _formatDateTime(DateTime dt) {
@@ -273,31 +316,16 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     return '$mm/$dd/${local.year} $hour:$minute $period';
   }
 
-  String get _approvalReasonSummary => _reasonCategoryLabel ?? '—';
+  String _orDash(String value) => value.isEmpty ? '—' : value;
 
-  String get _approvalEvidenceSummary =>
-      '${_evidenceFiles.length} file(s)';
-
-  String get _approvalClockInSummary =>
-      _correctedCheckInAt == null ? '—' : _formatDateTime(_correctedCheckInAt!);
-
-  String get _approvalClockOutSummary => _correctedCheckOutAt == null
-      ? 'Still on shift'
-      : _formatDateTime(_correctedCheckOutAt!);
-
-  String get _approvalWasRecordedAsSummary {
-    final inn = _originalCheckInAt;
-    final out = _originalCheckOutAt;
-    if (inn == null && out == null) return 'No clock record';
-    if (inn != null && out != null) {
-      return '${_formatDateTime(inn)} → ${_formatDateTime(out)}';
-    }
-    return _formatDateTime(inn ?? out!);
-  }
-
-  String get _approvalUnpaidBreakSummary {
-    if (_unpaidBreakLabel == 'None') return '0 minutes';
-    return _unpaidBreakLabel;
+  /// Steps whose required fields are filled, as the web progress counts them.
+  int get _completedSteps {
+    var count = 0;
+    if (_selectedStaff != null && _selectedResidence != null) count++;
+    if (_correctedCheckInAt != null) count++;
+    if (_reasonCategory != null) count++;
+    if (_status.isNotEmpty) count++;
+    return count;
   }
 
   Future<void> _loadResidences() async {
@@ -315,23 +343,13 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
       },
       failure: (error) {
         setState(() => _isLoadingResidences = false);
-        AppSnackbar.show(
-          'Could not load residences',
-          error.message,
-        );
+        AppSnackbar.show('Could not load residences', error.message);
       },
     );
   }
 
   void _onStaffSearchChanged(String query) {
     _staffSearchDebounce?.cancel();
-    if (_selectedStaff != null && query.trim() != _selectedStaff!.name) {
-      setState(() {
-        _selectedStaff = null;
-        _selectedShift = null;
-        _shifts.clear();
-      });
-    }
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
       setState(() {
@@ -357,7 +375,7 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
         setState(() {
           _staffResults
             ..clear()
-            ..addAll(items);
+            ..addAll(items.take(8));
           _isLoadingStaff = false;
         });
       },
@@ -371,12 +389,21 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
   Future<void> _selectStaff(ManualEntryStaffOption staff) async {
     setState(() {
       _selectedStaff = staff;
-      _staffSearchController.text = staff.name;
+      _staffSearchController.clear();
       _staffResults.clear();
       _selectedShift = null;
       _shifts.clear();
+      _errors = Map.of(_errors)..remove('staffId');
     });
     await _loadShifts();
+  }
+
+  void _changeStaff() {
+    setState(() {
+      _selectedStaff = null;
+      _selectedShift = null;
+      _shifts.clear();
+    });
   }
 
   Future<void> _loadShifts() async {
@@ -386,7 +413,6 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     final result = await _repository.getRosteredShifts(
       staffId: staffId,
       residenceId: _selectedResidence?.id,
-      around: _correctedCheckInAt ?? DateTime.now(),
     );
     if (!mounted) return;
     result.when(
@@ -422,12 +448,11 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     if (selected == null) return;
     setState(() {
       _selectedResidence = selected;
-      _selectedStaff = null;
       _selectedShift = null;
-      _staffResults.clear();
       _shifts.clear();
-      _staffSearchController.clear();
+      _errors = Map.of(_errors)..remove('residenceId');
     });
+    if (_selectedStaff != null) await _loadShifts();
   }
 
   Future<void> _pickShift() async {
@@ -438,7 +463,7 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     if (_shifts.isEmpty) {
       AppSnackbar.show(
         'No shifts',
-        'No rostered shifts found for this staff member in the selected range.',
+        'No rostered shifts found for this staff member.',
       );
       return;
     }
@@ -448,7 +473,11 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
       labelOf: (item) => item.label,
     );
     if (selected == null) return;
-    setState(() => _selectedShift = selected);
+    setState(() {
+      _selectedShift = selected;
+      _correctedCheckInAt = selected.startsAt;
+      _correctedCheckOutAt = selected.endsAt;
+    });
   }
 
   Future<T?> _showOptionSheet<T>({
@@ -459,73 +488,80 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     return showModalBottomSheet<T>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) {
         return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              for (final option in options)
-                ListTile(
-                  title: Text(
-                    labelOf(option),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Text(
+                    title,
                     style: const TextStyle(
                       fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
                       color: AppColors.textHeading,
                     ),
                   ),
-                  onTap: () => Navigator.of(context).pop(option),
                 ),
-              const SizedBox(height: 8),
-            ],
+                for (final option in options)
+                  ListTile(
+                    title: Text(
+                      labelOf(option),
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    onTap: () => Navigator.of(context).pop(option),
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Future<void> _pickStringOption({
+  Future<void> _pickOption<T>({
     required String title,
-    required List<String> options,
-    required ValueChanged<String> onSelected,
+    required List<(T, String)> options,
+    required ValueChanged<T> onSelected,
   }) async {
-    final selected = await _showOptionSheet<String>(
+    final selected = await _showOptionSheet<(T, String)>(
       title: title,
       options: options,
-      labelOf: (item) => item,
+      labelOf: (item) => item.$2,
     );
-    if (selected != null) onSelected(selected);
+    if (selected != null) onSelected(selected.$1);
   }
 
   Future<void> _pickDateTime({
+    DateTime? initial,
     required ValueChanged<DateTime> onSelected,
   }) async {
-    final now = DateTime.now();
+    final start = (initial ?? DateTime.now()).toLocal();
     final date = await showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 1),
+      initialDate: start,
+      firstDate: DateTime(start.year - 1),
+      lastDate: DateTime(start.year + 1, 12, 31),
     );
     if (date == null || !mounted) return;
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(now),
+      initialTime: TimeOfDay.fromDateTime(start),
     );
     if (time == null || !mounted) return;
     onSelected(
@@ -608,68 +644,85 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     );
   }
 
-  Map<String, dynamic> _buildPayload() {
-    final evidenceNotes = _notesController.text.trim();
-    final approvalNote = _approvalNoteController.text.trim();
-    final notes = approvalNote.isNotEmpty ? approvalNote : evidenceNotes;
-    final reasonLabel = _reasonCategoryLabel;
-    final reasonCategory = reasonLabel == null
-        ? null
-        : _reasonCategoryCodes[reasonLabel] ?? 'other';
+  List<Map<String, dynamic>> get _evidencePayload => [
+        for (final f in _evidenceFiles.where((f) => f.isReady))
+          {'fileUrl': f.fileUrl, 'fileType': ?f.mimeType},
+      ];
 
-    final payload = <String, dynamic>{
+  Map<String, dynamic> _buildCreatePayload() {
+    final notes = _notesController.text.trim();
+    final evidence = _evidencePayload;
+    return {
       'staffId': _selectedStaff!.id,
       'residenceId': _selectedResidence!.id,
       'checkInAt': _correctedCheckInAt!.toUtc().toIso8601String(),
-      'status':
-          _approvalStatusCodes[_approvalStatusLabel] ?? 'pending_approval',
-      'breakMinutes': _unpaidBreakMinutes,
+      'breakMinutes': _breakMinutes,
+      'status': _status,
+      'reasonCategory': _reasonCategory,
       'shiftId': ?_selectedShift?.id,
       'checkOutAt': ?_correctedCheckOutAt?.toUtc().toIso8601String(),
       'originalCheckInAt': ?_originalCheckInAt?.toUtc().toIso8601String(),
       'originalCheckOutAt': ?_originalCheckOutAt?.toUtc().toIso8601String(),
-      'reasonCategory': ?reasonCategory,
-      'reason': ?reasonLabel,
       if (notes.isNotEmpty) 'notes': notes,
+      if (evidence.isNotEmpty) 'evidence': evidence,
     };
-
-    final evidence = _evidenceFiles
-        .where((f) => f.isReady)
-        .map(
-          (f) => {
-            'fileUrl': f.fileUrl,
-            'fileType': f.fileType,
-          },
-        )
-        .toList();
-    if (evidence.isNotEmpty) {
-      payload['evidence'] = evidence;
-    }
-    return payload;
   }
+
+  Map<String, dynamic> _buildUpdatePayload() {
+    final notes = _notesController.text.trim();
+    final evidence = _evidencePayload;
+    return {
+      'checkInAt': _correctedCheckInAt!.toUtc().toIso8601String(),
+      'checkOutAt': _correctedCheckOutAt?.toUtc().toIso8601String(),
+      'breakMinutes': _breakMinutes,
+      'status': _status,
+      'reasonCategory': _reasonCategory,
+      'notes': notes.isEmpty ? null : notes,
+      if (evidence.isNotEmpty) 'evidence': evidence,
+    };
+  }
+
+  Map<String, String> _validate() {
+    final errors = <String, String>{};
+    if (_selectedStaff == null) errors['staffId'] = 'Select a staff member';
+    if (_selectedResidence == null) errors['residenceId'] = 'Select a residence';
+    final checkIn = _correctedCheckInAt;
+    final checkOut = _correctedCheckOutAt;
+    if (checkIn == null) {
+      errors['checkInAt'] = 'A clock-in time is required';
+    }
+    if (checkOut != null && !checkOut.isAfter(checkIn ?? DateTime(0))) {
+      errors['checkOutAt'] = 'Clock-out has to be after clock-in';
+    }
+    if (_reasonCategory == null) {
+      errors['reasonCategory'] = 'Say why this entry was typed';
+    }
+    if (_reasonCategory == 'other' && _notesController.text.trim().isEmpty) {
+      errors['notes'] =
+          "Say what happened — 'Other' on its own tells an approver nothing";
+    }
+    return errors;
+  }
+
+  static ManualEntryTab _tabForField(String field) => switch (field) {
+        'staffId' || 'residenceId' => ManualEntryTab.attendanceDetails,
+        'checkInAt' || 'checkOutAt' => ManualEntryTab.timeCorrection,
+        _ => ManualEntryTab.evidence,
+      };
 
   Future<void> _onSave() async {
     if (_isSubmitting) return;
 
-    if (_selectedResidence == null || _selectedStaff == null) {
-      AppSnackbar.show(
-        'Missing required fields',
-        'Residence and staff member are required.',
+    final errors = _validate();
+    if (errors.isNotEmpty) {
+      final tab = ManualEntryTab.values.firstWhere(
+        (t) => errors.keys.any((field) => _tabForField(field) == t),
       );
-      setState(() => _tab = ManualEntryTab.attendanceDetails);
-      return;
-    }
-    if (_correctedCheckInAt == null) {
-      AppSnackbar.show(
-        'Missing required fields',
-        'Corrected clock-in is required.',
-      );
-      setState(() => _tab = ManualEntryTab.timeCorrection);
-      return;
-    }
-    if (_reasonCategoryLabel == null) {
-      AppSnackbar.show('Missing required fields', 'Reason is required.');
-      setState(() => _tab = ManualEntryTab.evidence);
+      setState(() {
+        _errors = errors;
+        _tab = tab;
+        _formError = 'Fix the highlighted field on "${tab.label}" before saving.';
+      });
       return;
     }
     if (_evidenceFiles.any((f) => f.isUploading)) {
@@ -689,23 +742,27 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _errors = const {};
+      _formError = null;
+      _isSubmitting = true;
+    });
     try {
-      final result = await _repository.recordManualAttendance(_buildPayload());
+      final record = widget.record;
+      final result = record != null
+          ? await _repository.updateAttendance(record.id, _buildUpdatePayload())
+          : await _repository.recordManualAttendance(_buildCreatePayload());
       if (!mounted) return;
 
-      await result.when(
-        success: (_) async {
-          if (!mounted) return;
+      result.when(
+        success: (_) {
           AppSnackbar.show(
-            'Manual entry saved',
-            'Attendance record created successfully.',
+            'Attendance',
+            _isEdit ? 'Correction recorded' : 'Attendance recorded',
           );
           Navigator.of(context).pop(true);
         },
-        failure: (error) async {
-          AppSnackbar.show('Could not save entry', error.message);
-        },
+        failure: (error) => setState(() => _formError = error.message),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -714,9 +771,8 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final step = _tab.index + 1;
     final total = ManualEntryTab.values.length;
-    final percent = (step / total) * 100;
+    final completed = _completedSteps;
 
     return PopScope(
       canPop: false,
@@ -735,6 +791,9 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
                   child: Column(
                     children: [
                       ManualEntryHeader(
+                        title: _isEdit
+                            ? 'Edit Attendance Entry'
+                            : 'Manual Attendance Entry',
                         onClose: _isSubmitting ? null : () => _close(),
                       ),
                       const ManualEntryWarningBanner(),
@@ -745,13 +804,42 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
                             : (tab) => setState(() => _tab = tab),
                       ),
                       ManualEntryCompletionBar(
-                        currentStep: step,
+                        currentStep: completed,
                         totalSteps: total,
-                        percent: percent,
+                        percent: completed / total * 100,
                       ),
                       Expanded(
                         child: SingleChildScrollView(
-                          child: _bodyForTab(),
+                          child: Column(
+                            children: [
+                              if (_formError != null)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                                  child: Container(
+                                    key: const ValueKey('manual-entry-error'),
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.criticalBackgroundSoft,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      _formError!,
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 13.5,
+                                        color: AppColors.criticalRed,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              _bodyForTab(),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -760,6 +848,8 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
               ),
               ManualEntryFooter(
                 isSubmitting: _isSubmitting,
+                saveLabel: _isEdit ? 'Save correction' : 'Save entry',
+                saveButtonKey: const ValueKey('manual-entry-save'),
                 onCancel: _isSubmitting ? null : () => _close(),
                 onSave: _isSubmitting ? null : _onSave,
               ),
@@ -783,55 +873,80 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
           isLoadingStaff: _isLoadingStaff,
           selectedStaff: _selectedStaff,
           onStaffSelected: _selectStaff,
+          onChangeStaff: _changeStaff,
           rosteredShiftValue: _selectedShift?.label,
           isLoadingShifts: _isLoadingShifts,
           canPickShift: _selectedStaff != null,
+          pickedStaffShiftPlaceholder: 'No shift — a standalone entry',
           onRosteredShiftTap: _pickShift,
+          residenceError: _errors['residenceId'],
+          staffError: _errors['staffId'],
         );
       case ManualEntryTab.timeCorrection:
         return ManualEntryTimeCorrectionForm(
+          originalReadOnly: _isEdit,
+          recordedSpan: _recordedSpan,
           originalCheckInValue: _originalCheckInAt == null
               ? null
-              : _formatDateTime(_originalCheckInAt!),
+              : _isEdit
+                  ? AttendanceFormat.wallClock(_originalCheckInAt)
+                  : _formatDateTime(_originalCheckInAt!),
           onOriginalCheckInTap: () => _pickDateTime(
+            initial: _originalCheckInAt,
             onSelected: (dt) => setState(() => _originalCheckInAt = dt),
           ),
           originalCheckOutValue: _originalCheckOutAt == null
               ? null
-              : _formatDateTime(_originalCheckOutAt!),
+              : _isEdit
+                  ? AttendanceFormat.wallClock(_originalCheckOutAt)
+                  : _formatDateTime(_originalCheckOutAt!),
           onOriginalCheckOutTap: () => _pickDateTime(
+            initial: _originalCheckOutAt,
             onSelected: (dt) => setState(() => _originalCheckOutAt = dt),
           ),
           correctedCheckInValue: _correctedCheckInAt == null
               ? null
               : _formatDateTime(_correctedCheckInAt!),
+          correctedCheckInKey: const ValueKey('manual-entry-check-in'),
           onCorrectedCheckInTap: () => _pickDateTime(
-            onSelected: (dt) async {
-              setState(() => _correctedCheckInAt = dt);
-              if (_selectedStaff != null) await _loadShifts();
-            },
+            initial: _correctedCheckInAt,
+            onSelected: (dt) => setState(() {
+              _correctedCheckInAt = dt;
+              _errors = Map.of(_errors)..remove('checkInAt');
+            }),
           ),
           correctedCheckOutValue: _correctedCheckOutAt == null
               ? null
               : _formatDateTime(_correctedCheckOutAt!),
           onCorrectedCheckOutTap: () => _pickDateTime(
-            onSelected: (dt) => setState(() => _correctedCheckOutAt = dt),
+            initial: _correctedCheckOutAt ?? _correctedCheckInAt,
+            onSelected: (dt) => setState(() {
+              _correctedCheckOutAt = dt;
+              _errors = Map.of(_errors)..remove('checkOutAt');
+            }),
           ),
-          unpaidBreakValue: _unpaidBreakLabel,
-          onUnpaidBreakTap: () => _pickStringOption(
+          unpaidBreakValue: _labelOf(manualEntryBreaks, _breakMinutes),
+          onUnpaidBreakTap: () => _pickOption<int>(
             title: 'Unpaid break',
-            options: _unpaidBreakOptions,
-            onSelected: (v) => setState(() => _unpaidBreakLabel = v),
+            options: manualEntryBreaks,
+            onSelected: (v) => setState(() => _breakMinutes = v),
           ),
           paySummaryText: _paySummaryText,
+          correctedCheckInError: _errors['checkInAt'],
+          correctedCheckOutError: _errors['checkOutAt'],
         );
       case ManualEntryTab.evidence:
         return ManualEntryEvidenceForm(
-          reasonValue: _reasonCategoryLabel,
-          onReasonTap: () => _pickStringOption(
+          reasonValue: _reasonCategory == null
+              ? null
+              : _labelOf(manualEntryReasons, _reasonCategory),
+          onReasonTap: () => _pickOption<String>(
             title: 'Select reason',
-            options: _reasonOptions,
-            onSelected: (v) => setState(() => _reasonCategoryLabel = v),
+            options: manualEntryReasons,
+            onSelected: (v) => setState(() {
+              _reasonCategory = v;
+              _errors = Map.of(_errors)..remove('reasonCategory');
+            }),
           ),
           notesController: _notesController,
           evidenceFiles: List.unmodifiable(_evidenceFiles),
@@ -839,29 +954,47 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
           onRemoveEvidence: (file) => setState(() {
             _evidenceFiles.removeWhere((f) => f.localPath == file.localPath);
           }),
+          reasonError: _errors['reasonCategory'],
+          notesError: _errors['notes'],
         );
       case ManualEntryTab.approval:
         return ManualEntryApprovalForm(
-          reasonLabel: _approvalReasonSummary,
-          evidenceLabel: _approvalEvidenceSummary,
-          correctedClockInLabel: _approvalClockInSummary,
-          correctedClockOutLabel: _approvalClockOutSummary,
-          wasRecordedAsLabel: _approvalWasRecordedAsSummary,
-          unpaidBreakLabel: _approvalUnpaidBreakSummary,
-          statusValue: _approvalStatusLabel,
-          onStatusTap: () => _pickStringOption(
+          reasonLabel: _reasonCategory == null
+              ? '—'
+              : _labelOf(manualEntryReasons, _reasonCategory),
+          evidenceLabel: '${_evidenceFiles.length} file(s)',
+          correctedClockInLabel:
+              _orDash(AttendanceFormat.wallClock(_correctedCheckInAt)),
+          correctedClockOutLabel: _correctedCheckOutAt == null
+              ? 'Still on shift'
+              : AttendanceFormat.wallClock(_correctedCheckOutAt),
+          wasRecordedAsLabel: _originalCheckInAt == null
+              ? 'No clock record'
+              : AttendanceFormat.wallClock(_originalCheckInAt),
+          unpaidBreakLabel: '$_breakMinutes minutes',
+          statusValue: _labelOf(manualEntryStatuses, _status),
+          onStatusTap: () => _pickOption<String>(
             title: 'Select status',
-            options: _approvalStatusOptions,
-            onSelected: (v) => setState(() => _approvalStatusLabel = v),
+            options: manualEntryStatuses,
+            onSelected: (v) => setState(() => _status = v),
           ),
           noteController: _approvalNoteController,
+          canDecide: _canDecide,
         );
     }
   }
 }
 
-/// Opens [ManualAttendanceEntryPage] from Attendance.
-Future<bool?> openManualAttendanceEntry() {
-  return Get.to<bool>(() => const ManualAttendanceEntryPage()) ??
+/// Opens the wizard; [record] switches it to "Edit Attendance Entry".
+Future<bool?> openManualAttendanceEntry({
+  AttendanceRecord? record,
+  String? defaultResidenceId,
+}) {
+  return Get.to<bool>(
+        () => ManualAttendanceEntryPage(
+          record: record,
+          defaultResidenceId: defaultResidenceId,
+        ),
+      ) ??
       Future.value();
 }

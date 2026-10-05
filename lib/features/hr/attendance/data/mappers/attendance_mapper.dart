@@ -1,341 +1,180 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
-import '../../attendance_assets.dart';
-import '../../domain/entities/attendance_enums.dart';
-import '../../domain/entities/attendance_overview.dart';
-import '../../domain/entities/attendance_stat.dart';
-import '../../domain/entities/late_arrival_entry.dart';
+import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
-import '../../domain/entities/missed_clock_in_entry.dart';
-import '../../domain/entities/overtime_entry.dart';
-import '../../domain/entities/staff_status_entry.dart';
 
 abstract final class AttendanceMapper {
-  static AttendanceOverview compose({
-    required dynamic attendanceBody,
-    required dynamic overtimeBody,
-    required dynamic residenceBody,
-    required String? fallbackResidenceName,
-    dynamic summaryBody,
-    bool multiDay = false,
+  static AttendanceRecordPage recordPageFrom(
+    dynamic body, {
+    required int page,
+    required int limit,
   }) {
-    final rows = JsonCodec.unwrapList(attendanceBody)
-        .whereType<Map>()
-        .map(JsonCodec.asMap)
-        .toList();
-    final late = rows.where((row) => _status(row) == StaffAttendanceStatus.late).toList();
-    final missed =
-        rows.where((row) => _status(row) == StaffAttendanceStatus.missed).toList();
-    final onTime =
-        rows.where((row) => _status(row) == StaffAttendanceStatus.onTime).toList();
-
-    final summaryData = summaryBody == null
-        ? null
-        : JsonCodec.unwrapMap(summaryBody);
-    final byStatus = summaryData == null
-        ? null
-        : (JsonCodec.mapAt(summaryData, 'byStatus') ?? summaryData);
-
-    final presentCount = byStatus == null
-        ? onTime.length
-        : JsonCodec.integerOr(
-            byStatus['present'] ?? byStatus['onTime'] ?? byStatus['on_time'],
-            onTime.length,
-          );
-    final lateCount = byStatus == null
-        ? late.length
-        : JsonCodec.integerOr(byStatus['late'], late.length);
-    final missedCount = byStatus == null
-        ? missed.length
-        : JsonCodec.integerOr(byStatus['missed'], missed.length);
-    final onDuty = presentCount + lateCount;
-
-    final otRows = JsonCodec.unwrapList(overtimeBody)
-        .whereType<Map>()
-        .map(JsonCodec.asMap)
-        .toList();
-    final otMeta = JsonCodec.metaOf(overtimeBody) ?? {};
-    final summary = JsonCodec.mapAt(otMeta, 'summary') ?? otMeta;
-    final policy = JsonCodec.mapAt(otMeta, 'policy') ?? {};
-    final weeklyLimit = JsonCodec.number(policy['weeklyLimitHours']) ?? 48;
-    final approaching = otRows.where((row) => _otStatus(row) == OvertimeStatus.approaching);
-    final exceeded = otRows.where((row) => _otStatus(row) == OvertimeStatus.exceeded);
-
-    final residence = JsonCodec.unwrapMap(residenceBody);
-    final geofence = JsonCodec.mapAt(residence, 'geofence') ?? residence;
-    final radius = JsonCodec.integer(
-      geofence['radiusFeet'] ?? geofence['radius'] ?? geofence['radiusFt'],
-    );
-    final residenceName = JsonCodec.string(residence['name']) ??
-        fallbackResidenceName;
-
-    final latenessStaff = summaryData == null
-        ? late.length
-        : JsonCodec.integerOr(
-            JsonCodec.mapAt(summaryData, 'lateness')?['staff'],
-            late.length,
-          );
-
-    final lateLabel = multiDay ? 'Late' : 'Late Today';
-    final missedLabel = multiDay ? 'Missed' : 'Missed Today';
-    final onDutyLabel = multiDay ? '$onDuty present' : '$onDuty on duty';
-
-    return AttendanceOverview(
-      lateCount: lateCount,
-      missedCount: missedCount,
-      otCount: otRows.length,
-      todayStats: [
-        AttendanceStat(
-          id: 'on-time',
-          value: '$presentCount',
-          label: multiDay ? 'Present' : 'On Time',
-          tone: AttendanceStatTone.positive,
-          iconAsset: AttendanceAssets.onTime,
-        ),
-        AttendanceStat(
-          id: 'late',
-          value: '$lateCount',
-          label: 'Late',
-          tone: AttendanceStatTone.warning,
-          iconAsset: AttendanceAssets.late,
-        ),
-        AttendanceStat(
-          id: 'missed',
-          value: '$missedCount',
-          label: 'Missed',
-          tone: AttendanceStatTone.critical,
-          iconAsset: AttendanceAssets.missed,
-        ),
-        AttendanceStat(
-          id: 'on-duty',
-          value: '$onDuty',
-          label: multiDay ? 'Present + late' : 'On Duty',
-          tone: AttendanceStatTone.info,
-          iconAsset: AttendanceAssets.onDuty,
-        ),
-      ],
-      staffOnDutyLabel: onDutyLabel,
-      staffStatus: [
-        for (var i = 0; i < rows.length; i++)
-          if (_status(rows[i]) != null) _statusEntry(rows[i], i),
-      ],
-      lateStats: [
-        AttendanceStat(
-          id: 'late-today',
-          value: '$lateCount',
-          label: lateLabel,
-          tone: AttendanceStatTone.warning,
-          iconAsset: AttendanceAssets.late,
-        ),
-        AttendanceStat(
-          id: 'late-affected',
-          value: '$latenessStaff',
-          label: 'Affected',
-          tone: AttendanceStatTone.info,
-          iconAsset: AttendanceAssets.onDuty,
-        ),
-      ],
-      lateArrivals: [
-        for (var i = 0; i < late.length; i++) _lateEntry(late[i], i),
-      ],
-      missedStats: [
-        AttendanceStat(
-          id: 'missed-today',
-          value: '$missedCount',
-          label: missedLabel,
-          tone: AttendanceStatTone.critical,
-          iconAsset: AttendanceAssets.missedToday,
-        ),
-      ],
-      missedClockIns: [
-        for (var i = 0; i < missed.length; i++) _missedEntry(missed[i], i),
-      ],
-      otStats: [
-        AttendanceStat(
-          id: 'ot-total',
-          value: JsonCodec.stringOr(
-            summary['totalHours'] ?? summary['periodHours'],
-            '${otRows.length}',
-          ),
-          label: 'OT Records',
-          tone: AttendanceStatTone.info,
-          iconAsset: AttendanceAssets.calendar,
-        ),
-        AttendanceStat(
-          id: 'ot-approaching',
-          value: '${approaching.length}',
-          label: 'Approaching',
-          tone: AttendanceStatTone.warning,
-          iconAsset: AttendanceAssets.approachingLimit,
-        ),
-        AttendanceStat(
-          id: 'ot-exceeded',
-          value: '${exceeded.length}',
-          label: 'Exceeded',
-          tone: AttendanceStatTone.critical,
-          iconAsset: AttendanceAssets.critical,
-        ),
-      ],
-      overtimeEntries: [
-        for (var i = 0; i < otRows.length; i++)
-          _otEntry(otRows[i], i, weeklyLimit.toDouble()),
-      ],
-      geofenceResidenceName: residenceName,
-      geofenceRadiusLabel: radius == null ? null : 'Verification radius · $radius ft',
+    final records = <AttendanceRecord>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final record = recordFrom(JsonCodec.asMap(item));
+      if (record != null) records.add(record);
+    }
+    final meta = JsonCodec.metaOf(body) ?? const {};
+    final total = JsonCodec.integerOr(meta['total'], records.length);
+    final resolvedLimit = JsonCodec.integerOr(meta['limit'], limit);
+    return AttendanceRecordPage(
+      records: records,
+      page: JsonCodec.integerOr(meta['page'], page),
+      limit: resolvedLimit,
+      total: total,
+      totalPages: JsonCodec.integerOr(
+        meta['totalPages'],
+        resolvedLimit <= 0 ? 0 : (total / resolvedLimit).ceil(),
+      ),
     );
   }
 
-  static StaffStatusEntry _statusEntry(Map<String, dynamic> json, int index) {
-    final name = _staffName(json);
-    final status = _status(json) ?? StaffAttendanceStatus.onTime;
-    final checkIn = JsonCodec.dateTime(
-      json['checkInAt'] ?? json['clockInAt'] ?? json['arrivedAt'],
-    );
-    return StaffStatusEntry(
-      id: JsonCodec.stringOr(json['id'] ?? json['staffId'], name),
-      name: name,
-      initials: IsoDateRange.initials(name),
-      avatarPaletteIndex: index % 6,
-      status: status,
-      secondaryText: status == StaffAttendanceStatus.missed
-          ? JsonCodec.stringOr(json['reason'] ?? json['status'], 'No clock in')
-          : JsonCodec.stringOr(
-              json['locationLabel'] ?? json['siteStatus'],
-              'On Site',
+  static AttendanceRecord? recordFrom(Map<String, dynamic> json) {
+    final id = JsonCodec.string(json['id']);
+    if (id == null) return null;
+    final staff = JsonCodec.mapAt(json, 'staff') ?? const {};
+    final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+    final shift = JsonCodec.mapAt(json, 'shift') ?? const {};
+    final checkIn = JsonCodec.mapAt(json, 'checkIn') ?? const {};
+    final staffName = JsonCodec.stringOr(staff['name'], 'Unknown staff');
+
+    return AttendanceRecord(
+      id: id,
+      staffId: JsonCodec.stringOr(json['staffId'] ?? staff['id'], ''),
+      staffName: staffName,
+      staffInitials: JsonCodec.string(staff['initials']) ??
+          IsoDateRange.initials(staffName),
+      staffRole: JsonCodec.string(staff['role']),
+      residenceId: JsonCodec.stringOr(json['residenceId'] ?? residence['id'], ''),
+      residenceName: JsonCodec.stringOr(residence['name'], ''),
+      shiftId: JsonCodec.string(json['shiftId']),
+      shiftStartsAt: JsonCodec.dateTime(shift['startsAt']),
+      shiftEndsAt: JsonCodec.dateTime(shift['endsAt']),
+      checkInAt: JsonCodec.dateTime(json['checkInAt']),
+      checkOutAt: JsonCodec.dateTime(json['checkOutAt']),
+      breakMinutes: JsonCodec.integerOr(json['breakMinutes'], 0),
+      workedMinutes: JsonCodec.integer(json['workedMinutes']),
+      status: JsonCodec.stringOr(json['status'], 'present'),
+      isManual: JsonCodec.boolean(json['isManual']) ?? false,
+      checkIn: AttendanceCheckpoint(
+        geofenceStatus:
+            JsonCodec.stringOr(checkIn['geofenceStatus'], 'not_provided'),
+        distanceMeters: JsonCodec.integer(checkIn['distanceMeters']),
+        accuracyMeters: JsonCodec.integer(checkIn['accuracyMeters']),
+        selfieUrl: JsonCodec.string(checkIn['selfieUrl']),
+      ),
+      reasonCategory: JsonCodec.string(json['reasonCategory']),
+      originalCheckInAt: JsonCodec.dateTime(json['originalCheckInAt']),
+      originalCheckOutAt: JsonCodec.dateTime(json['originalCheckOutAt']),
+      evidence: [
+        for (final item in JsonCodec.listAt(json, 'evidence'))
+          if (item is Map && JsonCodec.string(item['fileUrl']) != null)
+            AttendanceEvidence(
+              fileUrl: JsonCodec.string(item['fileUrl'])!,
+              fileType: JsonCodec.string(item['fileType']),
             ),
-      timeLabel: checkIn == null ? null : IsoDateRange.timeLabel(checkIn.toLocal()),
+      ],
+      adminNote: JsonCodec.string(json['adminNote']),
+      lateMinutes: JsonCodec.integer(json['lateMinutes']),
+      earlyDepartureMinutes: JsonCodec.integer(json['earlyDepartureMinutes']),
+      earlyDepartureReason: JsonCodec.string(json['earlyDepartureReason']),
+      notes: JsonCodec.string(json['notes']),
     );
   }
 
-  static LateArrivalEntry _lateEntry(Map<String, dynamic> json, int index) {
-    final name = _staffName(json);
-    final checkIn = JsonCodec.dateTime(
-      json['checkInAt'] ?? json['clockInAt'] ?? json['arrivedAt'],
+  static AttendanceSummary summaryFrom(dynamic body) {
+    final data = JsonCodec.unwrapMap(body);
+    final byStatus = JsonCodec.mapAt(data, 'byStatus') ?? const {};
+    final lateness = JsonCodec.mapAt(data, 'lateness') ?? const {};
+    return AttendanceSummary(
+      present: JsonCodec.integerOr(byStatus['present'], 0),
+      late: JsonCodec.integerOr(byStatus['late'], 0),
+      missed: JsonCodec.integerOr(byStatus['missed'], 0),
+      pendingApproval: JsonCodec.integerOr(data['openClaims'], 0),
+      averageLateMinutes: JsonCodec.integer(lateness['averageMinutes']),
+      lateStaffCount: JsonCodec.integerOr(lateness['staff'], 0),
     );
-    final scheduled = JsonCodec.dateTime(
-      json['scheduledStartAt'] ?? json['shiftStartAt'],
-    );
-    var lateLabel = JsonCodec.string(json['lateBy'] ?? json['lateLabel']);
-    if (lateLabel == null && checkIn != null && scheduled != null) {
-      lateLabel = '${checkIn.difference(scheduled).inMinutes} min late';
+  }
+
+  static OpenAttendance? openAttendanceFrom(dynamic body) {
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      if (JsonCodec.string(json['checkInAt']) == null) continue;
+      if (JsonCodec.string(json['checkOutAt']) != null) continue;
+      final id = JsonCodec.string(json['id']);
+      final residenceId = JsonCodec.string(json['residenceId']);
+      if (id == null || residenceId == null) continue;
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
+      return OpenAttendance(
+        id: id,
+        residenceId: residenceId,
+        residenceName: JsonCodec.string(residence['name']),
+      );
     }
-    return LateArrivalEntry(
-      id: JsonCodec.stringOr(json['id'] ?? json['staffId'], name),
-      name: name,
-      role: JsonCodec.stringOr(json['role'] ?? json['jobTitle'], 'Staff'),
-      avatarPaletteIndex: index % 6,
-      lateLabel: lateLabel ?? 'Late',
-      scheduledRange: IsoDateRange.rangeLabel(
-        JsonCodec.dateTime(json['shiftStartAt'] ?? json['scheduledStartAt']),
-        JsonCodec.dateTime(json['shiftEndAt'] ?? json['scheduledEndAt']),
-      ),
-      clockedInTime:
-          checkIn == null ? '--' : IsoDateRange.timeLabel(checkIn.toLocal()),
-      distanceLabel: JsonCodec.stringOr(
-        json['locationLabel'] ?? json['geofenceLabel'],
-        'On Site',
-      ),
-    );
+    return null;
   }
 
-  static MissedClockInEntry _missedEntry(Map<String, dynamic> json, int index) {
-    final name = _staffName(json);
-    final role = JsonCodec.stringOr(json['role'] ?? json['jobTitle'], 'Staff');
-    final range = IsoDateRange.rangeLabel(
-      JsonCodec.dateTime(json['shiftStartAt'] ?? json['scheduledStartAt']),
-      JsonCodec.dateTime(json['shiftEndAt'] ?? json['scheduledEndAt']),
-    );
-    return MissedClockInEntry(
-      id: JsonCodec.stringOr(json['id'] ?? json['staffId'], name),
-      name: name,
-      roleShiftLabel: range.isEmpty ? role : '$role · $range',
-      avatarPaletteIndex: index % 6,
-      reasonLabel: JsonCodec.stringOr(
-        json['reason'] ?? json['status'],
-        'Not recorded',
-      ),
-    );
-  }
-
-  static OvertimeEntry _otEntry(
-    Map<String, dynamic> json,
-    int index,
-    double weeklyLimit,
-  ) {
-    final name = _staffName(json);
-    final role = JsonCodec.stringOr(json['role'] ?? json['jobTitle'], 'Staff');
-    final range = IsoDateRange.rangeLabel(
-      JsonCodec.dateTime(json['shiftStartAt'] ?? json['scheduledStartAt']),
-      JsonCodec.dateTime(json['shiftEndAt'] ?? json['scheduledEndAt']),
-    );
-    final todayMinutes = JsonCodec.integer(
-          json['overtimeTodayMinutes'] ?? json['otTodayMinutes'],
-        ) ??
-        0;
-    final periodHours = JsonCodec.number(json['periodHours'] ?? json['weeklyHours']) ??
-        todayMinutes / 60;
-    final status = _otStatus(json);
-    final progress = weeklyLimit <= 0
-        ? 0.0
-        : (periodHours / weeklyLimit).clamp(0.0, 1.0);
-    return OvertimeEntry(
-      id: JsonCodec.stringOr(json['id'] ?? json['staffId'], name),
-      name: name,
-      roleShiftLabel: range.isEmpty ? role : '$role · $range',
-      avatarPaletteIndex: index % 6,
-      status: status,
-      otTodayLabel: IsoDateRange.workedMinutesLabel(todayMinutes).isEmpty
-          ? '${periodHours.toStringAsFixed(1)}h'
-          : IsoDateRange.workedMinutesLabel(todayMinutes),
-      weeklyTotalLabel: '${periodHours.toStringAsFixed(1)}h',
-      progress: progress,
-      limitCaption: status == OvertimeStatus.exceeded
-          ? 'Limit ${weeklyLimit.toStringAsFixed(0)}h · exceeded'
-          : 'Limit ${weeklyLimit.toStringAsFixed(0)}h',
-    );
-  }
-
-  static String _staffName(Map<String, dynamic> json) {
-    return IsoDateRange.personName(
-      json['staff'] ?? json['user'] ?? json['employee'] ?? json['name'],
-    );
-  }
-
-  static StaffAttendanceStatus? _status(Map<String, dynamic> json) {
-    switch ((JsonCodec.string(json['status'] ?? json['state']) ?? '')
-        .toLowerCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_')) {
-      case 'late':
-        return StaffAttendanceStatus.late;
-      case 'missed':
-      case 'absent':
-      case 'no_show':
-      case 'noshow':
-        return StaffAttendanceStatus.missed;
-      case 'present':
-      case 'on_time':
-      case 'ontime':
-      case 'checked_in':
-      case 'clocked_in':
-      case 'on_duty':
-      case 'on_site':
-        return StaffAttendanceStatus.onTime;
-      default:
-        // Unknown statuses must not inflate "On Time" / "On Duty".
-        return null;
+  /// The current shift (clock-in opens 15 minutes early), else the next one.
+  static AttendanceShiftWindow? shiftWindowFrom(dynamic body, DateTime now) {
+    final windows = <AttendanceShiftWindow>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      if (JsonCodec.string(json['status']) == 'cancelled') continue;
+      final id = JsonCodec.string(json['id']);
+      final startsAt = JsonCodec.dateTime(json['startsAt']);
+      final endsAt = JsonCodec.dateTime(json['endsAt']);
+      if (id == null || startsAt == null || endsAt == null) continue;
+      final opensAt = startsAt.subtract(const Duration(minutes: 15));
+      windows.add(
+        AttendanceShiftWindow(
+          shiftId: id,
+          residenceId: JsonCodec.string(json['residenceId']),
+          residenceName: JsonCodec.string(json['residenceName']),
+          startsAt: startsAt,
+          endsAt: endsAt,
+          isCurrent: !opensAt.isAfter(now) && !endsAt.isBefore(now),
+        ),
+      );
     }
+    for (final window in windows) {
+      if (window.isCurrent) return window;
+    }
+    final upcoming = windows.where((w) => w.startsAt.isAfter(now)).toList()
+      ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    return upcoming.isEmpty ? null : upcoming.first;
   }
 
-  static OvertimeStatus _otStatus(Map<String, dynamic> json) {
-    switch ((JsonCodec.string(json['state'] ?? json['status']) ?? '')
-        .toLowerCase()) {
-      case 'exceeded':
-      case 'over':
-        return OvertimeStatus.exceeded;
-      default:
-        return OvertimeStatus.approaching;
+  /// Rostered Shift options, labelled `dd/MM/yyyy HH:mm – dd/MM/yyyy HH:mm`.
+  static List<ManualEntryShiftOption> rosteredShiftsFrom(dynamic body) {
+    final options = <ManualEntryShiftOption>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id']);
+      final startsAt = JsonCodec.dateTime(json['startsAt']);
+      final endsAt = JsonCodec.dateTime(json['endsAt']);
+      if (id == null || startsAt == null || endsAt == null) continue;
+      options.add(
+        ManualEntryShiftOption(
+          id: id,
+          label: '${formatDateTime(startsAt)} – ${formatDateTime(endsAt)}',
+          startsAt: startsAt,
+          endsAt: endsAt,
+        ),
+      );
     }
+    return options;
+  }
+
+  /// `dd/MM/yyyy HH:mm` in device local time.
+  static String formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        '${two(local.hour)}:${two(local.minute)}';
   }
 
   static List<ManualEntryResidenceOption> residencesFrom(dynamic body) {
@@ -358,7 +197,7 @@ abstract final class AttendanceMapper {
             json['id'] ?? json['residenceId'] ?? name,
             name,
           ),
-          name: name,
+      name: name,
         ),
       );
     }
@@ -488,6 +327,4 @@ abstract final class AttendanceMapper {
     final period = local.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
   }
-
-  const AttendanceMapper._();
 }

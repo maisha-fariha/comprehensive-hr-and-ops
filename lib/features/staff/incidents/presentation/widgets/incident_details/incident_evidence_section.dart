@@ -28,7 +28,7 @@ class IncidentEvidenceSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const IncidentDetailsSectionLabel('EVIDENCE & ATTACHMENTS'),
+        const IncidentDetailsSectionLabel('Attached evidence'),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
         if (items.isEmpty)
           Text(
@@ -129,7 +129,7 @@ class _EvidenceAttachmentCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  item.fileName,
+                  item.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

@@ -2,24 +2,24 @@ import 'package:flutter/foundation.dart';
 
 import 'family_appointments_enums.dart';
 
-/// A single row shown on the Family Appointments list, across all 3 tabs
-/// ("All", "Upcoming", "Completed").
-///
-/// The same underlying appointments back both the "All" and "Upcoming"
-/// tabs in the Figma screenshots (identical rows/grouping in both), while
-/// the "Completed" tab shows a disjoint set of past appointments - the
-/// presentation layer filters/groups this flat list by [status] and
-/// [iconKind] rather than the model itself owning a "tab"/"section" field.
+/// A single row shown on the Family Visits & Appointments list. The
+/// presentation layer splits this flat list into "Upcoming Visits" /
+/// "Past Visits" with [isPastAt].
 @immutable
 class FamilyAppointment {
   final String id;
   final String dateTimeLabel;
   final FamilyAppointmentStatus status;
+
+  /// Pill text: the raw API status humanised exactly like the web
+  /// (`pending` -> "Pending", `cancelled` -> "Cancelled").
+  final String statusLabel;
   final String title;
   final String location;
   final FamilyAppointmentIconKind iconKind;
   final String type;
   final DateTime? scheduledAt;
+  final String clientName;
   final String? notes;
   final String? decidedBy;
   final DateTime? decidedAt;
@@ -29,16 +29,56 @@ class FamilyAppointment {
     required this.id,
     required this.dateTimeLabel,
     required this.status,
+    required this.statusLabel,
     required this.title,
     required this.location,
     required this.iconKind,
     this.type = '',
     this.scheduledAt,
+    this.clientName = '',
     this.notes,
     this.decidedBy,
     this.decidedAt,
     this.decisionReason,
   });
+
+  /// Web `/family/appointments` "Past Visits" rule: closed statuses, or a
+  /// slot that started more than 2 hours before [now].
+  bool isPastAt(DateTime now) {
+    switch (status) {
+      case FamilyAppointmentStatus.completed:
+      case FamilyAppointmentStatus.cancelled:
+      case FamilyAppointmentStatus.rejected:
+        return true;
+      case FamilyAppointmentStatus.pending:
+      case FamilyAppointmentStatus.approved:
+      case FamilyAppointmentStatus.rescheduleRequested:
+      case FamilyAppointmentStatus.other:
+        final at = scheduledAt;
+        if (at == null) return false;
+        return at.isBefore(now.subtract(const Duration(hours: 2)));
+    }
+  }
+
+  /// One-line status explanation shown under each web visit card.
+  String? get statusDescription {
+    switch (status) {
+      case FamilyAppointmentStatus.pending:
+        return 'Waiting for the care home to confirm your slot.';
+      case FamilyAppointmentStatus.approved:
+        return 'Confirmed by care home — see you then!';
+      case FamilyAppointmentStatus.rejected:
+        return 'The care home could not accommodate this specific time.';
+      case FamilyAppointmentStatus.cancelled:
+        return 'This visit was withdrawn.';
+      case FamilyAppointmentStatus.completed:
+        return 'Visit completed.';
+      case FamilyAppointmentStatus.rescheduleRequested:
+        return 'The care home proposed a new time for your review.';
+      case FamilyAppointmentStatus.other:
+        return null;
+    }
+  }
 
   /// True when care staff rejected the request and left a decision trail.
   bool get hasRejectionDecision =>

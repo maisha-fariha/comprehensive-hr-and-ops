@@ -35,6 +35,28 @@ class WizardFieldLabel extends StatelessWidget {
   }
 }
 
+/// Small muted hint shown under a field.
+class WizardHelperText extends StatelessWidget {
+  final String text;
+
+  const WizardHelperText(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: ResponsiveHelper.getResponsiveHeight(context, 6)),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
 /// The shared white/outlined field "shell" (border, radius, padding) used
 /// by every text/dropdown/search/date/time field in the wizard, with an
 /// optional trailing icon slot.

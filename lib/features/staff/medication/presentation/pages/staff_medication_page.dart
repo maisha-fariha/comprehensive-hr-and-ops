@@ -5,28 +5,25 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../extras/presentation/pages/staff_residences_page.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../controllers/staff_medication_controller.dart';
-import '../widgets/administered_tab_view.dart';
-import '../widgets/due_tab_view.dart';
-import '../widgets/missed_tab_view.dart';
-import '../widgets/refused_tab_view.dart';
+import '../widgets/given_tab_view.dart';
+import '../widgets/mar_registry_tab_view.dart';
+import '../widgets/prn_registry_tab_view.dart';
+import '../widgets/resident_chart_tab_view.dart';
 import '../widgets/staff_client_medications_sheet.dart';
 import '../widgets/staff_medication_header.dart';
+import '../widgets/staff_medication_metrics_strip.dart';
+import '../widgets/staff_mar_filters_bar.dart';
 import '../widgets/staff_medication_tab_bar.dart';
+import '../widgets/staff_mar_metrics_row.dart';
 
-/// The Staff "Medication MAR" screen — reproduces the "Due", "Administered",
-/// "Missed" and "Refused" Medication screens from the reference screenshots
-/// as ONE page with a shared header and an internal segmented tab control,
-/// since all 4 screens share identical chrome and only the list content
-/// below the tab bar changes.
-///
-/// Hosts [StaffBottomNavBar] with "MAR / Tasks" selected so the pushed route
-/// still matches reference frames that show the staff bottom nav.
+/// Staff Medication MAR — web console parity:
+/// metrics + MAR / PRN / Given / Resident chart tabs.
 class StaffMedicationPage extends StatelessWidget {
-  /// Index of the "MAR / Tasks" slot in [StaffBottomNavBar.items].
   static const int _marTasksTabIndex = 3;
 
   const StaffMedicationPage({super.key});
@@ -35,7 +32,10 @@ class StaffMedicationPage extends StatelessWidget {
     try {
       return Get.find<StaffMedicationController>();
     } catch (_) {
-      return Get.put(GetIt.instance<StaffMedicationController>(), permanent: true);
+      return Get.put(
+        GetIt.instance<StaffMedicationController>(),
+        permanent: true,
+      );
     }
   }
 
@@ -46,6 +46,8 @@ class StaffMedicationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
+    final canWrite = Get.find<UserSession>().canWriteMar;
+    final canPrn = Get.find<UserSession>().canAdministerMarDose(isPrn: true);
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -58,7 +60,9 @@ class StaffMedicationPage extends StatelessWidget {
         final overview = response.data;
 
         if (overview == null && controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal));
+          return const Center(
+            child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+          );
         }
 
         if (overview == null) {
@@ -82,15 +86,29 @@ class StaffMedicationPage extends StatelessWidget {
                     padding: ResponsiveHelper.getResponsivePadding(
                       context,
                       horizontal: 16,
-                      top: 12,
+                      top: 4,
+                      bottom: 8,
+                    ),
+                    child: StaffMarMetricsRow(overview: overview),
+                  ),
+                  StaffMedicationActionRow(
+                    canWrite: canWrite,
+                    onRecordAdministration: () =>
+                        controller.startRecordAdministration(context),
+                    onAddMedicine: () => controller.openAddMedicine(context),
+                  ),
+                  Padding(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 16,
+                      top: 4,
                       bottom: 8,
                     ),
                     child: StaffMedicationTabBar(
                       selectedTab: controller.selectedTab.value,
-                      dueCount: overview.dueCount,
-                      administeredCount: overview.administeredCount,
-                      missedCount: overview.missedCount,
-                      refusedCount: overview.refusedCount,
+                      marCount: controller.marTabCount,
+                      prnCount: controller.prnTabCount,
+                      givenCount: controller.givenTabCount,
                       onTabSelected: controller.selectTab,
                     ),
                   ),
@@ -110,15 +128,31 @@ class StaffMedicationPage extends StatelessWidget {
                   ),
                   children: [
                     switch (controller.selectedTab.value) {
-                      StaffMedicationTab.due => DueTabView(
-                          dueNowDoses: overview.dueNowDoses,
-                          laterTodayDoses: overview.laterTodayDoses,
-                          canWriteScheduled:
-                              Get.find<UserSession>().canWriteMar,
-                          canWritePrn: Get.find<UserSession>()
-                              .canAdministerMarDose(isPrn: true),
+                      StaffMedicationTab.mar => MarRegistryTabView(
+                          doses: controller.filteredScheduledDoses,
+                          scheduledCount: controller.marTabCount,
+                          searchController: controller.searchController,
+                          residenceId: controller.filterResidenceId.value,
+                          clientId: controller.filterClientId.value,
+                          medication: controller.filterMedication.value,
+                          state: controller.filterState.value,
+                          residenceOptions: controller.residenceFilterOptions,
+                          residentOptions: controller.residentFilterOptions,
+                          medicationOptions:
+                              controller.medicationFilterOptions,
+                          hasActiveFilters: controller.hasActiveFilters,
+                          onSearchChanged: (v) =>
+                              controller.updateFilters(search: v),
+                          onFilterChanged: controller.updateFilters,
+                          onClearFilters: controller.clearFilters,
+                          canWriteScheduled: canWrite,
+                          canWritePrn: canPrn,
                           onAdminister: controller.markAdministered,
                           onNotGiven: controller.markNotGiven,
+                          onEdit: controller.canEditMedicines
+                              ? (dose) => controller.editDose(context, dose)
+                              : null,
+                          administeredByName: controller.administeredByName,
                           onOpenClientMedications: (dose) {
                             showStaffClientMedicationsSheet(
                               context,
@@ -127,13 +161,66 @@ class StaffMedicationPage extends StatelessWidget {
                             );
                           },
                         ),
-                      StaffMedicationTab.administered =>
-                        AdministeredTabView(doses: overview.administeredDoses),
-                      StaffMedicationTab.missed =>
-                        MissedTabView(doses: overview.missedDoses),
-                      StaffMedicationTab.refused =>
-                        RefusedTabView(doses: overview.refusedDoses),
+                      StaffMedicationTab.prn => PrnRegistryTabView(
+                          items: controller.filteredPrnItems,
+                          filters: StaffMarFiltersBar(
+                            searchController: controller.searchController,
+                            residenceId: controller.filterResidenceId.value,
+                            clientId: controller.filterClientId.value,
+                            medication: controller.filterMedication.value,
+                            state: controller.filterState.value,
+                            residenceOptions:
+                                controller.residenceFilterOptions,
+                            residentOptions: controller.residentFilterOptions,
+                            medicationOptions:
+                                controller.medicationFilterOptions,
+                            hasActiveFilters: controller.hasActiveFilters,
+                            onSearchChanged: (v) =>
+                                controller.updateFilters(search: v),
+                            onFilterChanged: controller.updateFilters,
+                            onClear: controller.clearFilters,
+                          ),
+                          canGive: canPrn,
+                          onEdit: controller.canEditMedicines
+                              ? (item) =>
+                                  controller.editMedication(context, item)
+                              : null,
+                          onGive: controller.givePrn,
+                          onOpenChart: (item) {
+                            if (item.clientId.isEmpty) return;
+                            showStaffClientMedicationsSheet(
+                              context,
+                              clientId: item.clientId,
+                              clientName: item.clientName.isEmpty
+                                  ? 'Resident'
+                                  : item.clientName,
+                            );
+                          },
+                        ),
+                      StaffMedicationTab.given => GivenTabView(
+                          doses: controller.givenItems.toList(),
+                        ),
+                      StaffMedicationTab.residentChart =>
+                        ResidentChartTabView(
+                          clients: controller.chartClients.toList(),
+                          loading: controller.loadingExtras.value &&
+                              controller.chartClients.isEmpty,
+                          onOpenChart: (client) {
+                            showStaffClientMedicationsSheet(
+                              context,
+                              clientId: client.id,
+                              clientName: client.name,
+                            );
+                          },
+                        ),
                     },
+                    StaffMedicationSideCards(
+                      overview: overview,
+                      onReviewAllMissed: controller.reviewAllMissed,
+                      onChartDue: canWrite
+                          ? (dose) => controller.markAdministered(dose.id)
+                          : null,
+                    ),
                   ],
                 ),
               ),
@@ -151,6 +238,8 @@ class _StaffMedicationError extends StatelessWidget {
 
   const _StaffMedicationError({required this.message, required this.onRetry});
 
+  bool get _isNoResidence => message.toLowerCase().contains('residence');
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -159,7 +248,11 @@ class _StaffMedicationError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.criticalRed, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.criticalRed,
+              size: 40,
+            ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Text(
               message,
@@ -171,9 +264,41 @@ class _StaffMedicationError extends StatelessWidget {
               ),
             ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+            if (_isNoResidence) ...[
+              ElevatedButton(
+                key: const Key('staff-mar-view-residence'),
+                onPressed: () => Get.to(() => const StaffResidencesPage()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.secondaryTeal,
+                  foregroundColor: Colors.white,
+                  minimumSize: Size(
+                    ResponsiveHelper.getResponsiveWidth(context, 200),
+                    ResponsiveHelper.getResponsiveHeight(context, 44),
+                  ),
+                ),
+                child: const Text('View Residence'),
+              ),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 10),
+              ),
+            ],
             ElevatedButton(
+              key: const Key('staff-mar-retry'),
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isNoResidence
+                    ? AppColors.surfaceWhite
+                    : AppColors.secondaryTeal,
+                foregroundColor:
+                    _isNoResidence ? AppColors.secondaryTeal : Colors.white,
+                side: _isNoResidence
+                    ? const BorderSide(color: AppColors.secondaryTeal)
+                    : BorderSide.none,
+                minimumSize: Size(
+                  ResponsiveHelper.getResponsiveWidth(context, 200),
+                  ResponsiveHelper.getResponsiveHeight(context, 44),
+                ),
+              ),
               child: const Text('Retry'),
             ),
           ],

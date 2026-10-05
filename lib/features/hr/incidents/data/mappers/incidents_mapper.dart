@@ -8,6 +8,7 @@ import '../../domain/entities/incident_investigation_summary.dart';
 import '../../domain/entities/incident_residence_option.dart';
 import '../../domain/entities/incident_staff_option.dart';
 import '../../domain/entities/incident_stat.dart';
+import '../../domain/entities/incident_witness_statement.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../../domain/entities/investigation_incident.dart';
@@ -15,6 +16,34 @@ import '../../domain/entities/open_incident.dart';
 import '../cir_answer_formatter.dart';
 
 abstract final class IncidentsMapper {
+  /// Parse `GET /incidents/:id/witness-statements`.
+  static List<IncidentWitnessStatement> witnessStatementsFrom(dynamic body) {
+    final statements = <IncidentWitnessStatement>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id']);
+      if (id == null) continue;
+      final takenBy = JsonCodec.mapAt(json, 'takenBy');
+      final takenByName = takenBy == null
+          ? null
+          : '${JsonCodec.stringOr(takenBy['firstName'], '')} '
+                  '${JsonCodec.stringOr(takenBy['lastName'], '')}'
+              .trim();
+      statements.add(
+        IncidentWitnessStatement(
+          id: id,
+          witnessType: JsonCodec.stringOr(json['witnessType'], 'staff'),
+          witnessName: JsonCodec.stringOr(json['witnessName'], ''),
+          statementText: JsonCodec.stringOr(json['statementText'], ''),
+          takenByName: takenByName,
+          signedAt: JsonCodec.dateTime(json['signedAt'])?.toLocal(),
+        ),
+      );
+    }
+    return statements;
+  }
+
   /// Parse `GET /residences` into dropdown options.
   static List<IncidentResidenceOption> residencesFrom(dynamic body) {
     final source = JsonCodec.unwrapList(body);
@@ -54,25 +83,28 @@ abstract final class IncidentsMapper {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
       final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
-      final name = JsonCodec.string(
-            json['preferredName'] ??
-                json['fullName'] ??
-                json['name'] ??
-                json['displayName'] ??
-                json['clientName'] ??
-                json['residentName'],
-          ) ??
-          '';
+      final fullName = [json['firstName'], json['lastName']]
+          .map((part) => JsonCodec.string(part)?.trim() ?? '')
+          .where((part) => part.isNotEmpty)
+          .join(' ');
+      final name = fullName.isNotEmpty
+          ? fullName
+          : JsonCodec.string(
+                json['preferredName'] ??
+                    json['fullName'] ??
+                    json['name'] ??
+                    json['displayName'] ??
+                    json['clientName'] ??
+                    json['residentName'],
+              ) ??
+              '';
       if (name.isEmpty) continue;
 
-      final room = JsonCodec.string(
-        json['room'] ?? json['roomNumber'] ?? json['location'],
-      );
       final residenceName = JsonCodec.string(
         json['residenceName'] ?? residence['name'],
-      );
+      )?.trim();
       final subtitle = [
-        if (room != null && room.isNotEmpty) room,
+        'Client',
         if (residenceName != null && residenceName.isNotEmpty) residenceName,
       ].join(' · ');
 
@@ -84,7 +116,7 @@ abstract final class IncidentsMapper {
             json['residenceId'] ?? residence['id'],
           ),
           residenceName: residenceName,
-          subtitle: subtitle.isEmpty ? null : subtitle,
+          subtitle: subtitle,
         ),
       );
     }
@@ -131,21 +163,77 @@ abstract final class IncidentsMapper {
 
   /// Parse `GET /incidents/cir-templates`.
   static List<IncidentCirTemplateOption> cirTemplatesFrom(dynamic body) {
+    var source = JsonCodec.unwrapList(body);
+    if (source.isEmpty) {
+      final map = JsonCodec.unwrapMap(body);
+      final nested = map['templates'] ?? map['items'] ?? map['results'];
+      if (nested is List) source = nested;
+    }
     final options = <IncidentCirTemplateOption>[];
-    for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
+    for (final item in source) {
+      if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
       final name = JsonCodec.string(json['name'] ?? json['title']) ?? '';
       if (name.isEmpty) continue;
       options.add(
         IncidentCirTemplateOption(
-          id: JsonCodec.stringOr(json['id'], name),
+          id: JsonCodec.stringOr(json['id'] ?? json['cirTemplateId'], name),
           name: name,
           provinceOrState: JsonCodec.string(json['provinceOrState']),
           version: JsonCodec.integer(json['version']),
+          sections: _cirTemplateSectionsFrom(json['fields'] ?? json['sections']),
         ),
       );
     }
     return options;
+  }
+
+  static List<IncidentCirTemplateSection> _cirTemplateSectionsFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final sections = <IncidentCirTemplateSection>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final title = JsonCodec.stringOr(
+        json['title'] ?? json['label'] ?? json['name'],
+        '',
+      );
+      if (title.isEmpty) continue;
+      final fieldsRaw = json['fields'] ?? json['subFields'];
+      final fields = <IncidentCirTemplateField>[];
+      if (fieldsRaw is List) {
+        for (final fieldItem in fieldsRaw) {
+          if (fieldItem is! Map) continue;
+          final field = JsonCodec.asMap(fieldItem);
+          final key = JsonCodec.stringOr(field['key'] ?? field['id'], '');
+          final label = JsonCodec.stringOr(
+            field['label'] ?? field['title'] ?? field['name'],
+            '',
+          );
+          if (key.isEmpty || label.isEmpty) continue;
+          fields.add(
+            IncidentCirTemplateField(
+              key: key,
+              label: label,
+              type: JsonCodec.stringOr(field['type'], 'text'),
+              required: JsonCodec.boolean(field['required']) ?? false,
+              helpText: JsonCodec.stringOr(
+                field['helpText'] ?? field['placeholder'],
+                '',
+              ),
+            ),
+          );
+        }
+      }
+      sections.add(
+        IncidentCirTemplateSection(
+          key: JsonCodec.stringOr(json['key'] ?? json['id'], title),
+          title: title,
+          fields: fields,
+        ),
+      );
+    }
+    return sections;
   }
 
   /// Parse `GET /staff` into people-picker options.

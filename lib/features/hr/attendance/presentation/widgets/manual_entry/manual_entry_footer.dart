@@ -7,12 +7,16 @@ class ManualEntryFooter extends StatelessWidget {
   final VoidCallback? onCancel;
   final VoidCallback? onSave;
   final bool isSubmitting;
+  final Key? saveButtonKey;
+  final String saveLabel;
 
   const ManualEntryFooter({
     super.key,
     this.onCancel,
     this.onSave,
     this.isSubmitting = false,
+    this.saveButtonKey,
+    this.saveLabel = 'Save entry',
   });
 
   @override
@@ -49,7 +53,8 @@ class ManualEntryFooter extends StatelessWidget {
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
         _FooterButton(
-          label: isSubmitting ? 'Saving…' : 'Save entry',
+          key: saveButtonKey,
+          label: isSubmitting ? 'Saving…' : saveLabel,
           filled: true,
           isLoading: isSubmitting,
           onTap: saveEnabled ? onSave : null,
@@ -90,12 +95,15 @@ class ManualEntryFooter extends StatelessWidget {
                           ),
                         ),
                         SizedBox(
-                          width:
-                              ResponsiveHelper.getResponsiveWidth(context, 10),
+                          width: ResponsiveHelper.getResponsiveWidth(
+                            context,
+                            10,
+                          ),
                         ),
                         Expanded(
                           child: _FooterButton(
-                            label: isSubmitting ? 'Saving…' : 'Save entry',
+                            key: saveButtonKey,
+                            label: isSubmitting ? 'Saving…' : saveLabel,
                             filled: true,
                             isLoading: isSubmitting,
                             onTap: saveEnabled ? onSave : null,
@@ -106,13 +114,7 @@ class ManualEntryFooter extends StatelessWidget {
                     ),
                   ],
                 )
-              : Row(
-                  children: [
-                    requiredHint,
-                    const Spacer(),
-                    actions,
-                  ],
-                ),
+              : Row(children: [requiredHint, const Spacer(), actions]),
         ),
       ),
     );
@@ -127,6 +129,7 @@ class _FooterButton extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _FooterButton({
+    super.key,
     required this.label,
     required this.filled,
     this.onTap,
@@ -139,14 +142,14 @@ class _FooterButton extends StatelessWidget {
     final enabled = onTap != null;
     final background = filled
         ? (enabled
-            ? AppColors.primaryNavy
-            : AppColors.primaryNavy.withValues(alpha: 0.55))
+              ? AppColors.primaryNavy
+              : AppColors.primaryNavy.withValues(alpha: 0.55))
         : AppColors.surfaceWhite;
     final foreground = filled
         ? Colors.white
         : (enabled
-            ? AppColors.textHeading
-            : AppColors.textHeading.withValues(alpha: 0.45));
+              ? AppColors.textHeading
+              : AppColors.textHeading.withValues(alpha: 0.45));
 
     return Material(
       color: background,
@@ -185,7 +188,9 @@ class _FooterButton extends StatelessWidget {
                     color: foreground,
                   ),
                 ),
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                ),
               ],
               Flexible(
                 child: Text(
@@ -195,8 +200,10 @@ class _FooterButton extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w600,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      13.5,
+                    ),
                     color: foreground,
                   ),
                 ),

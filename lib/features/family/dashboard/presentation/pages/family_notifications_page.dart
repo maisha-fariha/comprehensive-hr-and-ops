@@ -62,7 +62,7 @@ class FamilyNotificationsPage extends StatelessWidget {
                       .where((part) => part.isNotEmpty)
                       .join('\n'),
                 ),
-                onTap: () => controller.markRead(item),
+                onTap: () => controller.open(item),
               );
             },
           ),

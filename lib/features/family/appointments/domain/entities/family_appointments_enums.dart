@@ -1,16 +1,19 @@
-/// Which segmented tab of the Family Appointments list is selected.
-enum FamilyAppointmentsTab { all, upcoming, completed }
+/// Which tab of the Family Visits & Appointments list is selected - the web
+/// Family Portal's "Upcoming Visits" / "Past Visits" split.
+enum FamilyAppointmentsTab { upcoming, past }
 
-/// Lifecycle status of an appointment/visit, driving each list card's
-/// trailing status pill color (see `FamilyAppointmentStatusStyle`).
+/// Lifecycle status of an appointment/visit as returned by
+/// `GET /family/appointments` (`pending | approved | rejected | cancelled |
+/// completed`, plus the web-recognised `confirmed`/`declined`/`rescheduled`
+/// aliases). Anything else is [other] and is never shown as Pending.
 enum FamilyAppointmentStatus {
-  upcoming,
   pending,
   approved,
   rescheduleRequested,
   completed,
   rejected,
   cancelled,
+  other,
 }
 
 /// Which kind of appointment a card represents, driving the leading icon

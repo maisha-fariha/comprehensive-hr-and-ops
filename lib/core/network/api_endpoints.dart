@@ -15,6 +15,8 @@ abstract final class ApiEndpoints {
   static const String mobileOtpRequest = '/mobile/auth/otp/request';
   static const String mobileOtpVerify = '/mobile/auth/otp/verify';
   static const String changePassword = '/auth/change-password';
+  static const String authAvatar = '/auth/avatar';
+  static const String authMe = '/auth/me';
   static const String devices = '/devices';
   static String deviceByToken(String token) =>
       '$devices/${Uri.encodeComponent(token)}';
@@ -46,11 +48,16 @@ abstract final class ApiEndpoints {
   static const String attendanceBreakStart = '/attendance/break/start';
   static const String attendanceBreakEnd = '/attendance/break/end';
   static const String appointments = '/appointments';
+  static const String appointmentsSummary = '/appointments/summary';
+  static const String recurringCheckSchedules = '/recurring-checks/schedules';
   static const String recurringCheckInstances = '/recurring-checks/instances';
+  static const String recurringCheckEntries = '/recurring-checks/entries';
 
   // ── Daily logs ──────────────────────────────────────────────────────────
   static const String dailyLogs = '/daily-logs';
   static const String dailyLogEntries = '/daily-logs/entries';
+  static const String dailyLogShifts = '/daily-logs/shifts';
+  static const String residenceActivity = '/residence-activity';
   static const String careFlags = '/care-flags';
   static const String shiftHandovers = '/shift-handovers';
   static const String clientActivities = '/client-activities';
@@ -100,8 +107,7 @@ abstract final class ApiEndpoints {
     required String tenantId,
     required String category,
     required String fileName,
-  }) =>
-      '/files/$tenantId/$category/$fileName';
+  }) => '/files/$tenantId/$category/$fileName';
 
   /// Short-lived open link for a stored file (`…/link`).
   static String fileObjectLink({
@@ -140,6 +146,7 @@ abstract final class ApiEndpoints {
   static const String tasksReview = '/tasks/review';
   static const String tasksRecurring = '/tasks/recurring';
   static const String trainingAssignments = '/training/assignments';
+  static const String trainingCourses = '/training/courses';
   static const String trainingCertificates = '/training/certificates';
   static const String emergencyAlerts = '/emergency-alerts';
   static const String inventoryItems = '/inventory/items';
@@ -150,6 +157,14 @@ abstract final class ApiEndpoints {
       '$emergencyAlerts/$id/cancel';
   static String emergencyAlertById(String id) => '$emergencyAlerts/$id';
   static String emergencyAlertNotes(String id) => '$emergencyAlerts/$id/notes';
+  static String emergencyAlertAcknowledge(String id) =>
+      '$emergencyAlerts/$id/acknowledge';
+  static String emergencyAlertResolve(String id) =>
+      '$emergencyAlerts/$id/resolve';
+  static String emergencyAlertAssign(String id) =>
+      '$emergencyAlerts/$id/assign';
+  static String emergencyAlertStatus(String id) =>
+      '$emergencyAlerts/$id/status';
   static String referralAssessments(String id) => '$referrals/$id/assessments';
   static const String complianceScore = '/compliance/score';
   static const String complianceOverview = '/compliance/overview';
@@ -174,12 +189,17 @@ abstract final class ApiEndpoints {
 
   static String staffById(String staffId) => '$staff/$staffId';
   static String staffDocuments(String staffId) => '$staff/$staffId/documents';
+  static String documentById(String id) => '$documents/$id';
+  static String documentRestore(String id) => '$documents/$id/restore';
+  static String documentTypeArchive(String id) => '$documentTypes/$id/archive';
+  static String documentTypeRestore(String id) => '$documentTypes/$id/restore';
   static String reportsExportById(String exportId) =>
       '$reportsExports/$exportId';
   static String reportsExportDownload(String exportId) =>
       '$reportsExports/$exportId/download';
   static String residenceById(String id) => '$residences/$id';
   static String residenceGeofence(String id) => '$residences/$id/geofence';
+  static String residenceRooms(String id) => '$residences/$id/rooms';
   static String shiftById(String id) => '$shifts/$id';
   static String shiftOpen(String id) => '$shifts/$id/open';
   static String shiftAssignments(String id) => '$shifts/$id/assignments';
@@ -197,21 +217,32 @@ abstract final class ApiEndpoints {
   static String attendanceById(String id) => '$attendance/$id';
   static String attendanceApprove(String id) => '$attendance/$id/approve';
   static String attendanceReject(String id) => '$attendance/$id/reject';
+  static String appointmentById(String id) => '$appointments/$id';
+  static String appointmentApprove(String id) => '$appointments/$id/approve';
+  static String appointmentReject(String id) => '$appointments/$id/reject';
+  static String appointmentRestore(String id) => '$appointments/$id/restore';
+  static String appointmentCancel(String id) => '$appointments/$id/cancel';
   static String dailyLogEntryById(String id) => '$dailyLogEntries/$id';
   static String dailyLogAmendments(String id) =>
       '$dailyLogEntries/$id/amendments';
+  static String dailyLogShiftById(String id) => '$dailyLogShifts/$id';
   static String careFlagResolve(String id) => '$careFlags/$id/resolve';
   static String handoverById(String id) => '$shiftHandovers/$id';
   static String handoverAcknowledge(String id) =>
       '$shiftHandovers/$id/acknowledge';
   static String handoverComments(String id) => '$shiftHandovers/$id/comments';
   static String handoverStatus(String id) => '$shiftHandovers/$id/status';
+  static String handoverRestore(String id) => '$shiftHandovers/$id/restore';
   static String incidentById(String id) => '$incidents/$id';
   static String incidentInvestigation(String id) =>
       '$incidents/$id/investigation';
   static String incidentEvidence(String id) => '$incidents/$id/evidence';
   static String incidentAcknowledge(String id) => '$incidents/$id/acknowledge';
   static String incidentActivity(String id) => '$incidents/$id/activity';
+  static String incidentWitnessStatements(String id) =>
+      '$incidents/$id/witness-statements';
+  static String incidentWitnessStatementSign(String id, String statementId) =>
+      '$incidents/$id/witness-statements/$statementId/sign';
   static String incidentCirPdf(String id) => '$incidents/$id/cir.pdf';
   static String incidentCirPdfLink(String id) => '$incidents/$id/cir-pdf-link';
   static String notificationRead(String id) => '$notifications/$id/read';
@@ -231,12 +262,17 @@ abstract final class ApiEndpoints {
   static String taskRecurringById(String id) => '$tasksRecurring/$id';
   static String taskRecurringPause(String id) => '$tasksRecurring/$id/pause';
   static String taskRecurringResume(String id) => '$tasksRecurring/$id/resume';
+  static String trainingCourseById(String id) => '$trainingCourses/$id';
   static String trainingCourseQuiz(String courseId) =>
       '/training/courses/$courseId/quiz';
   static String trainingCourseAttempts(String courseId) =>
       '/training/courses/$courseId/attempts';
   static String recurringCheckInstanceById(String id) =>
       '$recurringCheckInstances/$id';
+  static String recurringCheckScheduleById(String id) =>
+      '$recurringCheckSchedules/$id';
+  static String recurringCheckAvailableStaff(String instanceId) =>
+      '$recurringCheckInstances/$instanceId/available-staff';
 
   const ApiEndpoints._();
 }

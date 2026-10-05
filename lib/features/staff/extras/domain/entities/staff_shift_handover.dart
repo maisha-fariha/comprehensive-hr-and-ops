@@ -2,9 +2,11 @@ import '../../../../../core/network/json_codec.dart';
 
 class StaffShiftHandover {
   final String id;
+  final String residenceId;
   final String residenceName;
   final String summary;
   final String status;
+  final String authorId;
   final String authorName;
   final DateTime? createdAt;
   final int alertingCount;
@@ -15,9 +17,11 @@ class StaffShiftHandover {
 
   const StaffShiftHandover({
     required this.id,
+    this.residenceId = '',
     required this.residenceName,
     required this.summary,
     required this.status,
+    this.authorId = '',
     required this.authorName,
     this.createdAt,
     this.alertingCount = 0,
@@ -150,12 +154,23 @@ class StaffShiftHandover {
 
     return StaffShiftHandover(
       id: JsonCodec.stringOr(json['id'], ''),
+      residenceId: JsonCodec.stringOr(
+        json['residenceId'] ?? residence['id'],
+        '',
+      ),
       residenceName: JsonCodec.stringOr(
         residence['name'] ?? json['residenceName'],
         'Residence',
       ),
       summary: JsonCodec.stringOr(json['summary'], ''),
       status: status,
+      authorId: JsonCodec.stringOr(
+        author['id'] ??
+            createdBy?['id'] ??
+            json['createdBy'] ??
+            json['createdByStaffId'],
+        '',
+      ),
       authorName: JsonCodec.stringOr(
         author['name'] ?? createdBy?['name'] ?? json['createdByName'],
         '',

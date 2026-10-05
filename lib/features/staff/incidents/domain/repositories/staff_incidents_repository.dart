@@ -15,6 +15,8 @@ abstract class StaffIncidentsRepository {
     String? status,
     String? from,
     String? to,
+    String? residenceId,
+    String? clientId,
     int page = 1,
     int limit = 20,
   });
@@ -46,10 +48,19 @@ abstract class StaffIncidentsRepository {
   /// `GET /incidents/cir-templates`
   Future<Result<List<StaffCirTemplateOption>>> getCirTemplates();
 
-  /// `GET /clients?assignedToMe=true` or `?search=`
+  /// `GET /residences` — residence picker on Create Incident.
+  Future<Result<List<StaffIncidentResidenceOption>>> getResidences();
+
+  /// `GET /clients?assignedToMe=true` or `?search=` / optional `residenceId`
   Future<Result<List<StaffIncidentClientOption>>> getClients({
     String? search,
+    String? residenceId,
     bool assignedToMe = true,
+  });
+
+  /// `GET /staff` for Reported By / Supervisor / Investigator / Assigned To.
+  Future<Result<List<StaffIncidentStaffOption>>> getStaffOptions({
+    String? residenceId,
   });
 
   /// `POST /incidents` — always `status: open` (no draft).
@@ -68,6 +79,12 @@ abstract class StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   });
 
   /// `PATCH /incidents/{incidentId}` — edit later; omit unchanged checklist.

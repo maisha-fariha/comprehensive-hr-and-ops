@@ -29,4 +29,14 @@ const Map<ClientLogStatus, ClientStatusStyle> clientStatusStyles = {
     background: AppColors.activeBackground,
     foreground: AppColors.activeGreen,
   ),
+  ClientLogStatus.toReview: ClientStatusStyle(
+    label: 'To review',
+    background: AppColors.infoBackground,
+    foreground: AppColors.infoBlue,
+  ),
+  ClientLogStatus.missing: ClientStatusStyle(
+    label: 'Missing',
+    background: AppColors.criticalBackgroundSoft,
+    foreground: AppColors.criticalRed,
+  ),
 };

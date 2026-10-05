@@ -139,6 +139,27 @@ class _MyIncidentCard extends StatelessWidget {
                         height: 1.25,
                       ),
                     ),
+                    if (incident.categoryLabel.isNotEmpty) ...[
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 3),
+                      ),
+                      Text(
+                        incident.categoryLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w500,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            12,
+                          ),
+                          color: StaffIncidentCard._dateInk,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 6),
                     ),
@@ -205,6 +226,43 @@ class _MyIncidentCard extends StatelessWidget {
               ),
             ],
           ),
+          if (incident.residenceName.isNotEmpty ||
+              incident.reportedByName.isNotEmpty) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            if (incident.residenceName.isNotEmpty)
+              Text(
+                incident.residenceName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w500,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: StaffIncidentCard._dateInk,
+                  height: 1.2,
+                ),
+              ),
+            if (incident.reportedByName.isNotEmpty) ...[
+              if (incident.residenceName.isNotEmpty)
+                SizedBox(
+                  height: ResponsiveHelper.getResponsiveHeight(context, 3),
+                ),
+              Text(
+                'Reported by ${incident.reportedByName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w400,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: StaffIncidentCard._dateInk,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ],
           Padding(
             padding: EdgeInsets.symmetric(
               vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
@@ -403,6 +461,27 @@ class _AllIncidentCard extends StatelessWidget {
                         height: 1.25,
                       ),
                     ),
+                    if (incident.categoryLabel.isNotEmpty) ...[
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 3),
+                      ),
+                      Text(
+                        incident.categoryLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w500,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            11.5,
+                          ),
+                          color: StaffIncidentCard._dateInk,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 5),
                     ),
@@ -469,6 +548,43 @@ class _AllIncidentCard extends StatelessWidget {
               ),
             ],
           ),
+          if (incident.residenceName.isNotEmpty ||
+              incident.reportedByName.isNotEmpty) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            if (incident.residenceName.isNotEmpty)
+              Text(
+                incident.residenceName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w500,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: StaffIncidentCard._dateInk,
+                  height: 1.2,
+                ),
+              ),
+            if (incident.reportedByName.isNotEmpty) ...[
+              if (incident.residenceName.isNotEmpty)
+                SizedBox(
+                  height: ResponsiveHelper.getResponsiveHeight(context, 3),
+                ),
+              Text(
+                'Reported by ${incident.reportedByName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w400,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: StaffIncidentCard._dateInk,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ],
           Padding(
             padding: EdgeInsets.symmetric(
               vertical: ResponsiveHelper.getResponsiveHeight(context, 12),

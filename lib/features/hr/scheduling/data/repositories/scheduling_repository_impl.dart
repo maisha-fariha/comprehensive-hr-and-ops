@@ -5,8 +5,9 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/create_shift_draft.dart';
+import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
-import '../../domain/entities/shift_qualification_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
@@ -29,30 +30,40 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   Future<Result<SchedulingOverview>> getOverview({
     DateTime? weekOf,
     DateTime? selectedDay,
+    String? residenceId,
+    ShiftStatusFilter? status,
+    bool mine = false,
   }) async {
-    final residenceId = _session.residenceId;
+    final scopedResidenceId = residenceId ?? _session.residenceId;
     final anchor = weekOf ?? DateTime.now();
     final from = IsoDateRange.startOfWeek(anchor).toUtc().toIso8601String();
     final to = IsoDateRange.endOfWeek(anchor).toUtc().toIso8601String();
 
-    final week = await _fetchAllPages(
+    final weekResult = await _fetchAllPages(
       path: ApiEndpoints.shifts,
       baseQuery: {
         'from': from,
         'to': to,
-        'residenceId': ?residenceId,
+        'residenceId': ?scopedResidenceId,
+        if (mine) 'mine': true,
       },
     );
-    if (week.isFailure) {
+    if (weekResult.isFailure) {
       return Result.failure(
-        week.error ?? const ApiError(message: 'Could not load the schedule.'),
+        weekResult.error ??
+            const ApiError(message: 'Could not load the schedule.'),
       );
     }
+    final week = _applyShiftFilters(
+      weekResult.value ?? const [],
+      residenceId: residenceId,
+      status: status,
+    );
 
     final swapBase = <String, dynamic>{
       'from': from,
       'to': to,
-      'residenceId': ?residenceId,
+      'residenceId': ?scopedResidenceId,
     };
 
     final results = await Future.wait([
@@ -62,7 +73,8 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
           'status': 'open',
           'from': from,
           'to': to,
-          'residenceId': ?residenceId,
+          'residenceId': ?scopedResidenceId,
+          if (mine) 'mine': true,
         },
       ),
       _api.get(
@@ -105,8 +117,11 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
 
     return Result.success(
       SchedulingMapper.compose(
-        weekBody: week.value,
-        openBody: results[0].value,
+        weekBody: week,
+        openBody: _applyShiftFilters(
+          results[0].value as List<dynamic>? ?? const [],
+          residenceId: residenceId,
+        ),
         pendingSwapsBody: results[1].value,
         approvedSwapsBody: results[2].value,
         declinedSwapsBody: results[3].value,
@@ -114,6 +129,32 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
         selectedDay: selectedDay,
       ),
     );
+  }
+
+  /// Client-side guard so filters still apply when the API ignores the
+  /// `residenceId` query or returns every lifecycle state.
+  List<dynamic> _applyShiftFilters(
+    List<dynamic> rows, {
+    String? residenceId,
+    ShiftStatusFilter? status,
+  }) {
+    if (residenceId == null && status == null) return rows;
+    return rows.where((row) {
+      final json = JsonCodec.asMap(row);
+      if (residenceId != null) {
+        final rowResidence = JsonCodec.string(
+          json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
+        );
+        if (rowResidence != null && rowResidence != residenceId) return false;
+      }
+      if (status != null) {
+        final rowStatus = JsonCodec.string(json['status'])?.toLowerCase();
+        if (rowStatus == null || !status.apiValues.contains(rowStatus)) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
   }
 
   /// Walks `page=1..n` until a short page is returned (or [_maxPages]).
@@ -157,46 +198,10 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
-  Future<Result<List<ShiftQualificationOption>>> getQualifications({
-    String? residenceId,
-  }) async {
-    final scopedResidenceId = residenceId ?? _session.residenceId;
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions() async {
     final result = await _api.get(
       ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': _pageSize,
-        'residenceId': ?scopedResidenceId,
-      },
-      silent: true,
-    );
-    return result.when(
-      success: (body) async =>
-          Result.success(SchedulingMapper.qualificationsFrom(body)),
-      failure: (error) async => Result.failure(error),
-    );
-  }
-
-  @override
-  Future<Result<List<ShiftStaffOption>>> searchStaff({
-    String? search,
-    String? residenceId,
-    String? categoryId,
-  }) async {
-    final trimmed = search?.trim() ?? '';
-    final scopedResidenceId = residenceId ?? _session.residenceId;
-    final scopedCategoryId = categoryId?.trim();
-
-    final result = await _api.get(
-      ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': _pageSize,
-        if (trimmed.isNotEmpty) 'search': trimmed,
-        'residenceId': ?scopedResidenceId,
-        if (scopedCategoryId != null && scopedCategoryId.isNotEmpty)
-          'categoryId': scopedCategoryId,
-      },
+      query: {'page': 1, 'limit': _pageSize},
       silent: true,
     );
     return result.when(
@@ -207,17 +212,47 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
-  Future<Result<String>> createShift(Map<String, dynamic> payload) async {
+  Future<Result<int>> createShift(Map<String, dynamic> payload) async {
     final result = await _api.post(
       ApiEndpoints.shifts,
       data: payload,
       allowQueue: false,
     );
     return result.when(
-      success: (body) async {
-        final id = _extractId(body);
-        return Result.success(id ?? '');
-      },
+      success: (body) async => Result.success(_createdCount(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<CreateShiftDraft>> getShiftDraft(String shiftId) async {
+    final result = await _api.get(ApiEndpoints.shiftById(shiftId));
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.draftFromShift(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> updateShift({
+    required String shiftId,
+    required Map<String, dynamic> payload,
+    required List<String> staffIds,
+  }) async {
+    final patched = await _api.patch(
+      ApiEndpoints.shiftById(shiftId),
+      data: payload,
+      allowQueue: false,
+    );
+    if (patched.isFailure) return Result.failure(patched.error!);
+    final assigned = await _api.put(
+      ApiEndpoints.shiftAssignments(shiftId),
+      data: {'staffIds': staffIds},
+      allowQueue: false,
+    );
+    return assigned.when(
+      success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
   }
@@ -240,15 +275,14 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     );
   }
 
-  String? _extractId(dynamic body) {
-    if (body is Map) {
-      final map = Map<String, dynamic>.from(body);
-      final data = map['data'];
-      if (data is Map) {
-        return data['id']?.toString() ?? data['shiftId']?.toString();
-      }
-      return map['id']?.toString() ?? map['shiftId']?.toString();
+  /// `POST /shifts` answers with one shift, or a list for a recurring series.
+  int _createdCount(dynamic body) {
+    final data = body is Map ? body['data'] ?? body : body;
+    if (data is List) return data.isEmpty ? 1 : data.length;
+    if (data is Map && data['items'] is List) {
+      final items = data['items'] as List;
+      return items.isEmpty ? 1 : items.length;
     }
-    return null;
+    return 1;
   }
 }

@@ -10,19 +10,17 @@ import '../../domain/entities/family_appointment.dart';
 import '../../domain/entities/family_appointments_enums.dart';
 import '../controllers/family_appointments_controller.dart';
 import '../widgets/family_appointment_card.dart';
-import '../widgets/family_appointments_filter_pills.dart';
 import '../widgets/family_appointments_header.dart';
 import '../widgets/family_appointments_tab_bar.dart';
 import '../widgets/family_primary_button.dart';
 import 'create_appointment_page.dart';
 
-/// The Family Appointments list screen - the "All / Upcoming / Completed"
-/// tabs of the Family portal.
+/// The Family Visits & Appointments list - web `/family/appointments`:
+/// "Upcoming Visits" / "Past Visits" tabs over `GET /family/appointments`.
 ///
-/// Reproduction of the Figma "All - Appointments", "Upcoming -
-/// Appointments" and "Completed - Appointments" screenshots, built without
-/// Figma MCP access (monthly quota exhausted) - see the feature's final
-/// report for details on any approximated content and icon placeholders.
+/// The list is refetched whenever the screen becomes visible again (shell
+/// tab switch, re-entry, app resume) so staff decisions such as Rejected or
+/// Cancelled replace a stale Pending pill.
 class FamilyAppointmentsListPage extends StatefulWidget {
   const FamilyAppointmentsListPage({super.key});
 
@@ -31,85 +29,70 @@ class FamilyAppointmentsListPage extends StatefulWidget {
       _FamilyAppointmentsListPageState();
 }
 
-class _FamilyAppointmentsListPageState
-    extends State<FamilyAppointmentsListPage> {
+class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
+    with WidgetsBindingObserver {
   late final FamilyAppointmentsController _controller;
+  bool? _wasVisible;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = _resolveController();
   }
 
-  FamilyAppointmentsController _resolveController() {
-    try {
-      return Get.find<FamilyAppointmentsController>();
-    } catch (_) {
-      return Get.put(
-        GetIt.instance<FamilyAppointmentsController>(),
-        permanent: true,
-      );
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // FamilyShell keeps tabs alive in an IndexedStack (a Visibility per
+    // child), so a tab switch only flips Visibility.of.
+    final visible = Visibility.of(context);
+    if (_wasVisible == false && visible) _refreshAfterFrame();
+    _wasVisible = visible;
+  }
+
+  void _refreshAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _controller.refresh();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && (_wasVisible ?? true)) {
+      _controller.refresh();
     }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  FamilyAppointmentsController _resolveController() {
+    if (Get.isRegistered<FamilyAppointmentsController>()) {
+      _refreshAfterFrame();
+      return Get.find<FamilyAppointmentsController>();
+    }
+    return Get.put(
+      GetIt.instance<FamilyAppointmentsController>(),
+      permanent: true,
+    );
   }
 
   void _openCreateAppointment() {
     Get.to(() => const CreateAppointmentPage());
   }
 
-  Future<void> _pickDateRange(BuildContext context) async {
-    final now = DateTime.now();
-    final selected = await showDateRangePicker(
-      context: context,
-      firstDate: now.subtract(const Duration(days: 365)),
-      lastDate: now.add(const Duration(days: 365)),
-      initialDateRange: _controller.dateRange.value,
-    );
-    _controller.setDateRange(selected);
-  }
-
-  Future<void> _pickType(BuildContext context) async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('All types'),
-              onTap: () => Navigator.pop(context, ''),
-            ),
-            ListTile(
-              title: const Text('Visits'),
-              onTap: () => Navigator.pop(context, 'visit'),
-            ),
-            ListTile(
-              title: const Text('Medical'),
-              onTap: () => Navigator.pop(context, 'medical'),
-            ),
-            ListTile(
-              title: const Text('Therapy'),
-              onTap: () => Navigator.pop(context, 'therapy'),
-            ),
-            ListTile(
-              title: const Text('Activity'),
-              onTap: () => Navigator.pop(context, 'activity'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (selected == null) return;
-    _controller.setTypeFilter(selected.isEmpty ? null : selected);
-  }
-
   Future<void> _onAppointmentTap(
     BuildContext context,
     FamilyAppointment appointment,
   ) async {
-    // Rejected / settled items open details so decision fields are visible.
     if (appointment.status == FamilyAppointmentStatus.rejected ||
         appointment.iconKind == FamilyAppointmentIconKind.familyVisit) {
-      Get.to(() => VisitRequestDetailsPage(requestId: appointment.id));
+      await Get.to(() => VisitRequestDetailsPage(requestId: appointment.id));
+      _controller.refresh();
       return;
     }
     if (!_controller.canAct(appointment)) return;
@@ -124,7 +107,7 @@ class _FamilyAppointmentsListPageState
               onTap: () => Navigator.pop(context, 'reschedule'),
             ),
             ListTile(
-              title: const Text('Cancel'),
+              title: const Text('Withdraw'),
               onTap: () => Navigator.pop(context, 'cancel'),
             ),
           ],
@@ -174,15 +157,13 @@ class _FamilyAppointmentsListPageState
 
           if (!hasData) {
             return _AppointmentsError(
-              message: _controller.errorMessage.value.isEmpty
-                  ? 'Something went wrong while loading appointments.'
-                  : _controller.errorMessage.value,
+              message: _controller.errorMessage.value,
               onRetry: _controller.refresh,
             );
           }
 
           final selectedTab = _controller.selectedTab.value;
-          final sections = _controller.visibleSections;
+          final items = _controller.visibleAppointments;
 
           return Column(
             children: [
@@ -192,7 +173,7 @@ class _FamilyAppointmentsListPageState
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     FamilyAppointmentsHeader(
-                      title: 'Appointments',
+                      title: 'Visits & Appointments',
                       onBack: () {
                         final navigator = Navigator.of(context);
                         if (navigator.canPop()) {
@@ -207,24 +188,17 @@ class _FamilyAppointmentsListPageState
                       padding: ResponsiveHelper.getResponsivePadding(
                         context,
                         horizontal: 20,
+                        bottom: 14,
                       ),
                       child: FamilyAppointmentsTabBar(
                         selected: selectedTab,
+                        counts: {
+                          FamilyAppointmentsTab.upcoming:
+                              _controller.upcomingAppointments.length,
+                          FamilyAppointmentsTab.past:
+                              _controller.pastAppointments.length,
+                        },
                         onSelected: _controller.selectTab,
-                      ),
-                    ),
-                    Padding(
-                      padding: ResponsiveHelper.getResponsivePadding(
-                        context,
-                        horizontal: 20,
-                        top: 14,
-                        bottom: 14,
-                      ),
-                      child: FamilyAppointmentsFilterPills(
-                        dateLabel: _controller.dateRangeLabel,
-                        typeLabel: _controller.typeFilterLabel,
-                        onDateTap: () => _pickDateRange(context),
-                        onTypeTap: () => _pickType(context),
                       ),
                     ),
                   ],
@@ -234,86 +208,30 @@ class _FamilyAppointmentsListPageState
                 child: RefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.refresh,
-                  child: sections.isEmpty
+                  child: items.isEmpty
                       ? ListView(
                           padding: EdgeInsets.symmetric(
-                            horizontal: ResponsiveHelper.getResponsiveWidth(
-                              context,
-                              20,
-                            ),
-                            vertical: ResponsiveHelper.getResponsiveHeight(
-                              context,
-                              40,
-                            ),
+                            horizontal: ResponsiveHelper.getResponsiveWidth(context, 20),
+                            vertical: ResponsiveHelper.getResponsiveHeight(context, 40),
                           ),
-                          children: const [_NoResults()],
+                          children: [_EmptyVisits(tab: selectedTab)],
                         )
-                      : ListView.builder(
+                      : ListView.separated(
                           padding: EdgeInsets.fromLTRB(
                             ResponsiveHelper.getResponsiveWidth(context, 20),
                             ResponsiveHelper.getResponsiveHeight(context, 16),
                             ResponsiveHelper.getResponsiveWidth(context, 20),
                             ResponsiveHelper.getResponsiveHeight(context, 14),
                           ),
-                          itemCount: sections.length,
-                          itemBuilder: (context, sectionIndex) {
-                            final section = sections[sectionIndex];
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (sectionIndex != 0)
-                                  SizedBox(
-                                    height:
-                                        ResponsiveHelper.getResponsiveHeight(
-                                          context,
-                                          24,
-                                        ),
-                                  ),
-                                Text(
-                                  section.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontFamily: 'Manrope',
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                      context,
-                                      18,
-                                    ),
-                                    color: const Color(0xFF11212E),
-                                    height: 1.2,
-                                  ),
-                                ),
-                                SizedBox(
-                                  height: ResponsiveHelper.getResponsiveHeight(
-                                    context,
-                                    12,
-                                  ),
-                                ),
-                                for (
-                                  var i = 0;
-                                  i < section.appointments.length;
-                                  i++
-                                ) ...[
-                                  if (i != 0)
-                                    SizedBox(
-                                      height:
-                                          ResponsiveHelper.getResponsiveHeight(
-                                            context,
-                                            12,
-                                          ),
-                                    ),
-                                  FamilyAppointmentCard(
-                                    appointment: section.appointments[i],
-                                    onTap: () => _onAppointmentTap(
-                                      context,
-                                      section.appointments[i],
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            );
-                          },
+                          itemCount: items.length,
+                          separatorBuilder: (context, index) => SizedBox(
+                            height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                          ),
+                          itemBuilder: (context, index) => FamilyAppointmentCard(
+                            key: ValueKey('family-appointment-${items[index].id}'),
+                            appointment: items[index],
+                            onTap: () => _onAppointmentTap(context, items[index]),
+                          ),
                         ),
                 ),
               ),
@@ -327,7 +245,7 @@ class _FamilyAppointmentsListPageState
                     ResponsiveHelper.getResponsiveHeight(context, 14),
                   ),
                   child: FamilyPrimaryButton(
-                    label: 'Create Appointment',
+                    label: 'Request a Visit',
                     icon: Icons.add_rounded,
                     onTap: _openCreateAppointment,
                   ),
@@ -341,22 +259,40 @@ class _FamilyAppointmentsListPageState
   }
 }
 
-class _NoResults extends StatelessWidget {
-  const _NoResults();
+class _EmptyVisits extends StatelessWidget {
+  final FamilyAppointmentsTab tab;
+
+  const _EmptyVisits({required this.tab});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'No appointments to show.',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: 'Manrope',
-          fontWeight: FontWeight.w500,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-          color: AppColors.textSecondary,
+    final isUpcoming = tab == FamilyAppointmentsTab.upcoming;
+    return Column(
+      children: [
+        Text(
+          isUpcoming ? 'No upcoming visits scheduled' : 'No past visits recorded',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Manrope',
+            fontWeight: FontWeight.w700,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+            color: AppColors.textHeading,
+          ),
         ),
-      ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+        Text(
+          isUpcoming
+              ? 'Plan time with your loved one. Request a visit above and the care team will confirm your slot.'
+              : 'Completed and archived visits will appear here.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Manrope',
+            fontWeight: FontWeight.w500,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -381,15 +317,27 @@ class _AppointmentsError extends StatelessWidget {
               size: 40,
             ),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-            Text(
-              message,
+            const Text(
+              'Visits could not be loaded',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'Manrope',
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textHeading,
               ),
             ),
+            if (message.isNotEmpty) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Manrope',
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,

@@ -13,16 +13,24 @@ import '../../../../../core/constants/app_colors.dart';
 /// matching the same fallback already used by
 /// `lib/features/staff/tasks_messages/presentation/widgets/message_input_bar.dart`.
 class SendMessageButton extends StatelessWidget {
-  final VoidCallback onTap;
+  /// `null` renders the button disabled.
+  final VoidCallback? onTap;
+  final bool isSending;
 
-  const SendMessageButton({super.key, required this.onTap});
+  const SendMessageButton({
+    super.key,
+    required this.onTap,
+    this.isSending = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: Material(
-        color: AppColors.secondaryTeal,
+        color: onTap == null
+            ? AppColors.secondaryTeal.withValues(alpha: 0.45)
+            : AppColors.secondaryTeal,
         borderRadius: BorderRadius.circular(
           ResponsiveHelper.getResponsiveRadius(context, 16),
         ),
@@ -43,7 +51,7 @@ class SendMessageButton extends StatelessWidget {
                 ),
                 SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
                 Text(
-                  'Send Message',
+                  isSending ? 'Sending...' : 'Send Message',
                   style: TextStyle(
                     fontFamily: 'Manrope',
                     fontWeight: FontWeight.w700,

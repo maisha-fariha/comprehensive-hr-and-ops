@@ -41,7 +41,14 @@ abstract final class FamilyMessagesMapper {
     );
   }
 
-  static FamilyConversationThread threadFrom(dynamic body) {
+  /// `GET /family/messages/:id` returns `{data: [message...]}` where each
+  /// message only carries `sender: {id, name}` / `senderId`, so outgoing vs
+  /// incoming is decided by comparing with [currentUserId] (web:
+  /// `message.sender?.id === me.id`).
+  static FamilyConversationThread threadFrom(
+    dynamic body, {
+    String? currentUserId,
+  }) {
     final json = JsonCodec.unwrapMap(body);
     final conversation = JsonCodec.mapAt(json, 'conversation') ?? json;
     final messagesRaw = json['messages'] ?? conversation['messages'] ?? body;
@@ -54,12 +61,20 @@ abstract final class FamilyMessagesMapper {
       title: title,
       messages: JsonCodec.unwrapList(messagesRaw)
           .whereType<Map>()
-          .map((item) => messageFrom(JsonCodec.asMap(item)))
+          .map(
+            (item) => messageFrom(
+              JsonCodec.asMap(item),
+              currentUserId: currentUserId,
+            ),
+          )
           .toList(),
     );
   }
 
-  static FamilyChatMessage messageFrom(Map<String, dynamic> json) {
+  static FamilyChatMessage messageFrom(
+    Map<String, dynamic> json, {
+    String? currentUserId,
+  }) {
     final sender = JsonCodec.mapAt(json, 'sender') ?? {};
     final senderName = IsoDateRange.personName(
       sender.isEmpty ? json['senderName'] : sender,
@@ -69,8 +84,12 @@ abstract final class FamilyMessagesMapper {
             ) ??
             '')
         .toLowerCase();
+    final senderId = JsonCodec.string(sender['id'] ?? json['senderId']);
     final mine = JsonCodec.boolean(json['isMine'] ?? json['fromFamily']) ??
-        role.contains('family');
+        ((currentUserId != null &&
+                currentUserId.isNotEmpty &&
+                senderId == currentUserId) ||
+            role.contains('family'));
     final at = JsonCodec.dateTime(json['createdAt'] ?? json['sentAt']);
     return FamilyChatMessage(
       id: JsonCodec.stringOr(json['id'], 'message'),

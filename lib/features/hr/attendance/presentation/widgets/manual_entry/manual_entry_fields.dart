@@ -266,6 +266,34 @@ class ManualEntryHelperText extends StatelessWidget {
   }
 }
 
+/// Inline validation message under a field; renders nothing when null.
+class ManualEntryErrorText extends StatelessWidget {
+  final String? text;
+
+  const ManualEntryErrorText(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final message = text;
+    if (message == null) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(
+        top: ResponsiveHelper.getResponsiveHeight(context, 6),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w500,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+          color: AppColors.criticalRed,
+          height: 1.35,
+        ),
+      ),
+    );
+  }
+}
+
 class ManualEntrySectionIntro extends StatelessWidget {
   final String title;
   final String subtitle;

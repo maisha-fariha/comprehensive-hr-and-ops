@@ -1,41 +1,70 @@
 import 'package:gems_core/gems_core.dart';
 
-import '../entities/client_medication_item.dart';
-import '../entities/medication_overview.dart';
+import '../entities/mar_administration.dart';
+import '../entities/mar_medication.dart';
+import '../entities/mar_options.dart';
+import '../entities/mar_round.dart';
 
-/// Contract for fetching the Medication MAR (Medication Administration
-/// Record) summary and Missed/Refused follow-up actions.
+/// Everything the web Medication Administration Record page reads and writes.
 abstract class MedicationRepository {
-  Future<Result<MedicationOverview>> getOverview();
+  /// `GET /mar/round` — today's doses and the KPI summary.
+  Future<Result<MarRound>> round({String? residenceId});
 
-  /// Regular medications for a client (`GET /medications?clientId=`).
-  Future<Result<List<ClientMedicationItem>>> getClientMedications(
-    String clientId,
-  );
+  /// `GET /medications` — every prescription in scope.
+  Future<Result<List<MarMedication>>> medications({String? residenceId});
 
-  /// PRN medications for a client (`GET /prn-medications?clientId=`).
-  Future<Result<List<ClientMedicationItem>>> getClientPrnMedications(
-    String clientId,
-  );
+  /// `GET /prn-medications`.
+  Future<Result<List<MarMedication>>> prnMedications({String? residenceId});
 
-  /// Review a missed/refused administration
-  /// (`POST /compliance/findings` with `sourceType: mar_administration`).
-  Future<Result<void>> reviewMedicationIssue({
-    required String administrationId,
-    required String title,
-    required String description,
-    String? clientId,
-    String? residenceId,
-    String severity = 'medium',
+  /// `GET /mar/administrations` — the Given tab (first 50).
+  Future<Result<List<MarAdministration>>> administrations();
+
+  /// `GET /mar/residents/:clientId/chart`.
+  Future<Result<MarResidentChart>> residentChart(String clientId);
+
+  Future<Result<List<MarOption>>> residences();
+  Future<Result<List<MarClientOption>>> clients();
+
+  /// `GET /staff`, kept to the people approved to give medicine.
+  Future<Result<List<MarOption>>> approvedStaff();
+
+  /// `GET /mar/witnesses?residenceId=` — colleagues on duty there.
+  Future<Result<List<MarOption>>> witnesses(String residenceId);
+
+  /// `GET /recurring-checks/schedules` (active only).
+  Future<Result<List<MarOption>>> checkSchedules({String? clientId});
+
+  Future<Result<void>> createMedication(MarMedicineDraft draft);
+  Future<Result<void>> createMedicationBatch(List<MarMedicineDraft> drafts);
+  Future<Result<void>> updateMedication(String id, MarMedicineDraft draft);
+  Future<Result<void>> discontinueMedication(String id);
+  Future<Result<void>> deleteMedication(String id);
+
+  Future<Result<void>> createPrn(MarMedicineDraft draft);
+  Future<Result<void>> createPrnBatch(List<MarMedicineDraft> drafts);
+  Future<Result<void>> updatePrn(String id, MarMedicineDraft draft);
+  Future<Result<void>> discontinuePrn(String id);
+  Future<Result<void>> deletePrn(String id);
+
+  /// `POST /mar/administrations/round`.
+  Future<Result<void>> chartRound(MarRoundDraft draft);
+
+  /// `POST /uploads?category=documents` then `POST /documents` against the
+  /// resident, `management_only`.
+  Future<Result<void>> fileEvidence({
+    required MarEvidenceFile file,
+    required String name,
+    required String clientId,
   });
 
-  /// Log follow-up for a refused (or missed) administration
-  /// (`POST /compliance/corrective-actions`, fallback `POST /tasks`).
-  Future<Result<void>> logMedicationFollowUp({
-    required String administrationId,
-    required String title,
-    required String description,
-    String? clientId,
-    String? residenceId,
+  /// `POST /mar/administrations/:id/amendments`.
+  Future<Result<void>> amend(
+    String administrationId, {
+    required String reason,
+    String? status,
+    String? doseReason,
   });
+
+  /// Web "Export MAR" (`reportKey: mar_administrations`), CSV bytes.
+  Future<Result<List<int>>> exportMarCsv();
 }

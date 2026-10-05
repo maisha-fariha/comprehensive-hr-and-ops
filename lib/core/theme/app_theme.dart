@@ -49,6 +49,13 @@ abstract final class AppTheme {
         centerTitle: false,
         surfaceTintColor: Colors.transparent,
       ),
+      // Buttons that only set a teal background must still get a readable label.
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.secondaryTeal,
+          foregroundColor: Colors.white,
+        ),
+      ),
       dividerTheme: const DividerThemeData(
         color: AppColors.dividerLight,
         thickness: 1,

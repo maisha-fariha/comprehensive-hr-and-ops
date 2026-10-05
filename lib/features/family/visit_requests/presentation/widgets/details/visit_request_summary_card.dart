@@ -74,7 +74,7 @@ class VisitRequestSummaryCard extends StatelessWidget {
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
               StatusBadge.pill(
-                label: statusStyle.label,
+                label: detail.statusLabel,
                 background: statusStyle.background,
                 foreground: statusStyle.color,
               ),

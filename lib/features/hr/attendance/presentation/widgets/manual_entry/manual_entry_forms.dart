@@ -21,6 +21,13 @@ class ManualEntryDetailsForm extends StatelessWidget {
   final VoidCallback? onRosteredShiftTap;
   final bool canPickShift;
 
+  /// When set, a picked staff member shows as a card with "Change" in place
+  /// of the search box.
+  final VoidCallback? onChangeStaff;
+  final String? residenceError;
+  final String? staffError;
+  final String? pickedStaffShiftPlaceholder;
+
   const ManualEntryDetailsForm({
     super.key,
     this.residenceValue,
@@ -36,11 +43,17 @@ class ManualEntryDetailsForm extends StatelessWidget {
     this.isLoadingShifts = false,
     this.onRosteredShiftTap,
     this.canPickShift = false,
+    this.onChangeStaff,
+    this.residenceError,
+    this.staffError,
+    this.pickedStaffShiftPlaceholder,
   });
 
   @override
   Widget build(BuildContext context) {
-    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 16),
+    );
 
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
@@ -60,24 +73,28 @@ class ManualEntryDetailsForm extends StatelessWidget {
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           const ManualEntryFieldLabel('Residence', required: true),
           ManualEntryDropdownField(
-            value: isLoadingResidences
-                ? 'Loading residences…'
-                : residenceValue,
+            value: isLoadingResidences ? 'Loading residences…' : residenceValue,
             placeholder: 'Select residence',
             onTap: isLoadingResidences ? null : onResidenceTap,
             enabled: !isLoadingResidences,
           ),
+          ManualEntryErrorText(residenceError),
           gap,
           const ManualEntryFieldLabel('Staff Member', required: true),
-          ManualEntrySearchField(
-            controller: staffSearchController,
-            hint: 'Search staff by name...',
-            onChanged: onStaffSearchChanged,
-          ),
-          if (selectedStaff != null) ...[
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-            _SelectedStaffChip(staff: selectedStaff!),
+          if (selectedStaff != null && onChangeStaff != null)
+            _SelectedStaffCard(staff: selectedStaff!, onChange: onChangeStaff!)
+          else ...[
+            ManualEntrySearchField(
+              controller: staffSearchController,
+              hint: 'Search staff by name...',
+              onChanged: onStaffSearchChanged,
+            ),
+            if (selectedStaff != null) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+              _SelectedStaffChip(staff: selectedStaff!),
+            ],
           ],
+          ManualEntryErrorText(staffError),
           if (isLoadingStaff) ...[
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             const Center(
@@ -103,17 +120,98 @@ class ManualEntryDetailsForm extends StatelessWidget {
           gap,
           const ManualEntryFieldLabel('Rostered Shift'),
           ManualEntryDropdownField(
-            value: isLoadingShifts
-                ? 'Loading shifts…'
-                : rosteredShiftValue,
+            value: isLoadingShifts ? 'Loading shifts…' : rosteredShiftValue,
             placeholder: canPickShift
-                ? 'Select rostered shift'
+                ? (pickedStaffShiftPlaceholder ?? 'Select rostered shift')
                 : 'Choose a staff member first',
             onTap: canPickShift && !isLoadingShifts ? onRosteredShiftTap : null,
             enabled: canPickShift && !isLoadingShifts,
           ),
           const ManualEntryHelperText(
             'Optional. A correction with no rostered shift behind it is normal.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelectedStaffCard extends StatelessWidget {
+  final ManualEntryStaffOption staff;
+  final VoidCallback onChange;
+
+  const _SelectedStaffCard({required this.staff, required this.onChange});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 12,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        border: Border.all(color: AppColors.searchBorder),
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 10),
+        ),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: ResponsiveHelper.getResponsiveSize(context, 16),
+            backgroundColor: AppColors.infoBackground,
+            child: Text(
+              staff.initials,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+                color: AppColors.infoBlue,
+              ),
+            ),
+          ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  staff.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    color: AppColors.textHeading,
+                  ),
+                ),
+                if (staff.detail.isNotEmpty)
+                  Text(
+                    staff.detail,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          TextButton(
+            key: const ValueKey('manual-entry-change-staff'),
+            onPressed: onChange,
+            child: const Text(
+              'Change',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                color: AppColors.secondaryTeal,
+              ),
+            ),
           ),
         ],
       ),
@@ -185,8 +283,10 @@ class _StaffResultTile extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w700,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 11),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      11,
+                    ),
                     color: AppColors.infoBlue,
                   ),
                 ),
@@ -242,11 +342,20 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
   final VoidCallback? onOriginalCheckOutTap;
   final String? correctedCheckInValue;
   final VoidCallback? onCorrectedCheckInTap;
+  final Key? correctedCheckInKey;
   final String? correctedCheckOutValue;
   final VoidCallback? onCorrectedCheckOutTap;
   final String unpaidBreakValue;
   final VoidCallback? onUnpaidBreakTap;
   final String? paySummaryText;
+
+  /// Edit mode: the recorded times are shown, not editable.
+  final bool originalReadOnly;
+
+  /// e.g. "8h 0m", when both original times are known.
+  final String? recordedSpan;
+  final String? correctedCheckInError;
+  final String? correctedCheckOutError;
 
   const ManualEntryTimeCorrectionForm({
     super.key,
@@ -256,16 +365,23 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
     this.onOriginalCheckOutTap,
     this.correctedCheckInValue,
     this.onCorrectedCheckInTap,
+    this.correctedCheckInKey,
     this.correctedCheckOutValue,
     this.onCorrectedCheckOutTap,
     this.unpaidBreakValue = 'None',
     this.onUnpaidBreakTap,
     this.paySummaryText,
+    this.originalReadOnly = false,
+    this.recordedSpan,
+    this.correctedCheckInError,
+    this.correctedCheckOutError,
   });
 
   @override
   Widget build(BuildContext context) {
-    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 16),
+    );
 
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
@@ -288,14 +404,18 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
             onOriginalCheckInTap: onOriginalCheckInTap,
             originalCheckOutValue: originalCheckOutValue,
             onOriginalCheckOutTap: onOriginalCheckOutTap,
+            readOnly: originalReadOnly,
+            recordedSpan: recordedSpan,
           ),
           gap,
           const ManualEntryFieldLabel('Corrected clock-in', required: true),
           ManualEntryDateTimeField(
+            key: correctedCheckInKey,
             value: correctedCheckInValue,
             placeholder: dateTimePlaceholder,
             onTap: onCorrectedCheckInTap,
           ),
+          ManualEntryErrorText(correctedCheckInError),
           gap,
           const ManualEntryFieldLabel('Corrected clock-out'),
           ManualEntryDateTimeField(
@@ -303,9 +423,12 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
             placeholder: dateTimePlaceholder,
             onTap: onCorrectedCheckOutTap,
           ),
-          const ManualEntryHelperText(
-            'Leave empty for a shift still in progress.',
-          ),
+          if (correctedCheckOutError != null)
+            ManualEntryErrorText(correctedCheckOutError)
+          else
+            const ManualEntryHelperText(
+              'Leave empty for a shift still in progress.',
+            ),
           gap,
           const ManualEntryFieldLabel('Unpaid break'),
           ManualEntryDropdownField(
@@ -316,7 +439,8 @@ class ManualEntryTimeCorrectionForm extends StatelessWidget {
           const ManualEntryHelperText('Subtracted from worked time.'),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
           _PaySummaryBanner(
-            text: paySummaryText ??
+            text:
+                paySummaryText ??
                 'Enter both times to see what this entry will pay.',
             emphasized: paySummaryText != null,
           ),
@@ -331,13 +455,54 @@ class _OriginalClockGroup extends StatelessWidget {
   final VoidCallback? onOriginalCheckInTap;
   final String? originalCheckOutValue;
   final VoidCallback? onOriginalCheckOutTap;
+  final bool readOnly;
+  final String? recordedSpan;
 
   const _OriginalClockGroup({
     this.originalCheckInValue,
     this.onOriginalCheckInTap,
     this.originalCheckOutValue,
     this.onOriginalCheckOutTap,
+    this.readOnly = false,
+    this.recordedSpan,
   });
+
+  List<Widget> _readOnlyRows(BuildContext context) {
+    Widget entry(String label, String? value) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
+                letterSpacing: 0.5,
+                color: AppColors.textMuted,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+            Text(
+              value ?? 'No clock record',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                color: AppColors.textHeading,
+              ),
+            ),
+          ],
+        );
+    return [
+      entry('CLOCKED IN', originalCheckInValue),
+      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+      entry('CLOCKED OUT', originalCheckOutValue),
+      ManualEntryHelperText(
+        'Kept by the system when the times are first changed.'
+        '${recordedSpan == null ? '' : ' Recorded span $recordedSpan.'}',
+      ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -368,22 +533,28 @@ class _OriginalClockGroup extends StatelessWidget {
             ),
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-          const ManualEntryFieldLabel('Original clock-in'),
-          ManualEntryDateTimeField(
-            value: originalCheckInValue,
-            placeholder: ManualEntryTimeCorrectionForm.dateTimePlaceholder,
-            onTap: onOriginalCheckInTap,
-          ),
-          const ManualEntryHelperText(
-            'Leave empty if there was no clock record at all.',
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-          const ManualEntryFieldLabel('Original clock-out'),
-          ManualEntryDateTimeField(
-            value: originalCheckOutValue,
-            placeholder: ManualEntryTimeCorrectionForm.dateTimePlaceholder,
-            onTap: onOriginalCheckOutTap,
-          ),
+          if (readOnly)
+            ..._readOnlyRows(context)
+          else ...[
+            const ManualEntryFieldLabel('Original clock-in'),
+            ManualEntryDateTimeField(
+              value: originalCheckInValue,
+              placeholder: ManualEntryTimeCorrectionForm.dateTimePlaceholder,
+              onTap: onOriginalCheckInTap,
+            ),
+            const ManualEntryHelperText(
+              'Leave empty if there was no clock record at all.',
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+            const ManualEntryFieldLabel('Original clock-out'),
+            ManualEntryDateTimeField(
+              value: originalCheckOutValue,
+              placeholder: ManualEntryTimeCorrectionForm.dateTimePlaceholder,
+              onTap: onOriginalCheckOutTap,
+            ),
+            if (recordedSpan != null)
+              ManualEntryHelperText('Recorded span $recordedSpan'),
+          ],
         ],
       ),
     );
@@ -394,10 +565,7 @@ class _PaySummaryBanner extends StatelessWidget {
   final String text;
   final bool emphasized;
 
-  const _PaySummaryBanner({
-    required this.text,
-    this.emphasized = false,
-  });
+  const _PaySummaryBanner({required this.text, this.emphasized = false});
 
   @override
   Widget build(BuildContext context) {
@@ -436,6 +604,8 @@ class ManualEntryEvidenceForm extends StatelessWidget {
   final List<ManualEntryEvidenceFile> evidenceFiles;
   final VoidCallback? onAddEvidenceTap;
   final ValueChanged<ManualEntryEvidenceFile>? onRemoveEvidence;
+  final String? reasonError;
+  final String? notesError;
 
   const ManualEntryEvidenceForm({
     super.key,
@@ -445,11 +615,15 @@ class ManualEntryEvidenceForm extends StatelessWidget {
     this.evidenceFiles = const [],
     this.onAddEvidenceTap,
     this.onRemoveEvidence,
+    this.reasonError,
+    this.notesError,
   });
 
   @override
   Widget build(BuildContext context) {
-    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 16),
+    );
 
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
@@ -473,6 +647,7 @@ class ManualEntryEvidenceForm extends StatelessWidget {
             placeholder: 'Why is this being entered by hand?',
             onTap: onReasonTap,
           ),
+          ManualEntryErrorText(reasonError),
           gap,
           const ManualEntryFieldLabel('Notes'),
           ManualEntryTextField(
@@ -480,6 +655,7 @@ class ManualEntryEvidenceForm extends StatelessWidget {
             hint: "What happened, in the claimant's own words...",
             maxLines: 5,
           ),
+          ManualEntryErrorText(notesError),
           gap,
           const ManualEntryFieldLabel('Evidence'),
           _EvidenceUploadZone(onTap: onAddEvidenceTap),
@@ -492,7 +668,9 @@ class ManualEntryEvidenceForm extends StatelessWidget {
                     ? null
                     : () => onRemoveEvidence!(file),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 8),
+              ),
             ],
           ],
         ],
@@ -541,15 +719,19 @@ class _EvidenceUploadZone extends StatelessWidget {
                   color: AppColors.infoBlue,
                 ),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 12),
+              ),
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w400,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      13.5,
+                    ),
                     color: AppColors.textSecondary,
                   ),
                   children: const [
@@ -564,15 +746,19 @@ class _EvidenceUploadZone extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 6),
+              ),
               Text(
                 'A rota screenshot, a signed sheet. PDF, DOCX, PNG - up to 15MB each',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w400,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(
+                    context,
+                    11.5,
+                  ),
                   color: AppColors.textMuted,
                   height: 1.35,
                 ),
@@ -589,24 +775,22 @@ class _EvidenceFileChip extends StatelessWidget {
   final ManualEntryEvidenceFile file;
   final VoidCallback? onRemove;
 
-  const _EvidenceFileChip({
-    required this.file,
-    this.onRemove,
-  });
+  const _EvidenceFileChip({required this.file, this.onRemove});
 
   @override
   Widget build(BuildContext context) {
     final statusColor = file.uploadError != null
         ? AppColors.criticalRed
         : file.isReady
-            ? AppColors.activeGreen
-            : AppColors.textMuted;
-    final statusText = file.uploadError ??
+        ? AppColors.activeGreen
+        : AppColors.textMuted;
+    final statusText =
+        file.uploadError ??
         (file.isUploading
             ? 'Uploading…'
             : file.isReady
-                ? 'Uploaded'
-                : 'Pending upload');
+            ? 'Uploaded'
+            : 'Pending upload');
 
     return Container(
       width: double.infinity,
@@ -651,8 +835,10 @@ class _EvidenceFileChip extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w500,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      13,
+                    ),
                     color: AppColors.textHeading,
                   ),
                 ),
@@ -661,8 +847,10 @@ class _EvidenceFileChip extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w400,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 11),
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      11,
+                    ),
                     color: statusColor,
                   ),
                 ),
@@ -689,10 +877,7 @@ class _DashedRRectPainter extends CustomPainter {
   final Color color;
   final double radius;
 
-  const _DashedRRectPainter({
-    required this.color,
-    required this.radius,
-  });
+  const _DashedRRectPainter({required this.color, required this.radius});
 
   static const double _strokeWidth = 1.5;
   static const double _dashWidth = 6;
@@ -746,6 +931,9 @@ class ManualEntryApprovalForm extends StatelessWidget {
   final VoidCallback? onStatusTap;
   final TextEditingController noteController;
 
+  /// Without `attendance:manage` the claimant cannot set a status.
+  final bool canDecide;
+
   const ManualEntryApprovalForm({
     super.key,
     required this.reasonLabel,
@@ -757,6 +945,7 @@ class ManualEntryApprovalForm extends StatelessWidget {
     required this.statusValue,
     this.onStatusTap,
     required this.noteController,
+    this.canDecide = true,
   });
 
   @override
@@ -800,19 +989,47 @@ class ManualEntryApprovalForm extends StatelessWidget {
             ],
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-          const ManualEntryFieldLabel('Status', required: true),
-          ManualEntryDropdownField(
-            value: statusValue,
-            placeholder: 'Select status',
-            onTap: onStatusTap,
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-          const ManualEntryFieldLabel("Approval's Note"),
-          ManualEntryTextField(
-            controller: noteController,
-            hint: 'Add a note for this approval decision…',
-            maxLines: 4,
-          ),
+          if (canDecide) ...[
+            const ManualEntryFieldLabel('Status', required: true),
+            ManualEntryDropdownField(
+              value: statusValue,
+              placeholder: 'Select status',
+              onTap: onStatusTap,
+            ),
+            const ManualEntryHelperText(
+              'Leave as pending to let someone else weigh it.',
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+            const ManualEntryFieldLabel("Approver's note"),
+            ManualEntryTextField(
+              controller: noteController,
+              hint: 'Why this was approved or turned down…',
+              maxLines: 4,
+            ),
+          ] else
+            Container(
+              width: double.infinity,
+              padding: ResponsiveHelper.getResponsivePadding(
+                context,
+                horizontal: 14,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.filterButtonBackground,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'This goes to whoever reviews attendance for your home. You '
+                'will see the decision on your own record; nobody signs off '
+                'their own claim.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -846,7 +1063,9 @@ class _ApprovalSummaryCard extends StatelessWidget {
           for (var i = 0; i < rows.length; i++) ...[
             rows[i],
             if (i != rows.length - 1)
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+              SizedBox(
+                height: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
           ],
         ],
       ),
@@ -858,10 +1077,7 @@ class _ApprovalSummaryRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _ApprovalSummaryRow({
-    required this.label,
-    required this.value,
-  });
+  const _ApprovalSummaryRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

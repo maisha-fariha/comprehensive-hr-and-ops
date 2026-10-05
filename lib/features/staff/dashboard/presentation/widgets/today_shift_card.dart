@@ -60,25 +60,31 @@ class TodayShiftCard extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF6F0),
+                  color: shift.onShift
+                      ? const Color(0xFFEAF6F0)
+                      : AppColors.cardBorder,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const AppSvgIcon(
-                      AppAssets.checkCircle,
-                      size: 14,
-                      color: Color(0xFF2E8C58),
-                    ),
-                    SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+                    if (shift.onShift) ...[
+                      const AppSvgIcon(
+                        AppAssets.checkCircle,
+                        size: 14,
+                        color: Color(0xFF2E8C58),
+                      ),
+                      SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 5)),
+                    ],
                     Text(
                       shift.statusLabel,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
                         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                        color: const Color(0xFF2E8C58),
+                        color: shift.onShift
+                            ? const Color(0xFF2E8C58)
+                            : AppColors.textSecondary,
                         height: 1.1,
                       ),
                     ),

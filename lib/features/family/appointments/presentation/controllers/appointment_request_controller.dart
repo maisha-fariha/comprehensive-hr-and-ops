@@ -2,173 +2,195 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
-import '../../../../../core/errors/app_error_dialog.dart';
-import '../../../../../core/network/iso_date_range.dart';
-import '../../domain/entities/family_appointments_enums.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../profile_settings/domain/entities/family_linked_client.dart';
+import '../../../visit_requests/presentation/controllers/family_visit_requests_controller.dart';
 import '../../domain/repositories/family_appointments_repository.dart';
-import '../../family_appointments_constants.dart';
 import 'family_appointments_controller.dart';
 
+/// A value/label option of the web "Request a Visit" selects.
+@immutable
+class VisitFormOption {
+  final String value;
+  final String label;
+
+  const VisitFormOption(this.value, this.label);
+}
+
+/// Web Family Portal "Request a Visit" modal state and submit
+/// (`POST /family/appointments`).
 class AppointmentRequestController extends GetxController {
+  static const String residentRequiredMessage =
+      'Choose who you would like to visit.';
+  static const String dateRequiredMessage =
+      'Please select a date for your visit.';
+  static const String successMessage =
+      'Visit requested! The care team will review and confirm.';
+
+  static const List<VisitFormOption> timeSlots = [
+    VisitFormOption('10:00', 'Morning (10:00 AM – 11:30 AM)'),
+    VisitFormOption('14:00', 'Afternoon (02:00 PM – 03:30 PM)'),
+    VisitFormOption('16:00', 'Late Afternoon (04:00 PM – 05:30 PM)'),
+    VisitFormOption('18:00', 'Evening (06:00 PM – 07:30 PM)'),
+  ];
+
+  static const List<VisitFormOption> visitingAreas = [
+    VisitFormOption('Resident Room', "Resident's Private Room"),
+    VisitFormOption('Garden Gazebo', 'Outdoor Garden Gazebo'),
+    VisitFormOption('Family Lounge', 'Family Guest Lounge'),
+    VisitFormOption('Dining Room', 'Main Dining Hall'),
+  ];
+
   final FamilyAppointmentsRepository repository;
+  final UserSession? _session;
 
-  AppointmentRequestController({FamilyAppointmentsRepository? repository})
-      : repository = repository ?? GetIt.instance<FamilyAppointmentsRepository>();
+  AppointmentRequestController({
+    FamilyAppointmentsRepository? repository,
+    UserSession? session,
+  })  : repository =
+            repository ?? GetIt.instance<FamilyAppointmentsRepository>(),
+        _session = session ??
+            (Get.isRegistered<UserSession>() ? Get.find<UserSession>() : null);
 
-  final Rx<AppointmentRequestType> requestType = AppointmentRequestType.visit.obs;
-  final RxString appointmentKind = 'medical'.obs;
-  final Rx<DateTime> preferredAt = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    DateTime.now().day + 1,
-    14,
-  ).obs;
-  final TextEditingController locationController = TextEditingController(
-    text: 'In-Person at Residence',
-  );
-  final TextEditingController noteController = TextEditingController(
-    text: FamilyAppointmentsConstants.visitPresetNote,
-  );
-  final RxInt noteLength = FamilyAppointmentsConstants.visitPresetNote.length.obs;
+  final RxList<FamilyLinkedClient> residents = <FamilyLinkedClient>[].obs;
+  final RxnString selectedClientId = RxnString();
+  final Rxn<DateTime> visitDate = Rxn<DateTime>();
+  final RxString timeSlot = '14:00'.obs;
+  final RxString visitingArea = 'Resident Room'.obs;
+  final TextEditingController visitorsController =
+      TextEditingController(text: '2');
+  final TextEditingController noteController = TextEditingController();
   final RxBool isSubmitting = false.obs;
+  final RxBool isLoadingResidents = false.obs;
+  final RxnString formError = RxnString();
 
   @override
   void onInit() {
     super.onInit();
-    noteController.addListener(() => noteLength.value = noteController.text.length);
+    loadResidents();
   }
 
-  String get pageTitle =>
-      requestType.value == AppointmentRequestType.visit ? 'Request Visit' : 'Request Appointment';
-
-  bool get isVisit => requestType.value == AppointmentRequestType.visit;
-
-  String get preferredDate => IsoDateRange.formatMonthDay(preferredAt.value);
-  String get preferredTime => IsoDateRange.timeLabel(preferredAt.value);
-
-  String get thirdFieldLabel => isVisit ? 'Purpose' : 'Appointment Type';
-
-  String get thirdFieldValue {
-    if (isVisit) return 'Family Visit';
-    switch (appointmentKind.value) {
-      case 'therapy':
-        return 'Therapy';
-      case 'activity':
-        return 'Activity';
-      default:
-        return 'Medical';
+  FamilyLinkedClient? get selectedResident {
+    final id = selectedClientId.value;
+    for (final r in residents) {
+      if (r.id == id) return r;
     }
+    return residents.isEmpty ? null : residents.first;
   }
 
-  String get notePlaceholder => isVisit ? '' : 'Add any relevant details for the care team...';
-
-  String get bannerMessage => isVisit
-      ? 'Your request will be reviewed by the care team. You will be notified once a decision has been made.'
-      : 'Your appointment request will be reviewed by the care team. You will be notified once a decision has been made.';
-
-  void selectRequestType(AppointmentRequestType type) {
-    if (requestType.value == type) return;
-    requestType.value = type;
-    locationController.text =
-        type == AppointmentRequestType.visit
-            ? 'In-Person at Residence'
-            : 'In-Person at Clinic';
-    noteController.text = type == AppointmentRequestType.visit
-        ? FamilyAppointmentsConstants.visitPresetNote
-        : '';
+  String get visitDateLabel {
+    final date = visitDate.value;
+    if (date == null) return 'dd/mm/yyyy';
+    final d = date.day.toString().padLeft(2, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    return '$d/$m/${date.year}';
   }
 
-  Future<void> pickAppointmentKind(BuildContext context) async {
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Medical'),
-              onTap: () => Navigator.pop(context, 'medical'),
-            ),
-            ListTile(
-              title: const Text('Therapy'),
-              onTap: () => Navigator.pop(context, 'therapy'),
-            ),
-            ListTile(
-              title: const Text('Activity'),
-              onTap: () => Navigator.pop(context, 'activity'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (selected != null) appointmentKind.value = selected;
+  String get timeSlotLabel => _labelOf(timeSlots, timeSlot.value);
+
+  String get visitingAreaLabel => _labelOf(visitingAreas, visitingArea.value);
+
+  static String _labelOf(List<VisitFormOption> options, String value) {
+    for (final option in options) {
+      if (option.value == value) return option.label;
+    }
+    return value;
   }
 
-  Future<void> pickDate(BuildContext context) async {
-    final now = DateTime.now();
-    final selected = await showDatePicker(
-      context: context,
-      initialDate: preferredAt.value,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+  Future<void> loadResidents() async {
+    isLoadingResidents.value = true;
+    final result = await repository.getLinkedResidents();
+    result.when(
+      success: (items) {
+        residents.assignAll(items);
+        final preferred = _session?.selectedClientId;
+        if (preferred != null && items.any((r) => r.id == preferred)) {
+          selectedClientId.value = preferred;
+        } else if (items.isNotEmpty) {
+          selectedClientId.value = items.first.id;
+        }
+      },
+      failure: (_) => residents.clear(),
     );
-    if (selected == null) return;
-    preferredAt.value = DateTime(
-      selected.year,
-      selected.month,
-      selected.day,
-      preferredAt.value.hour,
-      preferredAt.value.minute,
-    );
+    isLoadingResidents.value = false;
   }
 
-  Future<void> pickTime(BuildContext context) async {
-    final selected = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(preferredAt.value),
-    );
-    if (selected == null) return;
-    preferredAt.value = DateTime(
-      preferredAt.value.year,
-      preferredAt.value.month,
-      preferredAt.value.day,
-      selected.hour,
-      selected.minute,
-    );
+  void selectResident(String clientId) {
+    selectedClientId.value = clientId;
+    _session?.selectClient(clientId);
+    formError.value = null;
   }
 
-  Future<void> submit() async {
-    if (isSubmitting.value) return;
+  void selectDate(DateTime date) {
+    visitDate.value = DateTime(date.year, date.month, date.day);
+    formError.value = null;
+  }
+
+  /// Validates like the web modal and sends the request. Returns `true` when
+  /// the visit was created and the lists were refetched.
+  Future<bool> submit() async {
+    if (isSubmitting.value) return false;
+    formError.value = null;
+
+    final clientId = selectedResident?.id;
+    if (clientId == null || clientId.isEmpty) {
+      formError.value = residentRequiredMessage;
+      return false;
+    }
+    final date = visitDate.value;
+    if (date == null) {
+      formError.value = dateRequiredMessage;
+      return false;
+    }
+
+    final parts = timeSlot.value.split(':');
+    final scheduledAt = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.tryParse(parts.first) ?? 14,
+      parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0,
+    );
+    final note = noteController.text.trim();
+    final notes = [
+      'Visitors: ${visitorsController.text.trim()} people',
+      if (note.isNotEmpty) 'Notes: $note',
+    ].join(' · ');
+
     isSubmitting.value = true;
     final result = await repository.createAppointment(
-      type: isVisit ? 'family_visit' : appointmentKind.value,
-      scheduledAt: preferredAt.value,
-      location: locationController.text.trim(),
-      notes: noteController.text,
+      type: 'family_visit',
+      clientId: clientId,
+      scheduledAt: scheduledAt,
+      location: visitingArea.value.trim(),
+      notes: notes,
     );
     isSubmitting.value = false;
-    result.when(
+
+    return result.when(
       success: (_) {
-        Get.snackbar(
-          'Request submitted',
-          'The care team will review this and notify you.',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-        if (Get.isRegistered<FamilyAppointmentsController>()) {
-          Get.find<FamilyAppointmentsController>().refresh();
-        }
-        Get.back();
+        _refreshLists();
+        return true;
       },
-      failure: (error) => AppErrorDialog.showResultError(
-        error,
-        fallbackTitle: 'Could not submit',
-      ),
+      failure: (error) {
+        formError.value = error.message;
+        return false;
+      },
     );
+  }
+
+  void _refreshLists() {
+    if (Get.isRegistered<FamilyAppointmentsController>()) {
+      Get.find<FamilyAppointmentsController>().refresh();
+    }
+    if (Get.isRegistered<FamilyVisitRequestsController>()) {
+      Get.find<FamilyVisitRequestsController>().refresh();
+    }
   }
 
   @override
   void onClose() {
-    locationController.dispose();
+    visitorsController.dispose();
     noteController.dispose();
     super.onClose();
   }

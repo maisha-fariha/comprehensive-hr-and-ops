@@ -251,7 +251,10 @@ class _TasksComplianceError extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Retry'),
             ),
           ],

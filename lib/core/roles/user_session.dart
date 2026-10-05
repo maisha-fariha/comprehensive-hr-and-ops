@@ -46,6 +46,7 @@ class UserSession extends GetxService {
   final RxString _displayName = ''.obs;
   final RxString _email = ''.obs;
   final RxString _avatarInitials = ''.obs;
+  final RxnString _avatarUrl = RxnString();
   final RxnString _residenceId = RxnString();
   final RxnString _residenceName = RxnString();
   final RxnString _organizationName = RxnString();
@@ -56,6 +57,7 @@ class UserSession extends GetxService {
   final Rxn<StaffKind> _staffKind = Rxn<StaffKind>();
   final RxList<String> _permissions = <String>[].obs;
   final RxBool _medAdminCertified = false.obs;
+  final RxBool _medAdminApproved = false.obs;
   final Rx<FamilyVisibility> _familyVisibility = FamilyVisibility.unknown.obs;
   bool _signingOut = false;
 
@@ -66,6 +68,7 @@ class UserSession extends GetxService {
   String get displayName => _displayName.value;
   String get email => _email.value;
   String get avatarInitials => _avatarInitials.value;
+  String? get avatarUrl => _avatarUrl.value;
   String? get residenceId => _residenceId.value;
   String? get residenceName => _residenceName.value;
   String? get organizationName => _organizationName.value;
@@ -76,6 +79,7 @@ class UserSession extends GetxService {
   StaffKind? get staffKind => _staffKind.value;
   List<String> get permissions => List.unmodifiable(_permissions);
   bool get medAdminCertified => _medAdminCertified.value;
+  bool get medAdminApproved => _medAdminApproved.value;
   FamilyVisibility get familyVisibility => _familyVisibility.value;
 
   String get portalRoute => isSignedIn ? role.portalRoute : AppRoutes.login;
@@ -104,20 +108,25 @@ class UserSession extends GetxService {
   bool get canAccessIncidents => can('incidents');
   bool get canAccessTasks => can('tasks');
   bool get canAccessAppointments => can('appointments');
+  bool get canWriteAppointments => can('appointments:write');
   bool get canAccessHandovers => can('shift-handovers') || can('handovers');
   bool get canRaiseEmergency => can('emergency:raise');
   bool get canReadEmergency => can('emergency:read') || canRaiseEmergency;
   bool get canAccessClientActivities => can('client-activities');
+  bool get canWriteClientActivities => can('client-activities:write');
+  bool get canAccessMessaging => can('messaging');
+  bool get canWriteMessaging => can('messaging:write');
   bool get canAccessInventory => can('inventory');
+  bool get canAccessDocuments => can('documents');
+  bool get canWriteDocuments => can('documents:write');
+  bool get canAccessTraining => can('training');
+  bool get canWriteTraining => can('training:write');
   bool get canAccessAdmissions =>
       can('admissions:assess') || can('admissions');
 
-  /// Scheduled MAR charting needs `mar:write`; PRN also needs med-admin cert.
-  bool canAdministerMarDose({required bool isPrn}) {
-    if (!canWriteMar) return false;
-    if (isPrn && !medAdminCertified) return false;
-    return true;
-  }
+  /// Charting needs `mar:write`. Web does not client-block PRN on cert flags —
+  /// the API enforces certification/approval on submit when required.
+  bool canAdministerMarDose({required bool isPrn}) => canWriteMar;
 
   /// Staff Schedule "Upcoming Appointments" — nurse / caregiver only (B2).
   bool get canSeeStaffScheduleAppointments =>
@@ -165,6 +174,7 @@ class UserSession extends GetxService {
     _displayName.value = profile.displayName;
     _email.value = profile.email;
     _avatarInitials.value = profile.avatarInitials;
+    _avatarUrl.value = profile.avatarUrl;
     _residenceId.value = profile.residenceId;
     _residenceName.value = profile.residenceName;
     _organizationName.value = profile.residenceName ?? profile.tenantName;
@@ -172,6 +182,7 @@ class UserSession extends GetxService {
     _relationship.value = profile.relationship;
     _permissions.assignAll(profile.permissions);
     _medAdminCertified.value = profile.medAdminCertified;
+    _medAdminApproved.value = profile.medAdminApproved;
   }
 
   void applyFamilyHome({
@@ -190,6 +201,10 @@ class UserSession extends GetxService {
   }
 
   void selectClient(String clientId) => _selectedClientId.value = clientId;
+
+  /// Reflects a profile photo change (`PATCH /auth/avatar`) app-wide.
+  void updateAvatarUrl(String? url) =>
+      _avatarUrl.value = (url == null || url.trim().isEmpty) ? null : url;
 
   /// Test/dev helper to open a portal without going through `/mobile/me`.
   void signIn({
@@ -265,6 +280,7 @@ class UserSession extends GetxService {
     _displayName.value = '';
     _email.value = '';
     _avatarInitials.value = '';
+    _avatarUrl.value = null;
     _residenceId.value = null;
     _residenceName.value = null;
     _organizationName.value = null;
@@ -275,6 +291,7 @@ class UserSession extends GetxService {
     _staffKind.value = null;
     _permissions.clear();
     _medAdminCertified.value = false;
+    _medAdminApproved.value = false;
     _familyVisibility.value = FamilyVisibility.unknown;
   }
 

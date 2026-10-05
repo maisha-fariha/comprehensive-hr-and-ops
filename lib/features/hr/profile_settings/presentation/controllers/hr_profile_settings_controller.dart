@@ -1,7 +1,11 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_error_mapper.dart';
+import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/user_session.dart';
 
 import '../../domain/entities/hr_profile_settings_overview.dart';
 import '../../domain/repositories/hr_profile_settings_repository.dart';
@@ -46,10 +50,9 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
       body: message,
     );
     result.when(
-      success: (_) => Get.snackbar(
+      success: (_) => AppSnackbar.show(
         'Message sent',
         'Support will follow up on your request.',
-        snackPosition: SnackPosition.BOTTOM,
       ),
       failure: (error) => AppErrorDialog.showResultError(
         error,
@@ -58,7 +61,8 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
     );
   }
 
-  Future<void> changePassword({
+  /// Returns `null` on success, otherwise the message for the dialog.
+  Future<String?> changePassword({
     required String currentPassword,
     required String newPassword,
   }) async {
@@ -66,16 +70,9 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
       currentPassword: currentPassword,
       newPassword: newPassword,
     );
-    result.when(
-      success: (_) => Get.snackbar(
-        'Password updated',
-        'Use your new password the next time you sign in.',
-        snackPosition: SnackPosition.BOTTOM,
-      ),
-      failure: (error) => AppErrorDialog.showResultError(
-        error,
-        fallbackTitle: 'Could not update password',
-      ),
+    return result.when(
+      success: (_) => null,
+      failure: (error) => AppErrorMapper.from(error).message,
     );
   }
 
@@ -96,16 +93,105 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
   Future<void> saveNotificationPreferences(Map<String, bool> values) async {
     final result = await repository.updateNotificationPreferences(values);
     result.when(
-      success: (_) => Get.snackbar(
+      success: (_) => AppSnackbar.show(
         'Preferences saved',
         'Notification settings were updated.',
-        snackPosition: SnackPosition.BOTTOM,
       ),
       failure: (error) => AppErrorDialog.showResultError(
         error,
         fallbackTitle: 'Could not save',
       ),
     );
+  }
+
+  static const _avatarExtensions = {'jpg', 'jpeg', 'png', 'webp', 'heic'};
+  static const _avatarMaxBytes = 2 * 1024 * 1024;
+
+  final RxBool avatarBusy = false.obs;
+
+  /// Picks an image (JPEG, PNG, WebP or HEIC, up to 2 MB) and sets it as the
+  /// profile photo.
+  Future<void> changeAvatar() async {
+    if (avatarBusy.value) return;
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: false,
+    );
+    final file = picked?.files.single;
+    final path = file?.path;
+    if (file == null || path == null || path.isEmpty) return;
+
+    final ext = file.extension?.toLowerCase() ?? '';
+    if (!_avatarExtensions.contains(ext)) {
+      AppErrorDialog.showInfo(
+        title: 'Unsupported photo',
+        message: 'Choose a JPEG, PNG, WebP or HEIC image.',
+      );
+      return;
+    }
+    if (file.size > _avatarMaxBytes) {
+      AppErrorDialog.showInfo(
+        title: 'Photo too large',
+        message: 'Choose an image up to 2 MB.',
+      );
+      return;
+    }
+
+    avatarBusy.value = true;
+    final result = await repository.updateAvatar(
+      filePath: path,
+      fileName: file.name,
+    );
+    avatarBusy.value = false;
+    result.when(
+      success: (url) {
+        if (url == null) {
+          AppErrorDialog.showInfo(
+            title: 'Could not update photo',
+            message: 'The server did not return the new photo. Please try again.',
+          );
+          return;
+        }
+        _session?.updateAvatarUrl(url);
+        AppSnackbar.show(
+          'Photo updated',
+          'Your profile picture was changed.',
+        );
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not update photo',
+      ),
+    );
+  }
+
+  Future<void> removeAvatar() async {
+    if (avatarBusy.value) return;
+    avatarBusy.value = true;
+    final result = await repository.removeAvatar();
+    avatarBusy.value = false;
+    result.when(
+      success: (_) {
+        _session?.updateAvatarUrl(null);
+        AppSnackbar.show(
+          'Photo removed',
+          'Your initials will be shown instead.',
+        );
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not remove photo',
+      ),
+    );
+  }
+
+  UserSession? get _session {
+    try {
+      return Get.find<UserSession>();
+    } catch (_) {
+      return null;
+    }
   }
 
   @override

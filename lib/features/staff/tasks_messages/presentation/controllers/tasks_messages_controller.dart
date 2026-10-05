@@ -11,6 +11,7 @@ import '../../domain/entities/staff_task.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
 import '../../domain/entities/tasks_messages_overview.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
+import '../pages/staff_create_task_page.dart';
 import '../widgets/staff_task_detail_sheet.dart';
 
 /// GetX controller for the "Tasks & Messages" list screen.
@@ -76,10 +77,7 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
   Future<void> loadContacts() async {
     isLoadingContacts.value = true;
     final result = await repository.getContacts();
-    result.when(
-      success: (items) => contacts.assignAll(items),
-      failure: (_) {},
-    );
+    result.when(success: (items) => contacts.assignAll(items), failure: (_) {});
     isLoadingContacts.value = false;
   }
 
@@ -87,9 +85,7 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     final current = overview;
     if (current == null) return;
     final updated = current.conversations
-        .map(
-          (c) => c.id == conversationId ? c.copyWith(unreadCount: 0) : c,
-        )
+        .map((c) => c.id == conversationId ? c.copyWith(unreadCount: 0) : c)
         .toList();
     setSuccess(current.copyWith(conversations: updated));
   }
@@ -178,6 +174,25 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     await loadOverview();
   }
 
+  /// Opens New Task wizard (BUG_Report009).
+  Future<void> showCreateTaskDialog() async {
+    final optionsResult = await repository.getTaskCreationOptions();
+    if (optionsResult.isFailure || optionsResult.value == null) {
+      AppErrorDialog.showResultError(
+        optionsResult.error,
+        fallbackTitle: 'Could not load task options',
+      );
+      return;
+    }
+    final created = await Get.to<bool>(
+      () => StaffCreateTaskPage(
+        repository: repository,
+        options: optionsResult.value!,
+      ),
+    );
+    if (created == true) await loadOverview();
+  }
+
   Future<void> addTaskNote({
     required String taskId,
     required String body,
@@ -198,24 +213,34 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
   Future<void> completeRecurringCheck(RecurringCheckInstance check) async {
     final result = await repository.updateRecurringCheck(
       instanceId: check.id,
-      status: 'completed',
+      status: 'requires_review',
       statusNote: 'Completed from Tasks tab',
     );
     if (result.isFailure) {
-      final skip = await repository.updateRecurringCheck(
-        instanceId: check.id,
-        status: 'skipped',
-        statusNote: 'Recorded from Tasks tab',
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not update check',
       );
-      if (skip.isFailure) {
-        AppErrorDialog.showResultError(
-          result.error ?? skip.error,
-          fallbackTitle: 'Could not update check',
-        );
-        return;
-      }
+      return;
     }
     AppSnackbar.show('Check updated', check.title);
+    await loadOverview();
+  }
+
+  Future<void> skipRecurringCheck(RecurringCheckInstance check) async {
+    final result = await repository.updateRecurringCheck(
+      instanceId: check.id,
+      status: 'skipped',
+      statusNote: 'Skipped from Tasks tab',
+    );
+    if (result.isFailure) {
+      AppErrorDialog.showResultError(
+        result.error,
+        fallbackTitle: 'Could not skip check',
+      );
+      return;
+    }
+    AppSnackbar.show('Check skipped', check.title);
     await loadOverview();
   }
 

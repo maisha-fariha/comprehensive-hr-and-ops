@@ -22,7 +22,7 @@ class IncidentActivityLogSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const IncidentDetailsSectionLabel('ACTIVITY LOG'),
+        const IncidentDetailsSectionLabel('Activity & audit history'),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
         Container(
           width: double.infinity,
@@ -101,17 +101,55 @@ class _ActivityRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                entry.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                  color: IncidentActivityLogSection._titleColor,
-                  height: 1.25,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      entry.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 14),
+                        color: IncidentActivityLogSection._titleColor,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                  if (entry.isFailure) ...[
+                    SizedBox(
+                      width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                    ),
+                    Container(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE11D48),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'FAILURE',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            10,
+                          ),
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
               Text(

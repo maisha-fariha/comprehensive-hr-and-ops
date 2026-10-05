@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/network/authorized_file.dart';
+
+/// Circular avatar that shows [imageUrl] when available and falls back to
+/// [initials] while loading or when the image fails.
 class HrInitialsAvatar extends StatelessWidget {
   final String initials;
   final Color background;
   final Color foreground;
   final double size;
+  final String? imageUrl;
 
   const HrInitialsAvatar({
     super.key,
@@ -13,16 +18,13 @@ class HrInitialsAvatar extends StatelessWidget {
     required this.background,
     required this.foreground,
     this.size = 44,
+    this.imageUrl,
   });
 
   @override
   Widget build(BuildContext context) {
     final resolvedSize = ResponsiveHelper.getResponsiveSize(context, size);
-    return Container(
-      width: resolvedSize,
-      height: resolvedSize,
-      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
-      alignment: Alignment.center,
+    final fallback = Center(
       child: Text(
         initials,
         style: TextStyle(
@@ -32,6 +34,26 @@ class HrInitialsAvatar extends StatelessWidget {
           color: foreground,
         ),
       ),
+    );
+    final url = imageUrl?.trim();
+    return Container(
+      width: resolvedSize,
+      height: resolvedSize,
+      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
+      clipBehavior: Clip.antiAlias,
+      child: url == null || url.isEmpty
+          ? fallback
+          : Image.network(
+              AuthorizedFile.resolveUrl(url),
+              key: ValueKey(url),
+              headers: AuthorizedFile.headers(),
+              width: resolvedSize,
+              height: resolvedSize,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) =>
+                  progress == null ? child : fallback,
+              errorBuilder: (context, error, stackTrace) => fallback,
+            ),
     );
   }
 }

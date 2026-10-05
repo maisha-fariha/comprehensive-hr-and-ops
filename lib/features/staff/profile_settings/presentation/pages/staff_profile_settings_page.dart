@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/widgets/change_password_dialog.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../staff_shell.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
@@ -16,6 +17,7 @@ import '../widgets/staff_log_out_row.dart';
 import '../widgets/staff_preference_tile.dart';
 import '../widgets/staff_profile_card.dart';
 import '../widgets/staff_profile_settings_header.dart';
+import 'staff_profile_detail_page.dart';
 
 /// Profile & Settings for the Staff portal — same visual design as Family.
 class StaffProfileSettingsPage extends StatefulWidget {
@@ -113,43 +115,10 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
     BuildContext context,
     StaffProfileSettingsController controller,
   ) async {
-    final current = TextEditingController();
-    final next = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: current,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Current password'),
-            ),
-            TextField(
-              controller: next,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'New password'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
-        ],
-      ),
+    await showChangePasswordDialog(
+      context,
+      onSubmit: controller.changePassword,
     );
-    final currentValue = current.text;
-    final nextValue = next.text;
-    current.dispose();
-    next.dispose();
-    if (confirmed == true && currentValue.isNotEmpty && nextValue.isNotEmpty) {
-      await controller.changePassword(
-        currentPassword: currentValue,
-        newPassword: nextValue,
-      );
-    }
   }
 
   Future<void> _openNotificationPreferences(
@@ -254,7 +223,13 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                     ResponsiveHelper.getResponsiveHeight(context, 32),
                   ),
                   children: [
-                    StaffProfileCard(profile: overview.profile),
+                    StaffProfileCard(
+                      key: const Key('staff-profile-upper-card'),
+                      profile: overview.profile,
+                      onTap: () => Get.to(
+                        () => StaffProfileDetailPage(profile: overview.profile),
+                      ),
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
                     const SectionHeaderRow(title: 'Assigned Clients'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),

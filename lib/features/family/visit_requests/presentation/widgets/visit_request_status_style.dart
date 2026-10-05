@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 
 /// Color + label treatment for a [VisitRequestStatus], shared across Visit
-/// Requests list/cards so every screen stays visually consistent.
+/// Requests list/cards. Colours are the web badge variants (pending /
+/// rescheduled = warning, approved = success, rejected = danger, cancelled =
+/// neutral, completed = info).
 class VisitRequestStatusStyle {
   final String label;
   final Color color;
@@ -16,36 +17,44 @@ class VisitRequestStatusStyle {
     required this.background,
   });
 
+  static const Color _warningFg = Color(0xFFE9A23B);
+  static const Color _warningBg = Color(0xFFFFF7E8);
+
   static const Map<VisitRequestStatus, VisitRequestStatusStyle> _values = {
     VisitRequestStatus.pending: VisitRequestStatusStyle(
       label: 'Pending',
-      color: AppColors.urgentAmber,
-      background: AppColors.urgentBackground,
+      color: _warningFg,
+      background: _warningBg,
     ),
     VisitRequestStatus.approved: VisitRequestStatusStyle(
       label: 'Approved',
-      color: AppColors.activeGreen,
-      background: AppColors.activeBackground,
+      color: Color(0xFF3FA66D),
+      background: Color(0xFFE9F5EE),
     ),
     VisitRequestStatus.rejected: VisitRequestStatusStyle(
       label: 'Rejected',
-      color: Color(0xFFB91C1C),
-      background: Color(0xFFFBE9E9),
+      color: Color(0xFFD64545),
+      background: Color(0xFFFBEAEA),
     ),
     VisitRequestStatus.rescheduleRequested: VisitRequestStatusStyle(
-      label: 'Reschedule Requested',
-      color: AppColors.nightPurple,
-      background: AppColors.nightBackground,
+      label: 'Rescheduled',
+      color: _warningFg,
+      background: _warningBg,
     ),
     VisitRequestStatus.completed: VisitRequestStatusStyle(
       label: 'Completed',
-      color: Color(0xFF64748B),
-      background: Color(0xFFF1F5F9),
+      color: Color(0xFF61758D),
+      background: Color(0xFFEEF3F8),
     ),
     VisitRequestStatus.cancelled: VisitRequestStatusStyle(
       label: 'Cancelled',
-      color: Color(0xFF64748B),
-      background: Color(0xFFF1F5F9),
+      color: Color(0xFF5A6B80),
+      background: Color(0xFFF4F5F7),
+    ),
+    VisitRequestStatus.other: VisitRequestStatusStyle(
+      label: '—',
+      color: Color(0xFF5A6B80),
+      background: Color(0xFFF4F5F7),
     ),
   };
 

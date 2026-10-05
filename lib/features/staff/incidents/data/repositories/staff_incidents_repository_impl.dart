@@ -41,21 +41,27 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     String? status,
     String? from,
     String? to,
+    String? residenceId,
+    String? clientId,
     int page = 1,
     int limit = 20,
   }) async {
+    final resolvedResidence = (residenceId != null && residenceId.isNotEmpty)
+        ? residenceId
+        : null;
     final result = await _api.get(
       ApiEndpoints.incidents,
       query: {
         'page': page,
         'limit': limit,
-        'residenceId': ?_session.residenceId,
+        if (resolvedResidence != null) 'residenceId': resolvedResidence,
         if (mine) 'reporter': 'me',
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         if (severity != null && severity.isNotEmpty) 'severity': severity,
         if (status != null && status.isNotEmpty) 'status': status,
         if (from != null && from.isNotEmpty) 'from': from,
         if (to != null && to.isNotEmpty) 'to': to,
+        if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
       },
     );
     return result.when(
@@ -69,9 +75,6 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   Future<Result<StaffIncidentsSummary>> getSummary() async {
     final result = await _api.get(
       ApiEndpoints.incidentsSummary,
-      query: {
-        'residenceId': ?_session.residenceId,
-      },
     );
     return result.when(
       success: (body) async =>
@@ -367,8 +370,50 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   }
 
   @override
+  Future<Result<List<StaffIncidentResidenceOption>>> getResidences() async {
+    final result = await _api.get(ApiEndpoints.residences, silent: true);
+    return result.when(
+      success: (body) async {
+        final options = StaffIncidentsMapper.residencesFrom(body);
+        final sessionId = _session.residenceId;
+        final sessionName = _session.residenceName;
+        if (sessionName != null &&
+            sessionName.isNotEmpty &&
+            !options.any(
+              (o) =>
+                  o.id == (sessionId ?? '') ||
+                  o.name == sessionName,
+            )) {
+          options.insert(
+            0,
+            StaffIncidentResidenceOption(
+              id: sessionId ?? sessionName,
+              name: sessionName,
+            ),
+          );
+        }
+        return Result.success(options);
+      },
+      failure: (error) async {
+        final sessionName = _session.residenceName;
+        final sessionId = _session.residenceId;
+        if (sessionName != null && sessionName.isNotEmpty) {
+          return Result.success([
+            StaffIncidentResidenceOption(
+              id: sessionId ?? sessionName,
+              name: sessionName,
+            ),
+          ]);
+        }
+        return Result.failure(error);
+      },
+    );
+  }
+
+  @override
   Future<Result<List<StaffIncidentClientOption>>> getClients({
     String? search,
+    String? residenceId,
     bool assignedToMe = true,
   }) async {
     final trimmed = search?.trim();
@@ -376,7 +421,9 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
       ApiEndpoints.clients,
       query: {
         'page': 1,
-        'limit': 20,
+        'limit': 100,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
         if (trimmed != null && trimmed.isNotEmpty)
           'search': trimmed
         else if (assignedToMe)
@@ -386,6 +433,47 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     return result.when(
       success: (body) async =>
           Result.success(StaffIncidentsMapper.clientsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<StaffIncidentStaffOption>>> getStaffOptions({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.staff,
+      query: {
+        'page': 1,
+        'limit': 100,
+        if (residenceId != null &&
+            residenceId.isNotEmpty &&
+            residenceId != 'all')
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final rows = JsonCodec.unwrapList(body).whereType<Map>().map((item) {
+          final json = JsonCodec.asMap(item);
+          final first = JsonCodec.stringOr(json['firstName'], '');
+          final last = JsonCodec.stringOr(json['lastName'], '');
+          final name = '$first $last'.trim();
+          final category = JsonCodec.mapAt(json, 'category');
+          return StaffIncidentStaffOption(
+            id: JsonCodec.stringOr(json['id'], ''),
+            name: name.isEmpty
+                ? JsonCodec.stringOr(json['email'], 'Staff')
+                : name,
+            subtitle: JsonCodec.stringOr(
+              category?['name'] ?? json['employmentType'] ?? json['email'],
+              '',
+            ),
+          );
+        }).where((item) => item.id.isNotEmpty).toList();
+        return Result.success(rows);
+      },
       failure: (error) async => Result.failure(error),
     );
   }
@@ -406,6 +494,12 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   }) async {
     final data = <String, dynamic>{
       'residenceId': residenceId,
@@ -427,6 +521,20 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
       'supervisorNotified': supervisorNotified,
       'familyNotified': familyNotified,
       'carePlanReviewed': carePlanReviewed,
+      if (immediateAction != null && immediateAction.trim().isNotEmpty)
+        'immediateAction': immediateAction.trim(),
+      if (emergencyServicesContacted != null)
+        'emergencyServicesContacted': emergencyServicesContacted,
+      if (externalAgencyType != null && externalAgencyType.isNotEmpty)
+        'externalAgencyType': externalAgencyType,
+      if (externalAgencyReference != null &&
+          externalAgencyReference.trim().isNotEmpty)
+        'externalAgencyReference': externalAgencyReference.trim(),
+      if (externalAgencyResponder != null &&
+          externalAgencyResponder.trim().isNotEmpty)
+        'externalAgencyResponder': externalAgencyResponder.trim(),
+      if (reportedByStaffId != null && reportedByStaffId.isNotEmpty)
+        'reportedByStaffId': reportedByStaffId,
     };
 
     final result = await _api.post(

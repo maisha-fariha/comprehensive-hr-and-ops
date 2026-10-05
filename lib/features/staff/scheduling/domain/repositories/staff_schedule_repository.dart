@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../entities/staff_schedule_overview.dart';
 import '../entities/staff_shift.dart';
+import '../entities/staff_shift_form_option.dart';
 
 abstract class StaffScheduleRepository {
   /// Loads mine + open shifts, my swaps, and (when permitted) appointments.
@@ -33,4 +34,16 @@ abstract class StaffScheduleRepository {
 
   /// `POST /shift-swaps/{swapId}/cancel`
   Future<Result<void>> cancelSwap(String swapId);
+
+  /// `POST /shifts` — create a shift (BUG_Report004).
+  Future<Result<String>> createShift(Map<String, dynamic> payload);
+
+  /// Residences for the Create Shift wizard (`GET /residences`).
+  Future<Result<List<StaffShiftResidenceOption>>> getResidences();
+
+  /// Staff for Create Shift assignment search (`GET /staff?search=`).
+  Future<Result<List<StaffShiftStaffOption>>> searchStaff({
+    String? search,
+    String? residenceId,
+  });
 }

@@ -16,14 +16,22 @@ abstract class FamilyMessagesRepository {
     required String fileType,
   });
 
-  Future<Result<void>> sendInConversation({
+  /// `POST /family/messages/:id/messages` → the created message, or `null`
+  /// when the write was queued offline and has no server copy yet.
+  Future<Result<FamilyChatMessage?>> sendInConversation({
     required String conversationId,
     required String body,
     bool highPriority = false,
     List<MessageAttachment> attachments = const [],
   });
 
-  Future<Result<void>> startConversation({
+  /// `GET /family/clients` → ids of the residents this account is linked to.
+  /// A new conversation needs one of them as `clientId`.
+  Future<Result<List<String>>> getLinkedClientIds();
+
+  /// `POST /family/messages` → id of the new conversation (`null` when the
+  /// response has none, e.g. queued offline).
+  Future<Result<String?>> startConversation({
     required String clientId,
     required String body,
     bool highPriority = false,

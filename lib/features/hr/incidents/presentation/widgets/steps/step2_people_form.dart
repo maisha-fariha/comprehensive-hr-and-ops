@@ -4,11 +4,13 @@ import 'package:get/get.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 import '../../controllers/incident_creation_controller.dart';
+import '../follow_up_toggle_row.dart';
+import '../incident_selected_client_card.dart';
 import '../wizard_form_fields.dart';
 import '../wizard_section_header.dart';
 import '../witness_chip_row.dart';
 
-/// Step 2 of the "Create Incident" wizard - "People & Location".
+/// Step 2 — People & Location (web: Location & People). BUG 021 toggles.
 class Step2PeopleForm extends StatelessWidget {
   final IncidentCreationController controller;
 
@@ -30,24 +32,39 @@ class Step2PeopleForm extends StatelessWidget {
             children: [
               const WizardSectionHeader(
                 number: 2,
-                title: 'People & Location',
+                title: 'Location & People',
                 subtitle: 'Who was involved and where it happened',
                 badgeBackground: _badgeBackground,
                 badgeForeground: _badgeForeground,
               ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
               const WizardFieldLabel('Involved Client'),
-              WizardSearchField(
-                controller: controller.involvedClientController,
-                hint: 'Search client...',
-                onChanged: controller.onInvolvedClientQueryChanged,
-              ),
               Obx(() {
-                if (!controller.showInvolvedClientSuggestions.value) {
-                  return const SizedBox.shrink();
+                final selected = controller.selectedInvolvedClient.value;
+                if (selected != null) {
+                  return IncidentSelectedClientCard(
+                    client: selected,
+                    onClear: controller.clearInvolvedClient,
+                  );
                 }
-                return _InvolvedClientSuggestions(controller: controller);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    WizardSearchField(
+                      controller: controller.involvedClientController,
+                      hint: 'Search client...',
+                      onChanged: controller.onInvolvedClientQueryChanged,
+                      onTap: controller.openInvolvedClientSuggestions,
+                    ),
+                    if (controller.showInvolvedClientSuggestions.value)
+                      _InvolvedClientSuggestions(controller: controller)
+                    else
+                      const WizardHelperText('Type to search involved client'),
+                  ],
+                );
               }),
+              gap,
+              _CfsDetailsCard(controller: controller),
               gap,
               const WizardFieldLabel('Staff Involved'),
               WizardSearchField(
@@ -74,7 +91,7 @@ class Step2PeopleForm extends StatelessWidget {
                 hint: 'e.g. Living Room, Room 3',
               ),
               gap,
-              const WizardFieldLabel('Witness Information'),
+              const WizardFieldLabel('Witnesses — staff or residents present'),
               Obx(
                 () => WitnessChipRow(
                   witnesses: controller.witnesses.toList(),
@@ -82,10 +99,175 @@ class Step2PeopleForm extends StatelessWidget {
                   onRemoveWitness: controller.removeWitness,
                 ),
               ),
+              gap,
+              const WizardFieldLabel('Immediate Action Taken'),
+              WizardTextField(
+                controller: controller.immediateActionController,
+                hint: 'What was done right away in response to this incident?',
+                maxLines: 4,
+              ),
+              gap,
+              Obx(
+                () => FollowUpToggleRow(
+                  key: const Key('hr-incident-emergency-services'),
+                  title: 'Emergency Services Contacted',
+                  subtitle: 'Ambulance, police or fire services',
+                  value: controller.emergencyServicesContacted.value,
+                  onChanged: (v) =>
+                      controller.emergencyServicesContacted.value = v,
+                ),
+              ),
+              Obx(() {
+                if (!controller.emergencyServicesContacted.value) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: EdgeInsets.only(
+                    top: ResponsiveHelper.getResponsiveHeight(context, 12),
+                  ),
+                  child: _EmergencyDetails(controller: controller),
+                );
+              }),
+              gap,
+              Obx(
+                () => FollowUpToggleRow(
+                  key: const Key('hr-incident-family-notified'),
+                  title: 'Family / Guardian Notified',
+                  subtitle: 'Primary contact informed of the incident',
+                  value: controller.familyGuardianNotified.value,
+                  onChanged: (v) =>
+                      controller.familyGuardianNotified.value = v,
+                ),
+              ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _CfsDetailsCard extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _CfsDetailsCard({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final gap =
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14));
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 14,
+        vertical: 14,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        border: Border.all(color: AppColors.searchBorder),
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'CFS Details',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    color: AppColors.textHeading,
+                  ),
+                ),
+                TextSpan(
+                  text: '  (optional)',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          gap,
+          const WizardFieldLabel("Child's I.D. Number"),
+          WizardTextField(controller: controller.childIdController, hint: ''),
+          gap,
+          const WizardFieldLabel('CFS Status'),
+          Obx(
+            () => WitnessChipRow(
+              witnesses: controller.cfsStatuses.toList(),
+              addLabel: 'Add status',
+              onAddWitness: () => controller.promptAddCfsStatus(context),
+              onRemoveWitness: controller.removeCfsStatus,
+            ),
+          ),
+          gap,
+          const WizardFieldLabel('Child Intervention Practitioner (CIP)'),
+          WizardTextField(controller: controller.cipController, hint: ''),
+          gap,
+          const WizardFieldLabel('CIP Office'),
+          WizardTextField(controller: controller.cipOfficeController, hint: ''),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmergencyDetails extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _EmergencyDetails({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 12),
+    );
+    return Container(
+      width: double.infinity,
+      padding: ResponsiveHelper.getResponsivePadding(context, all: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 12),
+        ),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const WizardFieldLabel('Which service'),
+          Obx(
+            () => WizardDropdownField(
+              key: const Key('hr-incident-agency-type'),
+              value: controller.externalAgencyTypeLabel,
+              placeholder: 'Choose a service',
+              onTap: () => controller.pickExternalAgencyType(context),
+            ),
+          ),
+          gap,
+          const WizardFieldLabel('Agency reference'),
+          WizardTextField(
+            controller: controller.agencyReferenceController,
+            hint: 'CAD / incident number, as they gave it',
+          ),
+          gap,
+          const WizardFieldLabel('Responding station or officer'),
+          WizardTextField(
+            controller: controller.agencyResponderController,
+            hint: 'Name or station, as given',
+          ),
+        ],
+      ),
     );
   }
 }
@@ -133,7 +315,7 @@ class _InvolvedClientSuggestions extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'No clients found.',
+                'No matches found',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontSize:
@@ -164,6 +346,17 @@ class _InvolvedClientSuggestions extends StatelessWidget {
                     color: AppColors.textHeading,
                   ),
                 ),
+                subtitle: option.subtitle == null
+                    ? null
+                    : Text(
+                        option.subtitle!,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12),
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                 onTap: () => controller.selectInvolvedClient(option),
               );
             },

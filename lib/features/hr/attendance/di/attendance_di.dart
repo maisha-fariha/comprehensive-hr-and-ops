@@ -23,6 +23,9 @@ Future<void> setupHrAttendanceDependencies() async {
   );
 
   DIHelper.registerController<AttendanceController>(
-    factory: () => AttendanceController(repository: getIt<AttendanceRepository>()),
+    factory: () => AttendanceController(
+      repository: getIt<AttendanceRepository>(),
+      session: Get.find<UserSession>(),
+    ),
   );
 }

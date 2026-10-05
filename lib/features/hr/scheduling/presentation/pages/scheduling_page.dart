@@ -9,6 +9,7 @@ import '../controllers/scheduling_controller.dart';
 import '../widgets/board_tab_view.dart';
 import '../widgets/calendar_tab_view.dart';
 import '../widgets/requests_tab_view.dart';
+import '../widgets/scheduling_filter_bar.dart';
 import '../widgets/scheduling_segmented_tabs.dart';
 import '../widgets/scheduling_top_bar.dart';
 import 'create_shift_page.dart';
@@ -32,10 +33,62 @@ class SchedulingPage extends StatelessWidget {
   }
 
   Future<void> _openCreateShift(SchedulingController controller) async {
-    final created = await Get.to<bool>(() => const CreateShiftPage());
+    final created = await Get.to<bool>(
+      () => CreateShiftPage(
+        initialResidenceId: controller.residenceFilter.value,
+        initialShiftDate: controller.selectedDay.value,
+      ),
+    );
     if (created == true) {
       await controller.refresh();
     }
+  }
+
+  Future<void> _openEditShift(
+    SchedulingController controller,
+    String shiftId,
+  ) async {
+    final saved = await Get.to<bool>(
+      () => CreateShiftPage(editShiftId: shiftId),
+    );
+    if (saved == true) {
+      await controller.refresh();
+    }
+  }
+
+  Future<void> _pickDate(
+    BuildContext context,
+    SchedulingController controller,
+  ) async {
+    final selected = controller.selectedDay.value;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: selected,
+      firstDate: DateTime(selected.year - 2),
+      lastDate: DateTime(selected.year + 2, 12, 31),
+      helpText: 'Jump to week',
+    );
+    if (date == null) return;
+    await controller.jumpToDate(date);
+  }
+
+  Future<void> _openFilters(
+    BuildContext context,
+    SchedulingController controller,
+  ) async {
+    await controller.loadResidences();
+    if (!context.mounted) return;
+    final selection = await showSchedulingFiltersSheet(
+      context,
+      residences: controller.residences,
+      residenceId: controller.residenceFilter.value,
+      status: controller.statusFilter.value,
+    );
+    if (selection == null) return;
+    await controller.applyFilters(
+      residenceId: selection.residenceId,
+      status: selection.status,
+    );
   }
 
   @override
@@ -70,7 +123,18 @@ class SchedulingPage extends StatelessWidget {
                 child: Column(
                   children: [
                     SchedulingTopBar(
-                      onCreateShiftTap: () => _openCreateShift(controller),
+                      onCreateShiftTap: controller.canWrite
+                          ? () => _openCreateShift(controller)
+                          : null,
+                    ),
+                    SchedulingFilterBar(
+                      weekOf: controller.weekOf.value,
+                      activeFilterCount: controller.activeFilterCount,
+                      onDateTap: () => _pickDate(context, controller),
+                      onFiltersTap: () => _openFilters(context, controller),
+                      mineOnly: controller.mineOnly.value,
+                      onMineTap:
+                          controller.canWrite ? controller.toggleMine : null,
                     ),
                     SchedulingSegmentedTabs(
                       selectedTab: controller.selectedTab.value,
@@ -91,8 +155,16 @@ class SchedulingPage extends StatelessWidget {
                       onNextWeek: controller.goToNextWeek,
                       onDaySelected: (day) =>
                           controller.selectCalendarDay(day.date),
+                      onShiftTap: controller.canWrite
+                          ? (shift) => _openEditShift(controller, shift.id)
+                          : null,
                     ),
-                    SchedulingTab.board => BoardTabView(data: overview.board),
+                    SchedulingTab.board => BoardTabView(
+                      data: overview.board,
+                      onShiftTap: controller.canWrite
+                          ? (shift) => _openEditShift(controller, shift.id)
+                          : null,
+                    ),
                     SchedulingTab.requests => RequestsTabView(
                       data: overview.requests,
                       onApprove: controller.approveRequest,
@@ -137,7 +209,10 @@ class _SchedulingError extends StatelessWidget {
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ElevatedButton(
               onPressed: onRetry,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Retry'),
             ),
           ],

@@ -2,6 +2,8 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_snackbar.dart';
+import '../../../appointments/presentation/controllers/family_appointments_controller.dart';
 import '../../domain/entities/visit_request_detail.dart';
 import '../../domain/repositories/visit_requests_repository.dart';
 import 'family_visit_requests_controller.dart';
@@ -14,8 +16,12 @@ class VisitRequestDetailsController extends BaseController<VisitRequestDetail> {
   String? _loadedRequestId;
   final RxBool isActing = false.obs;
 
+  /// Always refetches so a staff decision (Rejected / Cancelled) made since
+  /// the last visit is shown; a different request clears the old one first.
   Future<void> loadDetail(String requestId) async {
-    if (_loadedRequestId == requestId && state.value.data != null) return;
+    if (_loadedRequestId != requestId) {
+      state.value = ApiResponse<VisitRequestDetail?>(success: false);
+    }
     _loadedRequestId = requestId;
 
     setLoading(true);
@@ -38,7 +44,7 @@ class VisitRequestDetailsController extends BaseController<VisitRequestDetail> {
     isActing.value = false;
     result.when(
       success: (_) {
-        Get.snackbar('Request updated', 'A new time was sent to the care team.');
+        AppSnackbar.show('Request updated', 'A new time was sent to the care team.');
         refresh();
       },
       failure: (error) => AppErrorDialog.showResultError(
@@ -56,11 +62,16 @@ class VisitRequestDetailsController extends BaseController<VisitRequestDetail> {
     isActing.value = false;
     result.when(
       success: (_) {
-        Get.snackbar('Request cancelled', 'The care team has been notified.');
         if (Get.isRegistered<FamilyVisitRequestsController>()) {
           Get.find<FamilyVisitRequestsController>().refresh();
         }
+        if (Get.isRegistered<FamilyAppointmentsController>()) {
+          Get.find<FamilyAppointmentsController>().refresh();
+        }
+        // Pop before toasting: Get.back() closes an open GetX snackbar
+        // instead of the route.
         Get.back();
+        AppSnackbar.show('Visit request withdrawn.', '', force: true);
       },
       failure: (error) => AppErrorDialog.showResultError(
         error,
@@ -73,7 +84,6 @@ class VisitRequestDetailsController extends BaseController<VisitRequestDetail> {
   Future<void> refresh() {
     final requestId = _loadedRequestId;
     if (requestId == null) return Future.value();
-    _loadedRequestId = null;
     return loadDetail(requestId);
   }
 }

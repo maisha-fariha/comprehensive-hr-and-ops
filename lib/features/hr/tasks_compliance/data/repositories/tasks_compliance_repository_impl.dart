@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
@@ -7,6 +8,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/create_task_request.dart';
 import '../../domain/entities/task_client_option.dart';
 import '../../domain/entities/task_residence_option.dart';
+import '../../domain/entities/task_shift_option.dart';
 import '../../domain/entities/task_staff_option.dart';
 import '../../domain/entities/tasks_compliance_overview.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
@@ -312,37 +314,12 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       );
     }
 
-    final checklist = [
-      for (var i = 0; i < request.checklist.length; i++)
-        {
-          'id': 'step-$i',
-          'label': request.checklist[i].label,
-          'done': false,
-          if (request.recurring) 'required': request.checklist[i].required,
-        },
-    ];
-
-    if (request.recurring) {
+    final base = createTaskBase(request);
+    final recurrence = request.recurrence;
+    if (recurrence != null) {
       final result = await _api.post(
         ApiEndpoints.tasksRecurring,
-        data: {
-          'title': title,
-          if (request.description != null && request.description!.trim().isNotEmpty)
-            'description': request.description!.trim(),
-          'residenceId': residenceId,
-          if (request.clientId != null && request.clientId!.trim().isNotEmpty)
-            'clientId': request.clientId!.trim(),
-          'priority': request.priority.toLowerCase(),
-          'taskType': request.taskType.toLowerCase(),
-          'requiresReview': request.requiresReview,
-          'rotateAssignees': false,
-          if (request.assignedStaffIds.isNotEmpty)
-            'assignedStaffIds': request.assignedStaffIds,
-          if (checklist.isNotEmpty) 'checklist': checklist,
-          'frequency': 'interval',
-          'intervalMinutes': 1440,
-          'effectiveFrom': DateTime.now().toUtc().toIso8601String(),
-        },
+        data: recurringTaskBody(base, recurrence),
         silent: true,
         allowQueue: false,
       );
@@ -352,33 +329,172 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       );
     }
 
-    final result = await _api.post(
+    final created = await _api.post(
       ApiEndpoints.tasks,
       data: {
-        'taskType': request.taskType.toLowerCase(),
-        if (request.roomArea != null && request.roomArea!.trim().isNotEmpty)
-          'roomArea': request.roomArea!.trim(),
-        'requiresReview': request.requiresReview,
-        'residenceId': residenceId,
-        if (request.clientId != null && request.clientId!.trim().isNotEmpty)
-          'clientId': request.clientId!.trim(),
-        'title': title,
-        if (request.description != null && request.description!.trim().isNotEmpty)
-          'description': request.description!.trim(),
-        'priority': request.priority.toLowerCase(),
-        if (request.dueAt != null) 'dueAt': request.dueAt!.toUtc().toIso8601String(),
-        if (request.assignedStaffIds.isNotEmpty)
-          'assignedStaffIds': request.assignedStaffIds,
-        if (checklist.isNotEmpty) 'checklist': checklist,
-        if (request.notes != null && request.notes!.trim().isNotEmpty)
-          'completionNotes': request.notes!.trim(),
+        ...base,
+        if (request.shiftId case final shiftId? when shiftId.isNotEmpty)
+          'shiftId': shiftId,
+        'dueAt': ?request.dueAt?.toUtc().toIso8601String(),
       },
       silent: true,
       allowQueue: false,
     );
+    if (created.isFailure) {
+      return Result.failure(
+        created.error ?? const ApiError(message: 'Could not create task.'),
+      );
+    }
+    final taskId = JsonCodec.string(JsonCodec.unwrapMap(created.value)['id']);
+    if (taskId == null) return Result.success(null);
 
+    if (request.assignedStaffIds.isNotEmpty) {
+      final assigned = await replaceAssignees(
+        taskId: taskId,
+        staffIds: request.assignedStaffIds,
+      );
+      if (assigned.isFailure) return assigned;
+    }
+    final note = request.notes?.trim() ?? '';
+    if (note.isNotEmpty) {
+      final noted = await _api.post(
+        ApiEndpoints.taskNotes(taskId),
+        data: {'body': note},
+        silent: true,
+        allowQueue: false,
+      );
+      if (noted.isFailure) {
+        return Result.failure(
+          noted.error ?? const ApiError(message: 'Could not save the note.'),
+        );
+      }
+    }
+    if (request.attachments.isNotEmpty) {
+      final evidence = <Map<String, dynamic>>[];
+      for (final file in request.attachments) {
+        final uploaded = await _upload(file.path, file.name);
+        if (uploaded.isFailure) {
+          return Result.failure(
+            uploaded.error ?? ApiError(message: 'Could not upload ${file.name}.'),
+          );
+        }
+        evidence.add({'url': uploaded.value, 'label': file.name});
+      }
+      final patched = await _api.patch(
+        ApiEndpoints.taskById(taskId),
+        data: {'evidence': evidence},
+        silent: true,
+        allowQueue: false,
+      );
+      if (patched.isFailure) {
+        return Result.failure(
+          patched.error ?? const ApiError(message: 'Could not attach documents.'),
+        );
+      }
+    }
+    return Result.success(null);
+  }
+
+  /// Fields shared by one-off and recurring tasks (the web's `e0`).
+  static Map<String, dynamic> createTaskBase(CreateTaskRequest request) {
+    String? trimmed(String? value) {
+      final t = value?.trim();
+      return t == null || t.isEmpty ? null : t;
+    }
+
+    return {
+      'residenceId': request.residenceId.trim(),
+      'title': request.title.trim(),
+      'taskType': request.taskType,
+      'assignedStaffIds': request.assignedStaffIds,
+      'priority': request.priority,
+      'requiresReview': request.requiresReview,
+      'clientId': ?trimmed(request.clientId),
+      'roomArea': ?trimmed(request.roomArea),
+      'description': ?trimmed(request.description),
+      'checklist': [
+        for (final step in request.checklist)
+          {'label': step.label, 'done': false, 'required': step.required},
+      ],
+    };
+  }
+
+  static Map<String, dynamic> recurringTaskBody(
+    Map<String, dynamic> base,
+    TaskRecurrence recurrence,
+  ) {
+    return {
+      ...base,
+      'rotateAssignees': recurrence.rotating,
+      'frequency': recurrence.frequency,
+      'timesOfDay': [recurrence.timeOfDayMinutes],
+      if (recurrence.frequency == 'weekly') 'weekdays': recurrence.weekdays,
+      if (recurrence.frequency == 'monthly') 'dayOfMonth': recurrence.dayOfMonth,
+      if (recurrence.endsOn case final endsOn?)
+        'expiresAt': DateTime.utc(endsOn.year, endsOn.month, endsOn.day)
+            .toIso8601String(),
+    };
+  }
+
+  Future<Result<String>> _upload(String localPath, String fileName) async {
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(localPath, filename: fileName),
+      });
+      final result = await _api.post(
+        ApiEndpoints.uploads,
+        data: form,
+        query: {'category': 'tasks'},
+        allowQueue: false,
+      );
+      return result.when(
+        success: (body) async {
+          final map = JsonCodec.unwrapMap(body);
+          final url = JsonCodec.string(map['fileUrl'] ?? map['url']);
+          return url == null
+              ? Result.failure(
+                  const ApiError(message: 'Upload succeeded but file URL was missing.'),
+                )
+              : Result.success(url);
+        },
+        failure: (error) async => Result.failure(error),
+      );
+    } catch (error) {
+      return Result.failure(ApiError(message: 'Could not upload $fileName: $error'));
+    }
+  }
+
+  @override
+  Future<Result<List<String>>> getRooms(String residenceId) async {
+    final result = await _api.get(
+      ApiEndpoints.residenceRooms(residenceId),
+      silent: true,
+    );
     return result.when(
-      success: (_) async => Result.success(null),
+      success: (body) async =>
+          Result.success(TasksComplianceMapper.roomNamesFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<TaskShiftOption>>> getShiftOptions(
+    String residenceId,
+  ) async {
+    final now = DateTime.now().toUtc();
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'residenceId': residenceId,
+        'limit': 50,
+        'from': now.subtract(const Duration(days: 1)).toIso8601String(),
+        'to': now.add(const Duration(days: 7)).toIso8601String(),
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(TasksComplianceMapper.shiftOptionsFrom(body)),
       failure: (error) async => Result.failure(error),
     );
   }

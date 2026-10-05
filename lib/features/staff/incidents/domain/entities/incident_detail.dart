@@ -36,6 +36,22 @@ class IncidentDetail {
   /// CIR payload + template snapshot for manager-style PDF generation.
   final IncidentInvestigationSummary? cirReport;
 
+  /// Short id chip, e.g. `#faa63de3`.
+  final String shortIdLabel;
+
+  final String residenceName;
+  final String reportedAtLabel;
+  final bool acknowledged;
+  final String? acknowledgedAtLabel;
+  final List<String> witnessNames;
+
+  final String? investigationStatus;
+  final String? investigationFindings;
+  final String? investigationRootCause;
+  final String? investigationCorrectiveAction;
+  final String? investigationRecordedBy;
+  final String? investigationRecordedAtLabel;
+
   const IncidentDetail({
     required this.id,
     required this.incidentCode,
@@ -57,17 +73,54 @@ class IncidentDetail {
     this.activity = const [],
     this.evidence = const [],
     this.cirReport,
+    this.shortIdLabel = '',
+    this.residenceName = '',
+    this.reportedAtLabel = '',
+    this.acknowledged = false,
+    this.acknowledgedAtLabel,
+    this.witnessNames = const [],
+    this.investigationStatus,
+    this.investigationFindings,
+    this.investigationRootCause,
+    this.investigationCorrectiveAction,
+    this.investigationRecordedBy,
+    this.investigationRecordedAtLabel,
   });
 
   /// Whether the red "supervisor review required" alert banner should show.
   bool get requiresUrgentReview =>
       severity == IncidentSeverity.high || severity == IncidentSeverity.critical;
 
+  bool get hasInvestigationContent =>
+      (investigationStatus?.trim().isNotEmpty ?? false) ||
+      (investigationFindings?.trim().isNotEmpty ?? false) ||
+      (investigationRootCause?.trim().isNotEmpty ?? false) ||
+      (investigationCorrectiveAction?.trim().isNotEmpty ?? false) ||
+      (investigationRecordedBy?.trim().isNotEmpty ?? false) ||
+      (investigationRecordedAtLabel?.trim().isNotEmpty ?? false);
+
+  String get headerMeta =>
+      [shortIdLabel, residentName, residenceName]
+          .where((part) => part.trim().isNotEmpty)
+          .join(' · ');
+
   IncidentDetail copyWith({
     String? description,
     List<IncidentActivityEntry>? activity,
     List<IncidentEvidenceItem>? evidence,
     IncidentInvestigationSummary? cirReport,
+    String? shortIdLabel,
+    String? residenceName,
+    String? reportedAtLabel,
+    bool? acknowledged,
+    String? acknowledgedAtLabel,
+    List<String>? witnessNames,
+    String? investigationStatus,
+    String? investigationFindings,
+    String? investigationRootCause,
+    String? investigationCorrectiveAction,
+    String? investigationRecordedBy,
+    String? investigationRecordedAtLabel,
   }) {
     return IncidentDetail(
       id: id,
@@ -90,6 +143,23 @@ class IncidentDetail {
       activity: activity ?? this.activity,
       evidence: evidence ?? this.evidence,
       cirReport: cirReport ?? this.cirReport,
+      shortIdLabel: shortIdLabel ?? this.shortIdLabel,
+      residenceName: residenceName ?? this.residenceName,
+      reportedAtLabel: reportedAtLabel ?? this.reportedAtLabel,
+      acknowledged: acknowledged ?? this.acknowledged,
+      acknowledgedAtLabel: acknowledgedAtLabel ?? this.acknowledgedAtLabel,
+      witnessNames: witnessNames ?? this.witnessNames,
+      investigationStatus: investigationStatus ?? this.investigationStatus,
+      investigationFindings:
+          investigationFindings ?? this.investigationFindings,
+      investigationRootCause:
+          investigationRootCause ?? this.investigationRootCause,
+      investigationCorrectiveAction:
+          investigationCorrectiveAction ?? this.investigationCorrectiveAction,
+      investigationRecordedBy:
+          investigationRecordedBy ?? this.investigationRecordedBy,
+      investigationRecordedAtLabel:
+          investigationRecordedAtLabel ?? this.investigationRecordedAtLabel,
     );
   }
 }
