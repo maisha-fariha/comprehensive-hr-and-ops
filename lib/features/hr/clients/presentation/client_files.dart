@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 
 import '../../../../core/errors/app_snackbar.dart';
 import '../domain/entities/client_extras.dart';
+import '../../../../core/media/app_file_picker.dart';
 
 /// Device file picking for the client photo and the care plan document.
 abstract final class ClientFiles {
@@ -21,7 +22,7 @@ abstract final class ClientFiles {
     int maxMb,
     String hint,
   ) async {
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
       type: type,
       allowedExtensions: extensions,
     );

@@ -7,6 +7,7 @@ import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/task_creation_options.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// Single-scroll New Task form matching web create-task modal (BUG_Report009).
 class StaffCreateTaskPage extends StatefulWidget {
@@ -143,7 +144,7 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
   }
 
   Future<void> _pickDocs() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await AppFilePicker.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],

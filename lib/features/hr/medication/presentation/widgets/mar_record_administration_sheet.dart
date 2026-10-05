@@ -9,6 +9,7 @@ import '../controllers/medication_controller.dart';
 import '../mar_row.dart';
 import '../medication_labels.dart';
 import 'medication_common.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// Picks evidence files; returns an empty list when cancelled.
 typedef MarEvidencePicker = Future<List<MarEvidenceFile>> Function();
@@ -16,7 +17,7 @@ typedef MarEvidencePicker = Future<List<MarEvidenceFile>> Function();
 const int _maxEvidenceBytes = 15 * 1024 * 1024;
 
 Future<List<MarEvidenceFile>> _pickEvidence() async {
-  final picked = await FilePicker.platform.pickFiles(allowMultiple: true);
+  final picked = await AppFilePicker.pickFiles(allowMultiple: true);
   return [
     for (final f in picked?.files ?? const <PlatformFile>[])
       if (f.path != null && f.size <= _maxEvidenceBytes) MarEvidenceFile(path: f.path!, name: f.name),

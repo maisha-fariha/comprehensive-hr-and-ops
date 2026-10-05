@@ -9,11 +9,12 @@ import '../controllers/daily_logs_controller.dart';
 import '../daily_logs_labels.dart';
 import 'daily_log_common.dart';
 import 'entry_sheets.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 typedef DailyLogFilePicker = Future<List<(String path, String name)>> Function();
 
 Future<List<(String, String)>> _pickWithFilePicker() async {
-  final picked = await FilePicker.platform.pickFiles(
+  final picked = await AppFilePicker.pickFiles(
     allowMultiple: true,
     type: FileType.custom,
     allowedExtensions: const [

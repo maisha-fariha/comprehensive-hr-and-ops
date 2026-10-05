@@ -12,6 +12,7 @@ import '../../../../hr/attendance/presentation/widgets/manual_entry/manual_entry
 import '../../../../hr/attendance/presentation/widgets/manual_entry/manual_entry_forms.dart';
 import '../../../../hr/attendance/presentation/widgets/manual_entry/manual_entry_header.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// Staff self-service manual attendance wizard (BUG_Report005).
 class StaffManualAttendanceEntryPage extends StatefulWidget {
@@ -360,7 +361,7 @@ class _StaffManualAttendanceEntryPageState
 
   Future<void> _pickEvidenceFiles() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await AppFilePicker.pickFiles(
         allowMultiple: true,
         type: FileType.custom,
         allowedExtensions: _allowedEvidenceExtensions.toList(),

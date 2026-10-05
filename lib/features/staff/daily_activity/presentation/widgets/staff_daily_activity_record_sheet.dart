@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/staff_daily_activity_option.dart';
 import '../../domain/repositories/staff_daily_activity_repository.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 InputDecoration _fieldDecoration({String? hint, Widget? prefixIcon}) {
   const radius = 12.0;
@@ -162,7 +163,7 @@ class _StaffDailyActivityRecordSheetState
   }
 
   Future<void> _pickFile() async {
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
       allowMultiple: false,

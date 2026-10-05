@@ -10,6 +10,7 @@ import '../controllers/daily_activity_controller.dart';
 import '../daily_activity_labels.dart';
 import 'daily_activity_common.dart';
 import 'daily_activity_person_picker.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// Picks one document; returns the file and its size in bytes.
 typedef DailyActivityFilePicker = Future<(DailyActivityLocalFile, int)?> Function();
@@ -17,7 +18,7 @@ typedef DailyActivityFilePicker = Future<(DailyActivityLocalFile, int)?> Functio
 const _maxUploadBytes = 10 * 1024 * 1024;
 
 Future<(DailyActivityLocalFile, int)?> _pickWithFilePicker() async {
-  final picked = await FilePicker.platform.pickFiles(
+  final picked = await AppFilePicker.pickFiles(
     type: FileType.custom,
     allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
   );

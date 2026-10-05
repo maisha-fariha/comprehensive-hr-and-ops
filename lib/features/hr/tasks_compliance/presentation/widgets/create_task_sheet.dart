@@ -15,6 +15,7 @@ import '../../domain/entities/task_staff_option.dart';
 import '../../domain/entities/task_residence_option.dart';
 import '../../domain/entities/task_shift_option.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// Opens the "New Task" create form matched to the Tasks & Compliance
 /// reference screens.
@@ -522,7 +523,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
   }
 
   Future<void> _pickAttachments() async {
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],

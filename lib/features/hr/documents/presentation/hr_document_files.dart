@@ -7,12 +7,13 @@ import '../../../../core/errors/app_snackbar.dart';
 import '../../../../core/storage/media_store_download.dart';
 import '../domain/entities/hr_document.dart';
 import '../domain/entities/hr_document_row.dart';
+import '../../../../core/media/app_file_picker.dart';
 
 /// Device file handling for the registry: choosing a file to upload and
 /// saving / opening a downloaded one.
 abstract final class HrDocumentFiles {
   static Future<HrPickedFile?> pick() async {
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: HrDocumentOptions.allowedExtensions,
     );

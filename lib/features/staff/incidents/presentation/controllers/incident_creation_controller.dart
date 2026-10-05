@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
@@ -14,6 +13,7 @@ import '../../domain/entities/staff_incident_options.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
 import '../../domain/repositories/staff_incidents_repository.dart';
 import 'staff_incidents_controller.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// GetX controller for the Staff "Create Incident" form.
 class IncidentCreationController extends GetxController {
@@ -726,7 +726,7 @@ class IncidentCreationController extends GetxController {
   }
 
   Future<void> pickEvidence() async {
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
       allowMultiple: true,
       withData: false,
     );

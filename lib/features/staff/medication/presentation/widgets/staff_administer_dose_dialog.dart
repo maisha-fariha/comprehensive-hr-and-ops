@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/due_dose.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// Multi-step Record Administration dialog matching web MAR nested wizard:
 /// Medicines → Safety Check → Documentation (left stepper + live preview).
@@ -242,7 +243,7 @@ class _StaffAdministerDoseDialogState extends State<StaffAdministerDoseDialog> {
 
   Future<void> _pickEvidence() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await AppFilePicker.pickFiles(
         allowMultiple: true,
         type: FileType.any,
       );

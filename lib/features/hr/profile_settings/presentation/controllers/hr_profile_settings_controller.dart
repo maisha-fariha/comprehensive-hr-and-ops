@@ -9,6 +9,7 @@ import '../../../../../core/roles/user_session.dart';
 
 import '../../domain/entities/hr_profile_settings_overview.dart';
 import '../../domain/repositories/hr_profile_settings_repository.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 class HrProfileSettingsController extends BaseController<HrProfileSettingsOverview> {
   final HrProfileSettingsRepository repository;
@@ -113,10 +114,12 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
   /// profile photo.
   Future<void> changeAvatar() async {
     if (avatarBusy.value) return;
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: false,
       withData: false,
+      title: 'Profile photo',
+      preferredCamera: CameraDevice.front,
     );
     final file = picked?.files.single;
     final path = file?.path;

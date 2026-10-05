@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_document.dart';
 import '../controllers/staff_documents_controller.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 InputDecoration _docFieldDecoration({String? hint, String? helper}) {
   const radius = 12.0;
@@ -113,7 +114,7 @@ class _UploadSheetState extends State<_UploadSheet> {
   }
 
   Future<void> _pickFile() async {
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const [
         'pdf',

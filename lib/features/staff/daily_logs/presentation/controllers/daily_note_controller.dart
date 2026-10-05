@@ -14,6 +14,7 @@ import '../../domain/entities/staff_daily_logs_enums.dart';
 import '../../domain/repositories/staff_daily_logs_repository.dart';
 import '../../staff_daily_logs_constants.dart';
 import 'staff_daily_logs_controller.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// GetX controller for the "Daily Note" screen.
 class DailyNoteController extends BaseController<DailyNoteOverview> {
@@ -124,7 +125,7 @@ class DailyNoteController extends BaseController<DailyNoteOverview> {
   }
 
   Future<void> pickAndUploadAttachment({required bool imagesOnly}) async {
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
       type: imagesOnly ? FileType.image : FileType.any,
       allowMultiple: false,
       withData: false,

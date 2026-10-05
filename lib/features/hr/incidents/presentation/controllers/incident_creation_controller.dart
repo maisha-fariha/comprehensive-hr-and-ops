@@ -20,6 +20,7 @@ import '../../domain/entities/incident_residence_option.dart';
 import '../../domain/entities/incident_staff_option.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../../domain/repositories/incidents_repository.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// GetX controller for the 5-step "Create Incident" wizard (web parity).
 class IncidentCreationController extends GetxController {
@@ -1154,7 +1155,7 @@ class IncidentCreationController extends GetxController {
 
   Future<void> pickEvidenceFiles() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await AppFilePicker.pickFiles(
         allowMultiple: true,
         type: FileType.any,
         withData: false,

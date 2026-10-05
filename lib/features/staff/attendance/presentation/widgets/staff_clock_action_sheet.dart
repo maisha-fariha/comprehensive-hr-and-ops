@@ -9,6 +9,7 @@ import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// Web-parity Clock in / Clock out sheet.
 ///
@@ -88,10 +89,13 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   }
 
   Future<void> _pickPhoto() async {
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await AppFilePicker.pickFiles(
+      context: context,
       type: FileType.image,
       allowMultiple: false,
       withData: false,
+      title: 'Clock photo',
+      preferredCamera: CameraDevice.front,
     );
     final file = picked?.files.single;
     if (file?.path == null || file!.path!.isEmpty) return;

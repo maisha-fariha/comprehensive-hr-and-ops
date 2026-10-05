@@ -16,6 +16,7 @@ import '../attendance_formatters.dart';
 import '../widgets/manual_entry/manual_entry_footer.dart';
 import '../widgets/manual_entry/manual_entry_forms.dart';
 import '../widgets/manual_entry/manual_entry_header.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 const manualEntryReasons = <(String, String)>[
   ('forgot_clock_in', 'Forgot clock-in'),
@@ -584,7 +585,7 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
 
   Future<void> _pickEvidenceFiles() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await AppFilePicker.pickFiles(
         allowMultiple: true,
         type: FileType.custom,
         allowedExtensions: _allowedEvidenceExtensions.toList(),

@@ -11,6 +11,7 @@ import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_med_options.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 /// Web-parity Record Administration — opens the 3-step wizard immediately.
 /// Resident + medicine are chosen inside step 1 (not via a pre-picker sheet).
@@ -385,7 +386,7 @@ class _StaffRecordAdministrationDialogState
 
   Future<void> _pickEvidence() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await AppFilePicker.pickFiles(
         allowMultiple: true,
         type: FileType.any,
       );

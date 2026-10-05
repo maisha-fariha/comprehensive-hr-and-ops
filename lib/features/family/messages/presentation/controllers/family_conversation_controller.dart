@@ -11,6 +11,7 @@ import '../../domain/entities/family_messages_enums.dart';
 import '../../domain/entities/message_attachment.dart';
 import '../../domain/repositories/family_messages_repository.dart';
 import 'family_messages_controller.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 class FamilyConversationController
     extends BaseController<FamilyConversationThread> {
@@ -41,7 +42,7 @@ class FamilyConversationController
   Future<void> pickAttachment(MessageAttachmentType type) async {
     if (isUploading.value || isSending.value) return;
 
-    final result = await FilePicker.platform.pickFiles(
+    final result = await AppFilePicker.pickFiles(
       type: switch (type) {
         MessageAttachmentType.photo => FileType.image,
         MessageAttachmentType.pdf => FileType.custom,

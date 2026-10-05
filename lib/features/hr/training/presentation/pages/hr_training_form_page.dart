@@ -10,11 +10,12 @@ import '../../domain/repositories/hr_training_repository.dart';
 import '../training_labels.dart';
 import '../widgets/training_common.dart';
 import '../widgets/training_form_steps.dart';
+import '../../../../../core/media/app_file_picker.dart';
 
 typedef TrainingFilePicker = Future<TrainingMaterialFile?> Function();
 
 Future<TrainingMaterialFile?> pickTrainingMaterial() async {
-  final result = await FilePicker.platform.pickFiles(
+  final result = await AppFilePicker.pickFiles(
     type: FileType.custom,
     allowedExtensions: const ['mp4', 'mov', 'webm', 'pdf', 'doc', 'docx', 'ppt', 'pptx'],
   );
