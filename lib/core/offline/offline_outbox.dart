@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart' hide FormData;
 import 'package:uuid/uuid.dart';
 
+import 'offline_overlay.dart';
 import 'outbox_attachments.dart';
 import 'outbox_context.dart';
 import 'outbox_feature.dart';
@@ -30,6 +31,10 @@ class OfflineOutbox {
 
   String newIdempotencyKey() => _uuid.v4();
 
+  /// Id handed to the UI for a record created offline; swapped for the
+  /// server id in later queued writes once the create is delivered.
+  String newTempId() => '${OfflineOverlay.tempIdPrefix}${_uuid.v4()}';
+
   /// Queues a JSON write. Returns null when it cannot be queued (no signed-in
   /// owner, excluded path or a body that is not JSON-encodable).
   Future<OutboxItem?> enqueue({
@@ -39,6 +44,7 @@ class OfflineOutbox {
     dynamic data,
     required String idempotencyKey,
     DateTime? occurredAt,
+    String? tempId,
   }) async {
     if (OutboxFeature.isNeverQueued(path)) return null;
     final owner = scope();
@@ -71,10 +77,30 @@ class OfflineOutbox {
       createdAt: now,
       featureTag: OutboxFeature.tagFor(path),
       label: OutboxFeature.labelFor(method, path),
-      meta: OutboxContext.meta,
+      meta: {...OutboxContext.meta, 'tempId': ?tempId},
     );
     await store.put(item);
     return item;
+  }
+
+  /// Unsent items (not needing attention) for reads served from the device.
+  List<OutboxItem> get overlayItems =>
+      scopedItems.where((i) => !i.status.needsAttention).toList();
+
+  /// Temp ids of creates that have not reached the server yet.
+  Set<String> get unresolvedTempIds => {
+        for (final item in scopedItems)
+          if (item.meta['tempId'] != null) item.meta['tempId']!,
+      };
+
+  /// [value] with every delivered temp id replaced by its server id.
+  String resolveTempIds(String value) {
+    if (!value.contains(OfflineOverlay.tempIdPrefix)) return value;
+    var out = value;
+    engine.resolvedTempIds.forEach((temp, real) {
+      out = out.replaceAll(temp, real);
+    });
+    return out;
   }
 
   Future<Map<String, dynamic>?> stageUpload({

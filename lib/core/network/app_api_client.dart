@@ -11,10 +11,12 @@ import '../errors/app_error_mapper.dart';
 import '../errors/app_snackbar.dart';
 import '../offline/offline_config.dart';
 import '../offline/offline_outbox.dart';
+import '../offline/offline_overlay.dart';
 import '../offline/outbox_attachments.dart';
 import '../offline/outbox_context.dart';
 import '../offline/outbox_feature.dart';
 import '../offline/outbox_sync_engine.dart';
+import '../roles/user_role.dart';
 import '../roles/user_session.dart';
 import 'connectivity_monitor.dart';
 import 'response_cache.dart';
@@ -76,6 +78,40 @@ class AppApiClient implements OutboxTransport {
 
   bool _isUploadPath(String path) => path == '/uploads';
 
+  /// Swaps temp ids of offline creates that have since reached the server.
+  String _resolvePath(String path) => outbox?.resolveTempIds(path) ?? path;
+
+  T _resolveJson<T>(T node) {
+    final queue = outbox;
+    if (queue == null || queue.engine.resolvedTempIds.isEmpty) return node;
+    dynamic walk(dynamic value) {
+      if (value is String) return queue.resolveTempIds(value);
+      if (value is Map) return value.map((k, v) => MapEntry(k, walk(v)));
+      if (value is List) return [for (final v in value) walk(v)];
+      return value;
+    }
+
+    if (node is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(walk(node) as Map) as T;
+    }
+    if (node is Map || node is List) return walk(node) as T;
+    return node;
+  }
+
+  /// True when [path], [query] or [data] still points at a record created
+  /// offline that the server has not received yet.
+  bool _referencesUnsentRecord(
+    String path,
+    Map<String, dynamic>? query,
+    dynamic data,
+  ) {
+    final queue = outbox;
+    if (queue == null) return false;
+    final probe = '$path ${query ?? ''} ${data is FormData ? '' : data ?? ''}';
+    if (!probe.contains(OfflineOverlay.tempIdPrefix)) return false;
+    return queue.unresolvedTempIds.any(probe.contains);
+  }
+
   Future<Result<dynamic>> get(
     String path, {
     Map<String, dynamic>? query,
@@ -83,6 +119,13 @@ class AppApiClient implements OutboxTransport {
     bool silent = false,
     bool allowTokenRefresh = true,
   }) {
+    path = _resolvePath(path);
+    query = _resolveJson(query);
+    if (_referencesUnsentRecord(path, query, null)) {
+      return Future.value(Result.success(
+        OfflineOverlay.forTempPath(path, outbox!.overlayItems),
+      ));
+    }
     return _send(
       method: 'GET',
       path: path,
@@ -109,6 +152,9 @@ class AppApiClient implements OutboxTransport {
     bool allowQueue = true,
     bool allowTokenRefresh = true,
   }) {
+    path = _resolvePath(path);
+    query = _resolveJson(query);
+    data = _resolveJson(data);
     final identity = _writeIdentity('POST', path);
     final staging =
         OutboxContext.stageUploads && data is FormData && outbox != null
@@ -144,6 +190,9 @@ class AppApiClient implements OutboxTransport {
     bool allowQueue = true,
     bool allowTokenRefresh = true,
   }) {
+    path = _resolvePath(path);
+    query = _resolveJson(query);
+    data = _resolveJson(data);
     final identity = _writeIdentity('PUT', path);
     return _send(
       method: 'PUT',
@@ -171,6 +220,9 @@ class AppApiClient implements OutboxTransport {
     bool allowQueue = true,
     bool allowTokenRefresh = true,
   }) {
+    path = _resolvePath(path);
+    query = _resolveJson(query);
+    data = _resolveJson(data);
     final identity = _writeIdentity('PATCH', path);
     return _send(
       method: 'PATCH',
@@ -198,6 +250,9 @@ class AppApiClient implements OutboxTransport {
     bool allowQueue = true,
     bool allowTokenRefresh = true,
   }) {
+    path = _resolvePath(path);
+    query = _resolveJson(query);
+    data = _resolveJson(data);
     final identity = _writeIdentity('DELETE', path);
     return _send(
       method: 'DELETE',
@@ -333,25 +388,32 @@ class AppApiClient implements OutboxTransport {
     silent = silent || OutboxContext.silent;
     final online = _isOnline;
     final canCache = _cacheable(method, path);
-    final canQueue = allowQueue && _queueable(method, path);
+    // With the durable outbox every eligible write is kept while offline;
+    // `allowQueue: false` only applies to the legacy queue.
+    final canQueue =
+        (allowQueue || outbox != null) && _queueable(method, path);
 
     if (!online && method == 'GET' && canCache) {
       final cached = await _readCache(method, path, query);
       if (cached != null) return Result.success(cached);
     }
 
-    // A write that references a file kept on this device must go through
-    // the outbox (which uploads the file first), even if we are back online.
+    // A write that references a file kept on this device, or a record
+    // created offline, must go through the outbox (which sends those
+    // first, in order), even if we are back online.
     if (method != 'GET' &&
         outbox != null &&
         data is! FormData &&
-        StagedUploadStore.referencedIds(data).isNotEmpty) {
-      if (canQueue &&
-          await _enqueue(method, path, data, query: query, identity: identity)) {
+        (StagedUploadStore.referencedIds(data).isNotEmpty ||
+            _referencesUnsentRecord(path, query, data))) {
+      final queued = canQueue
+          ? await _enqueue(method, path, data, query: query, identity: identity)
+          : null;
+      if (queued != null) {
         if (online) {
           unawaited(outbox!.engine.flush(ignoreBackoff: true));
           await _showQueued(
-            'Saved on this device. It will be sent with its attachment in a moment.',
+            'Saved on this device. It will be sent in a moment.',
             silent: silent,
           );
         } else {
@@ -360,7 +422,7 @@ class AppApiClient implements OutboxTransport {
             silent: silent,
           );
         }
-        return Result.success(const {'offlineQueued': true});
+        return Result.success(queued.response);
       }
       final error = AppErrorMapper.toFriendly(
         const NetworkError(
@@ -378,12 +440,14 @@ class AppApiClient implements OutboxTransport {
     }
 
     if (!online && canQueue) {
-      if (await _enqueue(method, path, data, query: query, identity: identity)) {
+      final queued =
+          await _enqueue(method, path, data, query: query, identity: identity);
+      if (queued != null) {
         await _showQueued(
           'You are offline. This change is saved on this device and will be sent when you are back online.',
           silent: silent,
         );
-        return Result.success(const {'offlineQueued': true});
+        return Result.success(queued.response);
       }
     }
 
@@ -446,14 +510,15 @@ class AppApiClient implements OutboxTransport {
           final staged = await _stage(stagingForm, path, query);
           if (staged != null) return Result.success(staged);
         }
-        if (canQueue &&
-            _isOfflineError(error) &&
-            await _enqueue(method, path, data, query: query, identity: identity)) {
+        final queued = canQueue && _isOfflineError(error)
+            ? await _enqueue(method, path, data, query: query, identity: identity)
+            : null;
+        if (queued != null) {
           await _showQueued(
             'The care home could not be reached. This change is saved on this device and will be sent when you are back online.',
             silent: silent,
           );
-          return Result.success(const {'offlineQueued': true});
+          return Result.success(queued.response);
         }
         await _showError(
           error,
@@ -489,14 +554,15 @@ class AppApiClient implements OutboxTransport {
         final staged = await _stage(stagingForm, path, query);
         if (staged != null) return Result.success(staged);
       }
-      if (canQueue &&
-          _isOfflineError(mapped) &&
-          await _enqueue(method, path, data, query: query, identity: identity)) {
+      final queued = canQueue && _isOfflineError(mapped)
+          ? await _enqueue(method, path, data, query: query, identity: identity)
+          : null;
+      if (queued != null) {
         await _showQueued(
           'The care home could not be reached. This change is saved on this device and will be sent when you are back online.',
           silent: silent,
         );
-        return Result.success(const {'offlineQueued': true});
+        return Result.success(queued.response);
       }
       await _showError(
         mapped,
@@ -519,7 +585,35 @@ class AppApiClient implements OutboxTransport {
     final cached = await cache.read(method: method, path: path, query: query);
     if (cached == null) return null;
     cache.lastServedSavedAt.value = cached.savedAt;
-    return cached.body;
+    final queue = outbox;
+    if (queue == null) return cached.body;
+    try {
+      return OfflineOverlay.apply(
+        path: path,
+        body: cached.body,
+        items: queue.overlayItems,
+        skipAppendTags: _tagsWithOwnPendingList,
+      );
+    } catch (_) {
+      return cached.body;
+    }
+  }
+
+  /// Staff screens that already list pending creates in their own section.
+  Set<String> get _tagsWithOwnPendingList {
+    if (!Get.isRegistered<UserSession>() ||
+        Get.find<UserSession>().role != UserRole.staff) {
+      return const {};
+    }
+    return const {
+      OutboxFeature.dailyLogs,
+      OutboxFeature.attendance,
+      OutboxFeature.incidents,
+      OutboxFeature.mar,
+      OutboxFeature.medications,
+      OutboxFeature.tasks,
+      OutboxFeature.recurringChecks,
+    };
   }
 
   AppError _uncachedReadError() {
@@ -651,8 +745,8 @@ class AppApiClient implements OutboxTransport {
     return mapped.isEmpty ? null : mapped;
   }
 
-  /// True when the write was stored for a later replay.
-  Future<bool> _enqueue(
+  /// Non-null when the write was stored for a later replay.
+  Future<_Queued?> _enqueue(
     String method,
     String path,
     dynamic data, {
@@ -668,11 +762,17 @@ class AppApiClient implements OutboxTransport {
         data: data,
         idempotencyKey: identity?.key ?? queue.newIdempotencyKey(),
         occurredAt: identity?.occurredAt,
+        tempId: method == 'POST' ? queue.newTempId() : null,
       );
-      return item != null;
+      if (item == null) return null;
+      return _Queued({
+        ...OfflineOverlay.recordFor(item),
+        'offlineQueued': true,
+      });
     }
+    const legacy = _Queued({'offlineQueued': true});
     final sync = _sync;
-    if (sync == null) return true;
+    if (sync == null) return legacy;
     try {
       await sync.addToQueue(
         SyncItem(
@@ -683,9 +783,9 @@ class AppApiClient implements OutboxTransport {
           timestamp: DateTime.now(),
         ),
       );
-      return true;
+      return legacy;
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
@@ -753,6 +853,13 @@ class AppApiClient implements OutboxTransport {
     if (error.code == 'offline' || error.code == '0') return true;
     return AppErrorMapper.from(error).isOffline;
   }
+}
+
+/// A write kept for later, with the response handed back to the caller.
+class _Queued {
+  final Map<String, dynamic> response;
+
+  const _Queued(this.response);
 }
 
 class _WriteIdentity {

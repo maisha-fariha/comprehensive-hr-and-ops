@@ -8,6 +8,7 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../errors/app_error_dialog.dart';
 import '../errors/app_snackbar.dart';
 import '../network/app_api_client.dart';
 import '../network/connectivity_monitor.dart';
@@ -17,6 +18,7 @@ import '../roles/user_session.dart';
 import 'background_sync.dart';
 import 'offline_config.dart';
 import 'offline_outbox.dart';
+import 'offline_overlay.dart';
 import 'offline_prewarm.dart';
 import 'offline_storage.dart';
 import 'outbox_attachments.dart';
@@ -89,6 +91,8 @@ abstract final class OfflineBootstrap {
       );
       client.outbox = outbox;
       Get.put<OfflineOutbox>(outbox, permanent: true);
+      AppErrorDialog.inlineOfflineNotices = true;
+      OfflineOverlay.currentAuthor = _currentAuthor;
       engine.onSummary = _announce;
       BackgroundSync.attachEngine(engine);
 
@@ -139,6 +143,18 @@ abstract final class OfflineBootstrap {
     }
     if (userId == null || userId.isEmpty) return null;
     return OutboxScope(userId: userId, tenant: tenant);
+  }
+
+  static Map<String, dynamic>? _currentAuthor() {
+    if (!Get.isRegistered<UserSession>()) return null;
+    final session = Get.find<UserSession>();
+    final id = session.userId;
+    if (id == null || id.isEmpty) return null;
+    return {
+      'id': id,
+      'email': session.email,
+      'name': session.displayName,
+    };
   }
 
   static String _cacheScope() {

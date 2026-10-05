@@ -3,8 +3,34 @@ import 'dart:async';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../features/common/inbox/domain/repositories/portal_inbox_repository.dart';
+import '../../features/family/appointments/domain/repositories/family_appointments_repository.dart';
+import '../../features/family/daily_updates/domain/repositories/family_daily_updates_repository.dart';
 import '../../features/family/dashboard/domain/repositories/family_dashboard_repository.dart';
+import '../../features/family/documents/domain/repositories/family_documents_repository.dart';
+import '../../features/family/messages/domain/repositories/family_messages_repository.dart';
+import '../../features/family/profile_settings/domain/repositories/family_profile_settings_repository.dart';
+import '../../features/family/visit_requests/domain/repositories/visit_requests_repository.dart';
+import '../../features/hr/admissions/domain/repositories/admissions_repository.dart';
+import '../../features/hr/appointments/domain/repositories/hr_appointments_repository.dart';
+import '../../features/hr/attendance/domain/repositories/attendance_repository.dart';
+import '../../features/hr/clients/domain/repositories/clients_repository.dart';
+import '../../features/hr/communication/domain/repositories/communication_repository.dart';
+import '../../features/hr/daily_activity/domain/repositories/daily_activity_repository.dart';
+import '../../features/hr/daily_logs/domain/repositories/daily_logs_repository.dart';
 import '../../features/hr/dashboard/domain/repositories/dashboard_repository.dart';
+import '../../features/hr/emergency/domain/repositories/emergency_repository.dart';
+import '../../features/hr/handovers/domain/repositories/handovers_repository.dart';
+import '../../features/hr/incidents/domain/repositories/incidents_repository.dart';
+import '../../features/hr/inventory/domain/repositories/inventory_repository.dart';
+import '../../features/hr/medication/domain/repositories/medication_repository.dart';
+import '../../features/hr/profile_settings/domain/repositories/hr_profile_settings_repository.dart';
+import '../../features/hr/recurring_checks/domain/repositories/recurring_checks_repository.dart';
+import '../../features/hr/residences/domain/repositories/residences_repository.dart';
+import '../../features/hr/scheduling/domain/repositories/scheduling_repository.dart';
+import '../../features/hr/tasks_compliance/domain/repositories/tasks_compliance_repository.dart';
+import '../../features/hr/team_reports/domain/repositories/team_reports_repository.dart';
+import '../../features/hr/training/domain/repositories/hr_training_repository.dart';
 import '../../features/staff/attendance/domain/repositories/staff_attendance_repository.dart';
 import '../../features/staff/daily_logs/domain/repositories/staff_daily_logs_repository.dart';
 import '../../features/staff/dashboard/domain/repositories/staff_dashboard_repository.dart';
@@ -14,11 +40,14 @@ import '../../features/staff/medication/domain/repositories/staff_medication_rep
 import '../../features/staff/profile_settings/domain/repositories/staff_profile_settings_repository.dart';
 import '../../features/staff/scheduling/domain/repositories/staff_schedule_repository.dart';
 import '../../features/staff/tasks_messages/domain/repositories/staff_tasks_messages_repository.dart';
+import '../network/app_api_client.dart';
 import '../network/connectivity_monitor.dart';
 import '../network/iso_date_range.dart';
 import '../roles/user_role.dart';
 import '../roles/user_session.dart';
+import 'offline_bootstrap.dart';
 import 'offline_config.dart';
+import 'offline_crawler.dart';
 import 'outbox_context.dart';
 
 /// Fills the read cache with what people need on shift, using the same
@@ -33,6 +62,9 @@ abstract final class OfflinePrewarmer {
 
   /// Upper bound on per-item detail requests per list.
   static const int detailCap = 25;
+
+  /// Upper bound on refresh + learned per-record requests per run.
+  static const int crawlBudget = 250;
 
   static void schedule({Duration delay = const Duration(seconds: 3)}) {
     _pending?.cancel();
@@ -58,6 +90,7 @@ abstract final class OfflinePrewarmer {
         final details = <Future<void> Function()>[];
         await _runAll(session, _screensFor(session, details));
         await _runAll(session, details);
+        if (_canRun(session)) await _crawlVisited(session);
       }, silent: true);
     } finally {
       _running = false;
@@ -241,10 +274,200 @@ abstract final class OfflinePrewarmer {
       case UserRole.hr:
         final dashboard = find<DashboardRepository>();
         if (dashboard != null) tasks.add(() => dashboard.getOverview());
+
+        final comms = find<CommunicationRepository>();
+        if (comms != null) {
+          tasks.add(() async {
+            final result = await comms.getConversations();
+            for (final c in (result.value ?? const []).take(detailCap)) {
+              details.add(() => comms.getMessages(c.id));
+            }
+          });
+          details.add(() => comms.getContacts());
+          details.add(() => comms.getResidences());
+          details.add(() => comms.getClients());
+        }
+
+        final incidents = find<IncidentsRepository>();
+        if (incidents != null) {
+          tasks.add(() => incidents.getBoard());
+          details.add(() => incidents.getCategories());
+          details.add(() => incidents.getCirTemplates());
+          details.add(() => incidents.getResidences());
+          details.add(() => incidents.getStaff());
+        }
+
+        final tasksRepo = find<TasksComplianceRepository>();
+        if (tasksRepo != null) {
+          tasks.add(() => tasksRepo.getOverview());
+          details.add(() => tasksRepo.getResidences());
+        }
+
+        final medication = find<MedicationRepository>();
+        if (medication != null) {
+          tasks.add(() => medication.administrations());
+          details.add(() => medication.residences());
+          details.add(() => medication.clients());
+          details.add(() => medication.approvedStaff());
+        }
+
+        final residences = find<ResidencesRepository>();
+        if (residences != null) tasks.add(() => residences.getResidences());
+        final residenceAdmin = find<ResidenceAdminRepository>();
+        if (residenceAdmin != null) {
+          details.add(() => residenceAdmin.getStaffOptions());
+          details.add(() => residenceAdmin.getTenantContext());
+        }
+
+        final team = find<TeamReportsRepository>();
+        if (team != null) tasks.add(() => team.getPageData());
+
+        final admissions = find<AdmissionsRepository>();
+        if (admissions != null) {
+          tasks.add(() => admissions.board());
+          details.add(() => admissions.residences());
+        }
+
+        final appointments = find<HrAppointmentsRepository>();
+        if (appointments != null) {
+          tasks.add(() => appointments.summary());
+          details.add(() => appointments.residences());
+          details.add(() => appointments.clients());
+        }
+
+        final attendance = find<AttendanceRepository>();
+        if (attendance != null) {
+          tasks.add(() => attendance.getMyOpenAttendance());
+          details.add(() => attendance.getResidences());
+        }
+
+        final clients = find<ClientsRepository>();
+        if (clients != null) {
+          details.add(() => clients.getResidenceNames());
+          details.add(() => clients.getClientLimit());
+        }
+
+        final scheduling = find<SchedulingRepository>();
+        if (scheduling != null) {
+          details.add(() => scheduling.getResidences());
+          details.add(() => scheduling.getStaffOptions());
+        }
+
+        final activity = find<DailyActivityRepository>();
+        if (activity != null) {
+          details.add(() => activity.clients());
+          details.add(() => activity.staff());
+        }
+        final hrLogs = find<DailyLogsRepository>();
+        if (hrLogs != null) details.add(() => hrLogs.residences());
+        final emergency = find<EmergencyRepository>();
+        if (emergency != null) details.add(() => emergency.residences());
+        final handovers = find<HandoversRepository>();
+        if (handovers != null) {
+          details.add(() => handovers.residences());
+          details.add(() => handovers.staff());
+        }
+        final inventory = find<InventoryRepository>();
+        if (inventory != null) details.add(() => inventory.residences());
+        final checks = find<RecurringChecksRepository>();
+        if (checks != null) {
+          details.add(() => checks.residences());
+          details.add(() => checks.staff());
+        }
+        final training = find<HrTrainingRepository>();
+        if (training != null) {
+          details.add(() => training.staff());
+          details.add(() => training.staffCategories());
+          details.add(() => training.residences());
+        }
+        final profile = find<HrProfileSettingsRepository>();
+        if (profile != null) {
+          details.add(() => profile.getOverview());
+          details.add(() => profile.getNotificationPreferences());
+        }
+        final inbox = find<PortalInboxRepository>();
+        if (inbox != null) details.add(() => inbox.getNotifications());
       case UserRole.family:
         final dashboard = find<FamilyDashboardRepository>();
-        if (dashboard != null) tasks.add(() => dashboard.getOverview());
+        if (dashboard != null) {
+          tasks.add(() => dashboard.getOverview());
+          details.add(() => dashboard.getNotifications());
+        }
+
+        final messages = find<FamilyMessagesRepository>();
+        if (messages != null) {
+          tasks.add(() async {
+            final result = await messages.getConversations();
+            for (final c in (result.value ?? const []).take(detailCap)) {
+              details.add(() => messages.getConversation(c.id));
+            }
+          });
+          details.add(() => messages.getLinkedClientIds());
+        }
+
+        final appointments = find<FamilyAppointmentsRepository>();
+        if (appointments != null) {
+          tasks.add(() => appointments.getAppointments());
+          details.add(() => appointments.getLinkedResidents());
+        }
+        final updates = find<FamilyDailyUpdatesRepository>();
+        if (updates != null) tasks.add(() => updates.getOverview());
+        final documents = find<FamilyDocumentsRepository>();
+        if (documents != null) tasks.add(() => documents.getOverview());
+        final visits = find<VisitRequestsRepository>();
+        if (visits != null) tasks.add(() => visits.getOverview());
+        final profile = find<FamilyProfileSettingsRepository>();
+        if (profile != null) {
+          details.add(() => profile.getOverview());
+          details.add(() => profile.getSupportTickets());
+        }
+        final inbox = find<PortalInboxRepository>();
+        if (inbox != null) details.add(() => inbox.getNotifications());
     }
     return tasks;
+  }
+
+  /// Everything opened before: refresh saved requests, then save each
+  /// learned per-record view (thread, detail, notes…) for every record in
+  /// its list. Bounded by [crawlBudget] requests per run.
+  static Future<void> _crawlVisited(UserSession session) async {
+    final getIt = GetIt.instance;
+    final cache = OfflineBootstrap.cache;
+    if (cache == null || !getIt.isRegistered<AppApiClient>()) return;
+    final api = getIt<AppApiClient>();
+    var budget = crawlBudget;
+
+    Future<bool> fetch(String path, Map<String, String> query) async {
+      if (budget <= 0 || !_canRun(session)) return false;
+      budget--;
+      try {
+        await api.get(path, query: query.isEmpty ? null : query, silent: true);
+      } catch (_) {}
+      return true;
+    }
+
+    final now = DateTime.now();
+    for (final request
+        in OfflineCrawler.refreshPlan(cache.cachedRequests(), now: now)) {
+      if (!await fetch(request.path, request.query)) return;
+    }
+
+    for (final template in OfflineCrawler.templates(cache.cachedRequests())) {
+      final list = await cache.newestForPath(template.collection);
+      if (list == null) continue;
+      for (final id in OfflineCrawler.idsIn(list.body).take(detailCap)) {
+        final path = template.pathFor(id);
+        final saved = cache.savedAt(
+          method: 'GET',
+          path: path,
+          query: template.query.isEmpty ? null : template.query,
+        );
+        if (saved != null &&
+            DateTime.now().difference(saved) < const Duration(minutes: 30)) {
+          continue;
+        }
+        if (!await fetch(path, template.query)) return;
+      }
+    }
   }
 }

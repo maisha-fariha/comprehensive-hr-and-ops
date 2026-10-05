@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce/hive_ce.dart';
 
+import 'package:comprehensive_hr_and_ops/core/errors/app_error_dialog.dart';
 import 'package:comprehensive_hr_and_ops/core/network/connectivity_monitor.dart';
 import 'package:comprehensive_hr_and_ops/core/network/offline_banner.dart';
 import 'package:comprehensive_hr_and_ops/core/offline/offline_outbox.dart';
@@ -278,6 +281,33 @@ void main() {
       await tester.pumpAndSettle();
       expect(result, isTrue);
       expect(outbox.unsentCount, 2);
+    });
+  });
+
+  group('offline errors', () {
+    tearDown(() => AppErrorDialog.inlineOfflineNotices = false);
+
+    testWidgets('are a non-blocking notice once offline mode runs',
+        (tester) async {
+      AppErrorDialog.inlineOfflineNotices = true;
+      await tester.pumpWidget(app(const SizedBox()));
+      unawaited(AppErrorDialog.showError(
+        const NetworkError(message: 'x', code: 'offline_uncached'),
+      ));
+      await tester.pump();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.text('Not on this device yet'), findsOneWidget);
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+    });
+
+    testWidgets('server errors still use the dialog', (tester) async {
+      AppErrorDialog.inlineOfflineNotices = true;
+      await tester.pumpWidget(app(const SizedBox()));
+      unawaited(AppErrorDialog.showError(
+        const ApiError(message: 'Boom', statusCode: 500),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
     });
   });
 }

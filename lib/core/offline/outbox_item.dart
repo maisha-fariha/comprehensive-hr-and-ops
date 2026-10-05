@@ -141,6 +141,8 @@ class OutboxItem {
       (nextAttemptAt == null || !nextAttemptAt!.isAfter(now));
 
   OutboxItem copyWith({
+    String? path,
+    Map<String, dynamic>? query,
     dynamic jsonBody,
     List<OutboxAttachment>? attachments,
     int? attempts,
@@ -157,8 +159,8 @@ class OutboxItem {
       userId: userId,
       tenant: tenant,
       method: method,
-      path: path,
-      query: query,
+      path: path ?? this.path,
+      query: query ?? this.query,
       jsonBody: jsonBody ?? this.jsonBody,
       attachments: attachments ?? this.attachments,
       idempotencyKey: idempotencyKey,

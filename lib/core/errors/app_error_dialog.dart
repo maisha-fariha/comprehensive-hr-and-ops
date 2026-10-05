@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../constants/app_colors.dart';
 import 'app_error_mapper.dart';
+import 'app_snackbar.dart';
 
 /// Central dialogs for network, auth, and server failures.
 /// Debounced so parallel API calls do not stack multiple alerts.
@@ -17,12 +18,24 @@ abstract final class AppErrorDialog {
     return DateTime.now().difference(_lastShownAt!) < _debounce;
   }
 
+  /// Set once offline mode is running: the offline banner already explains
+  /// the state, so "no connection" errors become a short non-blocking notice
+  /// instead of a dialog that stops the user.
+  static bool inlineOfflineNotices = false;
+
+  static DateTime? _lastOfflineNoticeAt;
+  static String? _lastOfflineNoticeKey;
+
   static Future<void> showError(
     AppError? error, {
     String? fallbackTitle,
     VoidCallback? onRetry,
   }) {
     final info = AppErrorMapper.from(error, fallbackTitle: fallbackTitle);
+    if (info.isOffline && inlineOfflineNotices) {
+      _offlineNotice(info.title, info.message);
+      return Future.value();
+    }
     return showInfo(
       title: info.title,
       message: info.message,
@@ -51,6 +64,20 @@ abstract final class AppErrorDialog {
   }) {
     if (Get.isDialogOpen == true || recentlyShown) return Future.value();
     return showError(error, fallbackTitle: fallbackTitle);
+  }
+
+  static void _offlineNotice(String title, String message) {
+    final key = '$title|$message';
+    final now = DateTime.now();
+    final last = _lastOfflineNoticeAt;
+    if (last != null &&
+        _lastOfflineNoticeKey == key &&
+        now.difference(last) < _debounce) {
+      return;
+    }
+    _lastOfflineNoticeAt = now;
+    _lastOfflineNoticeKey = key;
+    AppSnackbar.show(title, message, force: true);
   }
 
   static Future<void> showInfo({

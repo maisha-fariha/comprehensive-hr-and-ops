@@ -108,6 +108,20 @@ orphan files when the upload succeeds but the response is lost.
 
 Currently opted in: staff daily-log attachments and staff attendance selfies.
 
+### Records created offline
+
+A create made offline gets a temporary id `offline-<uuid>` on the device, so
+the user can keep working with it (open a new conversation and send messages
+into it, add notes to a new task…). Later queued writes may use that id in
+their path or body. On replay, when the create succeeds the app reads the new
+id from the response and swaps it into every later queued write before
+sending them.
+
+The server therefore must return the created record's id as `id` (top level
+or under `data`) on every `POST` that creates something. It should never
+receive an `offline-` id; if one arrives (create response had no id), answer
+`404`/`422` so the change is shown to the user instead of being stored.
+
 ## 6. CORS (web build only)
 
 Add to `Access-Control-Allow-Headers`:

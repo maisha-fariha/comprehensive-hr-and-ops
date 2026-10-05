@@ -30,9 +30,8 @@ abstract final class AppErrorMapper {
       return const AppErrorInfo(
         title: 'Not on this device yet',
         message:
-            'You are offline and this has not been saved on this device yet. '
-            'It will be available offline after it loads once with a '
-            'connection.',
+            'You are offline. Open this once while connected and it will '
+            'stay available offline.',
         isOffline: true,
       );
     }

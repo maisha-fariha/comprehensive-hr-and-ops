@@ -13,6 +13,23 @@ class CachedResponse {
   const CachedResponse(this.body, this.savedAt);
 }
 
+/// A saved GET request, as listed by [ResponseCache.cachedRequests].
+class CachedRequest {
+  final String path;
+  final Map<String, String> query;
+  final DateTime savedAt;
+  final DateTime lastAccess;
+  final bool hasTimeParams;
+
+  const CachedRequest({
+    required this.path,
+    required this.query,
+    required this.savedAt,
+    required this.lastAccess,
+    required this.hasTimeParams,
+  });
+}
+
 class _CacheMeta {
   final String fullKey;
   final DateTime savedAt;
@@ -309,6 +326,57 @@ class ResponseCache {
     final meta = _index[_hash(fullKey)];
     if (meta == null || meta.fullKey != fullKey) return null;
     return meta.savedAt;
+  }
+
+  /// GET requests saved for the current tenant + user (query values as the
+  /// strings they were keyed with).
+  List<CachedRequest> cachedRequests() {
+    final prefix = '${_scope()}|GET:';
+    final out = <CachedRequest>[];
+    for (final meta in _index.values) {
+      if (!meta.fullKey.startsWith(prefix)) continue;
+      final rest = meta.fullKey.substring(prefix.length);
+      final mark = rest.indexOf('?');
+      final path = mark < 0 ? rest : rest.substring(0, mark);
+      final query = <String, String>{};
+      if (mark >= 0) {
+        for (final part in rest.substring(mark + 1).split('&')) {
+          final eq = part.indexOf('=');
+          if (eq <= 0) continue;
+          query[part.substring(0, eq)] = part.substring(eq + 1);
+        }
+      }
+      out.add(CachedRequest(
+        path: path,
+        query: query,
+        savedAt: meta.savedAt,
+        lastAccess: meta.lastAccess,
+        hasTimeParams: meta.timeParams.isNotEmpty,
+      ));
+    }
+    return out;
+  }
+
+  /// Newest saved GET for [path] with any query (current tenant + user).
+  Future<CachedResponse?> newestForPath(String path) async {
+    final prefix = '${_scope()}|GET:$path?';
+    String? bestKey;
+    _CacheMeta? best;
+    for (final entry in _index.entries) {
+      if (!entry.value.fullKey.startsWith(prefix)) continue;
+      if (best == null || entry.value.savedAt.isAfter(best.savedAt)) {
+        best = entry.value;
+        bestKey = entry.key;
+      }
+    }
+    if (best == null || bestKey == null) return null;
+    try {
+      final raw = await _readValue(bestKey);
+      if (raw == null || raw.isEmpty) return null;
+      return CachedResponse(jsonDecode(raw), best.savedAt);
+    } catch (_) {
+      return null;
+    }
   }
 
   int get entryCount => _index.length;

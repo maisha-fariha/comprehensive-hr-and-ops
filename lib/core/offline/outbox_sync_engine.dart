@@ -120,6 +120,10 @@ class OutboxSyncEngine {
 
   void Function(OutboxSyncSummary summary)? onSummary;
 
+  /// Temp id → server id for creates delivered this session, so screens
+  /// still holding a temp id reach the real record.
+  final Map<String, String> resolvedTempIds = {};
+
   Future<OutboxSyncSummary>? _inFlight;
   Timer? _retryTimer;
   bool _yieldRequested = false;
@@ -194,6 +198,7 @@ class OutboxSyncEngine {
           case OutboxSendKind.success:
             await store.remove(item.id);
             await uploads.deleteFiles(item.attachments);
+            await _resolveTempId(owner, item, outcome.body);
             sent++;
           case OutboxSendKind.retryable:
             final latest = store.byId(item.id) ?? item;
@@ -340,6 +345,72 @@ class OutboxSyncEngine {
             current.occurredAt.toUtc().toIso8601String(),
       },
     );
+  }
+
+  /// A create made offline handed out a temp id; later queued writes that
+  /// used it (path, query or body) now target the server id.
+  Future<void> _resolveTempId(
+    OutboxScope owner,
+    OutboxItem item,
+    dynamic responseBody,
+  ) async {
+    final tempId = item.meta['tempId'];
+    if (tempId == null) return;
+    final serverId = createdId(responseBody);
+    if (serverId == null || serverId == tempId) return;
+    resolvedTempIds[tempId] = serverId;
+    for (final other in store.forScope(owner.userId, owner.tenant)) {
+      final path = other.path.replaceAll(tempId, serverId);
+      final query = _swap(other.query, tempId, serverId);
+      final body = _swap(other.jsonBody, tempId, serverId);
+      final changed = path != other.path ||
+          !_sameJson(query, other.query) ||
+          !_sameJson(body, other.jsonBody);
+      if (!changed) continue;
+      await store.put(other.copyWith(
+        path: path,
+        query: query is Map ? query.cast<String, dynamic>() : other.query,
+        jsonBody: body,
+      ));
+    }
+  }
+
+  /// Id of the record a create returned (`{id}` or `{data: {id}}`).
+  static String? createdId(dynamic body) {
+    dynamic node = body;
+    if (node is Map && node['data'] is Map) node = node['data'];
+    if (node is! Map) return null;
+    final id = node['id'] ?? node['_id'];
+    if (id == null) return null;
+    final text = '$id'.trim();
+    return text.isEmpty ? null : text;
+  }
+
+  static dynamic _swap(dynamic node, String from, String to) {
+    if (node is String) return node.replaceAll(from, to);
+    if (node is Map) {
+      return node.map((k, v) => MapEntry(k, _swap(v, from, to)));
+    }
+    if (node is List) return [for (final v in node) _swap(v, from, to)];
+    return node;
+  }
+
+  static bool _sameJson(dynamic a, dynamic b) {
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final key in a.keys) {
+        if (!b.containsKey(key) || !_sameJson(a[key], b[key])) return false;
+      }
+      return true;
+    }
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!_sameJson(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    return a == b;
   }
 
   static String? _uploadedUrl(dynamic body) {
