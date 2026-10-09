@@ -5,7 +5,10 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../attendance/domain/repositories/staff_attendance_repository.dart';
+import '../../../attendance/presentation/widgets/staff_clock_action_sheet.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../extras/presentation/widgets/staff_raise_emergency_dialog.dart';
 import '../../../medication/presentation/pages/staff_medication_page.dart';
@@ -140,8 +143,7 @@ class StaffDashboardPage extends StatelessWidget {
                         onActionTap: (action) {
                           switch (action.id) {
                             case 'clock-in-out':
-                              // POST /attendance/check-in | check-out
-                              _confirmClockInOut(context, controller);
+                              _openClockSheet(context, controller);
                             case 'daily-logs':
                               // Opens Daily Logs tab (My Clients / notes).
                               Get.offAll(() => const StaffShell(initialIndex: 2));
@@ -165,45 +167,35 @@ class StaffDashboardPage extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmClockInOut(
+  /// Same clock dialog as Attendance: a residence is required, photo and
+  /// location are optional. A bare check-in without a residence is rejected.
+  Future<void> _openClockSheet(
     BuildContext context,
     StaffDashboardController controller,
   ) async {
     final shift = controller.overview?.todayShift;
     if (shift == null || controller.clockBusy.value) return;
-    final clockingOut = shift.onShift;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          clockingOut ? 'Clock out?' : 'Clock in?',
-          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),
-        ),
-        content: Text(
-          clockingOut
-              ? 'This ends your shift attendance now.'
-              : 'This starts your shift attendance now.',
-          style: const TextStyle(fontFamily: 'Outfit'),
-        ),
-        actions: [
-          TextButton(
-            key: const ValueKey('clock-confirm-cancel'),
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            key: const ValueKey('clock-confirm-submit'),
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor:
-                  clockingOut ? AppColors.criticalRed : AppColors.activeGreen,
-            ),
-            child: Text(clockingOut ? 'Clock out' : 'Clock in'),
-          ),
-        ],
-      ),
+    if (!GetIt.instance.isRegistered<StaffAttendanceRepository>()) return;
+    final attendance = GetIt.instance<StaffAttendanceRepository>();
+    final residences = await attendance.getResidences();
+    if (!context.mounted) return;
+    if (residences.isFailure) {
+      AppErrorDialog.showResultError(
+        residences.error,
+        fallbackTitle: 'Could not load residences',
+      );
+      return;
+    }
+    final saved = await StaffClockActionSheet.show(
+      context,
+      isCheckIn: !shift.onShift,
+      residences: residences.value ?? const [],
+      initialResidenceId: shift.residenceId,
+      shiftId: shift.shiftId,
+      showNotRosteredWarning:
+          !shift.onShift && (shift.shiftId == null || shift.shiftId!.isEmpty),
     );
-    if (ok == true) await controller.toggleClockInOut();
+    if (saved == true) await controller.refresh();
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../auth/data/mappers/auth_mapper.dart';
 import '../../../../common/inbox/data/mappers/portal_inbox_mapper.dart';
@@ -38,6 +39,23 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       );
     }
 
+    // `/mobile/home` tiles.tasksDue is currently 0 while the web tasks
+    // screen uses `GET /tasks/stats` → `today.due`. Prefer that figure.
+    final homeBody = Map<String, dynamic>.from(JsonCodec.unwrapMap(home.value));
+    final tiles = Map<String, dynamic>.from(
+      JsonCodec.mapAt(homeBody, 'tiles') ?? const {},
+    );
+    if (tiles.containsKey('tasksDue') && tiles['tasksDue'] != null) {
+      final stats = await _api.get(ApiEndpoints.tasksStats, silent: true);
+      if (stats.isSuccess) {
+        final due = JsonCodec.integer(
+          JsonCodec.mapAt(JsonCodec.unwrapMap(stats.value), 'today')?['due'],
+        );
+        if (due != null) tiles['tasksDue'] = due;
+      }
+    }
+    homeBody['tiles'] = tiles;
+
     var unread = 0;
     final notifications = await _api.get(
       ApiEndpoints.notifications,
@@ -53,7 +71,7 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
     return Result.success(
       StaffHomeMapper.compose(
         session: _session,
-        body: home.value,
+        body: homeBody,
         unreadNotificationCount: unread,
       ),
     );
