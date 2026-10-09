@@ -6,6 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/offline/presentation/unsent_changes_tile.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/change_password_dialog.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../staff_shell.dart';
@@ -228,6 +229,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                     StaffProfileCard(
                       key: const Key('staff-profile-upper-card'),
                       profile: overview.profile,
+                      imageUrl: Get.find<UserSession>().avatarUrl,
                       onTap: () => Get.to(
                         () => StaffProfileDetailPage(profile: overview.profile),
                       ),

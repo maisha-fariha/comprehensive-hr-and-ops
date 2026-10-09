@@ -106,11 +106,11 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
   }
 
   static const _avatarExtensions = {'jpg', 'jpeg', 'png', 'webp', 'heic'};
-  static const _avatarMaxBytes = 2 * 1024 * 1024;
+  static const _avatarMaxBytes = 25 * 1024 * 1024;
 
   final RxBool avatarBusy = false.obs;
 
-  /// Picks an image (JPEG, PNG, WebP or HEIC, up to 2 MB) and sets it as the
+  /// Picks an image (JPEG, PNG, WebP or HEIC, up to 25 MB) and sets it as the
   /// profile photo.
   Future<void> changeAvatar() async {
     if (avatarBusy.value) return;
@@ -136,7 +136,7 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
     if (file.size > _avatarMaxBytes) {
       AppErrorDialog.showInfo(
         title: 'Photo too large',
-        message: 'Choose an image up to 2 MB.',
+        message: 'Choose an image up to 25 MB.',
       );
       return;
     }

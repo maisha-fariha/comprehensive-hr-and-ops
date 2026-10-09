@@ -1,8 +1,11 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
+import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/media/app_file_picker.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../data/mappers/staff_profile_mapper.dart';
 import '../../domain/entities/staff_profile_settings_overview.dart';
@@ -34,6 +37,10 @@ class StaffProfileSettingsController extends BaseController<StaffProfileSettings
 
   final RxBool pushNotificationsEnabled = false.obs;
   final RxBool darkModeEnabled = false.obs;
+  final RxBool avatarBusy = false.obs;
+
+  static const _avatarExtensions = {'jpg', 'jpeg', 'png', 'webp', 'heic'};
+  static const _avatarMaxBytes = 25 * 1024 * 1024;
 
   StaffProfileSettingsOverview? get overview => state.value.data;
 
@@ -100,6 +107,90 @@ class StaffProfileSettingsController extends BaseController<StaffProfileSettings
       success: (values) => values,
       failure: (_) => const <String, bool>{},
     );
+  }
+
+  /// Picks a photo and sets it as the account picture (`PATCH /auth/avatar`).
+  /// Same types and 25 MB cap as the web My profile page.
+  Future<void> changeAvatar() async {
+    if (avatarBusy.value) return;
+    final picked = await AppFilePicker.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: false,
+      title: 'Profile photo',
+      preferredCamera: CameraDevice.front,
+    );
+    final file = picked?.files.single;
+    final path = file?.path;
+    if (file == null || path == null || path.isEmpty) return;
+
+    final ext = file.extension?.toLowerCase() ?? '';
+    if (!_avatarExtensions.contains(ext)) {
+      AppErrorDialog.showInfo(
+        title: 'Unsupported photo',
+        message: 'Choose a JPEG, PNG, WebP or HEIC image.',
+      );
+      return;
+    }
+    if (file.size > _avatarMaxBytes) {
+      AppErrorDialog.showInfo(
+        title: 'Photo too large',
+        message: 'Choose an image up to 25 MB.',
+      );
+      return;
+    }
+
+    avatarBusy.value = true;
+    final result = await repository.updateAvatar(
+      filePath: path,
+      fileName: file.name,
+    );
+    avatarBusy.value = false;
+    result.when(
+      success: (url) {
+        if (url == null || url.trim().isEmpty) {
+          AppErrorDialog.showInfo(
+            title: 'Could not update photo',
+            message: 'The server did not return the new photo. Please try again.',
+          );
+          return;
+        }
+        _session?.updateAvatarUrl(url);
+        AppSnackbar.show('Photo updated', 'Your profile picture was changed.');
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not update photo',
+      ),
+    );
+  }
+
+  Future<void> removeAvatar() async {
+    if (avatarBusy.value) return;
+    avatarBusy.value = true;
+    final result = await repository.removeAvatar();
+    avatarBusy.value = false;
+    result.when(
+      success: (_) {
+        _session?.updateAvatarUrl(null);
+        AppSnackbar.show(
+          'Photo removed',
+          'Your staff record photo, or your initials, will be shown instead.',
+        );
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not remove photo',
+      ),
+    );
+  }
+
+  UserSession? get _session {
+    try {
+      return Get.find<UserSession>();
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> saveNotificationPreferences(Map<String, bool> values) async {

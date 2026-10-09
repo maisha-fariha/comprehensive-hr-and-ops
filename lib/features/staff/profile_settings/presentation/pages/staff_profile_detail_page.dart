@@ -4,8 +4,11 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../domain/entities/staff_profile.dart';
 import '../../staff_profile_settings_constants.dart';
+import '../controllers/staff_profile_settings_controller.dart';
 import '../widgets/staff_initials_avatar.dart';
 import '../widgets/staff_profile_settings_header.dart';
 
@@ -44,16 +47,7 @@ class StaffProfileDetailPage extends StatelessWidget {
                   ResponsiveHelper.getResponsiveHeight(context, 32),
                 ),
                 children: [
-                  Center(
-                    child: StaffInitialsAvatar(
-                      initials: profile.initials,
-                      size: 72,
-                      background: StaffProfileSettingsConstants
-                          .profileAvatarBackground,
-                      foreground: StaffProfileSettingsConstants
-                          .profileAvatarForeground,
-                    ),
-                  ),
+                  _PictureSection(initials: profile.initials),
                   SizedBox(
                     height: ResponsiveHelper.getResponsiveHeight(context, 16),
                   ),
@@ -128,6 +122,159 @@ class StaffProfileDetailPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _PictureSection extends StatelessWidget {
+  final String initials;
+
+  const _PictureSection({required this.initials});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find<StaffProfileSettingsController>();
+    final session = Get.find<UserSession>();
+    return Obx(() {
+      final url = session.avatarUrl;
+      final busy = controller.avatarBusy.value;
+      return Container(
+        width: double.infinity,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 16,
+          vertical: 16,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(
+            ResponsiveHelper.getResponsiveRadius(context, 20),
+          ),
+          border: Border.all(color: const Color(0xFFEEF1F4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Picture',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                color: AppColors.textHeading,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    StaffInitialsAvatar(
+                      initials: initials,
+                      imageUrl: url,
+                      size: 64,
+                      background: StaffProfileSettingsConstants
+                          .profileAvatarBackground,
+                      foreground: StaffProfileSettingsConstants
+                          .profileAvatarForeground,
+                    ),
+                    if (busy)
+                      const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: AppColors.secondaryTeal,
+                        ),
+                      ),
+                  ],
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 14)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            key: const Key('staff-profile-upload-photo'),
+                            onPressed: busy ? null : controller.changeAvatar,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.secondaryTeal,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              visualDensity: VisualDensity.compact,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            icon: const Icon(Icons.photo_camera_outlined, size: 16),
+                            label: const Text('Upload'),
+                          ),
+                          if (url != null && url.isNotEmpty)
+                            TextButton(
+                              onPressed: busy
+                                  ? null
+                                  : () => _confirmRemove(context, controller),
+                              child: const Text('Remove'),
+                            ),
+                        ],
+                      ),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 6),
+                      ),
+                      Text(
+                        'JPEG, PNG, WebP or HEIC, up to 25MB. If you are a staff member and set none, the photo on your staff record is shown.',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w400,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            12,
+                          ),
+                          color: AppColors.textMuted,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Future<void> _confirmRemove(
+    BuildContext context,
+    StaffProfileSettingsController controller,
+  ) async {
+    final confirmed = await showAppPopup<bool>(
+      context: context,
+      builder: (context) => AppSheetDialog(
+        title: const Text('Remove photo?'),
+        content: const Text(
+          'If you are a staff member and set none, the photo on your staff record is shown.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await controller.removeAvatar();
   }
 }
 
