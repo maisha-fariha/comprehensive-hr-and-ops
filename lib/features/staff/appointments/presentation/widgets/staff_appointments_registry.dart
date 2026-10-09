@@ -3,6 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_appointment.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 class StaffAppointmentsRegistry extends StatelessWidget {
   final List<StaffAppointment> appointments;
@@ -513,7 +514,7 @@ Future<void> showStaffAppointmentDetailsSheet(
   BuildContext context,
   StaffAppointment item,
 ) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     backgroundColor: AppColors.surfaceWhite,
     shape: const RoundedRectangleBorder(

@@ -10,6 +10,7 @@ import '../daily_logs_labels.dart';
 import 'daily_log_common.dart';
 import 'entry_sheets.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 typedef DailyLogFilePicker = Future<List<(String path, String name)>> Function();
 
@@ -34,7 +35,7 @@ Future<void> showNewLogEntrySheet(
   required DailyLogsController controller,
   DailyLogFilePicker? pickFiles,
 }) =>
-    showModalBottomSheet<void>(
+    showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       isDismissible: false,

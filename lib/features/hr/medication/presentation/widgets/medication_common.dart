@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../medication_labels.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// The web `Badge` in one of its variants.
 class MarPill extends StatelessWidget {
@@ -362,9 +363,9 @@ Future<bool> showMarConfirm(
   required String description,
   required String confirmLabel,
 }) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppPopup<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => AppSheetDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text(title, style: handoverText(dialogContext, 17, weight: FontWeight.w700)),
       content: Text(

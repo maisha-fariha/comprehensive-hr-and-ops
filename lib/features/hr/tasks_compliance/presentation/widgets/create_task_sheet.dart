@@ -16,6 +16,7 @@ import '../../domain/entities/task_residence_option.dart';
 import '../../domain/entities/task_shift_option.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Opens the "New Task" create form matched to the Tasks & Compliance
 /// reference screens.
@@ -23,7 +24,7 @@ Future<void> showCreateTaskSheet(
   BuildContext context, {
   VoidCallback? onCreated,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -228,7 +229,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     required List<String> options,
     required ValueChanged<String> onSelected,
   }) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: RoundedRectangleBorder(

@@ -3,6 +3,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 
 import '../constants/app_colors.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'app_error_mapper.dart';
 import 'app_snackbar.dart';
 
@@ -12,6 +13,9 @@ abstract final class AppErrorDialog {
   static DateTime? _lastShownAt;
   static String? _lastKey;
   static const _debounce = Duration(seconds: 4);
+
+  static bool get _sheetOpen =>
+      Get.isDialogOpen == true || AppBottomSheet.isOpen;
 
   static bool get recentlyShown {
     if (_lastShownAt == null) return false;
@@ -52,7 +56,7 @@ abstract final class AppErrorDialog {
     bool isOffline = false,
   }) {
     if (message.trim().isEmpty) return Future.value();
-    if (Get.isDialogOpen == true || recentlyShown) return Future.value();
+    if (_sheetOpen || recentlyShown) return Future.value();
     return showInfo(title: title, message: message, isOffline: isOffline);
   }
 
@@ -62,7 +66,7 @@ abstract final class AppErrorDialog {
     AppError? error, {
     String? fallbackTitle,
   }) {
-    if (Get.isDialogOpen == true || recentlyShown) return Future.value();
+    if (_sheetOpen || recentlyShown) return Future.value();
     return showError(error, fallbackTitle: fallbackTitle);
   }
 
@@ -98,12 +102,12 @@ abstract final class AppErrorDialog {
 
     final context = Get.overlayContext ?? Get.context;
     if (context == null) return;
-    if (Get.isDialogOpen == true) return;
+    if (_sheetOpen) return;
 
-    await Get.dialog<void>(
+    await showAppPopupWidget<void>(
       Builder(
         builder: (dialogContext) {
-          return AlertDialog(
+          return AppSheetDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),

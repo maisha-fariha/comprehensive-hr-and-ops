@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../constants/app_colors.dart';
 import '../../roles/user_session.dart';
 import '../offline_outbox.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Signs out, first warning when this user still has unsent changes.
 /// Unsent changes are kept on the device and sent the next time the same
@@ -19,8 +20,8 @@ abstract final class SignOutGuard {
     final outbox = OfflineOutbox.maybe;
     final count = outbox?.unsentCount ?? 0;
     if (count == 0) return true;
-    final result = await Get.dialog<bool>(
-      Builder(builder: (ctx) => AlertDialog(
+    final result = await showAppPopupWidget<bool>(
+      Builder(builder: (ctx) => AppSheetDialog(
         key: const Key('sign-out-unsent-dialog'),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(

@@ -9,6 +9,7 @@ import '../controllers/daily_activity_controller.dart';
 import '../daily_activity_labels.dart';
 import 'daily_activity_common.dart';
 import 'daily_activity_registry.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web "Resident history": one resident's month, its summary and records.
 class DailyActivityHistoryTab extends StatelessWidget {
@@ -242,7 +243,7 @@ Future<String?> showDailyActivityMonthPicker(BuildContext context, String curren
   var year = int.tryParse(parts.first) ?? DateTime.now().year;
   final selectedYear = year;
   final selectedMonth = parts.length == 2 ? int.tryParse(parts[1]) : null;
-  return showModalBottomSheet<String>(
+  return showAppBottomSheet<String>(
     context: context,
     backgroundColor: AppColors.surfaceWhite,
     shape: const RoundedRectangleBorder(

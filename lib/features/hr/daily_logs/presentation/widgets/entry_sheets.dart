@@ -7,6 +7,7 @@ import '../../domain/entities/daily_log.dart';
 import '../controllers/daily_logs_controller.dart';
 import '../daily_logs_labels.dart';
 import 'daily_log_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Header, scrolling body and a custom footer, as the web modals.
 class DailyLogSheet extends StatelessWidget {
@@ -495,9 +496,9 @@ Future<void> confirmDeleteEntry(
   required DailyLogsController controller,
   required DailyLogEntry entry,
 }) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppPopup<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => AppSheetDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text(
         'Delete this entry?',

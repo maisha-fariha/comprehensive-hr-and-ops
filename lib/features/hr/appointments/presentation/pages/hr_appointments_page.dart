@@ -14,6 +14,7 @@ import '../widgets/hr_appointment_form_sheet.dart';
 import '../widgets/hr_appointment_reason_dialog.dart';
 import '../widgets/hr_appointments_kpi_grid.dart';
 import '../widgets/hr_appointments_toolbar.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Manager "Family Appointments & Approvals" — mirrors web
 /// `/dashboard/appointments`.
@@ -50,9 +51,9 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
   }
 
   Future<void> _confirmDelete(HrAppointment a) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         title: Text(
           'Delete this appointment?',

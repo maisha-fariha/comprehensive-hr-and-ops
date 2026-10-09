@@ -6,6 +6,7 @@ import '../../domain/entities/mar_medication.dart';
 import '../../domain/entities/mar_options.dart';
 import '../medication_labels.dart';
 import 'medication_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web "Add a medicine" / "Correct a medicine" (and the PRN variants).
 /// [onSubmit] returns the error for the banner, or null once saved.
@@ -18,7 +19,7 @@ Future<void> showMarMedicineFormSheet(
   required Future<List<MarOption>> Function(String? clientId) loadChecks,
   required Future<String?> Function(List<MarMedicineDraft> drafts) onSubmit,
 }) =>
-    showModalBottomSheet<void>(
+    showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

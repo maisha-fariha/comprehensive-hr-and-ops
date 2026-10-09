@@ -3,6 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/message_contact.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 class NewMessageResult {
   final String title;
@@ -22,7 +23,7 @@ Future<NewMessageResult?> showStaffNewMessageSheet(
   BuildContext context, {
   required List<MessageContact> contacts,
 }) {
-  return showModalBottomSheet<NewMessageResult>(
+  return showAppBottomSheet<NewMessageResult>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,

@@ -7,6 +7,7 @@ import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/emergency_alert.dart';
 import '../../domain/repositories/emergency_repository.dart';
 import '../emergency_labels.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 typedef EmergencyLocator = Future<({double latitude, double longitude})?> Function();
 
@@ -41,7 +42,7 @@ Future<bool?> showRaiseEmergencySheet(
   required EmergencyRepository repository,
   EmergencyLocator locate = emergencyDeviceLocation,
 }) {
-  return showModalBottomSheet<bool>(
+  return showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

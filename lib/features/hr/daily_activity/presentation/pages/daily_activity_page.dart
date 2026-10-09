@@ -15,6 +15,7 @@ import '../widgets/daily_activity_form_sheet.dart';
 import '../widgets/daily_activity_history_tab.dart';
 import '../widgets/daily_activity_kpi_grid.dart';
 import '../widgets/daily_activity_registry.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Manager "Daily Activity" — mirrors web `/dashboard/daily-activity`.
 class DailyActivityPage extends StatefulWidget {
@@ -59,9 +60,9 @@ class _DailyActivityPageState extends State<DailyActivityPage> {
       );
 
   Future<void> _confirmDelete(DailyActivity activity) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         title: Text(
           'Delete this activity record?',

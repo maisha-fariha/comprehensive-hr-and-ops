@@ -10,6 +10,7 @@ import '../../domain/entities/staff_shift.dart';
 import '../../domain/entities/week_day.dart';
 import '../../domain/repositories/staff_schedule_repository.dart';
 import '../pages/staff_create_shift_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// GetX controller for the "My Schedule" screen.
 class StaffScheduleController extends BaseController<StaffScheduleOverview> {
@@ -243,16 +244,19 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
 
   Future<void> showFilterSheet() async {
     final current = statusFilter.value ?? 'all';
-    final selected = await Get.bottomSheet<String>(
-      SafeArea(
-        child: Container(
-          key: const Key('staff-schedule-filter-sheet'),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
+    final sheetContext = Get.overlayContext ?? Get.context;
+    if (sheetContext == null) return;
+    final selected = await showAppBottomSheet<String>(
+      context: sheetContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        key: const Key('staff-schedule-filter-sheet'),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -283,13 +287,11 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
                           color: Color(0xFF0E7C7B),
                         )
                       : null,
-                  onTap: () => Get.back(result: option),
+                  onTap: () => Navigator.of(ctx).pop(option),
                 ),
             ],
-          ),
         ),
       ),
-      backgroundColor: Colors.transparent,
     );
     if (selected != null) setStatusFilter(selected);
   }
@@ -309,8 +311,8 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
     required String hint,
   }) async {
     final field = TextEditingController();
-    final submitted = await Get.dialog<bool>(
-      AlertDialog(
+    final submitted = await showAppPopupWidget<bool>(
+      AppSheetDialog(
         title: Text(title),
         content: TextField(
           controller: field,

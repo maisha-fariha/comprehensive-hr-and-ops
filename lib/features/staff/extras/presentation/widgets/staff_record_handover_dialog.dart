@@ -10,6 +10,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Reference-matched "Record handover" modal.
 class StaffRecordHandoverDialog extends StatefulWidget {
@@ -17,7 +18,7 @@ class StaffRecordHandoverDialog extends StatefulWidget {
 
   /// Returns `true` when a handover was saved (draft or submitted).
   static Future<bool?> show() {
-    return Get.dialog<bool>(
+    return showAppPopupWidget<bool>(
       const StaffRecordHandoverDialog(),
       barrierDismissible: false,
     );
@@ -399,7 +400,7 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
     final hasResidence = _residenceId != null && _residenceId!.isNotEmpty;
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Dialog(
+    return AppSheetPanel(
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.fromLTRB(16, 20, 16, 20 + keyboardInset * 0.2),
       child: ConstrainedBox(

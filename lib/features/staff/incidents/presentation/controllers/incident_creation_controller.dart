@@ -14,6 +14,7 @@ import '../../domain/entities/staff_incidents_enums.dart';
 import '../../domain/repositories/staff_incidents_repository.dart';
 import 'staff_incidents_controller.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// GetX controller for the Staff "Create Incident" form.
 class IncidentCreationController extends GetxController {
@@ -681,7 +682,7 @@ class IncidentCreationController extends GetxController {
     final context = Get.context;
     if (context == null || !context.mounted) return;
 
-    final name = await showDialog<String>(
+    final name = await showAppPopup<String>(
       context: context,
       builder: (dialogContext) => const _AddWitnessDialog(),
     );
@@ -981,7 +982,7 @@ class IncidentCreationController extends GetxController {
       );
       return null;
     }
-    return showModalBottomSheet<T>(
+    return showAppBottomSheet<T>(
       context: Get.context!,
       builder: (sheetContext) {
         return SafeArea(
@@ -1151,7 +1152,7 @@ class _AddWitnessDialogState extends State<_AddWitnessDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetDialog(
       title: const Text('Add witness'),
       content: TextField(
         controller: _input,

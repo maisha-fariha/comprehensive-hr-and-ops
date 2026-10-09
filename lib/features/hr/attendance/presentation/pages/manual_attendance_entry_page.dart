@@ -17,6 +17,7 @@ import '../widgets/manual_entry/manual_entry_footer.dart';
 import '../widgets/manual_entry/manual_entry_forms.dart';
 import '../widgets/manual_entry/manual_entry_header.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 const manualEntryReasons = <(String, String)>[
   ('forgot_clock_in', 'Forgot clock-in'),
@@ -226,11 +227,11 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
   }
 
   Future<bool?> _showDiscardDialog() {
-    return showDialog<bool>(
+    return showAppPopup<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
+        return AppSheetDialog(
           backgroundColor: AppColors.surfaceWhite,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -486,7 +487,7 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     required List<T> options,
     required String Function(T) labelOf,
   }) {
-    return showModalBottomSheet<T>(
+    return showAppBottomSheet<T>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       isScrollControlled: true,

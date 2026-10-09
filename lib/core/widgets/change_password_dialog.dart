@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
 import '../errors/app_snackbar.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Sends the change and returns `null` on success, or the message to show
 /// inside the dialog.
@@ -18,7 +19,7 @@ Future<bool> showChangePasswordDialog(
   BuildContext context, {
   required ChangePasswordSubmit onSubmit,
 }) async {
-  final changed = await showDialog<bool>(
+  final changed = await showAppPopup<bool>(
     context: context,
     builder: (_) => ChangePasswordDialog(onSubmit: onSubmit),
   );
@@ -100,7 +101,7 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetDialog(
       title: const Text('Change password'),
       content: SingleChildScrollView(
         child: Column(

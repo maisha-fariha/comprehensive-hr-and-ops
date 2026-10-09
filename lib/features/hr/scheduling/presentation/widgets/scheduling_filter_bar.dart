@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../scheduling_constants.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Date-range chip ("28 Sep – 4 Oct"), "My shifts" toggle and "Filters"
 /// button shown under the Schedule top bar.
@@ -176,7 +177,7 @@ Future<SchedulingFilterSelection?> showSchedulingFiltersSheet(
   String? residenceId,
   ShiftStatusFilter? status,
 }) {
-  return showModalBottomSheet<SchedulingFilterSelection>(
+  return showAppBottomSheet<SchedulingFilterSelection>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../errors/app_error_dialog.dart';
+import '../widgets/app_bottom_sheet.dart';
 
 /// Thin wrapper around [ScaffoldMessenger] that avoids GetX snackbar races.
 ///
@@ -24,7 +25,9 @@ abstract final class AppSnackbar {
     bool force = false,
   }) {
     if (!force &&
-        (Get.isDialogOpen == true || AppErrorDialog.recentlyShown)) {
+        (Get.isDialogOpen == true ||
+            AppBottomSheet.isOpen ||
+            AppErrorDialog.recentlyShown)) {
       return;
     }
     final holdUntil = _holdUntil;

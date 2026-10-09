@@ -16,6 +16,7 @@ import '../../domain/entities/staff_task_detail.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
 import '../controllers/tasks_messages_controller.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// [summary] is the list row; offline, when the full task has never been
 /// loaded on this device, the sheet shows it instead of an error.
@@ -25,7 +26,7 @@ Future<void> showStaffTaskDetailSheet(
   required TasksMessagesController controller,
   StaffTask? summary,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

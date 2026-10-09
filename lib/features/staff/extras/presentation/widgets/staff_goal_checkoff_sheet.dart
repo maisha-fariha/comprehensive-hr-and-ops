@@ -7,6 +7,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../hr/clients/data/clients_endpoints.dart';
 import '../../../../hr/clients/data/mappers/clients_mapper.dart';
 import '../../../../hr/clients/domain/entities/client_goals.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 Future<void> showStaffGoalCheckoffSheet(
   BuildContext context, {
@@ -14,7 +15,7 @@ Future<void> showStaffGoalCheckoffSheet(
   required String clientName,
   String? staffId,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

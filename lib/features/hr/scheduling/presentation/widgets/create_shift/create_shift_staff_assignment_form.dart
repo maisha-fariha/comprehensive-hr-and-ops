@@ -7,6 +7,7 @@ import '../../../../../../core/widgets/app_svg_icon.dart';
 import '../../../domain/entities/create_shift_draft.dart';
 import '../../../domain/entities/shift_staff_option.dart';
 import 'create_shift_fields.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 const Color _avatarFill = Color(0xFFEAF0FE);
 const Color _avatarText = Color(0xFF8E88B1);
@@ -677,7 +678,7 @@ Future<void> showCreateShiftStaffPicker({
   String? errorMessage,
   VoidCallback? onRetry,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,

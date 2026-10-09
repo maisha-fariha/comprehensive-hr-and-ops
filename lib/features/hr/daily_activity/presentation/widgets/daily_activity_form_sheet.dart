@@ -11,6 +11,7 @@ import '../daily_activity_labels.dart';
 import 'daily_activity_common.dart';
 import 'daily_activity_person_picker.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Picks one document; returns the file and its size in bytes.
 typedef DailyActivityFilePicker = Future<(DailyActivityLocalFile, int)?> Function();
@@ -35,7 +36,7 @@ Future<bool?> showDailyActivityFormSheet(
   DailyActivity? editing,
   DailyActivityFilePicker? pickFile,
 }) {
-  return showModalBottomSheet<bool>(
+  return showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     isDismissible: false,
@@ -130,9 +131,9 @@ class _DailyActivityFormSheetState extends State<DailyActivityFormSheet> {
       Navigator.of(context).pop(false);
       return;
     }
-    final discard = await showDialog<bool>(
+    final discard = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         title: Text(
           'Discard unsaved changes?',

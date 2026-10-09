@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/residence_summary.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 Widget residenceFieldLabel(BuildContext context, String label, {bool required = false}) {
   return Padding(
@@ -283,7 +284,7 @@ Future<List<String>?> pickResidenceOptions(
   bool searchable = false,
   bool multiple = false,
 }) {
-  return showModalBottomSheet<List<String>>(
+  return showAppBottomSheet<List<String>>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,

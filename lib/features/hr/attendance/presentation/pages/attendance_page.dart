@@ -15,6 +15,7 @@ import '../widgets/attendance_pagination.dart';
 import '../widgets/attendance_record_card.dart';
 import 'attendance_clock_page.dart';
 import 'manual_attendance_entry_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Manager "Attendance" — mirrors web `/dashboard/attendance`.
 class AttendancePage extends StatelessWidget {
@@ -257,9 +258,9 @@ class AttendancePage extends StatelessWidget {
     AttendanceController controller,
     AttendanceRecord record,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(

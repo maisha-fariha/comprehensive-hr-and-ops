@@ -5,11 +5,12 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../manager_destinations.dart';
 import 'hr_directory_widgets.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// "Search pages…" sheet opened from the dashboard search bar's filter
 /// button — the mobile counterpart of the web ⌘K page palette.
 Future<void> showManagerPageSearchSheet(BuildContext context) async {
-  final destination = await showModalBottomSheet<ManagerDestination>(
+  final destination = await showAppBottomSheet<ManagerDestination>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,

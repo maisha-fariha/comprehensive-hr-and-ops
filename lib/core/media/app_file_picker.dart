@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../constants/app_colors.dart';
 import '../errors/app_snackbar.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 export 'package:image_picker/image_picker.dart' show CameraDevice;
 
@@ -45,7 +46,7 @@ abstract final class AppFilePicker {
     }
 
     final imagesOnly = type == FileType.image;
-    final source = await showModalBottomSheet<_AttachmentSource>(
+    final source = await showAppBottomSheet<_AttachmentSource>(
       context: sheetContext,
       backgroundColor: AppColors.surfaceWhite,
       showDragHandle: true,

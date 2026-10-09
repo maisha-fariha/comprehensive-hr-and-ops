@@ -5,6 +5,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/offline/offline_image.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../clients_labels.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 class ClientPill extends StatelessWidget {
   final String label;
@@ -866,7 +867,7 @@ class ClientStatusBar extends StatelessWidget {
 }
 
 Future<T?> showClientSheet<T>(BuildContext context, Widget sheet) =>
-    showModalBottomSheet<T>(
+    showAppBottomSheet<T>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -964,9 +965,9 @@ Future<bool> confirmClientAction(
   required Key confirmKey,
   Widget? extra,
 }) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppPopup<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => AppSheetDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text(title, style: handoverText(dialogContext, 17, weight: FontWeight.w700)),
       content: extra == null

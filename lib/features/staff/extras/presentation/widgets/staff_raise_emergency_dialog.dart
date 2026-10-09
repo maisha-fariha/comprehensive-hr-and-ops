@@ -10,6 +10,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Result of a successful raise — used by callers that need to refresh lists.
 class StaffRaiseEmergencyResult {
@@ -35,7 +36,7 @@ class StaffRaiseEmergencyDialog extends StatefulWidget {
   /// Shows the dialog and posts `POST /emergency-alerts` on confirm.
   /// Returns the payload on success, `null` if cancelled / failed.
   static Future<StaffRaiseEmergencyResult?> show() {
-    return Get.dialog<StaffRaiseEmergencyResult>(
+    return showAppPopupWidget<StaffRaiseEmergencyResult>(
       const StaffRaiseEmergencyDialog(),
       barrierDismissible: false,
     );
@@ -250,7 +251,7 @@ class _StaffRaiseEmergencyDialogState extends State<StaffRaiseEmergencyDialog> {
     final maxWidth = ResponsiveHelper.getResponsiveWidth(context, 420)
         .clamp(280.0, 440.0);
 
-    return Dialog(
+    return AppSheetPanel(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(

@@ -10,6 +10,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web-parity Clock in / Clock out sheet.
 ///
@@ -41,7 +42,7 @@ class StaffClockActionSheet extends StatefulWidget {
     String? shiftId,
     bool showNotRosteredWarning = false,
   }) {
-    return showModalBottomSheet<bool>(
+    return showAppBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -171,11 +172,21 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
         DropdownMenuItem(value: r.id, child: Text(r.name)),
     ];
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.88,
-        child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screen = MediaQuery.sizeOf(context).height;
+        final available = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : screen;
+        final room = available - bottomInset;
+        final height = room <= 0
+            ? 0.0
+            : (screen * 0.88).clamp(0.0, room);
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: SizedBox(
+            height: height,
+            child: Column(
           children: [
             Padding(
               padding: ResponsiveHelper.getResponsivePadding(
@@ -549,8 +560,10 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
               ),
             ),
           ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

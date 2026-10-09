@@ -16,6 +16,7 @@ import '../widgets/details/purpose_notes_card.dart';
 import '../widgets/details/visit_request_details_actions.dart';
 import '../widgets/details/visit_request_summary_card.dart';
 import '../widgets/family_visit_requests_header.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Read-only Request Details screen, reached by tapping "View Request
 /// Details" on a "My Requests" card.
@@ -85,9 +86,9 @@ class _VisitRequestDetailsPageState extends State<VisitRequestDetailsPage> {
   }
 
   Future<void> _confirmCancel(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppSheetDialog(
         title: const Text('Cancel this request?'),
         content: const Text(
           'The care team will be notified that this visit is no longer needed.',

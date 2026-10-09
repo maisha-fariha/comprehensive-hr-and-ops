@@ -16,6 +16,7 @@ import '../widgets/check_common.dart';
 import '../widgets/record_check_sheet.dart';
 import '../widgets/schedule_form_sheet.dart';
 import '../widgets/skip_check_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Manager "Recurring Checks" — mirrors web `/dashboard/recurring-checks`.
 class RecurringChecksPage extends StatefulWidget {
@@ -41,9 +42,9 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
   }
 
   Future<void> _confirmDelete(CheckSchedule s) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         title: Text(
           'Delete this recurring check?',

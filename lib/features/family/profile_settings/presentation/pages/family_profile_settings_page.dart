@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/offline/presentation/unsent_changes_tile.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/widgets/change_password_dialog.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../family_shell.dart';
@@ -64,15 +65,14 @@ class FamilyProfileSettingsPage extends StatelessWidget {
       return;
     }
 
-    Get.bottomSheet(
-      SafeArea(
-        child: Container(
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
+    showAppBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -143,9 +143,7 @@ class FamilyProfileSettingsPage extends StatelessWidget {
                             color: Color(0xFFB0BACA),
                           ),
                     onTap: () async {
-                      if (Get.isBottomSheetOpen ?? false) {
-                        Get.back<void>();
-                      }
+                      Navigator.of(sheetContext).pop();
                       await controller.switchLinkedClient(client);
                     },
                   );
@@ -169,11 +167,7 @@ class FamilyProfileSettingsPage extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
       ),
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
     );
   }
 

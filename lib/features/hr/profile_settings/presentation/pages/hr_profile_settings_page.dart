@@ -20,6 +20,7 @@ import '../widgets/hr_preference_tile.dart';
 import '../widgets/hr_profile_card.dart';
 import '../widgets/hr_profile_settings_header.dart';
 import 'hr_my_profile_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Profile & Settings for the Hr portal — same visual design as Family.
 class HrProfileSettingsPage extends StatelessWidget {
@@ -82,9 +83,9 @@ class HrProfileSettingsPage extends StatelessWidget {
     HrProfileSettingsController controller,
   ) async {
     final message = TextEditingController();
-    final sent = await showDialog<bool>(
+    final sent = await showAppPopup<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppSheetDialog(
         title: const Text('Contact Support'),
         content: TextField(
           controller: message,
@@ -126,11 +127,11 @@ class HrProfileSettingsPage extends StatelessWidget {
       return;
     }
     if (!context.mounted) return;
-    await showDialog<void>(
+    await showAppPopup<void>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
+          builder: (context, setState) => AppSheetDialog(
             title: const Text('Notification Preferences'),
             content: Column(
               mainAxisSize: MainAxisSize.min,

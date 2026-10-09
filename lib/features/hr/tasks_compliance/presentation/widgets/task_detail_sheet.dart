@@ -7,12 +7,13 @@ import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 Future<void> showTaskDetailSheet(
   BuildContext context, {
   required TaskItem task,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

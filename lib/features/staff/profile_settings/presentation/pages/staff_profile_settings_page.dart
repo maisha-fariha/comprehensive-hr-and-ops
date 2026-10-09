@@ -19,6 +19,7 @@ import '../widgets/staff_preference_tile.dart';
 import '../widgets/staff_profile_card.dart';
 import '../widgets/staff_profile_settings_header.dart';
 import 'staff_profile_detail_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Profile & Settings for the Staff portal — same visual design as Family.
 class StaffProfileSettingsPage extends StatefulWidget {
@@ -90,9 +91,9 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
     StaffProfileSettingsController controller,
   ) async {
     final message = TextEditingController();
-    final sent = await showDialog<bool>(
+    final sent = await showAppPopup<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppSheetDialog(
         title: const Text('Contact Support'),
         content: TextField(
           controller: message,
@@ -138,11 +139,11 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
       return;
     }
     if (!context.mounted) return;
-    await showDialog<void>(
+    await showAppPopup<void>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
+          builder: (context, setState) => AppSheetDialog(
             title: const Text('Notification Preferences'),
             content: Column(
               mainAxisSize: MainAxisSize.min,

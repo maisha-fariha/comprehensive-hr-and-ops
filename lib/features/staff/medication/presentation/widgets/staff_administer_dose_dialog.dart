@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/due_dose.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Multi-step Record Administration dialog matching web MAR nested wizard:
 /// Medicines → Safety Check → Documentation (left stepper + live preview).
@@ -21,10 +22,10 @@ class StaffAdministerDoseDialog extends StatefulWidget {
   }) {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     if (wide) {
-      return showDialog<StaffAdministerDoseResult>(
+      return showAppPopup<StaffAdministerDoseResult>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => Dialog(
+        builder: (_) => AppSheetPanel(
           insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           backgroundColor: AppColors.surfaceWhite,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -36,7 +37,7 @@ class StaffAdministerDoseDialog extends StatefulWidget {
         ),
       );
     }
-    return showModalBottomSheet<StaffAdministerDoseResult>(
+    return showAppBottomSheet<StaffAdministerDoseResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

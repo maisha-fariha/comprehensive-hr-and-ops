@@ -16,6 +16,7 @@ import '../widgets/create_shift/create_shift_notifications_form.dart';
 import '../widgets/create_shift/create_shift_open_shift_form.dart';
 import '../widgets/create_shift/create_shift_recurring_form.dart';
 import '../widgets/create_shift/create_shift_staff_assignment_form.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// "Add New Shift" wizard — same steps, fields, validation and
 /// `POST /shifts` body as the web scheduling dialog.
@@ -324,9 +325,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       Navigator.of(context).pop();
       return;
     }
-    final discard = await showDialog<bool>(
+    final discard = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
@@ -384,7 +385,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     required T? selected,
     required bool hasSelection,
   }) {
-    return showModalBottomSheet<T>(
+    return showAppBottomSheet<T>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       isScrollControlled: true,

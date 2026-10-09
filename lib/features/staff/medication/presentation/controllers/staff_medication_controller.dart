@@ -16,6 +16,7 @@ import '../../domain/entities/staff_medication_overview.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
 import '../widgets/staff_add_medicine_sheet.dart';
 import '../widgets/staff_record_administration_dialog.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// GetX controller for the Staff Medication MAR screen.
 class StaffMedicationController extends BaseController<StaffMedicationOverview> {
@@ -531,12 +532,12 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     final notes = TextEditingController();
     var reasonIndex = 0;
 
-    final saved = await showDialog<bool>(
+    final saved = await showAppPopup<bool>(
       context: dialogContext,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setLocal) {
-            return AlertDialog(
+            return AppSheetDialog(
               title: const Text('Not given'),
               content: SingleChildScrollView(
                 child: Column(

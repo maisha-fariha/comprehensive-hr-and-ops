@@ -8,13 +8,14 @@ import '../../domain/entities/shift_handover.dart';
 import '../controllers/handovers_controller.dart';
 import '../handover_labels.dart';
 import 'handover_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 Future<void> showHandoverDetailSheet(
   BuildContext context, {
   required HandoversController controller,
   required String handoverId,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

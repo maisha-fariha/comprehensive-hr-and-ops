@@ -14,6 +14,7 @@ import '../../domain/repositories/staff_extras_repository.dart';
 import '../../../tasks_messages/domain/entities/recurring_check_instance.dart';
 import '../../../tasks_messages/domain/entities/recurring_check_schedule.dart';
 import '../../../tasks_messages/domain/repositories/staff_tasks_messages_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Dedicated Recurring Checks module (BUG_Report008).
 class StaffRecurringChecksPage extends StatefulWidget {
@@ -171,7 +172,7 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
   }
 
   Future<void> _openNewSchedule() async {
-    final created = await showDialog<bool>(
+    final created = await showAppPopup<bool>(
       context: context,
       builder: (_) => _NewScheduleDialog(
         residences: _residences,
@@ -203,7 +204,7 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
   }
 
   Future<void> _openEditSchedule(RecurringCheckSchedule schedule) async {
-    final updated = await showDialog<bool>(
+    final updated = await showAppPopup<bool>(
       context: context,
       builder: (_) => _NewScheduleDialog(
         title: 'Edit recurring check',
@@ -232,7 +233,7 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
       residents = await _loadResidentOptions(_residenceFilter);
     }
     if (!mounted) return;
-    final recorded = await showDialog<bool>(
+    final recorded = await showAppPopup<bool>(
       context: context,
       builder: (_) => _RecordProgressDialog(
         residents: residents,
@@ -309,9 +310,9 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
   }
 
   Future<void> _deleteSchedule(RecurringCheckSchedule schedule) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppSheetDialog(
         title: const Text('Delete schedule?'),
         content: Text('Delete ${schedule.name}?'),
         actions: [
@@ -1067,7 +1068,7 @@ class _NewScheduleDialogState extends State<_NewScheduleDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetDialog(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1513,7 +1514,7 @@ class _RecordProgressDialogState extends State<_RecordProgressDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetDialog(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -10,12 +10,13 @@ import '../../domain/entities/team_staff_member.dart';
 import '../../domain/entities/team_staff_profile.dart';
 import '../../domain/repositories/team_reports_repository.dart';
 import 'staff_sensitive_card.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 Future<void> showTeamStaffListSheet(
   BuildContext context, {
   required List<TeamStaffMember> staff,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -28,7 +29,7 @@ Future<void> showTeamStaffProfileSheet(
   required String staffId,
   String? fallbackName,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

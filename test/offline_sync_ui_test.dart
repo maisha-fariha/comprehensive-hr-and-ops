@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:hive_ce/hive_ce.dart';
 
 import 'package:comprehensive_hr_and_ops/core/errors/app_error_dialog.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/network/connectivity_monitor.dart';
 import 'package:comprehensive_hr_and_ops/core/network/offline_banner.dart';
 import 'package:comprehensive_hr_and_ops/core/offline/offline_outbox.dart';
@@ -307,7 +308,8 @@ void main() {
         const ApiError(message: 'Boom', statusCode: 500),
       ));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('Care home is unavailable'), findsOneWidget);
+      expect(find.byType(AppSheetDialog), findsOneWidget);
     });
   });
 }

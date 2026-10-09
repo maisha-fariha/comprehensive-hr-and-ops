@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../training_labels.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// The web Badge variants used across the training screens.
 enum TrainingTone { success, warning, danger, info, neutral, cyan, purple }
@@ -278,7 +279,7 @@ Future<T?> showTrainingSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
 }) {
-  return showModalBottomSheet<T>(
+  return showAppBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -816,7 +817,7 @@ class TrainingMultiPicker extends StatelessWidget {
       onChanged(value.contains(id) ? value.where((v) => v != id).toList() : [...value, id]);
 
   Future<void> _open(BuildContext context) async {
-    await showModalBottomSheet<void>(
+    await showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceWhite,
@@ -1018,7 +1019,7 @@ Future<void> showTrainingConfirm(
   required String confirmLabel,
   required Future<bool> Function() onConfirm,
 }) {
-  return showDialog<void>(
+  return showAppPopup<void>(
     context: context,
     builder: (_) => _ConfirmDialog(
       title: title,
@@ -1051,7 +1052,7 @@ class _ConfirmDialogState extends State<_ConfirmDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text(widget.title, style: handoverText(context, 17, weight: FontWeight.w700)),
       content: Text(

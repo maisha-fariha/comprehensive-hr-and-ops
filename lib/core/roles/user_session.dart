@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import '../../features/auth/domain/entities/mobile_profile.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../errors/app_error_mapper.dart';
+import '../widgets/app_bottom_sheet.dart';
 import '../push/device_registration_service.dart';
 import '../routing/app_routes.dart';
 import 'session_lifecycle.dart';
@@ -257,7 +258,7 @@ class UserSession extends GetxService {
       // Leave the portal first. If we clear tokens / delete controllers while
       // StaffShell is still mounted, Obx rebuilds recreate controllers and
       // fire unauthenticated GETs → "Sign-in needed" on the login screen.
-      if (Get.isDialogOpen == true) {
+      if (Get.isDialogOpen == true || AppBottomSheet.isOpen) {
         Get.back<void>();
       }
       Get.offAllNamed(AppRoutes.login);

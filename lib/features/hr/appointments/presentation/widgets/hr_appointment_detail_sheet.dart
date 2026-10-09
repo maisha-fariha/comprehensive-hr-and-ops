@@ -10,6 +10,7 @@ import '../hr_appointments_labels.dart';
 import 'hr_appointment_day_log_panel.dart';
 import 'hr_appointment_reason_dialog.dart';
 import 'hr_appointments_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Opens the web's request modal. Resolves to `true` when the user chose
 /// Edit, so the caller can open the form.
@@ -18,7 +19,7 @@ Future<bool> showHrAppointmentDetailSheet(
   required HrAppointmentsController controller,
   required HrAppointment appointment,
 }) async {
-  final edit = await showModalBottomSheet<bool>(
+  final edit = await showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

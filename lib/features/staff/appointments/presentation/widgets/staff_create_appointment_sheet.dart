@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_appointment.dart';
 import '../controllers/staff_appointments_controller.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 InputDecoration _apptFieldDecoration({String? hint, String? helper}) {
   const radius = 12.0;
@@ -55,7 +56,7 @@ Future<void> showStaffCreateAppointmentSheet(
   StaffAppointmentsController controller, {
   StaffAppointment? editing,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

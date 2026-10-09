@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/family_support_ticket_thread.dart';
 import '../controllers/family_profile_settings_controller.dart';
 import '../widgets/family_profile_settings_header.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Support thread: GET /family/tickets/{id} + …/messages.
 /// Reply: POST /tickets/{id}/messages. Close: POST /tickets/{id}/close.
@@ -84,8 +85,8 @@ class _FamilySupportTicketThreadPageState
 
   Future<void> _closeTicket() async {
     if (_closing || _isClosed) return;
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
+    final confirmed = await showAppPopupWidget<bool>(
+      AppSheetDialog(
         title: const Text('Close ticket?'),
         content: const Text(
           'You will not be able to send more replies on this request.',

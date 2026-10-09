@@ -10,6 +10,7 @@ import '../offline_outbox.dart';
 import '../outbox_feature.dart';
 import '../outbox_item.dart';
 import 'pending_sync_chip.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Changes made on this device that have not reached the server yet, for the
 /// signed-in user only. Lets the user send now, retry, fix text, or discard.
@@ -106,9 +107,9 @@ class PendingChangesPage extends StatelessWidget {
     OfflineOutbox outbox,
     OutboxItem item,
   ) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppPopup<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppSheetDialog(
         key: const Key('discard-change-dialog'),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Discard this change?'),
@@ -138,7 +139,7 @@ class PendingChangesPage extends StatelessWidget {
     OutboxItem item,
   ) async {
     final body = Map<String, dynamic>.from(item.jsonBody as Map);
-    final edited = await showDialog<Map<String, String>>(
+    final edited = await showAppPopup<Map<String, String>>(
       context: context,
       builder: (_) => _EditChangeDialog(
         title: 'Edit ${item.label.toLowerCase()}',
@@ -180,7 +181,7 @@ class _EditChangeDialogState extends State<_EditChangeDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetDialog(
       key: const Key('edit-change-dialog'),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text(widget.title),

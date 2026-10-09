@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/formatting/web_formats.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// The web badge variants used on the admissions screens.
 enum AdmissionTone { info, cyan, warning, purple, success, danger, neutral }
@@ -522,7 +523,7 @@ class AdmissionSheetFrame extends StatelessWidget {
 }
 
 Future<T?> showAdmissionSheet<T>(BuildContext context, Widget sheet) =>
-    showModalBottomSheet<T>(
+    showAppBottomSheet<T>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -590,9 +591,9 @@ Future<bool> confirmAdmissionAction(
   required Color tone,
   required Key confirmKey,
 }) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppPopup<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => AppSheetDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text(
         title,
