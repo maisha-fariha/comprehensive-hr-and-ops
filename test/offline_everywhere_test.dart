@@ -310,6 +310,24 @@ void main() {
       if (await tmp.exists()) await tmp.delete(recursive: true);
     });
 
+    test('a server error on a screen already opened serves the saved copy',
+        () async {
+      api.handler = (_) => ApiResponse<dynamic>.success(
+            <String, dynamic>{'greeting': 'saved'},
+            statusCode: 200,
+          );
+      final first = await client.get('/mobile/home');
+      expect(first.isSuccess, isTrue);
+
+      api.handler = (_) => ApiResponse<dynamic>.error(
+            'unavailable',
+            statusCode: 500,
+          );
+      final again = await client.get('/mobile/home');
+      expect(again.isSuccess, isTrue);
+      expect((again.value as Map)['greeting'], 'saved');
+    });
+
     test('writes marked allowQueue:false are kept offline with a usable reply',
         () async {
       monitor.isOnline.value = false;

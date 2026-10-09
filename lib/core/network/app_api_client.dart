@@ -545,10 +545,12 @@ class AppApiClient implements OutboxTransport {
         } else {
           _connectivity?.reportReachable();
         }
-        if (method == 'GET' && canCache && _isOfflineError(error)) {
+        if (method == 'GET' && canCache && _canServeSavedCopy(error)) {
           final cached = await _readCache(method, path, query);
           if (cached != null) return Result.success(cached);
-          if (outbox != null) error = _uncachedReadError();
+          if (outbox != null && _isOfflineError(error)) {
+            error = _uncachedReadError();
+          }
         }
         if (stagingForm != null && _isOfflineError(error)) {
           final staged = await _stage(stagingForm, path, query);
@@ -589,10 +591,12 @@ class AppApiClient implements OutboxTransport {
         NetworkError.fromException(error, stackTrace),
       );
       if (_isOfflineError(mapped)) _connectivity?.reportUnreachable();
-      if (method == 'GET' && canCache && _isOfflineError(mapped)) {
+      if (method == 'GET' && canCache && _canServeSavedCopy(mapped)) {
         final cached = await _readCache(method, path, query);
         if (cached != null) return Result.success(cached);
-        if (outbox != null) mapped = _uncachedReadError();
+        if (outbox != null && _isOfflineError(mapped)) {
+          mapped = _uncachedReadError();
+        }
       }
       if (stagingForm != null && _isOfflineError(mapped)) {
         final staged = await _stage(stagingForm, path, query);
@@ -898,6 +902,16 @@ class AppApiClient implements OutboxTransport {
   bool _isOfflineError(AppError error) {
     if (error.code == 'offline' || error.code == '0') return true;
     return AppErrorMapper.from(error).isOffline;
+  }
+
+  /// A screen can keep showing its last saved copy when the care home is
+  /// unreachable or answering with a server error.
+  bool _canServeSavedCopy(AppError error) {
+    if (_isOfflineError(error)) return true;
+    final status = error is ApiError
+        ? error.statusCode
+        : int.tryParse(error.code ?? '');
+    return status != null && status >= 500;
   }
 }
 
