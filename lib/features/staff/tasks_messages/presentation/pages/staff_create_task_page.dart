@@ -52,6 +52,7 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
   DateTime? _dueAt;
   TimeOfDay? _dueTime;
   bool _requiresReview = false;
+  bool _requiresSignOff = false;
   bool _isRecurring = false;
   bool _isSubmitting = false;
   bool _loadingLookups = false;
@@ -227,6 +228,7 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
           {'label': step.label, 'required': step.required},
       ],
       requiresReview: _requiresReview,
+      requiresSignOff: _requiresSignOff,
       notes: _notesController.text,
       isRecurring: _isRecurring,
       recurrenceFrequency: 'daily',
@@ -549,6 +551,30 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
                     value: _requiresReview,
                     activeThumbColor: AppColors.secondaryTeal,
                     onChanged: (value) => setState(() => _requiresReview = value),
+                  ),
+                  SwitchListTile(
+                    key: const Key('staff-task-requires-sign-off'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Require sign-off to complete',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Whoever completes this task confirms it with their name before it '
+                      "counts as done. Optional — most tasks won't need this.",
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    value: _requiresSignOff,
+                    activeThumbColor: AppColors.secondaryTeal,
+                    onChanged: (value) => setState(() => _requiresSignOff = value),
                   ),
                   const SizedBox(height: 8),
                   const Text(

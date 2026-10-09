@@ -10,6 +10,7 @@ import '../mar_row.dart';
 import '../medication_labels.dart';
 import 'medication_common.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Picks evidence files; returns an empty list when cancelled.
 typedef MarEvidencePicker = Future<List<MarEvidenceFile>> Function();
@@ -34,7 +35,7 @@ Future<void> showMarRecordAdministrationSheet(
   bool prn = false,
   MarEvidencePicker? pickEvidence,
 }) =>
-    showModalBottomSheet<void>(
+    showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

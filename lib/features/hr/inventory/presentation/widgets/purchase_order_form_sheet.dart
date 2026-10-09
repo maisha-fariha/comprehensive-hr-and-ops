@@ -10,6 +10,7 @@ import '../../domain/entities/purchasing.dart';
 import '../controllers/purchasing_controller.dart';
 import '../inventory_labels.dart';
 import 'inventory_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web "New purchase order" / "Edit {reference}" modal.
 Future<void> showPurchaseOrderForm(
@@ -155,7 +156,7 @@ class _PurchaseOrderFormSheetState extends State<PurchaseOrderFormSheet> {
   }
 
   Future<void> _pickItem(_DraftLine line) async {
-    final picked = await showModalBottomSheet<InventoryItem>(
+    final picked = await showAppBottomSheet<InventoryItem>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

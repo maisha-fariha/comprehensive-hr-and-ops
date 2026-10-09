@@ -10,6 +10,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/hr_profile_settings_overview.dart';
 import '../../domain/repositories/hr_profile_settings_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import '../../../../../core/widgets/account_photo.dart';
 
 class HrProfileSettingsController extends BaseController<HrProfileSettingsOverview> {
   final HrProfileSettingsRepository repository;
@@ -106,11 +107,11 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
   }
 
   static const _avatarExtensions = {'jpg', 'jpeg', 'png', 'webp', 'heic'};
-  static const _avatarMaxBytes = 2 * 1024 * 1024;
+  static const _avatarMaxBytes = 25 * 1024 * 1024;
 
   final RxBool avatarBusy = false.obs;
 
-  /// Picks an image (JPEG, PNG, WebP or HEIC, up to 2 MB) and sets it as the
+  /// Picks an image (JPEG, PNG, WebP or HEIC, up to 25 MB) and sets it as the
   /// profile photo.
   Future<void> changeAvatar() async {
     if (avatarBusy.value) return;
@@ -136,7 +137,14 @@ class HrProfileSettingsController extends BaseController<HrProfileSettingsOvervi
     if (file.size > _avatarMaxBytes) {
       AppErrorDialog.showInfo(
         title: 'Photo too large',
-        message: 'Choose an image up to 2 MB.',
+        message: 'Choose an image up to 25 MB.',
+      );
+      return;
+    }
+    if (await photoFileIsBlank(path)) {
+      AppErrorDialog.showInfo(
+        title: 'Photo came through blank',
+        message: 'That picture was an empty frame. Choose it again.',
       );
       return;
     }

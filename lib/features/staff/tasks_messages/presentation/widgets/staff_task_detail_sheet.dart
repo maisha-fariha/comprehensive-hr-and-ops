@@ -1,24 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_error_mapper.dart';
+import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/connectivity_monitor.dart';
+import '../../../../../core/offline/offline_outbox.dart';
+import '../../../../../core/offline/outbox_context.dart';
+import '../../../../../core/offline/outbox_feature.dart';
+import '../../../../../core/offline/presentation/pending_sync_chip.dart';
+import '../../domain/entities/staff_task.dart';
 import '../../domain/entities/staff_task_detail.dart';
+import '../../domain/entities/tasks_messages_enums.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
 import '../controllers/tasks_messages_controller.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
+/// [summary] is the list row; offline, when the full task has never been
+/// loaded on this device, the sheet shows it instead of an error.
 Future<void> showStaffTaskDetailSheet(
   BuildContext context, {
   required String taskId,
   required TasksMessagesController controller,
+  StaffTask? summary,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => _StaffTaskDetailSheet(
       taskId: taskId,
       controller: controller,
+      summary: summary,
     ),
   );
 }
@@ -26,10 +41,12 @@ Future<void> showStaffTaskDetailSheet(
 class _StaffTaskDetailSheet extends StatefulWidget {
   final String taskId;
   final TasksMessagesController controller;
+  final StaffTask? summary;
 
   const _StaffTaskDetailSheet({
     required this.taskId,
     required this.controller,
+    this.summary,
   });
 
   @override
@@ -41,6 +58,9 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
   StaffTaskDetail? _detail;
   String? _error;
   bool _loading = true;
+
+  /// True when [_detail] was built from the list row while offline.
+  bool _summaryOnly = false;
   bool _busy = false;
   final _noteController = TextEditingController();
 
@@ -59,31 +79,66 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
+      _loading = _detail == null;
       _error = null;
     });
-    final result = await _repository.getTaskDetail(widget.taskId);
+    final offline = Get.isRegistered<ConnectivityMonitor>() &&
+        !Get.find<ConnectivityMonitor>().online;
+    final result = await OutboxContext.run(
+      () => _repository.getTaskDetail(widget.taskId),
+      silent: offline && (widget.summary != null || _detail != null),
+    );
     if (!mounted) return;
     result.when(
       success: (detail) {
         setState(() {
           _detail = detail;
+          _summaryOnly = false;
           _loading = false;
         });
       },
       failure: (error) {
+        final offline = AppErrorMapper.from(error).isOffline;
+        final summary = widget.summary;
         setState(() {
-          _error = error.message;
           _loading = false;
+          if (offline && _detail != null) return;
+          if (offline && summary != null) {
+            _detail = StaffTaskDetail(
+              id: summary.id,
+              title: summary.title,
+              statusRaw: summary.status == TaskStatus.done ? 'completed' : '',
+              dueLabel: summary.dueTimeLabel,
+              location: summary.location,
+            );
+            _summaryOnly = true;
+            return;
+          }
+          _error = error.message;
         });
       },
     );
   }
 
-  Future<void> _complete() async {
+  List<String> _pendingNotes() {
+    final outbox = OfflineOutbox.maybe;
+    if (outbox == null) return const [];
+    outbox.store.items.length;
+    final path = ApiEndpoints.taskNotes(widget.taskId);
+    return [
+      for (final item in outbox.itemsFor({OutboxFeature.tasks}))
+        if (item.method == 'POST' &&
+            item.path == path &&
+            item.jsonBody is Map &&
+            '${(item.jsonBody as Map)['body'] ?? ''}'.isNotEmpty)
+          '${(item.jsonBody as Map)['body']}',
+    ];
+  }
+
+  Future<void> _complete({bool signOff = false}) async {
     if (_busy) return;
     setState(() => _busy = true);
-    await widget.controller.completeTask(widget.taskId);
+    await widget.controller.completeTask(widget.taskId, signOff: signOff);
     if (!mounted) return;
     setState(() => _busy = false);
     Navigator.of(context).pop();
@@ -167,6 +222,9 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
     }
 
     final detail = _detail!;
+    final completedOffline =
+        widget.controller.pendingCompletedTaskIds.contains(detail.id);
+    final isCompleted = detail.isCompleted || completedOffline;
     return ListView(
       padding: ResponsiveHelper.getResponsivePadding(
         context,
@@ -175,6 +233,37 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
         bottom: 24,
       ),
       children: [
+        if (_summaryOnly)
+          Container(
+            key: const Key('task-detail-offline-summary'),
+            margin: EdgeInsets.only(
+              bottom: ResponsiveHelper.getResponsiveHeight(context, 12),
+            ),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.urgentBackgroundSoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'Offline: showing the saved summary. The full description and '
+              'notes appear once this task has loaded with a connection. You '
+              'can still add notes or complete it — they will be sent later.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 13,
+                color: AppColors.textBody,
+                height: 1.35,
+              ),
+            ),
+          ),
+        if (completedOffline)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: PendingSyncChip(label: 'Completed · pending sync'),
+            ),
+          ),
         Text(
           detail.title,
           style: TextStyle(
@@ -225,7 +314,41 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
           ),
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-        if (detail.notes.isEmpty)
+        if (OfflineOutbox.maybe != null) Obx(() {
+          final pending = _pendingNotes();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final body in pending)
+                Container(
+                  width: double.infinity,
+                  margin: EdgeInsets.only(
+                    bottom: ResponsiveHelper.getResponsiveHeight(context, 8),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.urgentBackground),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        body,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const PendingSyncChip(),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        }),
+        if (detail.notes.isEmpty && _pendingNotes().isEmpty)
           const Text(
             'No notes yet.',
             style: TextStyle(fontFamily: 'Outfit', color: AppColors.textMuted),
@@ -289,20 +412,112 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                 child: const Text('Add note'),
               ),
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: (_busy || detail.isCompleted) ? null : _complete,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.secondaryTeal,
-                  foregroundColor: Colors.white,
+            if (!detail.requiresSignOff || isCompleted) ...[
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: (_busy || isCompleted) ? null : _complete,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.secondaryTeal,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(isCompleted ? 'Completed' : 'Complete'),
                 ),
-                child: Text(detail.isCompleted ? 'Completed' : 'Complete'),
               ),
-            ),
+            ],
           ],
         ),
+        if (detail.requiresSignOff && !isCompleted) ...[
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          _SignOffBox(
+            busy: _busy,
+            onConfirm: () => _complete(signOff: true),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+/// The web sign-off box: the person completing the task confirms it.
+class _SignOffBox extends StatefulWidget {
+  final bool busy;
+  final VoidCallback onConfirm;
+
+  const _SignOffBox({required this.busy, required this.onConfirm});
+
+  @override
+  State<_SignOffBox> createState() => _SignOffBoxState();
+}
+
+class _SignOffBoxState extends State<_SignOffBox> {
+  bool _confirmed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const text = TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textBody);
+    return Container(
+      key: const Key('task-sign-off'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.urgentBackgroundSoft,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.urgentBackground),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.edit_outlined, size: 16, color: AppColors.urgentAmber),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'This task requires sign-off. Confirming below records that you '
+                  'completed it, with the date and time.',
+                  style: text,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            key: const Key('task-sign-off-confirm'),
+            onTap: () => setState(() => _confirmed = !_confirmed),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _confirmed,
+                  activeColor: AppColors.secondaryTeal,
+                  onChanged: (v) => setState(() => _confirmed = v ?? false),
+                ),
+                const Expanded(
+                  child: Text(
+                    'I confirm this task was completed as described.',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          ElevatedButton.icon(
+            key: const Key('task-sign-off-submit'),
+            onPressed: !_confirmed || widget.busy ? null : widget.onConfirm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.secondaryTeal,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.edit_outlined, size: 15),
+            label: Text(widget.busy ? 'Signing…' : 'Sign and complete'),
+          ),
+        ],
+      ),
     );
   }
 }

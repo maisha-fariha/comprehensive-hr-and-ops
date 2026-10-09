@@ -12,6 +12,7 @@ import '../widgets/staff_residence_list_card.dart';
 import '../widgets/staff_residences_summary_row.dart';
 import 'staff_residence_detail_page.dart';
 import 'staff_residence_edit_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Staff Residences list — layout mirrors web Residences Management
 /// (summary cards + rich residence rows + actions). BUG_Report002.
@@ -118,8 +119,8 @@ class _StaffResidencesPageState extends State<StaffResidencesPage> {
   }
 
   Future<void> _confirmDeactivate(StaffResidence item) async {
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
+    final confirmed = await showAppPopupWidget<bool>(
+      AppSheetDialog(
         title: const Text('Deactivate residence?'),
         content: Text(
           'Archive “${item.name.trim()}”? It will no longer show as Active.',

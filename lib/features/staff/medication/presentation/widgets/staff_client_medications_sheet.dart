@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Client med list from `GET /medications` + `GET /prn-medications`.
 Future<void> showStaffClientMedicationsSheet(
@@ -22,7 +23,7 @@ Future<void> showStaffClientMedicationsSheet(
     return Future.value();
   }
 
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

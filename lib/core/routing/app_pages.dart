@@ -6,6 +6,7 @@ import '../../features/auth/presentation/pages/otp_verification_page.dart';
 import '../../features/family/family_shell.dart';
 import '../../features/hr/hr_shell.dart';
 import '../../features/staff/staff_shell.dart';
+import '../offline/presentation/pending_changes_page.dart';
 import '../roles/user_role.dart';
 import 'access_denied_page.dart';
 import 'app_routes.dart';
@@ -45,6 +46,10 @@ abstract final class AppPages {
     GetPage(
       name: AppRoutes.accessDenied,
       page: () => const AccessDeniedPage(),
+    ),
+    GetPage(
+      name: AppRoutes.pendingChanges,
+      page: () => const PendingChangesPage(),
     ),
   ];
 

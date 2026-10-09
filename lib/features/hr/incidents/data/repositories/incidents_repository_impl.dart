@@ -9,6 +9,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
+import '../../../../../core/offline/offline_file_cache.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
@@ -139,7 +140,13 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   }
 
   @override
-  Future<Result<List<int>>> downloadCirPdf(String incidentId) async {
+  Future<Result<List<int>>> downloadCirPdf(String incidentId) =>
+      OfflineFileCache.remember(
+        'cir:$incidentId',
+        () => _downloadCirPdf(incidentId),
+      );
+
+  Future<Result<List<int>>> _downloadCirPdf(String incidentId) async {
     final linkResult = await _api.get(
       ApiEndpoints.incidentCirPdfLink(incidentId),
       silent: true,

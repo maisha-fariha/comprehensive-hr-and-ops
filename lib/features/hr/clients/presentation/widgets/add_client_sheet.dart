@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../client_form.dart';
 import '../clients_labels.dart';
@@ -25,6 +27,7 @@ class AddClientSheet extends StatefulWidget {
 class _AddClientSheetState extends State<AddClientSheet> {
   final _form = ClientForm();
   final _scroll = ScrollController();
+  final _idempotencyKey = const Uuid().v4();
   ClientStep _step = ClientStep.basic;
   Map<String, String> _errors = {};
   String? _error;
@@ -44,33 +47,79 @@ class _AddClientSheetState extends State<AddClientSheet> {
     if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
-  void _next() {
+  void _showErrors(Map<String, String> errors) {
+    final step = ClientForm.stepOf(errors.keys.first);
+    if (step != _step) _goTo(step);
+    scrollToFirstField(context, [
+      for (final field in errors.keys)
+        if (ClientForm.stepOf(field) == step) ClientForm.fieldKey(field),
+    ]);
+  }
+
+  /// Checks the current step; `false` (with the errors shown) when it fails.
+  bool _stepValid() {
     final errors = _form.validateStep(_step);
     setState(() => _errors = {..._errors}
       ..removeWhere((k, _) => ClientForm.stepOf(k) == _step)
       ..addAll(errors));
-    if (errors.isNotEmpty) return;
+    if (errors.isEmpty) return true;
+    _showErrors(errors);
+    return false;
+  }
+
+  void _next() {
+    if (!_stepValid()) return;
     if (_step.index < ClientStep.values.length - 1) {
       _goTo(ClientStep.values[_step.index + 1]);
     }
   }
 
+  /// Step chips: moving forward checks the current step first (web parity).
+  void _jump(ClientStep step) {
+    if (step.index > _step.index && !_stepValid()) return;
+    _goTo(step);
+  }
+
   Future<void> _create() async {
+    if (_submitting) return;
     final errors = _form.validateAll();
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
-      _goTo(ClientForm.stepOf(errors.keys.first));
+      _showErrors(errors);
       return;
     }
     await _submit();
   }
 
-  Future<void> _submit() async {
+  Future<void> _saveDraft() async {
+    if (_submitting) return;
+    final errors = _form.validateDraft();
+    if (errors.isNotEmpty) {
+      setState(() => _errors = {..._errors, ...errors});
+      AppSnackbar.show(
+        errors.containsKey('guardianEmail') && errors.length == 1
+            ? 'The family contact needs an email for portal access.'
+            : 'Please enter a first name and last name to save a draft.',
+        '',
+        force: true,
+      );
+      _showErrors(errors);
+      return;
+    }
+    await _submit(draft: true);
+  }
+
+  Future<void> _submit({bool draft = false}) async {
+    if (_submitting) return;
     setState(() {
       _submitting = true;
       _error = null;
     });
-    final error = await _c.createClient(_form);
+    final error = await _c.createClient(
+      _form,
+      draft: draft,
+      idempotencyKey: _idempotencyKey,
+    );
     if (!mounted) return;
     if (error == null) {
       Navigator.of(context).pop(true);
@@ -80,6 +129,7 @@ class _AddClientSheetState extends State<AddClientSheet> {
       _submitting = false;
       _error = error;
     });
+    if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
   void _changed() => setState(() {});
@@ -109,7 +159,7 @@ class _AddClientSheetState extends State<AddClientSheet> {
       ),
       top: ClientStepChips(
         current: _step.name,
-        onTap: (id) => _goTo(ClientStep.values.byName(id)),
+        onTap: (id) => _jump(ClientStep.values.byName(id)),
         steps: [
           for (final s in ClientStep.values)
             (s.name, s.label, s.description, _form.stepComplete(s)),
@@ -136,12 +186,16 @@ class _AddClientSheetState extends State<AddClientSheet> {
         HandoverButton(
           key: const ValueKey('add-client-draft'),
           label: 'Save Draft',
-          onPressed: _submitting || limited ? null : _submit,
+          onPressed: _submitting || limited ? null : _saveDraft,
         ),
         if (_step == ClientStep.care)
           HandoverButton(
             key: const ValueKey('add-client-create'),
-            label: limited ? 'Limit Exceeded' : 'Create Client',
+            label: limited
+                ? 'Limit Exceeded'
+                : _submitting
+                    ? 'Creating Client…'
+                    : 'Create Client',
             filled: true,
             onPressed: _submitting || limited ? null : _create,
           )
@@ -202,6 +256,7 @@ class _AddClientSheetState extends State<AddClientSheet> {
               form: _form,
               enabled: true,
               onChanged: _changed,
+              goalCategories: _c.goalCategories,
             ),
         },
       ],

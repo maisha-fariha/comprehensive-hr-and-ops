@@ -89,6 +89,16 @@ class _FakeProfileRepo implements StaffProfileSettingsRepository {
     required String newPassword,
   }) async =>
       Result.success(null);
+
+  @override
+  Future<Result<String?>> updateAvatar({
+    required String filePath,
+    required String fileName,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> removeAvatar() async => Result.success(null);
 }
 
 class _FakeExtrasRepo implements StaffExtrasRepository {

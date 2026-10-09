@@ -5,6 +5,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_message_contact.dart';
 import '../../domain/repositories/communication_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 class NewConversationResult {
   final ConversationCreateType type;
@@ -31,7 +32,7 @@ Future<NewConversationResult?> showNewConversationDialog(
   required List<CommunicationClientOption> clients,
   String? initialResidenceId,
 }) {
-  return showDialog<NewConversationResult>(
+  return showAppPopup<NewConversationResult>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.45),
     builder: (context) => NewConversationDialog(
@@ -199,7 +200,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
   Widget build(BuildContext context) {
     final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
 
-    return Dialog(
+    return AppSheetPanel(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       backgroundColor: AppColors.surfaceWhite,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

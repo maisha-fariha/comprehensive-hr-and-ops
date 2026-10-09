@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Single-line labelled field (text, number, date or time trigger).
 class CheckInput extends StatelessWidget {
@@ -424,7 +425,7 @@ class CheckSheetScaffold extends StatelessWidget {
 }
 
 Future<T?> showCheckSheet<T>(BuildContext context, Widget Function(BuildContext) builder) =>
-    showModalBottomSheet<T>(
+    showAppBottomSheet<T>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceWhite,

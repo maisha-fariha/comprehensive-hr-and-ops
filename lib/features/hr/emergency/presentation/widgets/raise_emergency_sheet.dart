@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
@@ -7,6 +8,8 @@ import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/emergency_alert.dart';
 import '../../domain/repositories/emergency_repository.dart';
 import '../emergency_labels.dart';
+import 'emergency_alert_motion.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 typedef EmergencyLocator = Future<({double latitude, double longitude})?> Function();
 
@@ -41,7 +44,7 @@ Future<bool?> showRaiseEmergencySheet(
   required EmergencyRepository repository,
   EmergencyLocator locate = emergencyDeviceLocation,
 }) {
-  return showModalBottomSheet<bool>(
+  return showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -120,6 +123,7 @@ class _RaiseEmergencySheetState extends State<RaiseEmergencySheet> {
     result.when(
       success: (_) {
         AppSnackbar.show('Alarm raised — the response team has been alerted', '');
+        ActiveEmergencyAlerts.refresh();
         Navigator.of(context).pop(true);
       },
       failure: (e) => setState(() => _error = e.message),
@@ -302,49 +306,83 @@ class EmergencyRaiseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showLabel = MediaQuery.sizeOf(context).width >= _labelBreakpoint;
-    return Semantics(
-      label: 'Raise emergency alarm',
-      button: true,
-      excludeSemantics: true,
-      child: Material(
-        color: AppColors.criticalRed,
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          key: const ValueKey('raise-emergency-button'),
+    return EmergencyAlertWatch(
+      child: Obx(() {
+        final count = ActiveEmergencyAlerts.count.value;
+        final alerting = count > 0;
+        final animate = alerting && emergencyAlertMotionEnabled(context);
+        final showLabel = MediaQuery.sizeOf(context).width >= _labelBreakpoint;
+        Widget icon = const Icon(
+          Icons.crisis_alert_rounded,
+          size: 14,
+          color: Colors.white,
+        );
+        if (animate) icon = EmergencyBounce(animate: true, child: icon);
+        Widget button = Material(
+          color: alerting ? const Color(0xFFDC2626) : AppColors.criticalRed,
           borderRadius: BorderRadius.circular(999),
-          onTap: onPressed,
-          child: Container(
-            height: 32,
-            constraints: const BoxConstraints(minWidth: 32),
-            padding: EdgeInsets.symmetric(horizontal: showLabel ? 12 : 9),
-            decoration: onDark
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                  )
-                : null,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.crisis_alert_rounded, size: 14, color: Colors.white),
-                if (showLabel) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    'Emergency',
-                    style: handoverText(
-                      context,
-                      12.5,
-                      weight: FontWeight.w600,
-                      color: Colors.white,
+          child: InkWell(
+            key: const ValueKey('raise-emergency-button'),
+            borderRadius: BorderRadius.circular(999),
+            onTap: onPressed,
+            child: Container(
+              height: 32,
+              constraints: const BoxConstraints(minWidth: 32),
+              padding: EdgeInsets.symmetric(horizontal: showLabel ? 12 : 9),
+              decoration: alerting || onDark
+                  ? BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: alerting
+                            ? const Color(0xFFEF4444)
+                            : Colors.white.withValues(alpha: 0.35),
+                        width: alerting ? 2 : 1,
+                      ),
+                      boxShadow: alerting
+                          ? const [
+                              BoxShadow(
+                                color: Color(0x80DC2626),
+                                blurRadius: 12,
+                              ),
+                            ]
+                          : null,
+                    )
+                  : null,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  icon,
+                  if (showLabel) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      'Emergency',
+                      style: handoverText(
+                        context,
+                        12.5,
+                        weight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
+                  ],
+                  if (alerting) ...[
+                    const SizedBox(width: 6),
+                    EmergencyAlertBadge(count: count, animate: animate),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+        if (animate) button = EmergencyPulse(animate: true, child: button);
+        return Semantics(
+          label: alerting
+              ? 'Raise emergency alarm, $count active'
+              : 'Raise emergency alarm',
+          button: true,
+          excludeSemantics: true,
+          child: button,
+        );
+      }),
     );
   }
 }

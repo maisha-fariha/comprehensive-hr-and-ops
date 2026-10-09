@@ -5,6 +5,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/offline/outbox_feature.dart';
+import '../../../../../core/offline/presentation/pending_outbox_section.dart';
 import '../../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
 import '../controllers/tasks_messages_controller.dart';
@@ -115,6 +117,14 @@ class StaffTasksMessagesPage extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              PendingOutboxSection(
+                features: const {
+                  OutboxFeature.tasks,
+                  OutboxFeature.recurringChecks,
+                  OutboxFeature.messages,
+                },
+                onSynced: () => controller.refresh(),
               ),
               Expanded(
                 child: RefreshIndicator(

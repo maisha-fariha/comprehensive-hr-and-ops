@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web `StatCard` used by the Residences KPI tiles.
 class ResidenceKpiTile extends StatelessWidget {
@@ -299,9 +300,9 @@ class ResidenceInitials extends StatelessWidget {
 
 /// Web confirm dialog "Delete this home?".
 Future<bool> confirmResidenceDelete(BuildContext context) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppPopup<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => AppSheetDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text(
         'Delete this home?',

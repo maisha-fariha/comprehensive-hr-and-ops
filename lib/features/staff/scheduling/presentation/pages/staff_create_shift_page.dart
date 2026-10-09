@@ -17,6 +17,7 @@ import '../../../../hr/scheduling/presentation/widgets/create_shift/create_shift
 import '../../../../hr/scheduling/presentation/widgets/create_shift/create_shift_recurring_form.dart';
 import '../../domain/entities/staff_shift_form_option.dart';
 import '../../domain/repositories/staff_schedule_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Staff "Add New Shift" wizard matching web parity (BUG_Report004).
 class StaffCreateShiftPage extends StatefulWidget {
@@ -239,7 +240,7 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
     required String Function(T) labelOf,
     required ValueChanged<T> onSelected,
   }) async {
-    final selected = await showModalBottomSheet<T>(
+    final selected = await showAppBottomSheet<T>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
@@ -280,7 +281,7 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
     final searchController = TextEditingController();
     Timer? debounce;
 
-    final picked = await showModalBottomSheet<StaffShiftStaffOption>(
+    final picked = await showAppBottomSheet<StaffShiftStaffOption>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceWhite,

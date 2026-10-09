@@ -5,6 +5,7 @@ import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/mar_administration.dart';
 import '../medication_labels.dart';
 import 'medication_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web "Given" tab: every charted dose with flags, signer, witness and the
 /// Correct action.
@@ -146,7 +147,7 @@ Future<void> showMarCorrectDialog(
   required Future<String?> Function({required String reason, String? status, String? doseReason})
       onSubmit,
 }) =>
-    showDialog<void>(
+    showAppPopup<void>(
       context: context,
       builder: (_) => _CorrectDialog(administration: administration, onSubmit: onSubmit),
     );
@@ -212,7 +213,7 @@ class _CorrectDialogState extends State<_CorrectDialog> {
   @override
   Widget build(BuildContext context) {
     final a = widget.administration;
-    return AlertDialog(
+    return AppSheetDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text('Correct this record', style: handoverText(context, 17, weight: FontWeight.w700)),
       content: SingleChildScrollView(

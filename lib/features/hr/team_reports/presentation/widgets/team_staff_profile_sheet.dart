@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/team_staff_member.dart';
 import '../../domain/entities/team_staff_profile.dart';
 import '../../domain/repositories/team_reports_repository.dart';
+import 'staff_sensitive_card.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 Future<void> showTeamStaffListSheet(
   BuildContext context, {
   required List<TeamStaffMember> staff,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -25,7 +29,7 @@ Future<void> showTeamStaffProfileSheet(
   required String staffId,
   String? fallbackName,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -155,6 +159,17 @@ class _TeamStaffProfileSheetState extends State<_TeamStaffProfileSheet> {
   String _error = '';
   TeamStaffProfile? _profile;
 
+  // `UserSession.can` allows everything before permissions arrive; PII
+  // needs the permission to be explicitly granted.
+  bool _hasPermission(String permission) {
+    if (!Get.isRegistered<UserSession>()) return false;
+    final session = Get.find<UserSession>();
+    return session.permissions.isNotEmpty && session.can(permission);
+  }
+
+  bool get _canReadPii => _hasPermission('staff:pii:read');
+  bool get _canWritePii => _hasPermission('staff:pii:write');
+
   @override
   void initState() {
     super.initState();
@@ -275,6 +290,18 @@ class _TeamStaffProfileSheetState extends State<_TeamStaffProfileSheet> {
                                   label: 'Residence',
                                   value: profile.residenceName!,
                                 ),
+                              if (_canReadPii) ...[
+                                SizedBox(
+                                  height: ResponsiveHelper.getResponsiveHeight(
+                                    context,
+                                    8,
+                                  ),
+                                ),
+                                StaffSensitiveCard(
+                                  staffId: widget.staffId,
+                                  canWrite: _canWritePii,
+                                ),
+                              ],
                               SizedBox(
                                 height: ResponsiveHelper.getResponsiveHeight(
                                   context,

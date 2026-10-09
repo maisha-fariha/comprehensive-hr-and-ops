@@ -5,6 +5,7 @@ import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/offline/outbox_context.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/attendance/data/mappers/attendance_mapper.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
@@ -142,11 +143,14 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       final form = FormData.fromMap({
         'file': await MultipartFile.fromFile(localPath, filename: fileName),
       });
-      final result = await _api.post(
-        ApiEndpoints.uploads,
-        data: form,
-        query: const {'category': 'attendance'},
-        allowQueue: false,
+      final result = await OutboxContext.run(
+        () => _api.post(
+          ApiEndpoints.uploads,
+          data: form,
+          query: const {'category': 'attendance'},
+          allowQueue: false,
+        ),
+        stageUploads: true,
       );
       return result.when(
         success: (body) async {

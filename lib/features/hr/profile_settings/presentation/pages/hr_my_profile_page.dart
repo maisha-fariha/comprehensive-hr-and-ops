@@ -12,6 +12,7 @@ import '../../hr_profile_settings_constants.dart';
 import '../controllers/hr_profile_settings_controller.dart';
 import '../widgets/hr_change_password_dialog.dart';
 import '../widgets/hr_initials_avatar.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// "My profile": profile picture (change / remove), account info and
 /// password change — mirrors the web portal's My profile page.
@@ -101,7 +102,7 @@ class HrMyProfilePage extends StatelessWidget {
                                   ),
                                 ),
                                 icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                                label: const Text('Change'),
+                                label: const Text('Upload'),
                               ),
                               if (avatarUrl != null)
                                 OutlinedButton(
@@ -123,7 +124,7 @@ class HrMyProfilePage extends StatelessWidget {
                           ),
                           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
                           Text(
-                            'JPEG, PNG, WebP or HEIC, up to 2MB.',
+                            'JPEG, PNG, WebP or HEIC, up to 25MB. If you are a staff member and set none, the photo on your staff record is shown.',
                             style: AppTextStyles.base(
                               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
                               fontWeight: AppFontWeight.regular,
@@ -192,9 +193,9 @@ class HrMyProfilePage extends StatelessWidget {
     BuildContext context,
     HrProfileSettingsController controller,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppSheetDialog(
         title: const Text('Remove photo?'),
         content: const Text('Your initials will be shown instead.'),
         actions: [

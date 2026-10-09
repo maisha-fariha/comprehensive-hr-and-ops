@@ -12,6 +12,7 @@ import '../widgets/handover_card.dart';
 import '../widgets/handover_common.dart';
 import '../widgets/handover_detail_sheet.dart';
 import '../widgets/record_handover_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Manager "Shift Handovers" — mirrors web `/dashboard/handovers`.
 class HandoversPage extends StatefulWidget {
@@ -37,9 +38,9 @@ class _HandoversPageState extends State<HandoversPage> {
   }
 
   Future<void> _confirmDelete(ShiftHandover h) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         title: Text(
           'Delete this handover?',

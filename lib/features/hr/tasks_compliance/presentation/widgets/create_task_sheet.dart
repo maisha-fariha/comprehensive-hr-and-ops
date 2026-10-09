@@ -16,6 +16,7 @@ import '../../domain/entities/task_residence_option.dart';
 import '../../domain/entities/task_shift_option.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Opens the "New Task" create form matched to the Tasks & Compliance
 /// reference screens.
@@ -23,7 +24,7 @@ Future<void> showCreateTaskSheet(
   BuildContext context, {
   VoidCallback? onCreated,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -120,6 +121,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
   String _priority = 'medium';
   DateTime? _dueAt;
   bool _requiresReview = false;
+  bool _requiresSignOff = false;
   bool _recurring = false;
   final List<_ChecklistDraft> _checklist = [];
   final List<CreateTaskAttachment> _attachments = [];
@@ -227,7 +229,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     required List<String> options,
     required ValueChanged<String> onSelected,
   }) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: RoundedRectangleBorder(
@@ -600,6 +602,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
         priority: _priority,
         dueAt: _dueAt,
         requiresReview: _requiresReview,
+        requiresSignOff: _requiresSignOff,
         assignedStaffIds: [for (final staff in _selectedStaff) staff.id],
         checklist: [
           for (final step in _checklist)
@@ -841,6 +844,15 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                         'Somebody with review rights has to agree it was done before it counts',
                     value: _requiresReview,
                     onChanged: (value) => setState(() => _requiresReview = value),
+                    bordered: false,
+                  ),
+                  _ToggleBlock(
+                    key: const ValueKey('task-requires-sign-off'),
+                    title: 'Require sign-off to complete',
+                    subtitle: 'Whoever completes this task confirms it with their name '
+                        "before it counts as done. Optional — most tasks won't need this.",
+                    value: _requiresSignOff,
+                    onChanged: (value) => setState(() => _requiresSignOff = value),
                     bordered: false,
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),

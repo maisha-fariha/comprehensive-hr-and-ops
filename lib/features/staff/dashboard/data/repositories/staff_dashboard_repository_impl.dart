@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../auth/data/mappers/auth_mapper.dart';
 import '../../../../common/inbox/data/mappers/portal_inbox_mapper.dart';
@@ -26,7 +27,16 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
     if (me.isSuccess) {
       final profile = AuthMapper.profileFromJson(me.value);
       if (profile != null) {
+        // `/mobile/me` omits the picture. Keep the account photo from
+        // `/auth/me` (the same file the web header shows).
+        final previous = _session.avatarUrl;
         _session.applyProfile(profile);
+        if (profile.avatarUrl == null) {
+          final kept = (previous != null && previous.isNotEmpty)
+              ? previous
+              : await _accountAvatarUrl();
+          if (kept != null) _session.updateAvatarUrl(kept);
+        }
       }
     }
 
@@ -37,6 +47,23 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
         home.error ?? const ApiError(message: 'Could not load home.'),
       );
     }
+
+    // `/mobile/home` tiles.tasksDue is currently 0 while the web tasks
+    // screen uses `GET /tasks/stats` → `today.due`. Prefer that figure.
+    final homeBody = Map<String, dynamic>.from(JsonCodec.unwrapMap(home.value));
+    final tiles = Map<String, dynamic>.from(
+      JsonCodec.mapAt(homeBody, 'tiles') ?? const {},
+    );
+    if (tiles.containsKey('tasksDue') && tiles['tasksDue'] != null) {
+      final stats = await _api.get(ApiEndpoints.tasksStats, silent: true);
+      if (stats.isSuccess) {
+        final due = JsonCodec.integer(
+          JsonCodec.mapAt(JsonCodec.unwrapMap(stats.value), 'today')?['due'],
+        );
+        if (due != null) tiles['tasksDue'] = due;
+      }
+    }
+    homeBody['tiles'] = tiles;
 
     var unread = 0;
     final notifications = await _api.get(
@@ -53,7 +80,7 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
     return Result.success(
       StaffHomeMapper.compose(
         session: _session,
-        body: home.value,
+        body: homeBody,
         unreadNotificationCount: unread,
       ),
     );
@@ -95,5 +122,11 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  Future<String?> _accountAvatarUrl() async {
+    final result = await _api.get(ApiEndpoints.authMe, silent: true);
+    if (result.isFailure) return null;
+    return JsonCodec.string(JsonCodec.unwrapMap(result.value)['avatarUrl']);
   }
 }

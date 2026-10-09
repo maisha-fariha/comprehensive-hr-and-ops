@@ -9,6 +9,7 @@ import '../controllers/hr_appointments_controller.dart';
 import '../hr_appointments_labels.dart';
 import 'hr_appointment_day_log_panel.dart';
 import 'hr_appointments_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// "Create Appointment" / "Edit Appointment". Resolves true once saved.
 Future<bool> showHrAppointmentFormSheet(
@@ -16,7 +17,7 @@ Future<bool> showHrAppointmentFormSheet(
   required HrAppointmentsController controller,
   HrAppointment? editing,
 }) async {
-  final saved = await showModalBottomSheet<bool>(
+  final saved = await showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

@@ -3,12 +3,13 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_document.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 Future<void> showStaffMissingDocumentsSheet(
   BuildContext context, {
   required List<StaffDocumentMissingGap> gaps,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,

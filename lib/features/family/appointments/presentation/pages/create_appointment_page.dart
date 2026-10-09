@@ -9,6 +9,7 @@ import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/appointment_request_controller.dart';
 import '../widgets/appointment_form_fields.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Family "Request a Visit" form — the web Family Portal modal (resident,
 /// date of visit, preferred time slot, visiting area, number of visitors,
@@ -106,7 +107,7 @@ class _CreateAppointmentPageState extends State<CreateAppointmentPage> {
     required List<VisitFormOption> options,
     String? selected,
   }) {
-    return showModalBottomSheet<String>(
+    return showAppBottomSheet<String>(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(

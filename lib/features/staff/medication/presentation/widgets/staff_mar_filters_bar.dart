@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web MAR registry filters: search + residence / resident / medicine / status.
 class StaffMarFiltersBar extends StatelessWidget {
@@ -207,7 +208,7 @@ class StaffMarFiltersBar extends StatelessWidget {
     required List<({String value, String label})> options,
     required ValueChanged<String> onPicked,
   }) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(

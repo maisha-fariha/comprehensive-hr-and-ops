@@ -9,6 +9,7 @@ import 'staff_initials_avatar.dart';
 
 class StaffProfileCard extends StatelessWidget {
   final StaffProfile profile;
+  final String? imageUrl;
   final VoidCallback? onTap;
 
   static const Color _nameColor = Color(0xFF1A2B48);
@@ -18,7 +19,12 @@ class StaffProfileCard extends StatelessWidget {
   static const Color _cardBorder = Color(0xFFEEF1F4);
   static const Color _shadow = Color(0xFF142846);
 
-  const StaffProfileCard({super.key, required this.profile, this.onTap});
+  const StaffProfileCard({
+    super.key,
+    required this.profile,
+    this.imageUrl,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +65,7 @@ class StaffProfileCard extends StatelessWidget {
             children: [
               StaffInitialsAvatar(
                 initials: profile.initials,
+                imageUrl: imageUrl,
                 size: 50,
                 background:
                     StaffProfileSettingsConstants.profileAvatarBackground,

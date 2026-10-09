@@ -27,6 +27,9 @@ class StaffTaskDetail {
   final String location;
   final List<StaffTaskNote> notes;
 
+  /// The person completing it must confirm with their name (web sign-off).
+  final bool requiresSignOff;
+
   const StaffTaskDetail({
     required this.id,
     required this.title,
@@ -35,6 +38,7 @@ class StaffTaskDetail {
     this.dueLabel = '',
     this.location = '',
     this.notes = const [],
+    this.requiresSignOff = false,
   });
 
   bool get isCompleted {

@@ -1,5 +1,6 @@
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/client_extras.dart';
+import '../../domain/entities/client_goals.dart';
 import '../../domain/entities/client_summary.dart';
 
 abstract final class ClientsMapper {
@@ -34,6 +35,7 @@ abstract final class ClientsMapper {
     return ClientSummary(
       id: id,
       firstName: JsonCodec.stringOr(json['firstName'], ''),
+      middleName: JsonCodec.string(json['middleName']),
       lastName: JsonCodec.stringOr(json['lastName'], ''),
       photoUrl: _photoUrl(json),
       residenceId: JsonCodec.string(json['residenceId'] ?? residence?['id']),
@@ -163,6 +165,107 @@ abstract final class ClientsMapper {
           orderedAt: JsonCodec.dateTime(p['orderedAt']),
         );
       }).toList(),
+    );
+  }
+
+  static List<DeletedClient> deletedFrom(dynamic body) {
+    final items = <DeletedClient>[];
+    for (final row in JsonCodec.unwrapList(body)) {
+      final client = clientFrom(row);
+      if (client == null) continue;
+      final json = JsonCodec.asMap(row);
+      final by = json['deletedBy'];
+      items.add(
+        DeletedClient(
+          client: client,
+          deletedAt: JsonCodec.dateTime(json['deletedAt']),
+          deletedByName: by is Map ? JsonCodec.string(by['name']) : null,
+          reason: JsonCodec.string(json['deleteReason']),
+          statusBeforeDelete: JsonCodec.string(json['statusBeforeDelete']),
+        ),
+      );
+    }
+    return items;
+  }
+
+  static List<ClientGoalCategory> goalCategoriesFrom(dynamic body) => [
+        for (final row in JsonCodec.unwrapList(body))
+          if (JsonCodec.string(JsonCodec.asMap(row)['key']) case final key?)
+            ClientGoalCategory(
+              key: key,
+              label: JsonCodec.stringOr(JsonCodec.asMap(row)['label'], key),
+            ),
+      ];
+
+  static ClientGoal? goalFrom(dynamic body) {
+    final json = JsonCodec.asMap(body);
+    final id = JsonCodec.string(json['id']);
+    if (id == null) return null;
+    final category = JsonCodec.stringOr(json['category'], 'custom');
+    return ClientGoal(
+      id: id,
+      category: category,
+      categoryLabel: JsonCodec.stringOr(json['categoryLabel'], category),
+      title: JsonCodec.stringOr(json['title'], ''),
+      isCustom: JsonCodec.boolean(json['isCustom']) ?? category == 'custom',
+      targetDate: JsonCodec.string(json['targetDate']),
+      status: JsonCodec.stringOr(json['status'], 'active'),
+    );
+  }
+
+  static List<ClientGoal> goalsFrom(dynamic body) =>
+      JsonCodec.unwrapList(body).map(goalFrom).whereType<ClientGoal>().toList();
+
+  static ClientGoalOutcomes goalOutcomesFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final byGoal = <String, GoalPeriods>{};
+    for (final row in JsonCodec.listAt(json, 'goals')) {
+      final entry = JsonCodec.asMap(row);
+      final id = JsonCodec.string(JsonCodec.mapAt(entry, 'goal')?['id']);
+      if (id != null) byGoal[id] = _periods(entry['outcomes']);
+    }
+    return ClientGoalOutcomes(overall: _periods(json['overall']), byGoal: byGoal);
+  }
+
+  static List<ClientGoalLog> goalLogsFrom(dynamic body) {
+    final items = <ClientGoalLog>[];
+    for (final row in JsonCodec.unwrapList(body)) {
+      final json = JsonCodec.asMap(row);
+      final id = JsonCodec.string(json['id']);
+      final goalId = JsonCodec.string(JsonCodec.mapAt(json, 'goal')?['id'] ?? json['goalId']);
+      if (id == null || goalId == null) continue;
+      items.add(
+        ClientGoalLog(
+          id: id,
+          goalId: goalId,
+          staffId: JsonCodec.string(JsonCodec.mapAt(json, 'staff')?['id'] ?? json['staffId']),
+          logDate: JsonCodec.stringOr(json['logDate'], ''),
+          achieved: JsonCodec.boolean(json['achieved']) ?? false,
+          assistance: GoalAssistance.parse(JsonCodec.string(json['assistanceLevel'])),
+          notes: JsonCodec.stringOr(json['notes'], ''),
+        ),
+      );
+    }
+    return items;
+  }
+
+  static GoalPeriods _periods(dynamic value) {
+    final json = JsonCodec.asMap(value);
+    GoalPeriod period(String key) {
+      final p = JsonCodec.asMap(json[key]);
+      return GoalPeriod(
+        logged: JsonCodec.integerOr(p['logged'], 0),
+        achieved: JsonCodec.integerOr(p['achieved'], 0),
+        progress: JsonCodec.number(p['progress'])?.round(),
+        independence: JsonCodec.number(p['independence'])?.round(),
+        trend: JsonCodec.stringOr(p['trend'], 'steady'),
+      );
+    }
+
+    return GoalPeriods(
+      weekly: period('weekly'),
+      monthly: period('monthly'),
+      discharge: period('discharge'),
     );
   }
 

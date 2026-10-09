@@ -21,6 +21,7 @@ import '../../domain/entities/incident_staff_option.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../../domain/repositories/incidents_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// GetX controller for the 5-step "Create Incident" wizard (web parity).
 class IncidentCreationController extends GetxController {
@@ -614,7 +615,7 @@ class IncidentCreationController extends GetxController {
       return;
     }
 
-    final selected = await showModalBottomSheet<Object>(
+    final selected = await showAppBottomSheet<Object>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
@@ -712,7 +713,7 @@ class IncidentCreationController extends GetxController {
   }
 
   Future<void> pickDetectedDuring(BuildContext context) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
@@ -790,7 +791,7 @@ class IncidentCreationController extends GetxController {
   }
 
   Future<void> pickInvestigationStatus(BuildContext context) async {
-    final selected = await showModalBottomSheet<(String, String)>(
+    final selected = await showAppBottomSheet<(String, String)>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
@@ -840,7 +841,7 @@ class IncidentCreationController extends GetxController {
   }
 
   Future<void> pickExternalAgencyType(BuildContext context) async {
-    final selected = await showModalBottomSheet<(String, String)>(
+    final selected = await showAppBottomSheet<(String, String)>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
@@ -921,7 +922,7 @@ class IncidentCreationController extends GetxController {
     String? selectedId,
     String Function(T)? subtitleOf,
   }) {
-    return showModalBottomSheet<T>(
+    return showAppBottomSheet<T>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
@@ -1081,7 +1082,7 @@ class IncidentCreationController extends GetxController {
   // ── Witnesses & evidence ───────────────────────────────────────────────
 
   Future<void> promptAddWitness(BuildContext context) async {
-    final name = await showDialog<String>(
+    final name = await showAppPopup<String>(
       context: context,
       builder: (dialogContext) => const _AddWitnessDialog(),
     );
@@ -1101,7 +1102,7 @@ class IncidentCreationController extends GetxController {
     final remaining =
         cfsStatusOptions.where((s) => !cfsStatuses.contains(s)).toList();
     if (remaining.isEmpty) return;
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
@@ -1946,7 +1947,7 @@ class _AddWitnessDialogState extends State<_AddWitnessDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetDialog(
       title: const Text(
         'Add witness',
         style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),

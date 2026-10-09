@@ -15,6 +15,7 @@ import '../widgets/hr_document_types_sheet.dart';
 import '../widgets/hr_documents_common.dart';
 import '../widgets/hr_documents_kpi_grid.dart';
 import '../widgets/hr_documents_registry.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Manager "Documents" — mirrors web `/dashboard/documents`.
 class HrDocumentsPage extends StatefulWidget {
@@ -66,9 +67,9 @@ class _HrDocumentsPageState extends State<HrDocumentsPage> {
       );
 
   Future<void> _confirmWithdraw(HrDocumentRow row) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         title: Text(
           'Withdraw this document?',

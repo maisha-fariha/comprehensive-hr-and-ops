@@ -16,13 +16,14 @@ import '../../domain/repositories/incidents_repository.dart';
 import '../controllers/incidents_controller.dart';
 import '../pages/incident_creation_page.dart';
 import 'incident_icon_style.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Opens the Investigation Summary sheet for an Under Review card.
 Future<void> showInvestigationSummarySheet(
   BuildContext context, {
   required InvestigationIncident incident,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

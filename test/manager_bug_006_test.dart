@@ -425,7 +425,7 @@ void main() {
     await _tap(tester, _tab('Notifications'));
 
     expect(find.text('Notify assigned staff'), findsOneWidget);
-    expect(find.text('Select an option'), findsOneWidget);
+    expect(find.text('2 hours before'), findsOneWidget);
     expect(
       find.text('A second notification this long before the shift starts.'),
       findsOneWidget,
@@ -572,7 +572,7 @@ void main() {
       expect(body['biddingConfig'], isNull);
       expect(body.containsKey('requiredStaffCount'), isFalse);
       expect(body.containsKey('recurrence'), isFalse);
-      expect(body['reminderMinutesBefore'], isNull);
+      expect(body['reminderMinutesBefore'], 120);
     });
 
     test('same start and end is rejected', () {

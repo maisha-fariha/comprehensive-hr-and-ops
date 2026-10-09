@@ -7,6 +7,7 @@ import '../../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_document.dart';
 import '../controllers/staff_documents_controller.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 InputDecoration _docFieldDecoration({String? hint, String? helper}) {
   const radius = 12.0;
@@ -55,7 +56,7 @@ Future<void> showStaffUploadDocumentSheet(
   BuildContext context,
   StaffDocumentsController controller,
 ) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

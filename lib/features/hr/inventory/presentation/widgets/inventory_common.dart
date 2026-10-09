@@ -3,10 +3,11 @@ import 'package:flutter/services.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Opens a web-style modal as a tall bottom sheet.
 Future<T?> showInventorySheet<T>(BuildContext context, WidgetBuilder builder) =>
-    showModalBottomSheet<T>(
+    showAppBottomSheet<T>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -595,9 +596,9 @@ Future<bool> confirmInventoryAction(
   bool danger = true,
   String confirmKey = 'inventory-confirm',
 }) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppPopup<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => AppSheetDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text(title, style: handoverText(dialogContext, 17, weight: FontWeight.w700)),
       content: Text(

@@ -14,6 +14,7 @@ import '../widgets/family_appointments_header.dart';
 import '../widgets/family_appointments_tab_bar.dart';
 import '../widgets/family_primary_button.dart';
 import 'create_appointment_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// The Family Visits & Appointments list - web `/family/appointments`:
 /// "Upcoming Visits" / "Past Visits" tabs over `GET /family/appointments`.
@@ -96,7 +97,7 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
       return;
     }
     if (!_controller.canAct(appointment)) return;
-    final action = await showModalBottomSheet<String>(
+    final action = await showAppBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
         child: Column(

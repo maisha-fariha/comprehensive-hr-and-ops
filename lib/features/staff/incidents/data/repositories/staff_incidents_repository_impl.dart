@@ -9,6 +9,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
+import '../../../../../core/offline/offline_file_cache.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/incident_detail.dart';
 import '../../domain/entities/staff_incident.dart';
@@ -151,7 +152,13 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   }
 
   @override
-  Future<Result<List<int>>> downloadCirPdf(String incidentId) async {
+  Future<Result<List<int>>> downloadCirPdf(String incidentId) =>
+      OfflineFileCache.remember(
+        'cir:$incidentId',
+        () => _downloadCirPdf(incidentId),
+      );
+
+  Future<Result<List<int>>> _downloadCirPdf(String incidentId) async {
     final linkResult = await _api.get(
       ApiEndpoints.incidentCirPdfLink(incidentId),
       silent: true,
@@ -184,7 +191,14 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   }
 
   @override
-  Future<Result<List<int>>> downloadFileBytes(String fileUrl) async {
+  Future<Result<List<int>>> downloadFileBytes(String fileUrl) =>
+      OfflineFileCache.remember(
+        'file:${fileUrl.trim()}',
+        () => _downloadFileBytes(fileUrl),
+        source: fileUrl,
+      );
+
+  Future<Result<List<int>>> _downloadFileBytes(String fileUrl) async {
     final trimmed = fileUrl.trim();
     if (trimmed.isEmpty) {
       return Result.failure(const ApiError(message: 'File URL was missing.'));

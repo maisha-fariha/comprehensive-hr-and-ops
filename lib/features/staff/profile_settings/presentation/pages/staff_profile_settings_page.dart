@@ -5,6 +5,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/offline/presentation/unsent_changes_tile.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/change_password_dialog.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../staff_shell.dart';
@@ -18,6 +20,7 @@ import '../widgets/staff_preference_tile.dart';
 import '../widgets/staff_profile_card.dart';
 import '../widgets/staff_profile_settings_header.dart';
 import 'staff_profile_detail_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Profile & Settings for the Staff portal — same visual design as Family.
 class StaffProfileSettingsPage extends StatefulWidget {
@@ -89,9 +92,9 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
     StaffProfileSettingsController controller,
   ) async {
     final message = TextEditingController();
-    final sent = await showDialog<bool>(
+    final sent = await showAppPopup<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppSheetDialog(
         title: const Text('Contact Support'),
         content: TextField(
           controller: message,
@@ -137,11 +140,11 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
       return;
     }
     if (!context.mounted) return;
-    await showDialog<void>(
+    await showAppPopup<void>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
+          builder: (context, setState) => AppSheetDialog(
             title: const Text('Notification Preferences'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -199,6 +202,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
           );
         }
 
+        final avatarUrl = Get.find<UserSession>().avatarUrl;
         return Column(
           children: [
             ColoredBox(
@@ -208,6 +212,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                 child: StaffProfileSettingsHeader(
                   onBackTap: () => Navigator.maybePop(context),
                   initials: overview.profile.initials,
+                  imageUrl: avatarUrl,
                 ),
               ),
             ),
@@ -226,6 +231,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                     StaffProfileCard(
                       key: const Key('staff-profile-upper-card'),
                       profile: overview.profile,
+                      imageUrl: avatarUrl,
                       onTap: () => Get.to(
                         () => StaffProfileDetailPage(profile: overview.profile),
                       ),
@@ -244,6 +250,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'App Settings'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+                    const UnsentChangesTile(),
                     const StaffLogOutRow(),
                   ],
                 ),

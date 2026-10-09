@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/widgets/account_photo.dart';
+
 class StaffInitialsAvatar extends StatelessWidget {
   final String initials;
   final Color background;
   final Color foreground;
   final double size;
+  final String? imageUrl;
 
   const StaffInitialsAvatar({
     super.key,
@@ -13,17 +16,17 @@ class StaffInitialsAvatar extends StatelessWidget {
     required this.background,
     required this.foreground,
     this.size = 44,
+    this.imageUrl,
   });
 
   @override
   Widget build(BuildContext context) {
     final resolvedSize = ResponsiveHelper.getResponsiveSize(context, size);
-    return Container(
-      width: resolvedSize,
-      height: resolvedSize,
-      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
-      alignment: Alignment.center,
-      child: Text(
+    return AccountPhoto(
+      url: imageUrl,
+      size: resolvedSize,
+      background: background,
+      fallback: Text(
         initials,
         style: TextStyle(
           fontFamily: 'Outfit',

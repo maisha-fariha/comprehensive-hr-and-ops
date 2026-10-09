@@ -8,6 +8,7 @@ import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/storage/media_store_download.dart';
 import '../../domain/entities/client_extras.dart';
+import '../../domain/entities/client_goals.dart';
 import '../../domain/entities/client_summary.dart';
 import '../../domain/repositories/clients_repository.dart';
 import '../client_form.dart';
@@ -250,27 +251,50 @@ class ClientsController extends GetxController {
   }
 
   /// "Create Client" / "Save Draft". Returns an error message, or `null`.
-  Future<String?> createClient(ClientForm form) async {
+  ///
+  /// Once the client exists the wizard is done: a contact or goal that the
+  /// server turns down is reported on its own, so a retry never creates the
+  /// client a second time. [idempotencyKey] covers a lost response.
+  Future<String?> createClient(
+    ClientForm form, {
+    bool draft = false,
+    String? idempotencyKey,
+  }) async {
+    final ClientSummary client;
     try {
       final photoUrl = await _uploadPhoto(form);
       final created = await repository.createClient(
-        form.toCreateBody(uploadedPhotoUrl: photoUrl),
+        form.toCreateBody(uploadedPhotoUrl: photoUrl, draft: draft),
+        idempotencyKey: idempotencyKey,
       );
-      final client = created.when(success: (c) => c, failure: (e) => throw e);
-      final guardian = form.guardianBody();
-      if (guardian != null) {
-        final added = await repository.addFamilyMember(client.id, guardian);
-        added.when(success: (_) {}, failure: (e) => throw e);
-      }
-      AppSnackbar.show('Client added', '', force: true);
-      await _fileCarePlan(client.id, form);
-      await loadClients();
-      return null;
+      client = created.when(success: (c) => c, failure: (e) => throw e);
     } on AppError catch (error) {
       final message = error.message.isEmpty ? 'Failed to admit client' : error.message;
       AppSnackbar.show(message, '', force: true);
       return message;
     }
+    AppSnackbar.show(draft ? 'Draft client saved' : 'Client added', '', force: true);
+    for (final contact in [?form.guardianBody(), ?form.secondaryContactBody()]) {
+      final added = await repository.addFamilyMember(client.id, contact);
+      added.when(
+        success: (_) {},
+        failure: (e) => AppSnackbar.show(
+          '${contact['name']} was not added as a contact: ${e.message}',
+          '',
+          force: true,
+        ),
+      );
+    }
+    await _fileCarePlan(client.id, form);
+    for (final goal in form.goalBodies()) {
+      final added = await repository.createGoal(client.id, goal);
+      added.when(
+        success: (_) {},
+        failure: (e) => AppSnackbar.show('A goal was not added: ${e.message}', '', force: true),
+      );
+    }
+    await loadClients();
+    return null;
   }
 
   /// "Save & Close" on the record editor. Returns an error message, or `null`.
@@ -291,8 +315,8 @@ class ClientsController extends GetxController {
     }
   }
 
-  Future<void> deleteClient(ClientSummary client) async {
-    final result = await repository.deleteClient(client.id);
+  Future<void> deleteClient(ClientSummary client, {String? reason}) async {
+    final result = await repository.deleteClient(client.id, reason: reason?.trim());
     await result.when(
       success: (_) async {
         AppSnackbar.show('Client deleted', '', force: true);
@@ -301,6 +325,63 @@ class ClientsController extends GetxController {
       failure: (error) async => AppSnackbar.show(error.message, '', force: true),
     );
   }
+
+  Future<Result<List<DeletedClient>>> loadDeleted({String? search}) =>
+      repository.getDeletedClients(search: search);
+
+  /// "Restore" on the deleted log. Returns `true` when it worked.
+  Future<bool> restoreClient(DeletedClient row) async {
+    final result = await repository.restoreClient(row.client.id);
+    return result.when(
+      success: (_) {
+        AppSnackbar.show('${row.client.fullName} is back on the roster', '', force: true);
+        loadClients();
+        return true;
+      },
+      failure: (error) {
+        AppSnackbar.show(error.message, '', force: true);
+        return false;
+      },
+    );
+  }
+
+  List<ClientGoalCategory>? _goalCategories;
+
+  /// Standard goal areas (cached; empty when they cannot be loaded).
+  Future<List<ClientGoalCategory>> goalCategories() async {
+    final cached = _goalCategories;
+    if (cached != null) return cached;
+    final result = await repository.getGoalCategories();
+    final categories = result.when(success: (c) => c, failure: (_) => <ClientGoalCategory>[]);
+    if (result.isSuccess) _goalCategories = categories;
+    return categories;
+  }
+
+  Future<Result<List<ClientGoal>>> loadGoals(String clientId) => repository.getGoals(clientId);
+
+  Future<Result<ClientGoalOutcomes>> loadGoalOutcomes(String clientId) =>
+      repository.getGoalOutcomes(clientId);
+
+  /// Goal add / status change / remove. Returns an error message, or `null`.
+  Future<String?> addGoal(String clientId, Map<String, dynamic> body) async =>
+      _goalWrite(await repository.createGoal(clientId, body), 'Goal added');
+
+  Future<String?> setGoalStatus(String clientId, String goalId, String status) async =>
+      _goalWrite(await repository.updateGoal(clientId, goalId, {'status': status}), null);
+
+  Future<String?> removeGoal(String clientId, String goalId) async =>
+      _goalWrite(await repository.deleteGoal(clientId, goalId), null);
+
+  String? _goalWrite(Result<void> result, String? success) => result.when(
+        success: (_) {
+          if (success != null) AppSnackbar.show(success, '', force: true);
+          return null;
+        },
+        failure: (error) {
+          AppSnackbar.show(error.message, '', force: true);
+          return error.message;
+        },
+      );
 
   Future<ClientMoveOutcome> moveClient(
     ClientSummary client,

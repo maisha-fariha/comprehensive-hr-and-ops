@@ -263,7 +263,7 @@ class _FakeTasksRepo implements StaffTasksMessagesRepository {
       Result.failure(const ApiError(message: 'unused'));
 
   @override
-  Future<Result<void>> completeTask(String taskId) async =>
+  Future<Result<void>> completeTask(String taskId, {bool signOff = false}) async =>
       Result.success(null);
 
   @override
@@ -314,6 +314,7 @@ class _FakeTasksRepo implements StaffTasksMessagesRepository {
     String? roomArea,
     List<Map<String, dynamic>> checklist = const [],
     bool requiresReview = false,
+    bool requiresSignOff = false,
     String? notes,
     bool isRecurring = false,
     String recurrenceFrequency = 'daily',

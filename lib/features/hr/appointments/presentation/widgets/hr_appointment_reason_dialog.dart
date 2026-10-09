@@ -5,6 +5,7 @@ import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/hr_appointment.dart';
 import '../controllers/hr_appointments_controller.dart';
 import 'hr_appointments_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// "Decline this visit?" / "Cancel this appointment?" with the optional
 /// reason. Resolves true once the request went through.
@@ -14,7 +15,7 @@ Future<bool> showHrAppointmentReasonDialog(
   required HrAppointment appointment,
   required bool reject,
 }) async {
-  final done = await showModalBottomSheet<bool>(
+  final done = await showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

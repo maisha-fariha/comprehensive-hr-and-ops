@@ -5,12 +5,13 @@ import 'package:get/get.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_document.dart';
 import '../controllers/staff_documents_controller.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 Future<void> showStaffDocumentTypesSheet(
   BuildContext context,
   StaffDocumentsController controller,
 ) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/network/authorized_file.dart';
+import '../../../../../core/offline/offline_image.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../attendance_formatters.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 enum AttendanceTone { success, warning, danger, info, neutral }
 
@@ -265,16 +266,15 @@ class AttendanceRecordCard extends StatelessWidget {
   }
 
   void _showPhoto(BuildContext context, String url) {
-    showDialog<void>(
+    showAppPopup<void>(
       context: context,
-      builder: (dialogContext) => Dialog(
+      builder: (dialogContext) => AppSheetPanel(
         clipBehavior: Clip.antiAlias,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.network(
-              AuthorizedFile.resolveUrl(url),
-              headers: AuthorizedFile.headers(),
+            Image(
+              image: OfflineImage.provider(url, withAuth: true),
               fit: BoxFit.contain,
               errorBuilder: (_, _, _) => const Padding(
                 padding: EdgeInsets.all(24),

@@ -13,6 +13,7 @@ import '../widgets/emergency_alert_card.dart';
 import '../widgets/emergency_detail_sheet.dart';
 import '../widgets/emergency_kpi_grid.dart';
 import '../widgets/raise_emergency_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Manager "Emergency Alarms" — mirrors web `/dashboard/emergency`.
 class EmergencyPage extends StatefulWidget {
@@ -43,9 +44,9 @@ class _EmergencyPageState extends State<EmergencyPage> {
   }
 
   Future<void> _confirmDelete(EmergencyAlert alert) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppPopup<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppSheetDialog(
         backgroundColor: AppColors.surfaceWhite,
         title: Text(
           'Delete this alert?',

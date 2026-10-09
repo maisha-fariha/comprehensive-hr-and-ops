@@ -8,6 +8,7 @@ import '../../domain/entities/daily_activity.dart';
 import '../controllers/daily_activity_controller.dart';
 import '../daily_activity_labels.dart';
 import 'daily_activity_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web "Activity Details" modal; [onEdit] closes it and opens the form.
 Future<void> showDailyActivityDetailSheet(
@@ -16,7 +17,7 @@ Future<void> showDailyActivityDetailSheet(
   required DailyActivity activity,
   required ValueChanged<DailyActivity> onEdit,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

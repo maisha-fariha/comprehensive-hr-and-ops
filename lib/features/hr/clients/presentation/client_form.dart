@@ -157,12 +157,17 @@ String? optionalEmailError(String value) =>
 /// (the web zod schema `Z`, defaults `J()` and payload builder `_()`).
 class ClientForm {
   final firstName = TextEditingController();
+  final middleName = TextEditingController();
   final lastName = TextEditingController();
   final roomNumber = TextEditingController();
   final assignmentNotes = TextEditingController();
   final guardianName = TextEditingController();
+  final guardianMiddleName = TextEditingController();
   final guardianPhone = TextEditingController();
   final guardianEmail = TextEditingController();
+  final secondaryName = TextEditingController();
+  final secondaryPhone = TextEditingController();
+  final secondaryEmail = TextEditingController();
   final contactNotes = TextEditingController();
   final doctorName = TextEditingController();
   final pharmacyName = TextEditingController();
@@ -180,6 +185,7 @@ class ClientForm {
   String roomId = '';
   String fundingSource = '';
   String relationship = '';
+  String secondaryRelationship = '';
   bool emergencyContact = true;
   bool familyPortalAccess = true;
   bool receiveNotifications = true;
@@ -190,6 +196,11 @@ class ClientForm {
   List<String> currentMedications = [];
   final List<TextEditingController> goals = [];
   final List<TextEditingController> outcomes = [];
+
+  /// New-client goals: standard category keys and custom goal titles, each
+  /// created with `POST /clients/{id}/goals` once the client exists.
+  List<String> goalCategories = [];
+  final List<TextEditingController> customGoals = [];
   String photoUrl = '';
   ClientPickedFile? photo;
   ClientPickedFile? carePlanDocument;
@@ -223,6 +234,7 @@ class ClientForm {
       ..diagnoses = List.of(c.diagnoses)
       ..currentMedications = List.of(c.currentMedications);
     form.firstName.text = c.firstName;
+    form.middleName.text = c.middleName ?? '';
     form.lastName.text = c.lastName;
     form.roomNumber.text = c.roomNumber ?? '';
     form.assignmentNotes.text = c.assignmentNotes;
@@ -268,6 +280,8 @@ class ClientForm {
       _filled(servicePlan.text) ||
       carePlanDocument != null ||
       goals.isNotEmpty ||
+      goalCategories.isNotEmpty ||
+      customGoals.isNotEmpty ||
       outcomes.isNotEmpty ||
       _filled(progressNotes.text);
 
@@ -276,8 +290,12 @@ class ClientForm {
       _filled(relationship) ||
       _filled(guardianPhone.text) ||
       _filled(guardianEmail.text) ||
+      _filled(secondaryName.text) ||
       visibleUpdates.isNotEmpty ||
       _filled(contactNotes.text);
+
+  /// The web's required-field rules are skipped while the status is Draft.
+  bool get isDraft => status.trim().toLowerCase() == 'draft';
 
   /// Wizard step tick: every required field, or any field on optional steps.
   bool stepComplete(ClientStep step) => switch (step) {
@@ -295,17 +313,49 @@ class ClientForm {
       if (message != null) errors[key] = message;
     }
 
+    final draft = isDraft;
     switch (step) {
       case ClientStep.basic:
         put('firstName', requiredNameError(firstName.text, 'First name'));
+        put('middleName', optionalNameError(middleName.text.trim(), 'Middle name'));
         put('lastName', requiredNameError(lastName.text, 'Last name'));
-        if (dob.isEmpty) put('dob', 'Date of birth is required');
+        if (dob.isEmpty && !draft) put('dob', 'Date of birth is required');
         if (careLevel.isEmpty) put('careLevel', 'Select a care level');
         if (status.isEmpty) put('status', 'Select a status');
       case ClientStep.residence:
-        if (currentResidence.isEmpty) put('currentResidence', 'Select a residence');
-        if (admissionDate.isEmpty) put('admissionDate', 'Admission date is required');
+        if (currentResidence.isEmpty && !draft) {
+          put('currentResidence', 'Select a residence');
+        }
+        if (admissionDate.isEmpty && !draft) {
+          put('admissionDate', 'Admission date is required');
+        }
       case ClientStep.family:
+        const primary = 'Primary emergency contact name';
+        put(
+          'guardianName',
+          draft
+              ? optionalNameError(guardianName.text.trim(), primary)
+              : requiredNameError(guardianName.text, primary),
+        );
+        put(
+          'guardianMiddleName',
+          optionalNameError(guardianMiddleName.text.trim(), 'Middle name'),
+        );
+        if (relationship.trim().isEmpty && !draft) {
+          put('relationship', 'Relationship is required');
+        }
+        final phone = guardianPhone.text.trim();
+        put(
+          'guardianPhone',
+          phone.isEmpty && !draft ? 'Phone number is required' : optionalPhoneError(phone),
+        );
+        put('guardianEmail', guardianEmailError());
+        put(
+          'secondaryName',
+          optionalNameError(secondaryName.text.trim(), 'Secondary contact name'),
+        );
+        put('secondaryPhone', optionalPhoneError(secondaryPhone.text.trim()));
+        put('secondaryEmail', optionalEmailError(secondaryEmail.text.trim()));
       case ClientStep.medical:
       case ClientStep.care:
         break;
@@ -313,23 +363,47 @@ class ClientForm {
     return errors;
   }
 
+  /// Email format, plus the web rule that a family portal login needs one.
+  String? guardianEmailError() {
+    final email = guardianEmail.text.trim();
+    if (email.isEmpty && familyPortalAccess && _filled(guardianName.text)) {
+      return 'Add an email for the family portal login, or turn portal access off';
+    }
+    return optionalEmailError(email);
+  }
+
   /// Whole-schema errors (the web submit).
-  Map<String, String> validateAll() {
-    final errors = <String, String>{
-      ...validateStep(ClientStep.basic),
-      ...validateStep(ClientStep.residence),
-    };
-    final guardian = optionalNameError(guardianName.text, 'Guardian name');
-    final phone = optionalPhoneError(guardianPhone.text);
-    final email = optionalEmailError(guardianEmail.text);
-    if (guardian != null) errors['guardianName'] = guardian;
-    if (phone != null) errors['guardianPhone'] = phone;
+  Map<String, String> validateAll() => {
+        for (final step in ClientStep.values) ...validateStep(step),
+      };
+
+  /// The web "Save Draft" check: a name, and a usable family email.
+  Map<String, String> validateDraft() {
+    final errors = <String, String>{};
+    final first = requiredNameError(firstName.text, 'First name');
+    final last = requiredNameError(lastName.text, 'Last name');
+    final email = guardianEmailError();
+    if (first != null) errors['firstName'] = first;
+    if (last != null) errors['lastName'] = last;
     if (email != null) errors['guardianEmail'] = email;
     return errors;
   }
 
+  /// Widget key of the input for [field] (`guardianPhone` ->
+  /// `client-guardian-phone`).
+  static Key fieldKey(String field) => ValueKey(
+        field == 'currentResidence'
+            ? 'client-residence'
+            : 'client-${field.replaceAllMapped(RegExp('[A-Z]'), (m) => '-${m[0]!.toLowerCase()}')}',
+      );
+
   static ClientStep stepOf(String field) => switch (field) {
-        'firstName' || 'lastName' || 'dob' || 'careLevel' || 'status' =>
+        'firstName' ||
+        'middleName' ||
+        'lastName' ||
+        'dob' ||
+        'careLevel' ||
+        'status' =>
           ClientStep.basic,
         'currentResidence' || 'admissionDate' => ClientStep.residence,
         _ => ClientStep.family,
@@ -345,16 +419,18 @@ class ClientForm {
       .where((t) => t.isNotEmpty)
       .toList();
 
-  /// The web `_(form, photoUrl)` — `POST /clients` body.
-  Map<String, dynamic> toCreateBody({String? uploadedPhotoUrl}) {
+  /// The web `eN(form, photoUrl)` — `POST /clients` body. [draft] is the
+  /// web "Save Draft", which saves with status `draft`.
+  Map<String, dynamic> toCreateBody({String? uploadedPhotoUrl, bool draft = false}) {
     final photo = uploadedPhotoUrl ?? _opt(photoUrl);
     return {
       'firstName': firstName.text,
+      'middleName': _opt(middleName.text),
       'lastName': lastName.text,
       'photoUrl': ?photo,
       'residenceId': currentResidence,
       'level': ?_opt(careLevel),
-      'status': ?_opt(status),
+      'status': ?(draft ? 'draft' : _opt(status)?.toLowerCase()),
       'dateOfBirth': ?_opt(dob),
       'gender': ?_opt(gender),
       'admissionDate': ?_opt(admissionDate),
@@ -398,6 +474,7 @@ class ClientForm {
     if (name.isEmpty) return null;
     return {
       'name': name,
+      'middleName': _opt(guardianMiddleName.text),
       'relationship': ?_opt(relationship),
       'email': ?_opt(guardianEmail.text),
       'phone': ?_opt(guardianPhone.text),
@@ -409,15 +486,45 @@ class ClientForm {
     };
   }
 
+  /// `POST /clients/{id}/family` body for the optional secondary emergency
+  /// contact, or `null` when no name was entered.
+  Map<String, dynamic>? secondaryContactBody() {
+    final name = secondaryName.text.trim();
+    if (name.isEmpty) return null;
+    return {
+      'name': name,
+      'relationship': ?_opt(secondaryRelationship),
+      'email': ?_opt(secondaryEmail.text),
+      'phone': ?_opt(secondaryPhone.text),
+      'isPrimaryGuardian': false,
+      'createPortalUser': false,
+      'isEmergencyContact': true,
+      'receiveNotifications': false,
+      'emergencyAlerts': true,
+    };
+  }
+
+  /// `POST /clients/{id}/goals` bodies: one per ticked category, then one
+  /// per custom goal title.
+  List<Map<String, dynamic>> goalBodies() => [
+        for (final key in goalCategories) {'category': key},
+        for (final title in _lines(customGoals)) {'category': 'custom', 'title': title},
+      ];
+
   void dispose() {
     for (final c in [
       firstName,
+      middleName,
       lastName,
       roomNumber,
       assignmentNotes,
       guardianName,
+      guardianMiddleName,
       guardianPhone,
       guardianEmail,
+      secondaryName,
+      secondaryPhone,
+      secondaryEmail,
       contactNotes,
       doctorName,
       pharmacyName,
@@ -427,6 +534,7 @@ class ClientForm {
       progressNotes,
       ...goals,
       ...outcomes,
+      ...customGoals,
     ]) {
       c.dispose();
     }

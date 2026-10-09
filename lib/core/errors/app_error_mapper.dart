@@ -26,6 +26,16 @@ abstract final class AppErrorMapper {
       );
     }
 
+    if (error.code == 'offline_uncached') {
+      return const AppErrorInfo(
+        title: 'Not on this device yet',
+        message:
+            'You are offline. Open this once while connected and it will '
+            'stay available offline.',
+        isOffline: true,
+      );
+    }
+
     if (error.code == 'offline_queued') {
       return AppErrorInfo(
         title: 'Saved on this device',

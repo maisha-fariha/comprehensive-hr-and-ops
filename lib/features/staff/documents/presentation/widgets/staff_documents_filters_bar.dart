@@ -3,6 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_document.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 class StaffDocumentsFiltersBar extends StatelessWidget {
   final TextEditingController searchController;
@@ -226,7 +227,7 @@ class StaffDocumentsFiltersBar extends StatelessWidget {
     required List<(String, String)> options,
     required ValueChanged<String> onPicked,
   }) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(

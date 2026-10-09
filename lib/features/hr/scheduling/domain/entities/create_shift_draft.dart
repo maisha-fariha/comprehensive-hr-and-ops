@@ -64,6 +64,7 @@ abstract final class CreateShiftChoices {
   static const List<ShiftFormChoice<int?>> reminders = [
     ShiftFormChoice(null, 'No reminder'),
     ShiftFormChoice(60, '1 hour before'),
+    ShiftFormChoice(120, '2 hours before'),
     ShiftFormChoice(1440, '24 hours before'),
     ShiftFormChoice(2880, '48 hours before'),
   ];
@@ -195,7 +196,9 @@ class CreateShiftDraft {
   String occurrenceCount = '4';
 
   bool notifyAssignedStaff = true;
-  int? reminderMinutes;
+
+  /// New shifts remind 2 hours before (web `reminderTiming: "120"`).
+  int? reminderMinutes = 120;
   String notificationMessage = '';
 
   CreateShiftDraft({String? residenceId, DateTime? shiftDate})

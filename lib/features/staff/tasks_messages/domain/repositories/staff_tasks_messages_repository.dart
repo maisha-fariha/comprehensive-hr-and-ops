@@ -25,8 +25,9 @@ abstract class StaffTasksMessagesRepository {
   /// `GET /tasks/{id}` + `GET /tasks/{id}/notes`
   Future<Result<StaffTaskDetail>> getTaskDetail(String taskId);
 
-  /// `PATCH /tasks/{id}` with `{ "status": "completed" }`
-  Future<Result<void>> completeTask(String taskId);
+  /// `PATCH /tasks/{id}` with `{ "status": "completed" }`, plus
+  /// `"signOff": true` when the task requires sign-off.
+  Future<Result<void>> completeTask(String taskId, {bool signOff = false});
 
   /// API-backed options for the staff task creation form.
   Future<Result<TaskCreationOptions>> getTaskCreationOptions();
@@ -54,6 +55,7 @@ abstract class StaffTasksMessagesRepository {
     String? roomArea,
     List<Map<String, dynamic>> checklist = const [],
     bool requiresReview = false,
+    bool requiresSignOff = false,
     String? notes,
     bool isRecurring = false,
     String recurrenceFrequency = 'daily',

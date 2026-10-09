@@ -4,6 +4,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../attendance/presentation/widgets/attendance_record_card.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/hr_document_row.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web chart palette for the categories donut.
 const List<Color> hrCategoryColors = [
@@ -249,7 +250,7 @@ class HrSheetFrame extends StatelessWidget {
 }
 
 Future<T?> showHrSheet<T>(BuildContext context, WidgetBuilder builder) =>
-    showModalBottomSheet<T>(
+    showAppBottomSheet<T>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

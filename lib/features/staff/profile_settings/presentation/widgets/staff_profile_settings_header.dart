@@ -4,10 +4,12 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import 'staff_initials_avatar.dart';
 
 class StaffProfileSettingsHeader extends StatelessWidget {
   final VoidCallback? onBackTap;
   final String initials;
+  final String? imageUrl;
   final String title;
 
   static const Color _titleColor = Color(0xFF1A2B48);
@@ -20,13 +22,13 @@ class StaffProfileSettingsHeader extends StatelessWidget {
     super.key,
     this.onBackTap,
     this.initials = 'AW',
+    this.imageUrl,
     this.title = 'Profile & Settings',
   });
 
   @override
   Widget build(BuildContext context) {
     final buttonSize = ResponsiveHelper.getResponsiveSize(context, 42);
-    final avatarSize = ResponsiveHelper.getResponsiveSize(context, 42);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
 
     return ColoredBox(
@@ -81,26 +83,12 @@ class StaffProfileSettingsHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(
-                width: avatarSize,
-                height: avatarSize,
-                decoration: const BoxDecoration(
-                  color: _avatarBg,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  initials,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                    color: _avatarFg,
-                    height: 1,
-                  ),
-                ),
+              StaffInitialsAvatar(
+                initials: initials,
+                imageUrl: imageUrl,
+                size: 42,
+                background: _avatarBg,
+                foreground: _avatarFg,
               ),
             ],
           ),

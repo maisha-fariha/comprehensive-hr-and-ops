@@ -13,6 +13,7 @@ import '../../../../hr/attendance/presentation/widgets/manual_entry/manual_entry
 import '../../../../hr/attendance/presentation/widgets/manual_entry/manual_entry_header.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Staff self-service manual attendance wizard (BUG_Report005).
 class StaffManualAttendanceEntryPage extends StatefulWidget {
@@ -237,7 +238,7 @@ class _StaffManualAttendanceEntryPageState
     required List<T> options,
     required String Function(T) labelOf,
   }) {
-    return showModalBottomSheet<T>(
+    return showAppBottomSheet<T>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(

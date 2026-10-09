@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/client_extras.dart';
+import '../../domain/entities/client_goals.dart';
 import '../client_files.dart';
 import '../client_form.dart';
 import '../clients_labels.dart';
@@ -69,6 +70,16 @@ class ClientBasicSection extends StatelessWidget {
         ),
         _gap,
         ClientInput(
+          key: const ValueKey('client-middle-name'),
+          label: 'Middle Name',
+          placeholder: 'Optional',
+          controller: form.middleName,
+          enabled: enabled,
+          error: errors['middleName'],
+          onChanged: (_) => onChanged(),
+        ),
+        _gap,
+        ClientInput(
           key: const ValueKey('client-last-name'),
           label: 'Last Name',
           required: true,
@@ -100,6 +111,7 @@ class ClientBasicSection extends StatelessWidget {
         ),
         _gap,
         ClientSelect(
+          key: const ValueKey('client-care-level'),
           label: 'Care Level',
           required: true,
           placeholder: 'Select care level',
@@ -111,6 +123,7 @@ class ClientBasicSection extends StatelessWidget {
         ),
         _gap,
         ClientSelect(
+          key: const ValueKey('client-status'),
           label: 'Status',
           required: true,
           placeholder: 'Select status',
@@ -320,7 +333,8 @@ class _ClientResidenceSectionState extends State<ClientResidenceSection> {
   }
 }
 
-/// Wizard "Family / Guardian": guardian, portal access and visibility.
+/// Wizard "Family / Guardian": primary (required) and secondary (optional)
+/// emergency contacts, portal access and visibility.
 class ClientGuardianSection extends StatelessWidget {
   final ClientForm form;
   final Map<String, String> errors;
@@ -344,46 +358,124 @@ class ClientGuardianSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const ClientSectionHeader(
-          title: 'Family / Guardian',
-          description:
-              'Capture guardian contact information and family portal access settings.',
+          title: 'Family & Emergency Contacts',
+          description: 'Provide emergency contact information (1 mandatory, 1 optional) '
+              'and family portal access settings.',
         ),
         _gap,
-        ClientInput(
-          key: const ValueKey('client-guardian-name'),
-          label: 'Guardian Name',
-          placeholder: 'e.g., Mary Benson',
-          controller: form.guardianName,
-          error: errors['guardianName'],
-          onChanged: (_) => onChanged(),
+        _OutlinedCard(
+          icon: Icons.contact_phone_outlined,
+          iconColor: AppColors.criticalRed,
+          iconBackground: AppColors.criticalBackgroundSoft,
+          title: 'Primary Emergency Contact',
+          description: 'Required. Primary person to contact in an emergency.',
+          badge: const _Badge('Mandatory', strong: true),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ClientInput(
+                key: const ValueKey('client-guardian-name'),
+                label: 'Full Name',
+                required: true,
+                placeholder: 'e.g., Mary Benson',
+                controller: form.guardianName,
+                error: errors['guardianName'],
+                onChanged: (_) => onChanged(),
+              ),
+              _gap,
+              ClientInput(
+                key: const ValueKey('client-guardian-middle-name'),
+                label: 'Middle Name',
+                placeholder: 'Optional',
+                controller: form.guardianMiddleName,
+                error: errors['guardianMiddleName'],
+                onChanged: (_) => onChanged(),
+              ),
+              _gap,
+              ClientSelect(
+                key: const ValueKey('client-relationship'),
+                label: 'Relationship',
+                required: true,
+                placeholder: 'Select relationship',
+                value: form.relationship,
+                options: _options(ClientsLabels.relationships),
+                error: errors['relationship'],
+                onChanged: (v) => _set(() => form.relationship = v),
+              ),
+              _gap,
+              ClientInput(
+                key: const ValueKey('client-guardian-phone'),
+                label: 'Phone',
+                required: true,
+                placeholder: '(555) 123-4567',
+                keyboardType: TextInputType.phone,
+                controller: form.guardianPhone,
+                error: errors['guardianPhone'],
+                onChanged: (_) => onChanged(),
+              ),
+              _gap,
+              ClientInput(
+                key: const ValueKey('client-guardian-email'),
+                label: 'Email',
+                placeholder: 'guardian@email.com',
+                keyboardType: TextInputType.emailAddress,
+                controller: form.guardianEmail,
+                error: errors['guardianEmail'],
+                onChanged: (_) => onChanged(),
+              ),
+            ],
+          ),
         ),
         _gap,
-        ClientSelect(
-          label: 'Relationship',
-          placeholder: 'Select relationship',
-          value: form.relationship,
-          options: _options(ClientsLabels.relationships),
-          onChanged: (v) => _set(() => form.relationship = v),
-        ),
-        _gap,
-        ClientInput(
-          key: const ValueKey('client-guardian-phone'),
-          label: 'Phone',
-          placeholder: '(555) 123-4567',
-          keyboardType: TextInputType.phone,
-          controller: form.guardianPhone,
-          error: errors['guardianPhone'],
-          onChanged: (_) => onChanged(),
-        ),
-        _gap,
-        ClientInput(
-          key: const ValueKey('client-guardian-email'),
-          label: 'Email',
-          placeholder: 'guardian@email.com',
-          keyboardType: TextInputType.emailAddress,
-          controller: form.guardianEmail,
-          error: errors['guardianEmail'],
-          onChanged: (_) => onChanged(),
+        _OutlinedCard(
+          icon: Icons.person_add_alt_outlined,
+          iconColor: AppColors.infoBlue,
+          iconBackground: AppColors.infoBackground,
+          title: 'Secondary Emergency Contact',
+          description: 'Backup contact if the primary contact cannot be reached.',
+          badge: const _Badge('Optional'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ClientInput(
+                key: const ValueKey('client-secondary-name'),
+                label: 'Full Name',
+                placeholder: 'e.g., John Benson',
+                controller: form.secondaryName,
+                error: errors['secondaryName'],
+                onChanged: (_) => onChanged(),
+              ),
+              _gap,
+              ClientSelect(
+                key: const ValueKey('client-secondary-relationship'),
+                label: 'Relationship',
+                placeholder: 'Select relationship',
+                value: form.secondaryRelationship,
+                options: _options(ClientsLabels.relationships),
+                onChanged: (v) => _set(() => form.secondaryRelationship = v),
+              ),
+              _gap,
+              ClientInput(
+                key: const ValueKey('client-secondary-phone'),
+                label: 'Phone',
+                placeholder: '(555) 987-6543',
+                keyboardType: TextInputType.phone,
+                controller: form.secondaryPhone,
+                error: errors['secondaryPhone'],
+                onChanged: (_) => onChanged(),
+              ),
+              _gap,
+              ClientInput(
+                key: const ValueKey('client-secondary-email'),
+                label: 'Email',
+                placeholder: 'secondary.contact@email.com',
+                keyboardType: TextInputType.emailAddress,
+                controller: form.secondaryEmail,
+                error: errors['secondaryEmail'],
+                onChanged: (_) => onChanged(),
+              ),
+            ],
+          ),
         ),
         _gap,
         ClientSwitchTile(
@@ -411,6 +503,33 @@ class ClientGuardianSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final bool strong;
+
+  const _Badge(this.label, {this.strong = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: strong ? AppColors.criticalBackgroundSoft : AppColors.filterButtonBackground,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: handoverText(
+          context,
+          11,
+          weight: FontWeight.w600,
+          color: strong ? AppColors.criticalRed : AppColors.textMuted,
+        ),
+      ),
     );
   }
 }
@@ -708,11 +827,19 @@ class ClientCareSection extends StatelessWidget {
   final bool enabled;
   final VoidCallback onChanged;
 
+  /// Create wizard: loads the standard goal areas for the goal checklist.
+  final Future<List<ClientGoalCategory>> Function()? goalCategories;
+
+  /// A saved client: the live goals panel, shown in place of the pickers.
+  final Widget? goalsPanel;
+
   const ClientCareSection({
     super.key,
     required this.form,
     required this.enabled,
     required this.onChanged,
+    this.goalCategories,
+    this.goalsPanel,
   });
 
   @override
@@ -753,13 +880,34 @@ class ClientCareSection extends StatelessWidget {
           },
         ),
         _gap,
-        ClientListEditor(
-          key: const ValueKey('client-goals'),
-          label: 'Goals',
-          addLabel: 'Add Goal',
-          items: form.goals,
-          onChanged: enabled ? onChanged : null,
-        ),
+        if (goalsPanel case final panel?)
+          panel
+        else if (goalCategories case final load?) ...[
+          _GoalCategoryPicker(
+            key: const ValueKey('client-goal-categories'),
+            load: load,
+            selected: form.goalCategories,
+            onChanged: (keys) {
+              form.goalCategories = keys;
+              onChanged();
+            },
+          ),
+          _gap,
+          ClientListEditor(
+            key: const ValueKey('client-custom-goals'),
+            label: 'Custom goals',
+            addLabel: 'Add Custom Goal',
+            items: form.customGoals,
+            onChanged: enabled ? onChanged : null,
+          ),
+        ] else
+          ClientListEditor(
+            key: const ValueKey('client-goals'),
+            label: 'Goals',
+            addLabel: 'Add Goal',
+            items: form.goals,
+            onChanged: enabled ? onChanged : null,
+          ),
         _gap,
         ClientListEditor(
           label: 'Outcomes',
@@ -775,6 +923,92 @@ class ClientCareSection extends StatelessWidget {
           lines: 3,
           enabled: enabled,
           onChanged: (_) => onChanged(),
+        ),
+      ],
+    );
+  }
+}
+
+/// The web "Goals" multi-select of standard goal areas.
+class _GoalCategoryPicker extends StatefulWidget {
+  final Future<List<ClientGoalCategory>> Function() load;
+  final List<String> selected;
+  final ValueChanged<List<String>> onChanged;
+
+  const _GoalCategoryPicker({
+    super.key,
+    required this.load,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  State<_GoalCategoryPicker> createState() => _GoalCategoryPickerState();
+}
+
+class _GoalCategoryPickerState extends State<_GoalCategoryPicker> {
+  late final Future<List<ClientGoalCategory>> _categories = widget.load();
+
+  void _toggle(String key) {
+    final next = List.of(widget.selected);
+    if (!next.remove(key)) next.add(key);
+    widget.onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        clientFieldLabel(context, 'Goals'),
+        FutureBuilder<List<ClientGoalCategory>>(
+          future: _categories,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return Text(
+                'Loading goal categories…',
+                style: handoverText(context, 13, color: AppColors.textMuted),
+              );
+            }
+            final options = [
+              for (final c in snapshot.data ?? const <ClientGoalCategory>[])
+                if (c.key != 'custom') c,
+            ];
+            if (options.isEmpty) {
+              return Text(
+                'Goal categories could not be loaded. Add custom goals below.',
+                style: handoverText(context, 12.5, color: AppColors.textMuted),
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Choose standard goal categories',
+                  style: handoverText(context, 12, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final c in options)
+                      FilterChip(
+                        key: ValueKey('goal-category-${c.key}'),
+                        label: Text(c.label, style: handoverText(context, 12.5)),
+                        selected: widget.selected.contains(c.key),
+                        showCheckmark: true,
+                        checkmarkColor: AppColors.secondaryTeal,
+                        selectedColor: const Color(0xFFE4F3F2),
+                        backgroundColor: AppColors.surfaceWhite,
+                        side: const BorderSide(color: AppColors.cardBorder),
+                        onSelected: (_) => _toggle(c.key),
+                      ),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ],
     );

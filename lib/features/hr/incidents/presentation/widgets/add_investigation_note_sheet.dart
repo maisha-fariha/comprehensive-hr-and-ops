@@ -7,6 +7,7 @@ import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/investigation_incident.dart';
 import '../../domain/repositories/incidents_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Opens a sheet to add an investigation note via
 /// `PATCH /incidents/:id/investigation`.
@@ -14,7 +15,7 @@ Future<bool> showAddInvestigationNoteSheet(
   BuildContext context, {
   required InvestigationIncident incident,
 }) async {
-  final result = await showModalBottomSheet<bool>(
+  final result = await showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

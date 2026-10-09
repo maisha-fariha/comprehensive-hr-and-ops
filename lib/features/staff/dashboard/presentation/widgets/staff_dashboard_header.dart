@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_assets.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/widgets/account_photo.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../hr/emergency/presentation/widgets/emergency_alert_motion.dart';
 import '../../domain/entities/staff_dashboard_overview.dart';
 
 /// How far [TodayShiftCard] overlaps the gradient header.
@@ -305,31 +309,70 @@ class _PanicButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = ResponsiveHelper.getResponsiveSize(context, 42);
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE53935),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x44E53935),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: const AppSvgIcon(
+    return EmergencyAlertWatch(
+      child: Obx(() {
+        final count = ActiveEmergencyAlerts.count.value;
+        final alerting = count > 0;
+        final animate = alerting && emergencyAlertMotionEnabled(context);
+        final size = ResponsiveHelper.getResponsiveSize(context, 42);
+        Widget icon = const AppSvgIcon(
           'assets/icons/staff_core/panic_siren.svg',
           size: 22,
           color: Colors.white,
-        ),
-      ),
+        );
+        if (animate) icon = EmergencyBounce(animate: true, child: icon);
+        Widget button = GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: alerting ? const Color(0xFFDC2626) : const Color(0xFFE53935),
+              shape: BoxShape.circle,
+              border: alerting
+                  ? Border.all(color: const Color(0xFFEF4444), width: 2)
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: alerting
+                      ? const Color(0x80DC2626)
+                      : const Color(0x44E53935),
+                  blurRadius: alerting ? 12 : 8,
+                  offset: alerting ? Offset.zero : const Offset(0, 2),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: icon,
+          ),
+        );
+        if (animate) button = EmergencyPulse(animate: true, child: button);
+        return Semantics(
+          button: true,
+          label: alerting
+              ? 'Raise emergency alarm, $count active'
+              : 'Raise emergency alarm',
+          excludeSemantics: true,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                button,
+                if (alerting)
+                  Positioned(
+                    top: -4,
+                    right: -4,
+                    child: EmergencyAlertBadge(count: count, animate: animate),
+                  ),
+              ],
+            ),
+          ),
+        );
+      }),
     );
   }
 }
@@ -353,17 +396,35 @@ class _AvatarButton extends StatelessWidget {
         child: Ink(
           width: size,
           height: size,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8EEF0),
-            borderRadius: BorderRadius.circular(
-              ResponsiveHelper.getResponsiveRadius(context, 12),
-            ),
-          ),
-          child: Icon(
-            Icons.person_rounded,
-            size: ResponsiveHelper.getResponsiveSize(context, 22),
-            color: const Color(0xFF8A97A8),
-          ),
+          child: Get.isRegistered<UserSession>()
+              ? Obx(
+                  () => AccountPhoto(
+                    url: Get.find<UserSession>().avatarUrl,
+                    size: size,
+                    background: const Color(0xFFE8EEF0),
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveHelper.getResponsiveRadius(context, 12),
+                    ),
+                    fallback: Icon(
+                      Icons.person_rounded,
+                      size: ResponsiveHelper.getResponsiveSize(context, 22),
+                      color: const Color(0xFF8A97A8),
+                    ),
+                  ),
+                )
+              : AccountPhoto(
+                  url: null,
+                  size: size,
+                  background: const Color(0xFFE8EEF0),
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(context, 12),
+                  ),
+                  fallback: Icon(
+                    Icons.person_rounded,
+                    size: ResponsiveHelper.getResponsiveSize(context, 22),
+                    color: const Color(0xFF8A97A8),
+                  ),
+                ),
         ),
       ),
     );

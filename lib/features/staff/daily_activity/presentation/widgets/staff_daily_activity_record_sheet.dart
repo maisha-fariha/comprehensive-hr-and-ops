@@ -8,6 +8,7 @@ import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/entities/staff_daily_activity_option.dart';
 import '../../domain/repositories/staff_daily_activity_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 InputDecoration _fieldDecoration({String? hint, Widget? prefixIcon}) {
   const radius = 12.0;
@@ -77,7 +78,7 @@ class StaffDailyActivityRecordSheet extends StatefulWidget {
     String? currentStaffId,
   }) {
     final height = MediaQuery.sizeOf(context).height;
-    return showModalBottomSheet<bool>(
+    return showAppBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

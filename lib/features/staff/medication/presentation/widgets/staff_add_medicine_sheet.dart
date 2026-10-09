@@ -8,6 +8,7 @@ import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_med_options.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Add Medicine / Add PRN, or the web "Correct a medicine" when [editing] is
 /// set — styled to match staff form field theme.
@@ -25,10 +26,10 @@ class StaffAddMedicineSheet extends StatefulWidget {
     final height = MediaQuery.sizeOf(context).height;
     final wide = MediaQuery.sizeOf(context).width >= 720;
     if (wide) {
-      return showDialog<bool>(
+      return showAppPopup<bool>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => Dialog(
+        builder: (_) => AppSheetPanel(
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           backgroundColor: AppColors.surfaceWhite,
@@ -42,7 +43,7 @@ class StaffAddMedicineSheet extends StatefulWidget {
         ),
       );
     }
-    return showModalBottomSheet<bool>(
+    return showAppBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

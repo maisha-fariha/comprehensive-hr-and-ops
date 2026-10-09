@@ -10,6 +10,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/staff_emergency_alert.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Reference-matched Emergency details panel.
 class StaffEmergencyDetailsSheet extends StatefulWidget {
@@ -18,7 +19,7 @@ class StaffEmergencyDetailsSheet extends StatefulWidget {
   const StaffEmergencyDetailsSheet({super.key, required this.initialAlert});
 
   static Future<void> show(StaffEmergencyAlert alert) {
-    return Get.dialog<void>(
+    return showAppPopupWidget<void>(
       StaffEmergencyDetailsSheet(initialAlert: alert),
       barrierDismissible: true,
     );
@@ -127,7 +128,7 @@ class _StaffEmergencyDetailsSheetState
     // already pads by the keyboard inset and clamps this to the space left.
     final dialogHeight = media.size.height * 0.9;
 
-    return Dialog(
+    return AppSheetPanel(
       key: const Key('staff-emergency-details'),
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),

@@ -15,6 +15,7 @@ import '../widgets/staff_appointments_metrics_strip.dart';
 import '../widgets/staff_appointments_registry.dart';
 import '../widgets/staff_appointments_tabs_bar.dart';
 import '../widgets/staff_create_appointment_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Staff Family Appointments & Approvals — web `/dashboard/appointments`.
 class StaffAppointmentsPage extends StatefulWidget {
@@ -71,9 +72,9 @@ class _StaffAppointmentsPageState extends State<StaffAppointmentsPage> {
   }
 
   Future<void> _confirmApprove(StaffAppointment item) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppPopup<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppSheetDialog(
         title: const Text(
           'Approve request?',
           style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),
@@ -106,9 +107,9 @@ class _StaffAppointmentsPageState extends State<StaffAppointmentsPage> {
 
   Future<void> _confirmReject(StaffAppointment item) async {
     final reasonController = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppPopup<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppSheetDialog(
         title: const Text(
           'Reject request?',
           style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),
@@ -160,9 +161,9 @@ class _StaffAppointmentsPageState extends State<StaffAppointmentsPage> {
   }
 
   Future<void> _confirmWithdraw(StaffAppointment item) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppPopup<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppSheetDialog(
         title: const Text(
           'Cancel appointment?',
           style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),
@@ -194,9 +195,9 @@ class _StaffAppointmentsPageState extends State<StaffAppointmentsPage> {
   }
 
   Future<void> _confirmDelete(StaffAppointment item) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppPopup<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppSheetDialog(
         title: const Text(
           'Delete appointment?',
           style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700),

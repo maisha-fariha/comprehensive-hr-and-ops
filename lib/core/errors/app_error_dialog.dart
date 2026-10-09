@@ -3,7 +3,9 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 
 import '../constants/app_colors.dart';
+import '../widgets/app_bottom_sheet.dart';
 import 'app_error_mapper.dart';
+import 'app_snackbar.dart';
 
 /// Central dialogs for network, auth, and server failures.
 /// Debounced so parallel API calls do not stack multiple alerts.
@@ -12,10 +14,21 @@ abstract final class AppErrorDialog {
   static String? _lastKey;
   static const _debounce = Duration(seconds: 4);
 
+  static bool get _sheetOpen =>
+      Get.isDialogOpen == true || AppBottomSheet.isOpen;
+
   static bool get recentlyShown {
     if (_lastShownAt == null) return false;
     return DateTime.now().difference(_lastShownAt!) < _debounce;
   }
+
+  /// Set once offline mode is running: the offline banner already explains
+  /// the state, so "no connection" errors become a short non-blocking notice
+  /// instead of a dialog that stops the user.
+  static bool inlineOfflineNotices = false;
+
+  static DateTime? _lastOfflineNoticeAt;
+  static String? _lastOfflineNoticeKey;
 
   static Future<void> showError(
     AppError? error, {
@@ -23,6 +36,10 @@ abstract final class AppErrorDialog {
     VoidCallback? onRetry,
   }) {
     final info = AppErrorMapper.from(error, fallbackTitle: fallbackTitle);
+    if (info.isOffline && inlineOfflineNotices) {
+      _offlineNotice(info.title, info.message);
+      return Future.value();
+    }
     return showInfo(
       title: info.title,
       message: info.message,
@@ -39,7 +56,7 @@ abstract final class AppErrorDialog {
     bool isOffline = false,
   }) {
     if (message.trim().isEmpty) return Future.value();
-    if (Get.isDialogOpen == true || recentlyShown) return Future.value();
+    if (_sheetOpen || recentlyShown) return Future.value();
     return showInfo(title: title, message: message, isOffline: isOffline);
   }
 
@@ -49,8 +66,22 @@ abstract final class AppErrorDialog {
     AppError? error, {
     String? fallbackTitle,
   }) {
-    if (Get.isDialogOpen == true || recentlyShown) return Future.value();
+    if (_sheetOpen || recentlyShown) return Future.value();
     return showError(error, fallbackTitle: fallbackTitle);
+  }
+
+  static void _offlineNotice(String title, String message) {
+    final key = '$title|$message';
+    final now = DateTime.now();
+    final last = _lastOfflineNoticeAt;
+    if (last != null &&
+        _lastOfflineNoticeKey == key &&
+        now.difference(last) < _debounce) {
+      return;
+    }
+    _lastOfflineNoticeAt = now;
+    _lastOfflineNoticeKey = key;
+    AppSnackbar.show(title, message, force: true);
   }
 
   static Future<void> showInfo({
@@ -71,12 +102,12 @@ abstract final class AppErrorDialog {
 
     final context = Get.overlayContext ?? Get.context;
     if (context == null) return;
-    if (Get.isDialogOpen == true) return;
+    if (_sheetOpen) return;
 
-    await Get.dialog<void>(
+    await showAppPopupWidget<void>(
       Builder(
         builder: (dialogContext) {
-          return AlertDialog(
+          return AppSheetDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),

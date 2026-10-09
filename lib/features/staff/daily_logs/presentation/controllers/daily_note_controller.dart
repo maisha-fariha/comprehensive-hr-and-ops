@@ -15,6 +15,7 @@ import '../../domain/repositories/staff_daily_logs_repository.dart';
 import '../../staff_daily_logs_constants.dart';
 import 'staff_daily_logs_controller.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// GetX controller for the "Daily Note" screen.
 class DailyNoteController extends BaseController<DailyNoteOverview> {
@@ -102,7 +103,7 @@ class DailyNoteController extends BaseController<DailyNoteOverview> {
     final options =
         StaffDailyLogsConstants.noteFieldOptions[field.key.name] ?? const [];
     if (options.isEmpty) return;
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppBottomSheet<String>(
       context: Get.context!,
       builder: (context) {
         return SafeArea(
@@ -297,8 +298,8 @@ class DailyNoteController extends BaseController<DailyNoteOverview> {
     required String body,
   }) async {
     final reasonField = TextEditingController();
-    final confirmed = await Get.dialog<bool>(
-      AlertDialog(
+    final confirmed = await showAppPopupWidget<bool>(
+      AppSheetDialog(
         title: const Text('Amend care record'),
         content: TextField(
           controller: reasonField,

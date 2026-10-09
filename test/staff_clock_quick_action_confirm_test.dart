@@ -6,6 +6,8 @@ import 'package:comprehensive_hr_and_ops/features/staff/dashboard/data/mappers/s
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/staff_dashboard_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/staff_quick_action.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/today_shift_summary.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/manual_entry_options.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/attendance/domain/repositories/staff_attendance_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/repositories/staff_dashboard_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/presentation/controllers/staff_dashboard_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/dashboard/presentation/pages/staff_dashboard_page.dart';
@@ -37,6 +39,42 @@ class _FakeSearchRepo extends Fake implements StaffSearchRepository {
   @override
   Future<Result<StaffTenantModules>> getTenantModules() async =>
       Result.success(const StaffTenantModules({}));
+}
+
+class _FakeAttendanceRepo extends Fake implements StaffAttendanceRepository {
+  final List<String> calls = [];
+
+  @override
+  Future<Result<List<ManualEntryResidenceOption>>> getResidences() async =>
+      Result.success(const [
+        ManualEntryResidenceOption(id: 'r1', name: 'Elm House'),
+      ]);
+
+  @override
+  Future<Result<void>> checkIn({
+    String? shiftId,
+    String? residenceId,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+    String? selfieUrl,
+  }) async {
+    calls.add('check-in:$residenceId');
+    return Result.success(null);
+  }
+
+  @override
+  Future<Result<void>> checkOut({
+    String? shiftId,
+    String? residenceId,
+    double? latitude,
+    double? longitude,
+    double? accuracyMeters,
+    String? selfieUrl,
+  }) async {
+    calls.add('check-out:$residenceId');
+    return Result.success(null);
+  }
 }
 
 class _FakeDashboardRepo extends Fake implements StaffDashboardRepository {
@@ -97,6 +135,7 @@ Future<_FakeDashboardRepo> _openHome(
 
   final repo = _FakeDashboardRepo(onShift: onShift);
   GetIt.I.registerSingleton<StaffSearchRepository>(_FakeSearchRepo());
+  GetIt.I.registerSingleton<StaffAttendanceRepository>(_FakeAttendanceRepo());
   GetIt.I.registerFactory<StaffDashboardController>(
     () => StaffDashboardController(repository: repo),
   );
@@ -129,44 +168,38 @@ void main() {
   });
 
   group('Staff Home Clock In / Out quick action', () {
-    testWidgets('on shift asks before clocking out; Cancel does nothing', (
+    testWidgets('off shift opens the clock sheet and cancel does not punch', (
       tester,
     ) async {
-      final repo = await _openHome(tester, onShift: true);
+      await _openHome(tester, onShift: false);
+      final attendance =
+          GetIt.I<StaffAttendanceRepository>() as _FakeAttendanceRepo;
 
-      expect(find.text('Clock out?'), findsOneWidget);
-      expect(find.text('This ends your shift attendance now.'), findsOneWidget);
-      expect(repo.calls, isEmpty);
+      expect(
+        find.textContaining('The photo and the location are recorded'),
+        findsOneWidget,
+      );
+      expect(attendance.calls, isEmpty);
 
-      await tester.tap(find.byKey(const ValueKey('clock-confirm-cancel')));
+      await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Clock out?'), findsNothing);
-      expect(repo.calls, isEmpty);
+      expect(
+        find.textContaining('The photo and the location are recorded'),
+        findsNothing,
+      );
+      expect(attendance.calls, isEmpty);
     });
 
-    testWidgets('confirming clocks out', (tester) async {
-      final repo = await _openHome(tester, onShift: true);
+    testWidgets('clock in sends the chosen residence', (tester) async {
+      await _openHome(tester, onShift: false);
+      final attendance =
+          GetIt.I<StaffAttendanceRepository>() as _FakeAttendanceRepo;
 
-      await tester.tap(find.byKey(const ValueKey('clock-confirm-submit')));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Clock in'));
       await tester.pumpAndSettle();
 
-      expect(repo.calls, ['check-out']);
-    });
-
-    testWidgets('off shift asks before clocking in; confirming clocks in', (
-      tester,
-    ) async {
-      final repo = await _openHome(tester, onShift: false);
-
-      expect(find.text('Clock in?'), findsOneWidget);
-      expect(find.text('This starts your shift attendance now.'), findsOneWidget);
-      expect(repo.calls, isEmpty);
-
-      await tester.tap(find.byKey(const ValueKey('clock-confirm-submit')));
-      await tester.pumpAndSettle();
-
-      expect(repo.calls, ['check-in']);
+      expect(attendance.calls, ['check-in:r1']);
     });
   });
 

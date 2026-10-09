@@ -13,6 +13,7 @@ import '../../domain/entities/staff_shift_handover.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
 import '../widgets/staff_record_handover_dialog.dart';
 import '../widgets/staff_shift_handover_card.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 class StaffShiftHandoversPage extends StatefulWidget {
   const StaffShiftHandoversPage({super.key});
@@ -172,8 +173,8 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
   }
 
   Future<void> _delete(StaffShiftHandover handover) async {
-    final ok = await Get.dialog<bool>(
-      AlertDialog(
+    final ok = await showAppPopupWidget<bool>(
+      AppSheetDialog(
         title: const Text('Delete handover'),
         content: const Text('Remove this shift handover permanently?'),
         actions: [

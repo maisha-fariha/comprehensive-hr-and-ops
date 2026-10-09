@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 TextStyle handoverText(
   BuildContext context,
@@ -279,7 +280,7 @@ Future<String?> pickHandoverOption(
   required List<(String, String)> options,
   String? selected,
 }) {
-  return showModalBottomSheet<String>(
+  return showAppBottomSheet<String>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,

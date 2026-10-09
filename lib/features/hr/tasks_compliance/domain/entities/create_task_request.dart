@@ -14,6 +14,9 @@ class CreateTaskRequest {
   final String priority;
   final DateTime? dueAt;
   final bool requiresReview;
+
+  /// Whoever completes it confirms with their name (web "Require sign-off").
+  final bool requiresSignOff;
   final List<String> assignedStaffIds;
   final List<CreateTaskChecklistItem> checklist;
   final String? notes;
@@ -31,6 +34,7 @@ class CreateTaskRequest {
     required this.priority,
     this.dueAt,
     this.requiresReview = false,
+    this.requiresSignOff = false,
     this.assignedStaffIds = const [],
     this.checklist = const [],
     this.notes,

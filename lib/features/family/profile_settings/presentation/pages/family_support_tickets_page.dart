@@ -7,6 +7,7 @@ import '../../domain/entities/family_support_ticket.dart';
 import '../controllers/family_profile_settings_controller.dart';
 import '../widgets/family_profile_settings_header.dart';
 import 'family_support_ticket_thread_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Lists the signed-in family's support tickets from GET /family/tickets.
 class FamilySupportTicketsPage extends StatefulWidget {
@@ -28,7 +29,7 @@ class _FamilySupportTicketsPageState extends State<FamilySupportTicketsPage> {
   }
 
   Future<void> _createTicket() async {
-    final body = await showDialog<String>(
+    final body = await showAppPopup<String>(
       context: context,
       builder: (context) => const _ContactSupportDialog(),
     );
@@ -288,7 +289,7 @@ class _ContactSupportDialogState extends State<_ContactSupportDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppSheetDialog(
       title: const Text('Contact Support'),
       content: TextField(
         controller: _message,

@@ -12,6 +12,7 @@ import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/report_export_item.dart';
+import '../../domain/entities/staff_sensitive.dart';
 import '../../domain/entities/team_reports_page_data.dart';
 import '../../domain/entities/team_staff_profile.dart';
 import '../../domain/repositories/team_reports_repository.dart';
@@ -206,6 +207,41 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
     return result.when(
       success: (body) async =>
           Result.success(TeamReportsMapper.staffDocumentsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<StaffSensitive>> getStaffSensitive(
+    String staffId, {
+    bool reveal = false,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.staffSensitive(staffId.trim()),
+      query: reveal ? const {'reveal': 'true'} : null,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(TeamReportsMapper.staffSensitiveFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<StaffSensitive>> updateStaffSensitive(
+    String staffId,
+    Map<String, dynamic> body,
+  ) async {
+    final result = await _api.put(
+      ApiEndpoints.staffSensitive(staffId.trim()),
+      data: body,
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(TeamReportsMapper.staffSensitiveFrom(body)),
       failure: (error) async => Result.failure(error),
     );
   }

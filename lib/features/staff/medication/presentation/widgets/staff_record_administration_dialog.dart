@@ -12,6 +12,7 @@ import '../../domain/entities/staff_med_options.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web-parity Record Administration — opens the 3-step wizard immediately.
 /// Resident + medicine are chosen inside step 1 (not via a pre-picker sheet).
@@ -37,10 +38,10 @@ class StaffRecordAdministrationDialog extends StatefulWidget {
       preselectedDose: preselectedDose,
     );
     if (wide) {
-      return showDialog<StaffRecordAdministrationResult>(
+      return showAppPopup<StaffRecordAdministrationResult>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => Dialog(
+        builder: (_) => AppSheetPanel(
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           backgroundColor: AppColors.surfaceWhite,
@@ -54,7 +55,7 @@ class StaffRecordAdministrationDialog extends StatefulWidget {
         ),
       );
     }
-    return showModalBottomSheet<StaffRecordAdministrationResult>(
+    return showAppBottomSheet<StaffRecordAdministrationResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,

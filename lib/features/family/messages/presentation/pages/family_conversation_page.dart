@@ -8,6 +8,7 @@ import '../../domain/entities/family_messages_enums.dart';
 import '../controllers/family_conversation_controller.dart';
 import '../widgets/family_messages_header.dart';
 import '../widgets/priority_toggle_row.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 class FamilyConversationPage extends StatelessWidget {
   final String conversationId;
@@ -29,7 +30,7 @@ class FamilyConversationPage extends StatelessWidget {
     BuildContext context,
     FamilyConversationController controller,
   ) async {
-    final type = await showModalBottomSheet<MessageAttachmentType>(
+    final type = await showAppBottomSheet<MessageAttachmentType>(
       context: context,
       builder: (context) => SafeArea(
         child: Column(

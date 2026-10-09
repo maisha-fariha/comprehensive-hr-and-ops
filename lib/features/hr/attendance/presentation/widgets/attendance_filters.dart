@@ -3,6 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/attendance_week.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 TextStyle _outfit(
   BuildContext context,
@@ -144,7 +145,7 @@ Future<PickedOption<T>?> showAttendanceOptionSheet<T>(
   required String Function(T) labelOf,
   T? selected,
 }) {
-  return showModalBottomSheet<PickedOption<T>>(
+  return showAppBottomSheet<PickedOption<T>>(
     context: context,
     backgroundColor: AppColors.surfaceWhite,
     isScrollControlled: true,
@@ -188,7 +189,7 @@ Future<DateTime?> showAttendanceWeekPicker(
   BuildContext context, {
   required AttendanceWeek week,
 }) {
-  return showModalBottomSheet<DateTime>(
+  return showAppBottomSheet<DateTime>(
     context: context,
     backgroundColor: AppColors.surfaceWhite,
     isScrollControlled: true,

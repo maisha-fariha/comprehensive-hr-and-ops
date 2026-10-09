@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/network/authorized_file.dart';
+import '../../../../../core/widgets/account_photo.dart';
 
 /// Circular avatar that shows [imageUrl] when available and falls back to
 /// [initials] while loading or when the image fails.
@@ -35,25 +35,11 @@ class HrInitialsAvatar extends StatelessWidget {
         ),
       ),
     );
-    final url = imageUrl?.trim();
-    return Container(
-      width: resolvedSize,
-      height: resolvedSize,
-      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
-      clipBehavior: Clip.antiAlias,
-      child: url == null || url.isEmpty
-          ? fallback
-          : Image.network(
-              AuthorizedFile.resolveUrl(url),
-              key: ValueKey(url),
-              headers: AuthorizedFile.headers(),
-              width: resolvedSize,
-              height: resolvedSize,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, progress) =>
-                  progress == null ? child : fallback,
-              errorBuilder: (context, error, stackTrace) => fallback,
-            ),
+    return AccountPhoto(
+      url: imageUrl,
+      size: resolvedSize,
+      background: background,
+      fallback: fallback,
     );
   }
 }
