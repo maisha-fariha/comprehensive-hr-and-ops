@@ -128,10 +128,12 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   }
 
   @override
-  Future<Result<void>> completeTask(String taskId) async {
+  Future<Result<void>> completeTask(String taskId, {bool signOff = false}) async {
     final result = await _api.patch(
       ApiEndpoints.taskById(taskId),
-      data: const {'status': 'completed'},
+      data: signOff
+          ? const {'status': 'completed', 'signOff': true}
+          : const {'status': 'completed'},
     );
     return result.when(
       success: (_) async => Result.success(null),
@@ -318,6 +320,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     String? roomArea,
     List<Map<String, dynamic>> checklist = const [],
     bool requiresReview = false,
+    bool requiresSignOff = false,
     String? notes,
     bool isRecurring = false,
     String recurrenceFrequency = 'daily',
@@ -380,6 +383,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
           'taskType': _normalizeTaskType(taskType),
           'assignedStaffIds': staffIds,
           'requiresReview': requiresReview,
+          'requiresSignOff': requiresSignOff,
           'frequency': frequency,
           if (description != null && description.trim().isNotEmpty)
             'description': description.trim(),
@@ -419,6 +423,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
         'shiftId': normalizedShiftId,
         'assignedStaffIds': staffIds,
         'requiresReview': requiresReview,
+        'requiresSignOff': requiresSignOff,
         if (description != null && description.trim().isNotEmpty)
           'description': description.trim(),
         if (dueAt != null) 'dueAt': dueAt.toUtc().toIso8601String(),

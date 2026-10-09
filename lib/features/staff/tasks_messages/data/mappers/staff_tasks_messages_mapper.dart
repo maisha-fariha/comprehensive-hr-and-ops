@@ -317,6 +317,7 @@ abstract final class StaffTasksMessagesMapper {
         '',
       ),
       notes: notesFrom(notesBody),
+      requiresSignOff: JsonCodec.boolean(json['requiresSignOff']) ?? false,
     );
   }
 

@@ -120,6 +120,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
   String _priority = 'medium';
   DateTime? _dueAt;
   bool _requiresReview = false;
+  bool _requiresSignOff = false;
   bool _recurring = false;
   final List<_ChecklistDraft> _checklist = [];
   final List<CreateTaskAttachment> _attachments = [];
@@ -600,6 +601,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
         priority: _priority,
         dueAt: _dueAt,
         requiresReview: _requiresReview,
+        requiresSignOff: _requiresSignOff,
         assignedStaffIds: [for (final staff in _selectedStaff) staff.id],
         checklist: [
           for (final step in _checklist)
@@ -841,6 +843,15 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                         'Somebody with review rights has to agree it was done before it counts',
                     value: _requiresReview,
                     onChanged: (value) => setState(() => _requiresReview = value),
+                    bordered: false,
+                  ),
+                  _ToggleBlock(
+                    key: const ValueKey('task-requires-sign-off'),
+                    title: 'Require sign-off to complete',
+                    subtitle: 'Whoever completes this task confirms it with their name '
+                        "before it counts as done. Optional — most tasks won't need this.",
+                    value: _requiresSignOff,
+                    onChanged: (value) => setState(() => _requiresSignOff = value),
                     bordered: false,
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),

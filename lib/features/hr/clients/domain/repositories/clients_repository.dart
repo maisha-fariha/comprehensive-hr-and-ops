@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../entities/client_extras.dart';
+import '../entities/client_goals.dart';
 import '../entities/client_summary.dart';
 
 abstract class ClientsRepository {
@@ -21,8 +22,12 @@ abstract class ClientsRepository {
   /// The plan's client cap from `GET /auth/me` (`null` = unlimited).
   Future<Result<int?>> getClientLimit();
 
-  /// `POST /clients`.
-  Future<Result<ClientSummary>> createClient(Map<String, dynamic> body);
+  /// `POST /clients`. The same [idempotencyKey] on a retry keeps the server
+  /// from creating the client twice.
+  Future<Result<ClientSummary>> createClient(
+    Map<String, dynamic> body, {
+    String? idempotencyKey,
+  });
 
   /// `PATCH /clients/{id}`.
   Future<Result<ClientSummary>> updateClient(
@@ -30,8 +35,32 @@ abstract class ClientsRepository {
     Map<String, dynamic> body,
   );
 
-  /// `DELETE /clients/{id}`.
-  Future<Result<void>> deleteClient(String clientId);
+  /// `DELETE /clients/{id}` with the optional `{ reason }`.
+  Future<Result<void>> deleteClient(String clientId, {String? reason});
+
+  /// `GET /clients/deleted` (the "Deleted residents" log).
+  Future<Result<List<DeletedClient>>> getDeletedClients({String? search});
+
+  /// `POST /clients/{id}/restore`.
+  Future<Result<void>> restoreClient(String clientId);
+
+  /// `GET /client-goals/categories`.
+  Future<Result<List<ClientGoalCategory>>> getGoalCategories();
+
+  /// `GET /clients/{id}/goals?includeClosed=true`.
+  Future<Result<List<ClientGoal>>> getGoals(String clientId);
+
+  /// `POST /clients/{id}/goals` (`{ category, title?, targetDate? }`).
+  Future<Result<void>> createGoal(String clientId, Map<String, dynamic> body);
+
+  /// `PATCH /clients/{id}/goals/{goalId}` (`{ status }`).
+  Future<Result<void>> updateGoal(String clientId, String goalId, Map<String, dynamic> body);
+
+  /// `DELETE /clients/{id}/goals/{goalId}`.
+  Future<Result<void>> deleteGoal(String clientId, String goalId);
+
+  /// `GET /clients/{id}/goals/outcomes`.
+  Future<Result<ClientGoalOutcomes>> getGoalOutcomes(String clientId);
 
   /// `POST /clients/{id}/transfer`.
   Future<Result<ClientSummary>> transferClient(

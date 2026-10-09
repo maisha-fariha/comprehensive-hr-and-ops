@@ -9,6 +9,7 @@ import '../../domain/entities/report_document_item.dart';
 import '../../domain/entities/report_export_item.dart';
 import '../../domain/entities/report_insight.dart';
 import '../../domain/entities/reports_tab_overview.dart';
+import '../../domain/entities/staff_sensitive.dart';
 import '../../domain/entities/stat_tile_data.dart';
 import '../../domain/entities/team_reports_enums.dart';
 import '../../domain/entities/team_reports_page_data.dart';
@@ -18,6 +19,23 @@ import '../../domain/entities/team_tab_overview.dart';
 import '../../domain/entities/top_report_item.dart';
 
 abstract final class TeamReportsMapper {
+  static StaffSensitive staffSensitiveFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final sin = JsonCodec.mapAt(json, 'sin') ?? const {};
+    final banking = JsonCodec.mapAt(json, 'banking') ?? const {};
+    return StaffSensitive(
+      revealed: JsonCodec.boolean(json['revealed']) ?? false,
+      sinOnFile: JsonCodec.boolean(sin['onFile']) ?? false,
+      sinMasked: JsonCodec.string(sin['masked']),
+      sinValue: JsonCodec.string(sin['value']),
+      bankingOnFile: JsonCodec.boolean(banking['onFile']) ?? false,
+      accountMasked: JsonCodec.string(banking['accountMasked']),
+      institutionNumber: JsonCodec.string(banking['institutionNumber']),
+      transitNumber: JsonCodec.string(banking['transitNumber']),
+      accountNumber: JsonCodec.string(banking['accountNumber']),
+    );
+  }
+
   static TeamReportsPageData compose({
     required dynamic staffBody,
     required dynamic onDutyBody,

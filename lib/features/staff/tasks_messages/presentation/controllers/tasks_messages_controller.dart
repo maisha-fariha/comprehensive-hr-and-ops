@@ -201,8 +201,8 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     );
   }
 
-  Future<void> completeTask(String taskId) async {
-    final result = await repository.completeTask(taskId);
+  Future<void> completeTask(String taskId, {bool signOff = false}) async {
+    final result = await repository.completeTask(taskId, signOff: signOff);
     if (result.isFailure) {
       AppErrorDialog.showResultError(
         result.error,
@@ -210,7 +210,10 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
       );
       return;
     }
-    AppSnackbar.show('Task completed', 'Marked as completed.');
+    AppSnackbar.show(
+      'Task completed',
+      signOff ? 'Signed off and completed.' : 'Marked as completed.',
+    );
     await loadOverview();
   }
 

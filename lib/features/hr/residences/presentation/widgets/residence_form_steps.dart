@@ -83,6 +83,7 @@ class ResidenceBasicStep extends StatelessWidget {
     'Memory Care': (Icons.lightbulb_outline_rounded, AppColors.nightPurple),
     'Independent Living': (Icons.place_outlined, AppColors.urgentAmber),
     'Group Home': (Icons.home_outlined, AppColors.criticalRed),
+    'Foster / Kinship Care': (Icons.family_restroom_rounded, AppColors.infoBlue),
   };
 
   @override

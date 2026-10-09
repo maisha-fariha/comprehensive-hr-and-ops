@@ -157,11 +157,48 @@ class AppApiClient implements OutboxTransport {
     bool silent = false,
     bool allowQueue = true,
     bool allowTokenRefresh = true,
+  }) =>
+      _post(
+        path,
+        data: data,
+        query: query,
+        includeTenant: includeTenant,
+        silent: silent,
+        allowQueue: allowQueue,
+        allowTokenRefresh: allowTokenRefresh,
+      );
+
+  /// A [post] whose `Idempotency-Key` is [idempotencyKey], so a form can
+  /// reuse one key across its retries and the server keeps a single record
+  /// when an earlier attempt did get through.
+  Future<Result<dynamic>> postWithKey(
+    String path, {
+    required String idempotencyKey,
+    dynamic data,
+    bool silent = false,
+  }) =>
+      _post(
+        path,
+        data: data,
+        silent: silent,
+        allowQueue: false,
+        identity: _WriteIdentity(idempotencyKey, DateTime.now()),
+      );
+
+  Future<Result<dynamic>> _post(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? query,
+    bool includeTenant = true,
+    bool silent = false,
+    bool allowQueue = true,
+    bool allowTokenRefresh = true,
+    _WriteIdentity? identity,
   }) {
     path = _resolvePath(path);
     query = _resolveJson(query);
     data = _resolveJson(data);
-    final identity = _writeIdentity('POST', path);
+    identity ??= _writeIdentity('POST', path);
     final staging = data is FormData &&
             outbox != null &&
             (OutboxContext.stageUploads || _stagesWhenOffline(path, query))
@@ -798,6 +835,8 @@ class AppApiClient implements OutboxTransport {
 
   bool _cacheable(String method, String path) {
     if (method != 'GET') return false;
+    // SIN and banking numbers must never be written to the device.
+    if (path.endsWith('/sensitive')) return false;
     return !_isAuthPath(path);
   }
 

@@ -6,12 +6,13 @@ import '../../../../core/constants/app_colors.dart';
 abstract final class ClientsLabels {
   static const genders = ['Female', 'Male', 'Non-binary', 'Prefer not to say'];
   static const careLevels = ['Low', 'Medium', 'High'];
-  static const statuses = ['Active', 'Pending', 'Inactive'];
+  static const statuses = ['Active', 'Draft', 'Pending', 'Inactive'];
   static const fundingSources = [
     'Private Pay',
     'Medicaid',
     'Medicare',
     'Insurance',
+    'Children Services',
     'Other',
   ];
   static const relationships = [

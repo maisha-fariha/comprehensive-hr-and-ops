@@ -9,6 +9,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
 import '../../domain/entities/client_extras.dart';
+import '../../domain/entities/client_goals.dart';
 import '../../domain/entities/client_summary.dart';
 import '../../domain/repositories/clients_repository.dart';
 import '../clients_endpoints.dart';
@@ -87,13 +88,23 @@ class ClientsRepositoryImpl implements ClientsRepository {
   }
 
   @override
-  Future<Result<ClientSummary>> createClient(Map<String, dynamic> body) async {
-    final result = await _api.post(
-      ClientsEndpoints.clients,
-      data: body,
-      silent: true,
-      allowQueue: false,
-    );
+  Future<Result<ClientSummary>> createClient(
+    Map<String, dynamic> body, {
+    String? idempotencyKey,
+  }) async {
+    final result = idempotencyKey == null
+        ? await _api.post(
+            ClientsEndpoints.clients,
+            data: body,
+            silent: true,
+            allowQueue: false,
+          )
+        : await _api.postWithKey(
+            ClientsEndpoints.clients,
+            idempotencyKey: idempotencyKey,
+            data: body,
+            silent: true,
+          );
     return result.when(success: _clientResult, failure: Result.failure);
   }
 
@@ -112,17 +123,104 @@ class ClientsRepositoryImpl implements ClientsRepository {
   }
 
   @override
-  Future<Result<void>> deleteClient(String clientId) async {
+  Future<Result<void>> deleteClient(String clientId, {String? reason}) async {
     final result = await _api.delete(
       ClientsEndpoints.client(clientId),
+      data: reason == null || reason.isEmpty ? null : {'reason': reason},
       silent: true,
       allowQueue: false,
     );
+    return _done(result);
+  }
+
+  @override
+  Future<Result<List<DeletedClient>>> getDeletedClients({String? search}) async {
+    final q = search?.trim() ?? '';
+    final result = await _api.get(
+      ClientsEndpoints.deletedClients,
+      query: {'page': 1, 'limit': _optionsLimit, if (q.isNotEmpty) 'search': q},
+      silent: true,
+    );
     return result.when(
-      success: (_) => Result.success(null),
+      success: (body) => Result.success(ClientsMapper.deletedFrom(body)),
       failure: Result.failure,
     );
   }
+
+  @override
+  Future<Result<void>> restoreClient(String clientId) async => _done(
+        await _api.post(ClientsEndpoints.restore(clientId), silent: true, allowQueue: false),
+      );
+
+  @override
+  Future<Result<List<ClientGoalCategory>>> getGoalCategories() async {
+    final result = await _api.get(ClientsEndpoints.goalCategories, silent: true);
+    return result.when(
+      success: (body) => Result.success(ClientsMapper.goalCategoriesFrom(body)),
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<List<ClientGoal>>> getGoals(String clientId) async {
+    final result = await _api.get(
+      ClientsEndpoints.goals(clientId),
+      query: const {'includeClosed': true},
+      silent: true,
+    );
+    return result.when(
+      success: (body) => Result.success(ClientsMapper.goalsFrom(body)),
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<void>> createGoal(String clientId, Map<String, dynamic> body) async => _done(
+        await _api.post(
+          ClientsEndpoints.goals(clientId),
+          data: body,
+          silent: true,
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<void>> updateGoal(
+    String clientId,
+    String goalId,
+    Map<String, dynamic> body,
+  ) async =>
+      _done(
+        await _api.patch(
+          ClientsEndpoints.goal(clientId, goalId),
+          data: body,
+          silent: true,
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<void>> deleteGoal(String clientId, String goalId) async => _done(
+        await _api.delete(
+          ClientsEndpoints.goal(clientId, goalId),
+          silent: true,
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<ClientGoalOutcomes>> getGoalOutcomes(String clientId) async {
+    final result = await _api.get(ClientsEndpoints.goalOutcomes(clientId), silent: true);
+    return result.when(
+      success: (body) => Result.success(ClientsMapper.goalOutcomesFrom(body)),
+      failure: Result.failure,
+    );
+  }
+
+  static Result<void> _done(Result<dynamic> result) => result.when(
+        success: (_) => Result.success(null),
+        failure: Result.failure,
+      );
 
   @override
   Future<Result<ClientSummary>> transferClient(

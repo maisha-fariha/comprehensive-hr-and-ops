@@ -18,6 +18,7 @@ abstract final class ResidencesLabels {
     ('Memory Care', 'Memory Care', 'Dementia specialised'),
     ('Independent Living', 'Independent Living', 'Minimal assistance'),
     ('Group Home', 'Group Home', 'Everything in the group home'),
+    ('Foster / Kinship Care', 'Foster / Kinship Care', 'Foster and kinship care home'),
   ];
 
   static const countries = ['United States', 'Canada'];

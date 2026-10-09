@@ -189,6 +189,7 @@ abstract final class ApiEndpoints {
 
   static String staffById(String staffId) => '$staff/$staffId';
   static String staffDocuments(String staffId) => '$staff/$staffId/documents';
+  static String staffSensitive(String staffId) => '$staff/$staffId/sensitive';
   static String documentById(String id) => '$documents/$id';
   static String documentRestore(String id) => '$documents/$id/restore';
   static String documentTypeArchive(String id) => '$documentTypes/$id/archive';

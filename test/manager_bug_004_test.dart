@@ -1,6 +1,7 @@
 import 'package:comprehensive_hr_and_ops/core/constants/app_colors.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/entities/client_extras.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/entities/client_goals.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/entities/client_summary.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/repositories/clients_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/presentation/controllers/clients_controller.dart';
@@ -104,7 +105,10 @@ class _FakeClientsRepo implements ClientsRepository {
   Future<Result<int?>> getClientLimit() async => Result.success(null);
 
   @override
-  Future<Result<ClientSummary>> createClient(Map<String, dynamic> body) async =>
+  Future<Result<ClientSummary>> createClient(
+    Map<String, dynamic> body, {
+    String? idempotencyKey,
+  }) async =>
       Result.success(_ayaan);
 
   @override
@@ -112,7 +116,41 @@ class _FakeClientsRepo implements ClientsRepository {
       Result.success(_ayaan);
 
   @override
-  Future<Result<void>> deleteClient(String clientId) async => Result.success(null);
+  Future<Result<void>> deleteClient(String clientId, {String? reason}) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<List<DeletedClient>>> getDeletedClients({String? search}) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<void>> restoreClient(String clientId) async => Result.success(null);
+
+  @override
+  Future<Result<List<ClientGoalCategory>>> getGoalCategories() async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<ClientGoal>>> getGoals(String clientId) async => Result.success(const []);
+
+  @override
+  Future<Result<void>> createGoal(String clientId, Map<String, dynamic> body) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> updateGoal(
+    String clientId,
+    String goalId,
+    Map<String, dynamic> body,
+  ) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> deleteGoal(String clientId, String goalId) async => Result.success(null);
+
+  @override
+  Future<Result<ClientGoalOutcomes>> getGoalOutcomes(String clientId) async =>
+      Result.success(const ClientGoalOutcomes());
 
   @override
   Future<Result<ClientSummary>> transferClient(

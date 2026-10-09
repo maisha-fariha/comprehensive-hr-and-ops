@@ -14,6 +14,7 @@ import '../controllers/clients_controller.dart';
 import '../widgets/add_client_sheet.dart';
 import '../widgets/client_card.dart';
 import '../widgets/clients_common.dart';
+import '../widgets/deleted_clients_sheet.dart';
 import '../widgets/move_client_sheet.dart';
 import 'client_detail_page.dart';
 
@@ -64,17 +65,30 @@ class _ClientsPageState extends State<ClientsPage> {
       case ClientRowAction.move:
         await showMoveClientSheet(context, _controller, client);
       case ClientRowAction.delete:
+        final reason = TextEditingController();
         final ok = await confirmClientAction(
           context,
           title: 'Delete ${client.firstName} ${client.lastName}?',
-          description: 'This removes the client from the directory along with their '
-              'daily logs, care plan, and family portal access.',
+          description: 'They leave the directory. The record is kept on the deleted log, '
+              'with who deleted it and why, and can be restored from there.',
           confirmLabel: 'Delete Client',
           confirmKey: const ValueKey('client-delete-confirm'),
+          extra: ClientInput(
+            key: const ValueKey('client-delete-reason'),
+            label: 'Reason (optional)',
+            placeholder: 'e.g. Duplicate record',
+            controller: reason,
+            lines: 2,
+          ),
         );
-        if (ok) await _controller.deleteClient(client);
+        if (ok) await _controller.deleteClient(client, reason: reason.text);
     }
   }
+
+  Future<void> _openDeleted() => showClientSheet<void>(
+        context,
+        DeletedClientsSheet(controller: _controller),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -204,6 +218,13 @@ class _ClientsPageState extends State<ClientsPage> {
                   child: add,
                 )
               : add,
+        if (c.canDelete)
+          HandoverButton(
+            key: const ValueKey('clients-deleted'),
+            label: 'Deleted residents',
+            icon: Icons.history_rounded,
+            onPressed: _openDeleted,
+          ),
         if (c.canExport)
           HandoverButton(
             key: const ValueKey('clients-export'),

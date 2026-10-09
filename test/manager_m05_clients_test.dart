@@ -3,8 +3,11 @@ import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/data/mappers/clients_mapper.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/data/repositories/clients_repository_impl.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/entities/client_extras.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/entities/client_goals.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/entities/client_summary.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/domain/repositories/clients_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/clients/presentation/client_form.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/clients/presentation/clients_labels.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/presentation/controllers/clients_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/clients/presentation/pages/clients_page.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/handovers/presentation/widgets/handover_common.dart';
@@ -115,6 +118,16 @@ class _FakeRepo implements ClientsRepository {
   final updated = <Map<String, dynamic>>[];
   final familyAdded = <Map<String, dynamic>>[];
   final deleted = <String>[];
+  final deleteReasons = <String?>[];
+  final restored = <String>[];
+  final createKeys = <String?>[];
+  final goalsCreated = <Map<String, dynamic>>[];
+  final goalUpdates = <Map<String, dynamic>>[];
+  AppError? createFailure;
+  bool rejectFamily = false;
+  List<DeletedClient> deletedRows = const [];
+  List<ClientGoal> goals = const [];
+  ClientGoalOutcomes outcomes = const ClientGoalOutcomes();
   final transfers = <Map<String, dynamic>>[];
   final lastSearch = <String?>[];
   int exportCalls = 0;
@@ -161,8 +174,13 @@ class _FakeRepo implements ClientsRepository {
   Future<Result<int?>> getClientLimit() async => Result.success(limit);
 
   @override
-  Future<Result<ClientSummary>> createClient(Map<String, dynamic> body) async {
+  Future<Result<ClientSummary>> createClient(
+    Map<String, dynamic> body, {
+    String? idempotencyKey,
+  }) async {
     created.add(body);
+    createKeys.add(idempotencyKey);
+    if (createFailure != null) return Result.failure(createFailure!);
     return Result.success(
       ClientSummary(id: 'new1', firstName: '${body['firstName']}', lastName: '', status: 'Active'),
     );
@@ -175,10 +193,54 @@ class _FakeRepo implements ClientsRepository {
   }
 
   @override
-  Future<Result<void>> deleteClient(String clientId) async {
+  Future<Result<void>> deleteClient(String clientId, {String? reason}) async {
     deleted.add(clientId);
+    deleteReasons.add(reason);
     return Result.success(null);
   }
+
+  @override
+  Future<Result<List<DeletedClient>>> getDeletedClients({String? search}) async =>
+      Result.success(deletedRows);
+
+  @override
+  Future<Result<void>> restoreClient(String clientId) async {
+    restored.add(clientId);
+    return Result.success(null);
+  }
+
+  @override
+  Future<Result<List<ClientGoalCategory>>> getGoalCategories() async => Result.success(const [
+        ClientGoalCategory(key: 'social_skills', label: 'Social skills'),
+        ClientGoalCategory(key: 'education', label: 'Education'),
+        ClientGoalCategory(key: 'custom', label: 'Custom'),
+      ]);
+
+  @override
+  Future<Result<List<ClientGoal>>> getGoals(String clientId) async => Result.success(goals);
+
+  @override
+  Future<Result<void>> createGoal(String clientId, Map<String, dynamic> body) async {
+    goalsCreated.add(body);
+    return Result.success(null);
+  }
+
+  @override
+  Future<Result<void>> updateGoal(
+    String clientId,
+    String goalId,
+    Map<String, dynamic> body,
+  ) async {
+    goalUpdates.add({'goalId': goalId, ...body});
+    return Result.success(null);
+  }
+
+  @override
+  Future<Result<void>> deleteGoal(String clientId, String goalId) async => Result.success(null);
+
+  @override
+  Future<Result<ClientGoalOutcomes>> getGoalOutcomes(String clientId) async =>
+      Result.success(outcomes);
 
   @override
   Future<Result<ClientSummary>> transferClient(
@@ -201,6 +263,7 @@ class _FakeRepo implements ClientsRepository {
 
   @override
   Future<Result<void>> addFamilyMember(String clientId, Map<String, dynamic> body) async {
+    if (rejectFamily) return Result.failure(const ApiError(message: 'Email is not valid'));
     familyAdded.add(body);
     return Result.success(null);
   }
@@ -410,58 +473,229 @@ void main() {
       await _pickFirstOfMonth(tester, 'client-admission-date');
       await _tap(tester, find.byKey(const ValueKey('add-client-next')));
       expect(find.text('STEP 3 OF 5'), findsOneWidget);
+      expect(find.text('Primary Emergency Contact'), findsOneWidget);
+      expect(find.text('Secondary Emergency Contact'), findsOneWidget);
+
+      await _tap(tester, find.byKey(const ValueKey('add-client-next')));
+      expect(find.text('Primary emergency contact name is required'), findsOneWidget);
+      expect(find.text('Relationship is required'), findsOneWidget);
+      expect(find.text('Phone number is required'), findsOneWidget);
 
       await _type(tester, 'client-guardian-name', 'Mary Benson');
       await _type(tester, 'client-guardian-phone', '12');
+      await _tap(tester, find.byKey(const ValueKey('client-relationship')));
+      await _tap(tester, find.text('Parent').last);
+      await _tap(tester, find.byKey(const ValueKey('client-step-medical')));
+      expect(find.byKey(const ValueKey('client-allergies')), findsNothing);
+      expect(find.text('Enter a valid phone number'), findsOneWidget);
+      expect(
+        find.text('Add an email for the family portal login, or turn portal access off'),
+        findsOneWidget,
+      );
+
+      await _type(tester, 'client-guardian-phone', '(555) 123-4567');
+      await _type(tester, 'client-guardian-email', 'mary@example.com');
+      await _type(tester, 'client-secondary-name', 'John Benson');
+      await _type(tester, 'client-secondary-phone', '(555) 987-6543');
       await _tap(tester, find.byKey(const ValueKey('add-client-next')));
       await _tap(tester, find.byKey(const ValueKey('add-client-next')));
       expect(find.text('STEP 5 OF 5'), findsOneWidget);
       expect(find.text('Create Client'), findsOneWidget);
 
-      await _tap(tester, find.byKey(const ValueKey('add-client-create')));
-      expect(_repo.created, isEmpty);
-      expect(find.text('STEP 3 OF 5'), findsOneWidget);
-      expect(find.text('Enter a valid phone number'), findsOneWidget);
-
-      await _type(tester, 'client-guardian-phone', '(555) 123-4567');
-      await _tap(tester, find.byKey(const ValueKey('client-step-care')));
+      await _tap(tester, find.byKey(const ValueKey('goal-category-social_skills')));
+      expect(find.byKey(const ValueKey('goal-category-custom')), findsNothing);
+      await _tap(tester, find.text('Add Custom Goal'));
+      await tester.enterText(
+        _inKey('client-custom-goals', find.byType(TextField)).first,
+        'Weekly call with mum',
+      );
+      await tester.pumpAndSettle();
       await _tap(tester, find.byKey(const ValueKey('add-client-create')));
 
       expect(_repo.created, hasLength(1));
       final body = _repo.created.single;
       expect(body['firstName'], 'Grace');
+      expect(body['middleName'], isNull);
       expect(body['lastName'], 'Hopper');
       expect(body['residenceId'], 'elm');
       expect(body['roomId'], 'elm_r2');
       expect(body['level'], 'Low');
-      expect(body['status'], 'Active');
+      expect(body['status'], 'active');
       expect(body['dateOfBirth'], matches(RegExp(r'^\d{4}-\d{2}-01$')));
       expect(body['admissionDate'], matches(RegExp(r'^\d{4}-\d{2}-01$')));
       expect((body['portalVisibility'] as Map)['dailyLogs'], isTrue);
       expect((body['portalVisibility'] as Map)['incidents'], isFalse);
       expect(body['medicalInfo'], isA<Map<String, dynamic>>());
       expect(body['carePlan'], isA<Map<String, dynamic>>());
+      expect(_repo.createKeys.single, isNotEmpty);
 
-      expect(_repo.familyAdded, hasLength(1));
-      final guardian = _repo.familyAdded.single;
+      expect(_repo.familyAdded, hasLength(2));
+      final guardian = _repo.familyAdded.first;
       expect(guardian['name'], 'Mary Benson');
+      expect(guardian['relationship'], 'Parent');
       expect(guardian['phone'], '(555) 123-4567');
+      expect(guardian['email'], 'mary@example.com');
       expect(guardian['isPrimaryGuardian'], isTrue);
       expect(guardian['createPortalUser'], isTrue);
+      expect(_repo.familyAdded.last, {
+        'name': 'John Benson',
+        'phone': '(555) 987-6543',
+        'isPrimaryGuardian': false,
+        'createPortalUser': false,
+        'isEmergencyContact': true,
+        'receiveNotifications': false,
+        'emergencyAlerts': true,
+      });
+      expect(_repo.goalsCreated, [
+        {'category': 'social_skills'},
+        {'category': 'custom', 'title': 'Weekly call with mum'},
+      ]);
 
       expect(find.text('Add New Client'), findsNothing);
-      expect(find.text('Client added'), findsOneWidget);
     });
 
-    testWidgets('Save Draft submits without step validation', (tester) async {
+    testWidgets('middle name is sent and Children Services is a funding source',
+        (tester) async {
+      expect(
+        ClientsLabels.fundingSources.sublist(ClientsLabels.fundingSources.length - 2),
+        ['Children Services', 'Other'],
+      );
+      await _pumpPage(tester);
+      await _tap(tester, find.byKey(const ValueKey('clients-add')));
+      await _type(tester, 'client-first-name', 'Grace');
+      await _type(tester, 'client-middle-name', 'Brewster');
+      await _type(tester, 'client-last-name', 'Hopper');
+      await _tap(tester, find.byKey(const ValueKey('client-step-residence')));
+      expect(find.text('Date of birth is required'), findsOneWidget);
+
+      await _tap(tester, find.byKey(const ValueKey('add-client-draft')));
+      expect(_repo.created.single['middleName'], 'Brewster');
+    });
+
+    testWidgets('Save Draft needs a first and last name and saves as draft', (tester) async {
       await _pumpPage(tester);
       await _tap(tester, find.byKey(const ValueKey('clients-add')));
       await _type(tester, 'client-first-name', 'Draft');
       await _tap(tester, find.byKey(const ValueKey('add-client-draft')));
+      expect(_repo.created, isEmpty);
+      expect(find.text('Last name is required'), findsOneWidget);
+
+      await _type(tester, 'client-last-name', 'Person');
+      await _tap(tester, find.byKey(const ValueKey('add-client-draft')));
 
       expect(_repo.created, hasLength(1));
       expect(_repo.created.single['firstName'], 'Draft');
+      expect(_repo.created.single['status'], 'draft');
       expect(_repo.familyAdded, isEmpty);
+      expect(find.text('Draft client saved'), findsOneWidget);
+    });
+
+    testWidgets('a failed create keeps the wizard open and retries with the same key',
+        (tester) async {
+      _repo.createFailure = const ApiError(message: 'Server busy');
+      await _pumpPage(tester);
+      await _tap(tester, find.byKey(const ValueKey('clients-add')));
+      await _type(tester, 'client-first-name', 'Retry');
+      await _type(tester, 'client-last-name', 'Person');
+      await _tap(tester, find.byKey(const ValueKey('add-client-draft')));
+      expect(find.text('Add New Client'), findsOneWidget);
+
+      _repo.createFailure = null;
+      await _tap(tester, find.byKey(const ValueKey('add-client-draft')));
+      expect(_repo.created, hasLength(2));
+      expect(_repo.createKeys.toSet(), hasLength(1));
+      expect(find.text('Add New Client'), findsNothing);
+    });
+
+    testWidgets('a contact the server rejects does not undo the created client',
+        (tester) async {
+      _repo.rejectFamily = true;
+      await _pumpPage(tester);
+      final form = ClientForm();
+      form.firstName.text = 'Ada';
+      form.lastName.text = 'Byron';
+      form.guardianName.text = 'Bad Contact';
+      final error = await Get.find<ClientsController>().createClient(form, draft: true);
+      await tester.pumpAndSettle();
+
+      expect(error, isNull);
+      expect(_repo.created, hasLength(1));
+      expect(
+        find.text('Bad Contact was not added as a contact: Email is not valid'),
+        findsOneWidget,
+      );
+      form.dispose();
+    });
+  });
+
+  group('M05 deleted residents', () {
+    testWidgets('delete sends the reason and the log restores a resident', (tester) async {
+      _repo.deletedRows = [
+        DeletedClient(
+          client: _ben,
+          deletedAt: DateTime.utc(2026, 10, 1, 9, 30),
+          deletedByName: 'Maria Manager',
+          reason: 'Duplicate record',
+          statusBeforeDelete: 'active',
+        ),
+      ];
+      await _pumpPage(tester);
+      await _tap(tester, find.byKey(ValueKey('client-actions-${_ada.id}')));
+      await _tap(tester, find.text('Delete'));
+      expect(find.text('Reason (optional)'), findsOneWidget);
+      await _type(tester, 'client-delete-reason', 'Added twice');
+      await _tap(tester, find.byKey(const ValueKey('client-delete-confirm')));
+      expect(_repo.deleted, [_ada.id]);
+      expect(_repo.deleteReasons, ['Added twice']);
+
+      await _tap(tester, find.byKey(const ValueKey('clients-deleted')));
+      expect(find.text('Deleted residents'), findsWidgets);
+      expect(find.text('Oak Lodge · was Active'), findsOneWidget);
+      expect(find.textContaining('by Maria Manager'), findsOneWidget);
+      expect(find.text('Reason: Duplicate record'), findsOneWidget);
+
+      await _tap(tester, find.byKey(ValueKey('deleted-client-restore-${_ben.id}')));
+      expect(_repo.restored, [_ben.id]);
+      expect(find.text('Ben Okafor is back on the roster'), findsOneWidget);
+    });
+
+    testWidgets('the deleted log is hidden without clients:delete', (tester) async {
+      await _pumpPage(tester, denied: {'clients:delete'});
+      expect(find.byKey(const ValueKey('clients-deleted')), findsNothing);
+    });
+  });
+
+  group('M05 goals & outcomes', () {
+    testWidgets('the record shows goals with progress and can mark one achieved',
+        (tester) async {
+      _repo.goals = const [
+        ClientGoal(
+          id: 'g1',
+          category: 'social_skills',
+          categoryLabel: 'Social skills',
+          title: 'Join a group activity',
+        ),
+      ];
+      _repo.outcomes = const ClientGoalOutcomes(
+        overall: GoalPeriods(
+          weekly: GoalPeriod(logged: 4, achieved: 3, progress: 75, trend: 'upward'),
+        ),
+        byGoal: {
+          'g1': GoalPeriods(weekly: GoalPeriod(logged: 4, achieved: 3, progress: 75)),
+        },
+      );
+      await _pumpPage(tester);
+      await _tap(tester, find.byKey(ValueKey('client-actions-${_ada.id}')));
+      await _tap(tester, find.text('Edit'));
+
+      expect(find.text('Goals & Outcomes'), findsOneWidget);
+      expect(find.text('Join a group activity'), findsOneWidget);
+      expect(find.text('Social skills'), findsOneWidget);
+      expect(find.text('75%'), findsNWidgets(2));
+      expect(find.text('3 of 4 shifts'), findsNWidgets(2));
+
+      await _tap(tester, find.text('Mark achieved'));
+      expect(_repo.goalUpdates.single, {'goalId': 'g1', 'status': 'achieved'});
     });
   });
 
@@ -493,8 +727,8 @@ void main() {
       await _tap(tester, find.text('Delete'));
       expect(find.text('Delete Ada Lovelace?'), findsOneWidget);
       expect(
-        find.text('This removes the client from the directory along with their '
-            'daily logs, care plan, and family portal access.'),
+        find.text('They leave the directory. The record is kept on the deleted log, '
+            'with who deleted it and why, and can be restored from there.'),
         findsOneWidget,
       );
       await _tap(tester, find.byKey(const ValueKey('client-delete-confirm')));

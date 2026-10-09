@@ -873,6 +873,36 @@ Future<T?> showClientSheet<T>(BuildContext context, Widget sheet) =>
       builder: (_) => sheet,
     );
 
+/// After the next frame, scrolls the first of [fieldKeys] found under
+/// [context] into view (the web `scrollToFirstError`).
+void scrollToFirstField(BuildContext context, Iterable<Key> fieldKeys) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!context.mounted) return;
+    for (final key in fieldKeys) {
+      Element? found;
+      void visit(Element element) {
+        if (found != null) return;
+        if (element.widget.key == key) {
+          found = element;
+          return;
+        }
+        element.visitChildElements(visit);
+      }
+
+      context.visitChildElements(visit);
+      final target = found;
+      if (target != null) {
+        Scrollable.ensureVisible(
+          target,
+          alignment: 0.1,
+          duration: const Duration(milliseconds: 250),
+        );
+        return;
+      }
+    }
+  });
+}
+
 /// Filled red / teal confirm button.
 class ClientToneButton extends StatelessWidget {
   final String label;
@@ -932,16 +962,32 @@ Future<bool> confirmClientAction(
   required String description,
   required String confirmLabel,
   required Key confirmKey,
+  Widget? extra,
 }) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
       backgroundColor: AppColors.surfaceWhite,
       title: Text(title, style: handoverText(dialogContext, 17, weight: FontWeight.w700)),
-      content: Text(
-        description,
-        style: handoverText(dialogContext, 13.5, color: AppColors.textSecondary),
-      ),
+      content: extra == null
+          ? Text(
+              description,
+              style: handoverText(dialogContext, 13.5, color: AppColors.textSecondary),
+            )
+          : SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    description,
+                    style: handoverText(dialogContext, 13.5, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 14),
+                  extra,
+                ],
+              ),
+            ),
       actions: [
         HandoverButton(
           label: 'Cancel',

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../daily_logs/domain/repositories/staff_daily_logs_repository.dart';
+import '../widgets/staff_goal_checkoff_sheet.dart';
 
 /// Staff "Clients" module — web `/dashboard/clients` Client Directory parity
 /// (BUG_Report010: Daily Logs and Clients must both appear).
@@ -29,6 +32,13 @@ class _StaffClientsPageState extends State<StaffClientsPage> {
   String _status = 'all';
   List<Map<String, String>> _clients = const [];
   List<({String id, String name})> _residences = const [];
+
+  UserSession? get _session =>
+      Get.isRegistered<UserSession>() ? Get.find<UserSession>() : null;
+
+  bool get _canLogGoals => _session?.can('daily-logs:write') ?? false;
+
+  String? get _staffId => _session?.staffId;
 
   @override
   void initState() {
@@ -250,69 +260,96 @@ class _StaffClientsPageState extends State<StaffClientsPage> {
                               return Material(
                                 color: AppColors.surfaceWhite,
                                 borderRadius: BorderRadius.circular(14),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Row(
-                                    children: [
-                                      CircleAvatar(
-                                        backgroundColor:
-                                            AppColors.activeBackground,
-                                        child: Text(
-                                          _initials(client['name'] ?? ''),
-                                          style: const TextStyle(
-                                            color: AppColors.activeGreen,
-                                            fontWeight: FontWeight.w700,
+                                clipBehavior: Clip.antiAlias,
+                                child: InkWell(
+                                  key: ValueKey(
+                                    'staff-client-${client['id']}',
+                                  ),
+                                  onTap: _canLogGoals
+                                      ? () => showStaffGoalCheckoffSheet(
+                                            context,
+                                            clientId: client['id']!,
+                                            clientName:
+                                                client['name'] ?? 'Client',
+                                            staffId: _staffId,
+                                          )
+                                      : null,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(14),
+                                    child: Row(
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundColor:
+                                              AppColors.activeBackground,
+                                          child: Text(
+                                            _initials(client['name'] ?? ''),
+                                            style: const TextStyle(
+                                              color: AppColors.activeGreen,
+                                              fontWeight: FontWeight.w700,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              client['name'] ?? 'Client',
-                                              style: const TextStyle(
-                                                fontFamily: 'Outfit',
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.textHeading,
-                                              ),
-                                            ),
-                                            if (meta.isNotEmpty)
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
                                               Text(
-                                                meta,
+                                                client['name'] ?? 'Client',
                                                 style: const TextStyle(
                                                   fontFamily: 'Outfit',
-                                                  fontSize: 12,
-                                                  color: AppColors.textSecondary,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: AppColors.textHeading,
                                                 ),
                                               ),
-                                          ],
+                                              if (meta.isNotEmpty)
+                                                Text(
+                                                  meta,
+                                                  style: const TextStyle(
+                                                    fontFamily: 'Outfit',
+                                                    fontSize: 12,
+                                                    color:
+                                                        AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                      if ((client['status'] ?? '').isNotEmpty)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.activeBackground,
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                          ),
-                                          child: Text(
-                                            client['status']!,
-                                            style: const TextStyle(
-                                              fontFamily: 'Outfit',
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.activeGreen,
+                                        if ((client['status'] ?? '').isNotEmpty)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.activeBackground,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              client['status']!,
+                                              style: const TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.activeGreen,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                    ],
+                                        if (_canLogGoals) ...[
+                                          const SizedBox(width: 6),
+                                          const Tooltip(
+                                            message: "Today's goals",
+                                            child: Icon(
+                                              Icons.flag_outlined,
+                                              size: 20,
+                                              color: AppColors.secondaryTeal,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               );

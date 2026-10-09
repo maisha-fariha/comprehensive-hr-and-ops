@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../entities/report_export_item.dart';
+import '../entities/staff_sensitive.dart';
 import '../entities/team_reports_page_data.dart';
 import '../entities/team_staff_profile.dart';
 
@@ -13,6 +14,18 @@ abstract class TeamReportsRepository {
 
   /// `GET /staff/{staffId}/documents`
   Future<Result<List<TeamStaffDocument>>> getStaffDocuments(String staffId);
+
+  /// `GET /staff/{staffId}/sensitive` — masked unless [reveal] (audited).
+  Future<Result<StaffSensitive>> getStaffSensitive(
+    String staffId, {
+    bool reveal = false,
+  });
+
+  /// `PUT /staff/{staffId}/sensitive` — `{sin?, banking?}`; `null` removes.
+  Future<Result<StaffSensitive>> updateStaffSensitive(
+    String staffId,
+    Map<String, dynamic> body,
+  );
 
   /// `POST /reports/exports`
   Future<Result<ReportExportItem>> createExport({

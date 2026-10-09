@@ -134,10 +134,10 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
     ];
   }
 
-  Future<void> _complete() async {
+  Future<void> _complete({bool signOff = false}) async {
     if (_busy) return;
     setState(() => _busy = true);
-    await widget.controller.completeTask(widget.taskId);
+    await widget.controller.completeTask(widget.taskId, signOff: signOff);
     if (!mounted) return;
     setState(() => _busy = false);
     Navigator.of(context).pop();
@@ -411,20 +411,112 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                 child: const Text('Add note'),
               ),
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: (_busy || isCompleted) ? null : _complete,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.secondaryTeal,
-                  foregroundColor: Colors.white,
+            if (!detail.requiresSignOff || isCompleted) ...[
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: (_busy || isCompleted) ? null : _complete,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.secondaryTeal,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(isCompleted ? 'Completed' : 'Complete'),
                 ),
-                child: Text(isCompleted ? 'Completed' : 'Complete'),
               ),
-            ),
+            ],
           ],
         ),
+        if (detail.requiresSignOff && !isCompleted) ...[
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+          _SignOffBox(
+            busy: _busy,
+            onConfirm: () => _complete(signOff: true),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+/// The web sign-off box: the person completing the task confirms it.
+class _SignOffBox extends StatefulWidget {
+  final bool busy;
+  final VoidCallback onConfirm;
+
+  const _SignOffBox({required this.busy, required this.onConfirm});
+
+  @override
+  State<_SignOffBox> createState() => _SignOffBoxState();
+}
+
+class _SignOffBoxState extends State<_SignOffBox> {
+  bool _confirmed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const text = TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textBody);
+    return Container(
+      key: const Key('task-sign-off'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.urgentBackgroundSoft,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.urgentBackground),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.edit_outlined, size: 16, color: AppColors.urgentAmber),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'This task requires sign-off. Confirming below records that you '
+                  'completed it, with the date and time.',
+                  style: text,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            key: const Key('task-sign-off-confirm'),
+            onTap: () => setState(() => _confirmed = !_confirmed),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _confirmed,
+                  activeColor: AppColors.secondaryTeal,
+                  onChanged: (v) => setState(() => _confirmed = v ?? false),
+                ),
+                const Expanded(
+                  child: Text(
+                    'I confirm this task was completed as described.',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          ElevatedButton.icon(
+            key: const Key('task-sign-off-submit'),
+            onPressed: !_confirmed || widget.busy ? null : widget.onConfirm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.secondaryTeal,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.edit_outlined, size: 15),
+            label: Text(widget.busy ? 'Signing…' : 'Sign and complete'),
+          ),
+        ],
+      ),
     );
   }
 }

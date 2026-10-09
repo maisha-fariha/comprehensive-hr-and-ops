@@ -12,6 +12,7 @@ import '../clients_labels.dart';
 import '../controllers/clients_controller.dart';
 import '../widgets/client_family_contacts.dart';
 import '../widgets/client_form_sections.dart';
+import '../widgets/client_goals_panel.dart';
 import '../widgets/clients_common.dart';
 
 /// Web "Client Details": the complete record, read-only for View and
@@ -207,7 +208,17 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                   ),
                   _panel(
                     'care',
-                    ClientCareSection(form: _form, enabled: !readOnly, onChanged: _changed),
+                    ClientCareSection(
+                      form: _form,
+                      enabled: !readOnly,
+                      onChanged: _changed,
+                      goalsPanel: ClientGoalsPanel(
+                        key: ValueKey('client-goals-${c.id}'),
+                        controller: _controller,
+                        clientId: c.id,
+                        readOnly: readOnly,
+                      ),
+                    ),
                   ),
                   _panel('spend', ClientSpendSection(controller: _controller, clientId: c.id)),
                   if (c.transfers.isNotEmpty) _transfers(context, c),

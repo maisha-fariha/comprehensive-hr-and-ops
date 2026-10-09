@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 class ClientSummary {
   final String id;
   final String firstName;
+  final String? middleName;
   final String lastName;
   final String? photoUrl;
   final String? residenceId;
@@ -47,6 +48,7 @@ class ClientSummary {
     required this.firstName,
     required this.lastName,
     required this.status,
+    this.middleName,
     this.photoUrl,
     this.residenceId,
     this.residenceName,
@@ -103,6 +105,24 @@ class ClientSummary {
     }
     return years;
   }
+}
+
+/// A row of `GET /clients/deleted` (the web "Deleted residents" log).
+@immutable
+class DeletedClient {
+  final ClientSummary client;
+  final DateTime? deletedAt;
+  final String? deletedByName;
+  final String? reason;
+  final String? statusBeforeDelete;
+
+  const DeletedClient({
+    required this.client,
+    this.deletedAt,
+    this.deletedByName,
+    this.reason,
+    this.statusBeforeDelete,
+  });
 }
 
 @immutable

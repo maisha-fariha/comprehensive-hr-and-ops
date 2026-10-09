@@ -409,6 +409,7 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       'assignedStaffIds': request.assignedStaffIds,
       'priority': request.priority,
       'requiresReview': request.requiresReview,
+      'requiresSignOff': request.requiresSignOff,
       'clientId': ?trimmed(request.clientId),
       'roomArea': ?trimmed(request.roomArea),
       'description': ?trimmed(request.description),
