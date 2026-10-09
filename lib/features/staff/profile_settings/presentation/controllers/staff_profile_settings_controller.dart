@@ -6,6 +6,7 @@ import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import '../../../../../core/widgets/account_photo.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../data/mappers/staff_profile_mapper.dart';
 import '../../domain/entities/staff_profile_settings_overview.dart';
@@ -136,6 +137,13 @@ class StaffProfileSettingsController extends BaseController<StaffProfileSettings
       AppErrorDialog.showInfo(
         title: 'Photo too large',
         message: 'Choose an image up to 25 MB.',
+      );
+      return;
+    }
+    if (await photoFileIsBlank(path)) {
+      AppErrorDialog.showInfo(
+        title: 'Photo came through blank',
+        message: 'That picture was an empty frame. Choose it again.',
       );
       return;
     }

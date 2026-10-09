@@ -202,6 +202,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
           );
         }
 
+        final avatarUrl = Get.find<UserSession>().avatarUrl;
         return Column(
           children: [
             ColoredBox(
@@ -211,6 +212,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                 child: StaffProfileSettingsHeader(
                   onBackTap: () => Navigator.maybePop(context),
                   initials: overview.profile.initials,
+                  imageUrl: avatarUrl,
                 ),
               ),
             ),
@@ -229,7 +231,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                     StaffProfileCard(
                       key: const Key('staff-profile-upper-card'),
                       profile: overview.profile,
-                      imageUrl: Get.find<UserSession>().avatarUrl,
+                      imageUrl: avatarUrl,
                       onTap: () => Get.to(
                         () => StaffProfileDetailPage(profile: overview.profile),
                       ),

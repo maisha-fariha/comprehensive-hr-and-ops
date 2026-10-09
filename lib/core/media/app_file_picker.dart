@@ -23,11 +23,6 @@ enum _AttachmentSource { camera, gallery, files }
 /// types accept a JPEG photo; otherwise (and on web / desktop) this goes
 /// straight to the system file picker exactly as before.
 abstract final class AppFilePicker {
-  /// Long edge cap + JPEG quality for camera / library photos. Keeps a typical
-  /// phone photo well under 2 MB without visible quality loss.
-  static const double _maxPhotoDimension = 2560;
-  static const int _photoQuality = 85;
-
   static Future<FilePickerResult?> pickFiles({
     BuildContext? context,
     FileType type = FileType.any,
@@ -123,9 +118,6 @@ abstract final class AppFilePicker {
       final photo = await ImagePicker().pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: preferredCamera,
-        maxWidth: _maxPhotoDimension,
-        maxHeight: _maxPhotoDimension,
-        imageQuality: _photoQuality,
       );
       if (photo == null) return null;
       return FilePickerResult([await _toPlatformFile(photo, withData)]);
@@ -145,17 +137,10 @@ abstract final class AppFilePicker {
       final picker = ImagePicker();
       final List<XFile> picked;
       if (allowMultiple) {
-        picked = await picker.pickMultiImage(
-          maxWidth: _maxPhotoDimension,
-          maxHeight: _maxPhotoDimension,
-          imageQuality: _photoQuality,
-        );
+        picked = await picker.pickMultiImage();
       } else {
         final single = await picker.pickImage(
           source: ImageSource.gallery,
-          maxWidth: _maxPhotoDimension,
-          maxHeight: _maxPhotoDimension,
-          imageQuality: _photoQuality,
         );
         picked = single == null ? const [] : [single];
       }

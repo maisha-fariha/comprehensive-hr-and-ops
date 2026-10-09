@@ -10,6 +10,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../hr/emergency/presentation/widgets/emergency_alert_motion.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Result of a successful raise — used by callers that need to refresh lists.
@@ -155,6 +156,7 @@ class _StaffRaiseEmergencyDialogState extends State<StaffRaiseEmergencyDialog> {
 
     result.when(
       success: (_) {
+        ActiveEmergencyAlerts.refresh();
         Get.back(
           result: StaffRaiseEmergencyResult(
             residenceId: _selectedHomeId!,
