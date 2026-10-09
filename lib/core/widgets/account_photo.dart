@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../offline/offline_image.dart';
 
-/// Account photo, or [fallback] when there is no photo, it cannot be loaded,
-/// or the file is a blank frame (a known camera-compression failure).
-class AccountPhoto extends StatefulWidget {
+/// Account photo, or [fallback] when there is no photo or it cannot be loaded.
+///
+/// The web shows whatever file `avatarUrl` points at. A dark frame is still
+/// that photo, so it is drawn rather than replaced with initials.
+class AccountPhoto extends StatelessWidget {
   final String? url;
   final double size;
   final Widget fallback;
@@ -23,125 +25,30 @@ class AccountPhoto extends StatefulWidget {
   });
 
   @override
-  State<AccountPhoto> createState() => _AccountPhotoState();
-}
-
-class _AccountPhotoState extends State<AccountPhoto> {
-  ImageStream? _stream;
-  ImageStreamListener? _listener;
-  String? _subscribed;
-  ImageInfo? _frame;
-  int _request = 0;
-  bool _useFallback = true;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _subscribe();
-  }
-
-  @override
-  void didUpdateWidget(AccountPhoto oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url) _subscribe();
-  }
-
-  void _subscribe() {
-    final url = widget.url?.trim();
-    if (url == null || url.isEmpty) {
-      _unsubscribe();
-      _subscribed = null;
-      _request++;
-      _frame?.dispose();
-      _frame = null;
-      if (!_useFallback) setState(() => _useFallback = true);
-      return;
-    }
-    if (url == _subscribed) return;
-    _unsubscribe();
-    _subscribed = url;
-    _request++;
-    _frame?.dispose();
-    _frame = null;
-    _useFallback = true;
-    final stream = OfflineImage.provider(url, withAuth: true).resolve(
-      createLocalImageConfiguration(context),
-    );
-    final listener = ImageStreamListener(_onImage, onError: _onError);
-    stream.addListener(listener);
-    _stream = stream;
-    _listener = listener;
-  }
-
-  Future<void> _onImage(ImageInfo info, bool synchronousCall) async {
-    final kept = info.clone();
-    info.dispose();
-    final request = _request;
-    final blank = await _isBlank(kept.image);
-    if (!mounted || request != _request) {
-      kept.dispose();
-      return;
-    }
-    if (blank) {
-      kept.dispose();
-      setState(() {
-        _frame?.dispose();
-        _frame = null;
-        _useFallback = true;
-      });
-      return;
-    }
-    setState(() {
-      _frame?.dispose();
-      _frame = kept;
-      _useFallback = false;
-    });
-  }
-
-  void _onError(Object exception, StackTrace? stackTrace) {
-    if (!mounted) return;
-    setState(() {
-      _frame?.dispose();
-      _frame = null;
-      _useFallback = true;
-    });
-  }
-
-  void _unsubscribe() {
-    final listener = _listener;
-    if (listener != null) _stream?.removeListener(listener);
-    _stream = null;
-    _listener = null;
-  }
-
-  @override
-  void dispose() {
-    _unsubscribe();
-    _frame?.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final radius = widget.borderRadius;
-    final frame = _frame;
+    final radius = borderRadius;
+    final trimmed = url?.trim();
     return Container(
-      width: widget.size,
-      height: widget.size,
+      width: size,
+      height: size,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: widget.background,
+        color: background,
         shape: radius == null ? BoxShape.circle : BoxShape.rectangle,
         borderRadius: radius,
       ),
       alignment: Alignment.center,
-      child: _useFallback || frame == null
-          ? widget.fallback
-          : RawImage(
-              image: frame.image,
-              width: widget.size,
-              height: widget.size,
+      child: trimmed == null || trimmed.isEmpty
+          ? fallback
+          : Image(
+              image: OfflineImage.provider(trimmed, withAuth: true),
+              width: size,
+              height: size,
               fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, _, _) => fallback,
+              loadingBuilder: (_, child, progress) =>
+                  progress == null ? child : fallback,
             ),
     );
   }

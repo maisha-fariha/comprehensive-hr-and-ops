@@ -27,7 +27,16 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
     if (me.isSuccess) {
       final profile = AuthMapper.profileFromJson(me.value);
       if (profile != null) {
+        // `/mobile/me` omits the picture. Keep the account photo from
+        // `/auth/me` (the same file the web header shows).
+        final previous = _session.avatarUrl;
         _session.applyProfile(profile);
+        if (profile.avatarUrl == null) {
+          final kept = (previous != null && previous.isNotEmpty)
+              ? previous
+              : await _accountAvatarUrl();
+          if (kept != null) _session.updateAvatarUrl(kept);
+        }
       }
     }
 
@@ -113,5 +122,11 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  Future<String?> _accountAvatarUrl() async {
+    final result = await _api.get(ApiEndpoints.authMe, silent: true);
+    if (result.isFailure) return null;
+    return JsonCodec.string(JsonCodec.unwrapMap(result.value)['avatarUrl']);
   }
 }
