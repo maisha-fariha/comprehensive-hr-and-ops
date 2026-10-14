@@ -56,7 +56,7 @@ abstract final class PortalInboxMapper {
         json['title'] ?? json['subject'] ?? json['type'],
         'Notification',
       ),
-      body: IsoDateRange.localizeIsoInstants(body),
+      body: body,
       timeLabel: at == null ? '' : IsoDateRange.dateTimeLabel(at),
       isRead: isNotificationRead(json),
       createdAt: at,
