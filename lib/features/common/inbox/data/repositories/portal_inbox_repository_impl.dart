@@ -47,7 +47,7 @@ class PortalInboxRepositoryImpl implements PortalInboxRepository {
   Future<Result<List<PortalNotification>>> getNotifications() async {
     final result = await _api.get(
       ApiEndpoints.notifications,
-      query: const {'page': 1, 'limit': 100},
+      query: const {'page': 1, 'limit': 30},
       silent: true,
     );
     return result.when(

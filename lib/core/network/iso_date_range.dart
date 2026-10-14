@@ -208,6 +208,53 @@ abstract final class IsoDateRange {
     return '$hour12:$minute $suffix';
   }
 
+  static final _isoInstant = RegExp(
+    r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})',
+  );
+  static final _betweenInstants = RegExp(
+    r'^(?:–|—|-|to)$',
+    caseSensitive: false,
+  );
+
+  /// Rewrites UTC timestamps in notification copy into the same local
+  /// clock the schedule uses (`DateTime.toLocal` + [timeLabel]).
+  static String localizeIsoInstants(String text) {
+    if (text.isEmpty) return text;
+    final matches = _isoInstant.allMatches(text).toList();
+    if (matches.isEmpty) return text;
+    final parsed = <DateTime>[];
+    for (final match in matches) {
+      final value = DateTime.tryParse(match.group(0)!);
+      if (value == null) return text;
+      parsed.add(value.toLocal());
+    }
+    if (parsed.length == 2) {
+      final middle = text.substring(matches[0].end, matches[1].start).trim();
+      if (middle.isEmpty || _betweenInstants.hasMatch(middle)) {
+        final start = parsed[0];
+        final end = parsed[1];
+        final sameDay = start.year == end.year &&
+            start.month == end.month &&
+            start.day == end.day;
+        final label = sameDay
+            ? '${formatShortDate(start)} · ${timeLabel(start)} – ${timeLabel(end)}'
+            : '${formatShortDate(start)} · ${timeLabel(start)} – '
+                '${formatShortDate(end)} · ${timeLabel(end)}';
+        return text.replaceRange(matches[0].start, matches[1].end, label);
+      }
+    }
+    var out = text;
+    for (var i = matches.length - 1; i >= 0; i--) {
+      final local = parsed[i];
+      out = out.replaceRange(
+        matches[i].start,
+        matches[i].end,
+        '${formatShortDate(local)} · ${timeLabel(local)}',
+      );
+    }
+    return out;
+  }
+
   static String rangeLabel(DateTime? start, DateTime? end) {
     if (start == null && end == null) return '';
     if (start != null && end != null) {

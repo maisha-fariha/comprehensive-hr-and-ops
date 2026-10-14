@@ -12,8 +12,8 @@ import '../manager_destinations.dart';
 /// Figma bottom bar (Home/Schedule/Attendance/Alerts/More only has 5 slots).
 ///
 /// This menu itself isn't a distinct Figma frame; it's a pragmatic way to
-/// make the Residences, Clients, Daily Logs, Medication, Tasks & Compliance,
-/// Team & Reports and Profile & Settings screens reachable end-to-end.
+/// make the Residences, Clients, Daily Logs, Medication, Tasks & Compliance
+/// and Profile & Settings screens reachable end-to-end.
 class HrMoreMenuPage extends StatelessWidget {
   const HrMoreMenuPage({super.key});
 

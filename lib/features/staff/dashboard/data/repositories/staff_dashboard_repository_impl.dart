@@ -68,7 +68,7 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
     var unread = 0;
     final notifications = await _api.get(
       ApiEndpoints.notifications,
-      query: const {'page': 1, 'limit': 20},
+      query: const {'page': 1, 'limit': 30},
       silent: true,
     );
     if (notifications.isSuccess) {

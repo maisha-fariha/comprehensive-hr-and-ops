@@ -11,9 +11,7 @@ import 'scheduling/presentation/pages/scheduling_page.dart';
 
 /// Root shell for the HR/Manager portal. Owns the bottom navigation bar and
 /// switches between its 5 tabs: Home (Dashboard), Schedule, Attendance,
-/// Alerts (Incidents) and More (a hub for Daily Logs/Medication/Tasks &
-/// Compliance/Team & Reports, which don't have a dedicated bottom-nav slot
-/// in the Figma bar).
+/// Alerts (Incidents) and More (modules that don't have a bottom-nav slot).
 class HrShell extends StatefulWidget {
   /// Tab to show when the shell is (re)opened — used by pushed screens that
   /// host their own copy of [HrBottomNavBar] (e.g. Daily Logs).

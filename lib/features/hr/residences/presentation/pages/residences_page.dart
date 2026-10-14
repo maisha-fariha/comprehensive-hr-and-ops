@@ -259,6 +259,9 @@ class _ResidencesPageState extends State<ResidencesPage> {
           busy: controller.busyId.value == residence.id,
           actions: actions,
           onAction: (a) => _onAction(residence, a),
+          onStatus: controller.canUpdate
+              ? (status) => controller.setResidenceStatus(residence, status)
+              : null,
           onTap: () => _view(residence),
         ),
         SizedBox(height: gap),

@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../presentation/open_manager_menu.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
@@ -295,10 +296,14 @@ class _IncidentsHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.menu_rounded,
-            size: ResponsiveHelper.getResponsiveSize(context, 24),
-            color: AppColors.textHeading,
+          GestureDetector(
+            onTap: openManagerMenu,
+            behavior: HitTestBehavior.opaque,
+            child: Icon(
+              Icons.menu_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 24),
+              color: AppColors.textHeading,
+            ),
           ),
           Expanded(
             child: Text(

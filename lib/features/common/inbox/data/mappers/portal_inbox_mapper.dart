@@ -39,6 +39,14 @@ abstract final class PortalInboxMapper {
     final at = JsonCodec.dateTime(
       json['createdAt'] ?? json['sentAt'] ?? json['updatedAt'],
     );
+    final metaRaw = json['metaJson'] ?? json['meta'];
+    final meta = metaRaw is Map
+        ? JsonCodec.asMap(metaRaw)
+        : const <String, dynamic>{};
+    final body = JsonCodec.stringOr(
+      json['body'] ?? json['message'] ?? json['text'],
+      '',
+    );
     return PortalNotification(
       id: JsonCodec.stringOr(
         json['id'] ?? json['notificationId'],
@@ -48,12 +56,15 @@ abstract final class PortalInboxMapper {
         json['title'] ?? json['subject'] ?? json['type'],
         'Notification',
       ),
-      body: JsonCodec.stringOr(
-        json['body'] ?? json['message'] ?? json['text'],
-        '',
-      ),
+      body: IsoDateRange.localizeIsoInstants(body),
       timeLabel: at == null ? '' : IsoDateRange.dateTimeLabel(at),
       isRead: isNotificationRead(json),
+      createdAt: at,
+      entityType: JsonCodec.string(json['entityType']),
+      entityId: JsonCodec.string(json['entityId']),
+      eventKey: JsonCodec.string(json['eventKey'] ?? meta['eventKey']),
+      eventLabel: JsonCodec.string(json['eventLabel']),
+      meta: meta,
     );
   }
 

@@ -11,6 +11,7 @@ import '../widgets/calendar_tab_view.dart';
 import '../widgets/requests_tab_view.dart';
 import '../widgets/scheduling_filter_bar.dart';
 import '../widgets/scheduling_segmented_tabs.dart';
+import '../../../presentation/open_manager_menu.dart';
 import '../widgets/scheduling_top_bar.dart';
 import 'create_shift_page.dart';
 
@@ -123,6 +124,7 @@ class SchedulingPage extends StatelessWidget {
                 child: Column(
                   children: [
                     SchedulingTopBar(
+                      onMenuTap: openManagerMenu,
                       onCreateShiftTap: controller.canWrite
                           ? () => _openCreateShift(controller)
                           : null,

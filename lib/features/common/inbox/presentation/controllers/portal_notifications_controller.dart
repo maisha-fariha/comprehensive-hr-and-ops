@@ -6,6 +6,7 @@ import '../../../../hr/dashboard/presentation/controllers/dashboard_controller.d
 import '../../../../staff/dashboard/presentation/controllers/staff_dashboard_controller.dart';
 import '../../domain/entities/portal_notification.dart';
 import '../../domain/repositories/portal_inbox_repository.dart';
+import '../navigation/portal_notification_navigator.dart';
 
 class PortalNotificationsController
     extends BaseController<List<PortalNotification>> {
@@ -25,6 +26,12 @@ class PortalNotificationsController
 
   /// Fresh fetch whenever the page is opened (controller may be reused).
   Future<void> open() => load();
+
+  /// Marks the row read, then opens the module the web bell would open.
+  Future<void> openItem(PortalNotification item) async {
+    if (!item.isRead) await markRead(item);
+    PortalNotificationNavigator.open(item);
+  }
 
   Future<void> load({bool quiet = false}) async {
     final generation = ++_loadGeneration;

@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
+import '../../../presentation/open_manager_menu.dart';
 import '../controllers/attendance_controller.dart';
 import '../widgets/attendance_filters.dart';
 import '../widgets/attendance_header.dart';
@@ -51,6 +52,7 @@ class AttendancePage extends StatelessWidget {
             child: SafeArea(
               bottom: false,
               child: AttendanceHeader(
+                onMenuTap: openManagerMenu,
                 onCalendarTap: () => _pickWeek(context, controller),
               ),
             ),

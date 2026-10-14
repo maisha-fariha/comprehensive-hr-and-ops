@@ -20,7 +20,6 @@ import '../profile_settings/presentation/pages/hr_profile_settings_page.dart';
 import '../recurring_checks/presentation/pages/recurring_checks_page.dart';
 import '../residences/presentation/pages/residences_page.dart';
 import '../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
-import '../team_reports/presentation/pages/team_reports_page.dart';
 
 /// A page the Manager can navigate to from the More menu or the
 /// "Search pages" sheet on the dashboard.
@@ -251,15 +250,6 @@ List<ManagerDestination> managerDestinations() {
       iconColor: AppColors.urgentAmber,
       open: () => Get.to(() => const TasksCompliancePage()),
       keywords: const ['tasks', 'compliance', 'audit'],
-    ),
-    ManagerDestination(
-      title: 'Team & Reports',
-      subtitle: 'Staff roster, reports & messages',
-      icon: Icons.groups_outlined,
-      iconBackground: AppColors.nightBackground,
-      iconColor: AppColors.nightPurple,
-      open: () => Get.to(() => const TeamReportsPage()),
-      keywords: const ['staff', 'users', 'reports'],
     ),
     ManagerDestination(
       title: 'Communication',

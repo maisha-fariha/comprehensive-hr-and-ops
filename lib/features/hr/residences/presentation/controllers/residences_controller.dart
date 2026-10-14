@@ -232,12 +232,12 @@ class ResidencesController extends BaseController<List<ResidenceSummary>> {
     busyId.value = null;
     result.when(
       success: (_) {
-        AppSnackbar.show(
-          status == 'active'
-              ? '${r.name} is now active'
-              : '${r.name} is out of service and hidden from staff',
-          '',
-        );
+        final message = switch (status) {
+          'active' => '${r.name} is now active',
+          'pending' => '${r.name} is being set up and not open yet',
+          _ => '${r.name} is out of service and hidden from staff',
+        };
+        AppSnackbar.show(message, '');
         loadResidences();
       },
       failure: (error) => AppSnackbar.show(error.message, ''),

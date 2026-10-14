@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../hr_shell.dart';
+import '../../../presentation/open_manager_menu.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../domain/entities/tasks_compliance_enums.dart';
@@ -157,6 +158,7 @@ class TasksCompliancePage extends StatelessWidget {
                 children: [
                   TasksComplianceHeader(
                     subtitle: overview.headerSubtitle,
+                    onMenuTap: openManagerMenu,
                     onSearchTap: openManagerPortalSearch,
                   ),
                   Padding(

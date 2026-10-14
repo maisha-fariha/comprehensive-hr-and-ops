@@ -34,7 +34,7 @@ class DashboardRepositoryImpl implements DashboardRepository {
       _api.get(ApiEndpoints.dashboardAlerts, query: scoped),
       _api.get(
         ApiEndpoints.notifications,
-        query: const {'page': 1, 'limit': 100},
+        query: const {'page': 1, 'limit': 30},
       ),
     ]);
 
