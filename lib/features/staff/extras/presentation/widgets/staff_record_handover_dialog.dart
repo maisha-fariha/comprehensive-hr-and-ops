@@ -4,11 +4,15 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/formatting/web_formats.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/handovers/domain/entities/handover_options.dart';
+import '../../../../hr/handovers/domain/entities/shift_handover.dart';
+import '../../../../hr/handovers/domain/repositories/handovers_repository.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
@@ -60,10 +64,16 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
   final List<({String id, String name})> _selectedClients = [];
 
   String? _residenceId;
+  String? _fromShiftId;
+  String? _toShiftId;
   String _jobPriority = 'normal';
   String? _flagCategory;
   String? _residenceError;
   String? _summaryError;
+  String? _formError;
+  List<HandoverShift> _myShifts = const [];
+  List<HandoverShift> _homeShifts = const [];
+  List<HandoverShift> _incoming = const [];
 
   bool _loadingHomes = true;
   bool _loadingClients = false;
@@ -129,17 +139,121 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
     if (selected != null) {
       await _loadClients(selected);
     }
+    await _loadShiftOptions();
+  }
+
+  List<HandoverShift> get _shiftChoices =>
+      _myShifts.isNotEmpty ? _myShifts : _homeShifts;
+
+  bool get _onBehalf => _myShifts.isEmpty && _homeShifts.isNotEmpty;
+
+  HandoverShift? get _fromShift =>
+      _shiftChoices.where((s) => s.id == _fromShiftId).firstOrNull;
+
+  String get _effectiveResidenceId =>
+      _fromShift?.residenceId ?? _residenceId ?? '';
+
+  Future<void> _loadShiftOptions() async {
+    if (!GetIt.I.isRegistered<HandoversRepository>()) return;
+    if (!_session.can('scheduling:read')) return;
+    final repo = GetIt.I<HandoversRepository>();
+    final staffId = _session.staffId;
+    if (staffId != null && staffId.isNotEmpty) {
+      final mine = await repo.myRecentShifts(staffId);
+      if (!mounted) return;
+      mine.when(
+        success: (shifts) => _myShifts = shifts,
+        failure: (_) {},
+      );
+    }
+    await _loadHomeShifts();
+    await _loadIncoming();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadHomeShifts() async {
+    final residenceId = _residenceId;
+    if (residenceId == null ||
+        residenceId.isEmpty ||
+        !GetIt.I.isRegistered<HandoversRepository>()) {
+      _homeShifts = const [];
+      return;
+    }
+    final result = await GetIt.I<HandoversRepository>().residenceRecentShifts(
+      residenceId,
+    );
+    if (!mounted || residenceId != _residenceId) return;
+    result.when(
+      success: (shifts) => _homeShifts = shifts,
+      failure: (_) => _homeShifts = const [],
+    );
+  }
+
+  Future<void> _loadIncoming() async {
+    final residenceId = _effectiveResidenceId;
+    if (residenceId.isEmpty || !GetIt.I.isRegistered<HandoversRepository>()) {
+      _incoming = const [];
+      return;
+    }
+    final result = await GetIt.I<HandoversRepository>().incomingShifts(
+      residenceId,
+      _fromShift?.endsAt,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (shifts) => _incoming = shifts,
+      failure: (_) => _incoming = const [],
+    );
+  }
+
+  String _incomingHelper() {
+    final to = _incoming.where((s) => s.id == _toShiftId).firstOrNull;
+    if (to == null) {
+      return 'Without this it is announced to everyone in the house, and the '
+          'outstanding jobs belong to nobody.';
+    }
+    final names = [
+      for (final person in to.staff)
+        if (person.rostered && (person.name ?? '').isNotEmpty) person.name!,
+    ];
+    final who = names.isEmpty
+        ? 'whoever is in the house — nobody is rostered on it'
+        : names.length == 1
+            ? names.first
+            : '${names.first} and ${names.length - 1} other${names.length == 2 ? '' : 's'}';
+    return '$who will see it when they clock in, and the outstanding jobs are theirs.';
+  }
+
+  String _shiftLabel(HandoverShift shift, {bool withResidence = false}) {
+    return WebFormat.describeShift(
+      shiftType: shift.shiftType,
+      title: shift.title,
+      startsAt: shift.startsAt,
+      endsAt: shift.endsAt,
+      staffNames: [
+        for (final person in shift.staff)
+          if (person.rostered && (person.name ?? '').isNotEmpty) person.name!,
+      ],
+      residenceName: shift.residenceName,
+      withResidence: withResidence,
+    );
   }
 
   Future<void> _onResidenceChanged(String? residenceId) async {
     setState(() {
       _residenceId = residenceId;
       _residenceError = null;
+      _fromShiftId = null;
+      _toShiftId = null;
       _clients = const [];
       _selectedClients.clear();
     });
-    if (residenceId == null || residenceId.isEmpty) return;
+    if (residenceId == null || residenceId.isEmpty) {
+      await _loadShiftOptions();
+      return;
+    }
     await _loadClients(residenceId);
+    await _loadShiftOptions();
   }
 
   Future<void> _loadClients(String residenceId) async {
@@ -201,14 +315,19 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
   }
 
   Future<void> _save({required bool submit}) async {
-    final residenceId = _residenceId;
+    final residenceId = _effectiveResidenceId;
     final summary = _summaryController.text.trim();
+    final missingPlace = residenceId.isEmpty;
     setState(() {
-      _residenceError =
-          (residenceId == null || residenceId.isEmpty) ? 'Choose a residence' : null;
+      _formError = null;
+      _residenceError = missingPlace ? 'Choose a residence' : null;
       _summaryError = summary.isEmpty ? 'Enter a summary' : null;
+      if (missingPlace || summary.isEmpty) {
+        _formError =
+            'Choose the shift you are handing over — or a residence — and write a summary.';
+      }
     });
-    if (_residenceError != null || _summaryError != null) return;
+    if (missingPlace || summary.isEmpty) return;
 
     // Include the typed job even if the user forgot to press Add.
     final jobs = List<_PendingJob>.from(_jobs);
@@ -218,46 +337,86 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
     }
 
     setState(() => _submitting = true);
+    final pendingActions = [
+      for (final job in jobs) {'title': job.title, 'priority': job.priority},
+    ];
+    final clientUpdates = [
+      for (final client in _selectedClients)
+        {
+          'clientId': client.id,
+          'status': _flagCategory == null ? 'stable' : 'needs_attention',
+        },
+    ];
+    final flag = _flagCategory == null
+        ? null
+        : {'category': _flagCategory, 'note': ''};
+
+    final handovers = GetIt.I.isRegistered<HandoversRepository>()
+        ? GetIt.I<HandoversRepository>()
+        : null;
+    if (handovers != null) {
+      final result = await handovers.create({
+        'residenceId': residenceId,
+        'summary': summary,
+        'status': submit ? 'submitted' : 'draft',
+        'pendingActions': pendingActions,
+        if (clientUpdates.isNotEmpty) 'clientUpdates': clientUpdates,
+        if (_fromShiftId != null && _fromShiftId!.isNotEmpty)
+          'fromShiftId': _fromShiftId,
+        if (_toShiftId != null && _toShiftId!.isNotEmpty)
+          'toShiftId': _toShiftId,
+        'flagForAttention': ?flag,
+      });
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      result.when(
+        success: (announced) => _finishSave(submit: submit, announced: announced),
+        failure: (error) => setState(() => _formError = error.message),
+      );
+      return;
+    }
+
     final result = await _repository.createHandover(
-      residenceId: residenceId!,
+      residenceId: residenceId,
       summary: summary,
       submit: submit,
-      fromShiftId: null,
-      toShiftId: null,
-      pendingActions: [
-        for (final job in jobs)
-          {'title': job.title, 'priority': job.priority},
-      ],
-      clientUpdates: [
-        for (final client in _selectedClients)
-          {
-            'clientId': client.id,
-            'status': _flagCategory == null ? 'stable' : 'needs_attention',
-          },
-      ],
-      flagForAttention: _flagCategory == null
-          ? null
-          : {'category': _flagCategory, 'note': ''},
+      fromShiftId: _fromShiftId,
+      toShiftId: _toShiftId,
+      pendingActions: pendingActions,
+      clientUpdates: clientUpdates,
+      flagForAttention: flag,
     );
     if (!mounted) return;
     setState(() => _submitting = false);
-
     result.when(
-      success: (_) {
-        Get.back(result: true);
-        Get.snackbar(
-          submit ? 'Submitted' : 'Draft saved',
-          submit ? 'Handover sent to the next shift.' : 'You can finish this later.',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-      },
-      failure: (error) => AppErrorDialog.showResultError(
-        error,
-        fallbackTitle: submit
-            ? 'Could not submit handover'
-            : 'Could not save draft',
-      ),
+      success: (_) => _finishSave(submit: submit),
+      failure: (error) => setState(() => _formError = error.message),
     );
+  }
+
+  void _finishSave({
+    required bool submit,
+    HandoverAnnouncement? announced,
+  }) {
+    final namedShift = _toShiftId != null && _toShiftId!.isNotEmpty;
+    final title = !submit
+        ? 'Draft saved'
+        : announced?.mode == 'shift'
+            ? 'Handed to ${announced!.recipients} on the incoming shift'
+            : namedShift
+                ? 'Nobody on that shift has a login, so this went to everyone in the house.'
+                : 'Handover recorded — everyone in the house was told';
+    AppSnackbar.show(
+      title,
+      submit ? '' : 'You can finish this later.',
+      force: true,
+    );
+    Navigator.of(context).pop(true);
+  }
+
+  void _close() {
+    if (_submitting) return;
+    Navigator.of(context).pop();
   }
 
   InputDecoration _fieldDecoration({
@@ -466,7 +625,7 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
                       ),
                       const SizedBox(width: 8),
                       InkWell(
-                        onTap: _submitting ? null : () => Get.back(),
+                        onTap: _close,
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
                           width: 34,
@@ -552,48 +711,103 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
                         ),
                         const SizedBox(height: 16),
                         _optionalLabel(
-                          'The shift you are handing over',
-                          enabled: false,
+                          _onBehalf
+                              ? 'Which shift is this handover about?'
+                              : 'The shift you are handing over',
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          initialValue: null,
+                          key: ValueKey('from-shift-$_fromShiftId-${_shiftChoices.length}'),
+                          initialValue: _shiftChoices.any((s) => s.id == _fromShiftId)
+                              ? _fromShiftId
+                              : null,
                           isExpanded: true,
                           decoration: _fieldDecoration(
-                            hint: 'Choose a residence above',
-                            enabled: false,
+                            hint: _shiftChoices.isNotEmpty
+                                ? (_onBehalf
+                                    ? 'Choose the shift that just ended'
+                                    : 'Choose the shift you just worked')
+                                : (_residenceId != null && _residenceId!.isNotEmpty
+                                    ? 'No shifts at this home in the last day'
+                                    : 'Choose a residence above'),
+                            enabled: _shiftChoices.isNotEmpty && !_submitting,
                           ),
                           icon: const Icon(
                             Icons.keyboard_arrow_down_rounded,
                             color: AppColors.iconChevron,
                           ),
-                          items: const [],
-                          onChanged: null,
-                        ),
-                        _helper('Your own shifts from the last 24 hours.'),
-                        const SizedBox(height: 16),
-                        _optionalLabel(
-                          'Handing over to',
-                          enabled: false,
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: null,
-                          isExpanded: true,
-                          decoration: _fieldDecoration(
-                            hint: 'Choose a shift or a residence first',
-                            enabled: false,
-                          ),
-                          icon: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: AppColors.iconChevron,
-                          ),
-                          items: const [],
-                          onChanged: null,
+                          items: [
+                            for (final shift in _shiftChoices)
+                              DropdownMenuItem(
+                                value: shift.id,
+                                child: Text(
+                                  _shiftLabel(shift, withResidence: true),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    color: AppColors.textHeading,
+                                  ),
+                                ),
+                              ),
+                          ],
+                          onChanged: _shiftChoices.isEmpty || _submitting
+                              ? null
+                              : (value) async {
+                                  setState(() {
+                                    _fromShiftId = value;
+                                    _toShiftId = null;
+                                    final home = _fromShift?.residenceId;
+                                    if (home != null && home.isNotEmpty) {
+                                      _residenceId = home;
+                                    }
+                                  });
+                                  await _loadIncoming();
+                                  if (mounted) setState(() {});
+                                },
                         ),
                         _helper(
-                          'Without this it is announced to everyone in the house, and the outstanding jobs belong to nobody.',
+                          _onBehalf
+                              ? "This home's shifts from the last 24 hours, with who worked them — you are recording on their behalf."
+                              : 'Your own shifts from the last 24 hours.',
                         ),
+                        const SizedBox(height: 16),
+                        _optionalLabel('Handing over to'),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey('to-shift-$_toShiftId-${_incoming.length}'),
+                          initialValue: _incoming.any((s) => s.id == _toShiftId)
+                              ? _toShiftId
+                              : null,
+                          isExpanded: true,
+                          decoration: _fieldDecoration(
+                            hint: _incoming.isNotEmpty
+                                ? 'Choose the next shift'
+                                : 'Choose a shift or a residence first',
+                            enabled: _incoming.isNotEmpty && !_submitting,
+                          ),
+                          icon: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.iconChevron,
+                          ),
+                          items: [
+                            for (final shift in _incoming)
+                              DropdownMenuItem(
+                                value: shift.id,
+                                child: Text(
+                                  _shiftLabel(shift),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    color: AppColors.textHeading,
+                                  ),
+                                ),
+                              ),
+                          ],
+                          onChanged: _incoming.isEmpty || _submitting
+                              ? null
+                              : (value) => setState(() => _toShiftId = value),
+                        ),
+                        _helper(_incomingHelper()),
                         const SizedBox(height: 16),
                         _requiredLabel('Summary'),
                         const SizedBox(height: 8),
@@ -838,13 +1052,27 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
                   ),
                 ),
                 const Divider(height: 1, color: AppColors.dividerLight),
+                if (_formError != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+                    child: Text(
+                      _formError!,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12.5,
+                        height: 1.35,
+                        color: AppColors.criticalRed,
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                   child: Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _submitting ? null : () => Get.back(),
+                          onPressed: _close,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.textHeading,
                             side: const BorderSide(

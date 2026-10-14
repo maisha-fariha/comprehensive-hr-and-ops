@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:gems_core/gems_core.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
@@ -10,6 +11,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
@@ -131,6 +133,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   StaffClockFix? _location;
   String? _locationError;
   String? _submitError;
+  bool _writeHandover = false;
   Timer? _locationGiveUp;
   late final Future<void> _locationTask;
 
@@ -204,12 +207,21 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     });
   }
 
-  void _showSubmitError(String message) {
+  void _showSubmitError(String message, {bool writeHandover = false}) {
     if (!mounted) return;
     setState(() {
       _submitting = false;
       _submitError = message;
+      _writeHandover = writeHandover;
     });
+  }
+
+  /// Web clock-out toast for `HANDOVER_REQUIRED`, including the "Write it" action.
+  bool _handoverRequired(AppError? error) {
+    final data = error is ApiError ? error.responseData : null;
+    final code = '${data?['code'] ?? data?['errorCode'] ?? ''}'.toUpperCase();
+    if (code == 'HANDOVER_REQUIRED') return true;
+    return (error?.message ?? '').toLowerCase().contains('handover');
   }
 
   Future<void> _submit() async {
@@ -224,6 +236,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     setState(() {
       _submitting = true;
       _submitError = null;
+      _writeHandover = false;
     });
     await _locationTask;
     if (!mounted) return;
@@ -271,7 +284,10 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
         fallbackTitle:
             widget.isCheckIn ? 'Could not clock in' : 'Could not clock out',
       );
-      _showSubmitError('${info.title}. ${info.message}');
+      _showSubmitError(
+        '${info.title}. ${info.message}',
+        writeHandover: !widget.isCheckIn && _handoverRequired(result.error),
+      );
       return;
     }
     Navigator.of(context).pop(true);
@@ -593,20 +609,48 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                   horizontal: 16,
                   top: 4,
                 ),
-                child: Text(
-                  _submitError!,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(
-                      context,
-                      12.5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _submitError!,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w500,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12.5,
+                        ),
+                        color: AppColors.criticalRed,
+                        height: 1.35,
+                      ),
                     ),
-                    color: AppColors.criticalRed,
-                    height: 1.35,
-                  ),
+                    if (_writeHandover)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop(false);
+                            Get.to(() => const StaffShiftHandoversPage());
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primaryNavy,
+                            padding: const EdgeInsets.symmetric(horizontal: 0),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Write it',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             Padding(
