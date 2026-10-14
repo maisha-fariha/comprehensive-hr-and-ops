@@ -1,29 +1,81 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
+/// A device fix sent with clock in / clock out when the web would send one.
+class StaffClockFix {
+  final double latitude;
+  final double longitude;
+  final double accuracyMeters;
+
+  const StaffClockFix({
+    required this.latitude,
+    required this.longitude,
+    required this.accuracyMeters,
+  });
+}
+
+/// Best-effort position. Throws a short message when it cannot be read.
+/// Photo and location stay optional: a failure still allows submit.
+Future<StaffClockFix> staffClockDeviceLocation() async {
+  try {
+    return await _readStaffClockFix();
+  } catch (error) {
+    if (error is String) rethrow;
+    throw 'Location unavailable';
+  }
+}
+
+Future<StaffClockFix> _readStaffClockFix() async {
+  if (!await Geolocator.isLocationServiceEnabled()) {
+    throw 'Location services are turned off';
+  }
+  var permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+  }
+  if (permission == LocationPermission.denied ||
+      permission == LocationPermission.deniedForever) {
+    throw 'Location permission was not given';
+  }
+  final position = await Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      timeLimit: Duration(seconds: 8),
+    ),
+  );
+  return StaffClockFix(
+    latitude: position.latitude,
+    longitude: position.longitude,
+    accuracyMeters: position.accuracy,
+  );
+}
+
 /// Web-parity Clock in / Clock out sheet.
 ///
 /// Residence is required. Photo is optional (uploaded to
-/// `POST /uploads?category=attendance`). Location is recorded when provided;
-/// without a geo package the record notes position was not provided — same as
-/// web when the browser denies geolocation.
+/// `POST /uploads?category=attendance`). Location is captured when the device
+/// allows it and omitted when it does not — same as the web.
 class StaffClockActionSheet extends StatefulWidget {
   final bool isCheckIn;
   final String? initialResidenceId;
   final String? shiftId;
   final bool showNotRosteredWarning;
   final List<ManualEntryResidenceOption> residences;
+  final Future<StaffClockFix> Function()? locate;
 
   const StaffClockActionSheet({
     super.key,
@@ -32,6 +84,7 @@ class StaffClockActionSheet extends StatefulWidget {
     this.initialResidenceId,
     this.shiftId,
     this.showNotRosteredWarning = false,
+    this.locate,
   });
 
   static Future<bool?> show(
@@ -41,6 +94,7 @@ class StaffClockActionSheet extends StatefulWidget {
     String? initialResidenceId,
     String? shiftId,
     bool showNotRosteredWarning = false,
+    Future<StaffClockFix> Function()? locate,
   }) {
     return showAppBottomSheet<bool>(
       context: context,
@@ -56,6 +110,7 @@ class StaffClockActionSheet extends StatefulWidget {
         initialResidenceId: initialResidenceId,
         shiftId: shiftId,
         showNotRosteredWarning: showNotRosteredWarning,
+        locate: locate,
       ),
     );
   }
@@ -73,6 +128,11 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   String? _selfieName;
   bool _submitting = false;
   String? _photoNote;
+  StaffClockFix? _location;
+  String? _locationError;
+  String? _submitError;
+  Timer? _locationGiveUp;
+  late final Future<void> _locationTask;
 
   @override
   void initState() {
@@ -87,6 +147,43 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     }
     _photoNote =
         'Permission denied — clocking ${widget.isCheckIn ? 'in' : 'out'} without a photo is allowed.';
+    _locationTask = _captureLocation();
+  }
+
+  @override
+  void dispose() {
+    _locationGiveUp?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _captureLocation() async {
+    final done = Completer<StaffClockFix?>();
+    _locationGiveUp = Timer(const Duration(seconds: 8), () {
+      if (!done.isCompleted) done.complete(null);
+    });
+    final locate = widget.locate ?? staffClockDeviceLocation;
+    locate().then((fix) {
+      if (!done.isCompleted) done.complete(fix);
+    }, onError: (Object error, StackTrace _) {
+      if (!done.isCompleted) done.completeError(error);
+    });
+    try {
+      final fix = await done.future;
+      if (!mounted) return;
+      setState(() {
+        _location = fix;
+        _locationError = fix == null ? 'Location unavailable' : null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().trim();
+      setState(() {
+        _location = null;
+        _locationError = message.isEmpty ? 'Location unavailable' : message;
+      });
+    } finally {
+      _locationGiveUp?.cancel();
+    }
   }
 
   Future<void> _pickPhoto() async {
@@ -107,17 +204,30 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     });
   }
 
+  void _showSubmitError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _submitting = false;
+      _submitError = message;
+    });
+  }
+
   Future<void> _submit() async {
     final residenceId = _residenceId;
     if (residenceId == null || residenceId.isEmpty) {
-      AppErrorDialog.showPageError(
-        title: widget.isCheckIn ? 'Choose a residence' : 'Residence required',
-        message: 'Where is required — pick the residence you are clocking at.',
+      _showSubmitError(
+        'Where is required — pick the residence you are clocking at.',
       );
       return;
     }
 
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    await _locationTask;
+    if (!mounted) return;
+
     String? selfieUrl;
     if (_selfiePath != null && _selfiePath!.isNotEmpty) {
       final upload = await _repo.uploadAttendanceSelfie(
@@ -125,36 +235,43 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
         fileName: _selfieName ?? 'attendance-selfie.jpg',
       );
       if (upload.isFailure) {
-        setState(() => _submitting = false);
-        AppErrorDialog.showResultError(
+        final info = AppErrorMapper.from(
           upload.error,
           fallbackTitle: 'Could not upload photo',
         );
+        _showSubmitError('${info.title}. ${info.message}');
         return;
       }
       selfieUrl = upload.value;
     }
 
+    final fix = _location;
     final result = widget.isCheckIn
         ? await _repo.checkIn(
             shiftId: widget.shiftId,
             residenceId: residenceId,
+            latitude: fix?.latitude,
+            longitude: fix?.longitude,
+            accuracyMeters: fix?.accuracyMeters,
             selfieUrl: selfieUrl,
           )
         : await _repo.checkOut(
             shiftId: widget.shiftId,
             residenceId: residenceId,
+            latitude: fix?.latitude,
+            longitude: fix?.longitude,
+            accuracyMeters: fix?.accuracyMeters,
             selfieUrl: selfieUrl,
           );
     if (!mounted) return;
-    setState(() => _submitting = false);
 
     if (result.isFailure) {
-      AppErrorDialog.showResultError(
+      final info = AppErrorMapper.from(
         result.error,
         fallbackTitle:
             widget.isCheckIn ? 'Could not clock in' : 'Could not clock out',
       );
+      _showSubmitError('${info.title}. ${info.message}');
       return;
     }
     Navigator.of(context).pop(true);
@@ -163,6 +280,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   @override
   Widget build(BuildContext context) {
     final title = widget.isCheckIn ? 'Clock in' : 'Clock out';
+    final location = _location;
     final who = _session.displayName.trim().isEmpty
         ? 'You'
         : _session.displayName.trim();
@@ -403,59 +521,10 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 14),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.urgentBackgroundSoft,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 18,
-                            color: AppColors.urgentAmber,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'No location',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w600,
-                                    fontSize:
-                                        ResponsiveHelper.getResponsiveFontSize(
-                                      context,
-                                      13,
-                                    ),
-                                    color: AppColors.textHeading,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Position was not provided — the '
-                                  '${widget.isCheckIn ? 'clock-in' : 'clock-out'} '
-                                  'still goes through.',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize:
-                                        ResponsiveHelper.getResponsiveFontSize(
-                                      context,
-                                      11.5,
-                                    ),
-                                    color: AppColors.textSecondary,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    _ClockLocationRow(
+                      location: location,
+                      error: _locationError,
+                      clockOut: !widget.isCheckIn,
                     ),
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 14),
@@ -517,6 +586,29 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                 ),
               ),
             ),
+            if (_submitError != null)
+              Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 16,
+                  top: 4,
+                ),
+                child: Text(
+                  _submitError!,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      context,
+                      12.5,
+                    ),
+                    color: AppColors.criticalRed,
+                    height: 1.35,
+                  ),
+                ),
+              ),
             Padding(
               padding: ResponsiveHelper.getResponsivePadding(
                 context,
@@ -564,6 +656,102 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Same location line as the web clock dialog: a status pill plus the
+/// device accuracy in meters.
+class _ClockLocationRow extends StatelessWidget {
+  final StaffClockFix? location;
+  final String? error;
+  final bool clockOut;
+
+  const _ClockLocationRow({
+    required this.location,
+    required this.error,
+    required this.clockOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final found = location;
+    final action = clockOut ? 'clock-out' : 'clock-in';
+    Widget pill(String label, Color foreground, Color background) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: 11,
+            color: foreground,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.searchBorder),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const Icon(Icons.place_outlined, size: 15, color: AppColors.textMuted),
+          if (found != null) ...[
+            pill(
+              'Location found',
+              AppColors.activeGreen,
+              AppColors.activeBackground,
+            ),
+            Text(
+              'accurate to about ${found.accuracyMeters.round()} m',
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w400,
+                fontSize: 12.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ] else if (error != null) ...[
+            pill(
+              'No location',
+              AppColors.urgentAmber,
+              AppColors.urgentBackground,
+            ),
+            Text(
+              '$error — the record will say the position was not provided, '
+              'and the $action still goes through.',
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w400,
+                fontSize: 12.5,
+                height: 1.3,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ] else
+            const Text(
+              'Finding your location…',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w400,
+                fontSize: 12.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
