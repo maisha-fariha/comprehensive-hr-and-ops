@@ -153,6 +153,7 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
   }
 
   Future<void> _save({required bool draft}) async {
+    if (_saving) return;
     setState(() => _error = null);
     final residence = _effectiveResidence;
     final summary = _summary.text.trim();

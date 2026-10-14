@@ -31,6 +31,13 @@ extension DailyLogToneColors on DailyLogTone {
 abstract final class DailyLogLabels {
   static const tabs = ['To review', 'Missing', 'Resident day view', 'House activity'];
 
+  /// Web `GAP_LABELS` on the Missing Logs column "What is missing".
+  static const gapLabels = {
+    'unconfirmed_med': 'Dose not recorded',
+    'missed_check': 'Check not done',
+    'no_entries': 'Nothing written',
+  };
+
   static const shifts = [
     ('morning', 'Morning'),
     ('afternoon', 'Afternoon'),

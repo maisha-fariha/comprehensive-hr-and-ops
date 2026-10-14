@@ -315,6 +315,8 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
   }
 
   Future<void> _save({required bool submit}) async {
+    // A second tap can land before the button rebuilds as disabled.
+    if (_submitting) return;
     final residenceId = _effectiveResidenceId;
     final summary = _summaryController.text.trim();
     final missingPlace = residenceId.isEmpty;

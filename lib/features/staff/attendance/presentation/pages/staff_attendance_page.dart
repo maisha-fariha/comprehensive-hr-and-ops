@@ -21,20 +21,31 @@ import '../widgets/staff_attendance_header.dart';
 import '../widgets/staff_attendance_metrics_strip.dart';
 
 /// Staff Attendance — web-parity metrics, filters, list, and clock in/out.
-class StaffAttendancePage extends StatelessWidget {
+class StaffAttendancePage extends StatefulWidget {
   const StaffAttendancePage({super.key});
 
   static const int _moreTabIndex = 4;
 
-  StaffAttendanceController _resolveController() {
-    try {
-      return Get.find<StaffAttendanceController>();
-    } catch (_) {
-      return Get.put(
-        GetIt.instance<StaffAttendanceController>(),
-        permanent: true,
-      );
-    }
+  @override
+  State<StaffAttendancePage> createState() => _StaffAttendancePageState();
+}
+
+class _StaffAttendancePageState extends State<StaffAttendancePage> {
+  late final StaffAttendanceController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final alreadyOpen = Get.isRegistered<StaffAttendanceController>();
+    _controller = alreadyOpen
+        ? Get.find<StaffAttendanceController>()
+        : Get.put(
+            GetIt.instance<StaffAttendanceController>(),
+            permanent: true,
+          );
+    // The controller stays alive after the page closes, so a clock-out from
+    // Home would still be showing the previous punch until this reload.
+    if (alreadyOpen) _controller.loadOverview();
   }
 
   void _onBottomNavTap(int index) {
@@ -43,12 +54,12 @@ class StaffAttendancePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
+    final controller = _controller;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: _moreTabIndex,
+        currentIndex: StaffAttendancePage._moreTabIndex,
         onTap: _onBottomNavTap,
       ),
       body: Obx(() {

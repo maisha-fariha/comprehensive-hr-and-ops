@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../attendance/domain/repositories/staff_attendance_repository.dart';
+import '../../../attendance/presentation/controllers/staff_attendance_controller.dart';
 import '../../../attendance/presentation/widgets/staff_clock_action_sheet.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../extras/presentation/widgets/staff_raise_emergency_dialog.dart';
@@ -195,7 +196,14 @@ class StaffDashboardPage extends StatelessWidget {
       showNotRosteredWarning:
           !shift.onShift && (shift.shiftId == null || shift.shiftId!.isEmpty),
     );
-    if (saved == true) await controller.refresh();
+    if (saved == true) {
+      await controller.refresh();
+      // Attendance is a permanent controller, so a clock from Home would
+      // otherwise leave its history and status on the previous punch.
+      if (Get.isRegistered<StaffAttendanceController>()) {
+        await Get.find<StaffAttendanceController>().loadOverview();
+      }
+    }
   }
 }
 

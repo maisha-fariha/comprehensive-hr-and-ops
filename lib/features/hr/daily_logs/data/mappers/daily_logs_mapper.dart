@@ -45,6 +45,8 @@ abstract final class DailyLogsMapper {
           clientName: JsonCodec.stringOr(row['clientName'], ''),
           logDate: _day(row['logDate']),
           entriesCount: JsonCodec.integerOr(row['entriesCount'], 0),
+          shiftLabel: JsonCodec.string(row['shiftLabel']),
+          summary: JsonCodec.string(row['summary']),
         ),
       );
 
@@ -54,6 +56,13 @@ abstract final class DailyLogsMapper {
           clientId: JsonCodec.stringOr(row['clientId'], ''),
           clientName: JsonCodec.stringOr(row['clientName'], ''),
           logDate: _day(row['logDate']),
+          gaps: [
+            for (final gap in JsonCodec.listAt(row, 'gaps').whereType<Map>())
+              DailyLogGap(
+                type: JsonCodec.stringOr(gap['type'], 'no_entries'),
+                detail: JsonCodec.stringOr(gap['detail'], ''),
+              ),
+          ],
         ),
       );
 

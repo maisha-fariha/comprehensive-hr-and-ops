@@ -175,7 +175,15 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
   }) =>
       _get(
         ApiEndpoints.residenceActivity,
-        {'residenceId': residenceId, 'from': from, 'to': to, 'page': page, 'limit': limit},
+        {
+          'residenceId': residenceId,
+          'from': from,
+          // The web sends the end of the chosen day. A date-only `to` is
+          // midnight, so that day's activity never comes back.
+          'to': to.length == 10 ? '${to}T23:59:59.999Z' : to,
+          'page': page,
+          'limit': limit,
+        },
         DailyLogsMapper.activityFrom,
       );
 

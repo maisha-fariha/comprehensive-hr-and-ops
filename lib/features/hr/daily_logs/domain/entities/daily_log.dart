@@ -20,6 +20,8 @@ class DailyLogReviewRow {
   final String clientName;
   final String logDate;
   final int entriesCount;
+  final String? shiftLabel;
+  final String? summary;
 
   const DailyLogReviewRow({
     required this.id,
@@ -27,7 +29,17 @@ class DailyLogReviewRow {
     required this.clientName,
     required this.logDate,
     required this.entriesCount,
+    this.shiftLabel,
+    this.summary,
   });
+}
+
+/// One gap on a missing resident-day (`gaps[]` from `/daily-logs?status=missing`).
+class DailyLogGap {
+  final String type;
+  final String detail;
+
+  const DailyLogGap({required this.type, required this.detail});
 }
 
 /// A resident-day with nothing written (`status=missing`).
@@ -35,11 +47,13 @@ class DailyLogMissingRow {
   final String clientId;
   final String clientName;
   final String logDate;
+  final List<DailyLogGap> gaps;
 
   const DailyLogMissingRow({
     required this.clientId,
     required this.clientName,
     required this.logDate,
+    this.gaps = const [],
   });
 }
 

@@ -13,6 +13,7 @@ class _QueueRow extends StatelessWidget {
   final String dayLabel;
   final Widget? extra;
   final String extraLabel;
+  final Widget? footer;
   final String action;
   final Key actionKey;
   final VoidCallback onAction;
@@ -27,6 +28,7 @@ class _QueueRow extends StatelessWidget {
     required this.onAction,
     this.extra,
     this.extraLabel = '',
+    this.footer,
   });
 
   Widget _column(BuildContext context, String label, Widget child) => Column(
@@ -61,6 +63,10 @@ class _QueueRow extends StatelessWidget {
               HandoverButton(key: actionKey, label: action, compact: true, onPressed: onAction),
             ],
           ),
+          if (footer != null) ...[
+            const SizedBox(height: 10),
+            footer!,
+          ],
         ],
       ),
     );
@@ -89,6 +95,82 @@ List<Widget> _spaced(List<Widget> rows) => [
         rows[i],
       ],
     ];
+
+/// Web sign-off column "Shift's summary": shift name, then the summary.
+class _ShiftSummary extends StatelessWidget {
+  final String? label;
+  final String? summary;
+
+  const _ShiftSummary({required this.label, required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final shift = (label == null || label!.trim().isEmpty) ? 'Shift' : label!.trim();
+    final note = (summary == null || summary!.trim().isEmpty) ? '—' : summary!.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "SHIFT'S SUMMARY",
+          style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 4),
+        Text(shift, style: handoverText(context, 12.5, weight: FontWeight.w600)),
+        Text(note, style: handoverText(context, 12.5, color: AppColors.textMuted)),
+      ],
+    );
+  }
+}
+
+/// Web missing column "What is missing": up to three gaps, then a count.
+class _MissingGaps extends StatelessWidget {
+  final List<DailyLogGap> gaps;
+
+  const _MissingGaps({required this.gaps});
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = gaps.isEmpty
+        ? const [DailyLogGap(type: 'no_entries', detail: 'Nothing written for the day')]
+        : gaps;
+    final visible = shown.take(3).toList();
+    final more = shown.length - visible.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'WHAT IS MISSING',
+          style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 4),
+        for (final gap in visible)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                DailyLogPill(
+                  DailyLogLabels.gapLabels[gap.type] ?? gap.type,
+                  tone: gap.type == 'no_entries' ? DailyLogTone.warning : DailyLogTone.danger,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    gap.detail,
+                    style: handoverText(context, 12.5, color: AppColors.textMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (more > 0)
+          Text(
+            'and $more more',
+            style: handoverText(context, 12, color: AppColors.textMuted),
+          ),
+      ],
+    );
+  }
+}
 
 class ReviewQueueList extends StatelessWidget {
   final List<DailyLogReviewRow> rows;
@@ -125,6 +207,7 @@ class ReviewQueueList extends StatelessWidget {
             action: 'Open day',
             actionKey: ValueKey('dl-open-day-${r.clientId}-${r.logDate}'),
             onAction: () => onOpen(r),
+            footer: _ShiftSummary(label: r.shiftLabel, summary: r.summary),
           ),
       ]),
     );
@@ -166,6 +249,7 @@ class MissingLogsList extends StatelessWidget {
             action: 'Write entry',
             actionKey: ValueKey('dl-write-${r.clientId}-${r.logDate}'),
             onAction: () => onWrite(r),
+            footer: _MissingGaps(gaps: r.gaps),
           ),
       ]),
     );
