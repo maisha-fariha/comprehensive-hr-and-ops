@@ -180,7 +180,12 @@ class UserSession extends GetxService {
     _residenceId.value = profile.residenceId;
     _residenceName.value = profile.residenceName;
     _organizationName.value = profile.residenceName ?? profile.tenantName;
-    _staffId.value = profile.staffId;
+    // `/mobile/me` often has no staffId. A refresh must not wipe the id
+    // `/mobile/home` already stored, or clock-out is sent without it and
+    // the API answers "staffId Required" instead of the handover error.
+    if (profile.staffId != null && profile.staffId!.isNotEmpty) {
+      _staffId.value = profile.staffId;
+    }
     _relationship.value = profile.relationship;
     _permissions.assignAll(profile.permissions);
     _medAdminCertified.value = profile.medAdminCertified;

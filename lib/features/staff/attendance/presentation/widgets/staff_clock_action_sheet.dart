@@ -279,15 +279,22 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     if (!mounted) return;
 
     if (result.isFailure) {
+      final handover =
+          !widget.isCheckIn && _handoverRequired(result.error);
+      if (handover) {
+        // Web ignores the raw body and always shows this sentence + Write it.
+        _showSubmitError(
+          'Write the handover for this shift before clocking out.',
+          writeHandover: true,
+        );
+        return;
+      }
       final info = AppErrorMapper.from(
         result.error,
         fallbackTitle:
             widget.isCheckIn ? 'Could not clock in' : 'Could not clock out',
       );
-      _showSubmitError(
-        '${info.title}. ${info.message}',
-        writeHandover: !widget.isCheckIn && _handoverRequired(result.error),
-      );
+      _showSubmitError('${info.title}. ${info.message}');
       return;
     }
     Navigator.of(context).pop(true);

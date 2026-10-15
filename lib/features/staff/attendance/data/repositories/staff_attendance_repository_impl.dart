@@ -269,6 +269,24 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     }
   }
 
+  /// `/mobile/me` has no staffId. Clock-out without it is
+  /// `{staffId: Required}` instead of the handover error the web shows.
+  Future<String?> _staffIdForClock() async {
+    final current = _session.staffId;
+    if (current != null && current.isNotEmpty) return current;
+    final home = await _api.get(ApiEndpoints.mobileHome, silent: true);
+    return home.when(
+      success: (data) {
+        final id = JsonCodec.string(JsonCodec.unwrapMap(data)['staffId']);
+        if (id != null && id.isNotEmpty) {
+          _session.applyStaffContext(staffId: id);
+        }
+        return id;
+      },
+      failure: (_) => null,
+    );
+  }
+
   Future<Result<void>> _clockAction(
     String path, {
     String? shiftId,
@@ -279,7 +297,7 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     String? selfieUrl,
   }) async {
     final resolvedResidence = residenceId ?? _session.residenceId;
-    final staffId = _session.staffId;
+    final staffId = await _staffIdForClock();
     final body = <String, dynamic>{
       if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
       if (resolvedResidence != null && resolvedResidence.isNotEmpty)
