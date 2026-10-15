@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../hr/attendance/domain/entities/attendance_week.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
@@ -142,8 +143,9 @@ class StaffAttendanceController
     await loadOverview();
   }
 
-  /// History date filter (`null` = all dates).
-  final Rxn<DateTime> historyDateFilter = Rxn<DateTime>();
+  /// History week. The web filter is Monday–Sunday, defaulting to this week.
+  final Rx<AttendanceWeek> historyWeek =
+      AttendanceWeek.containing(DateTime.now()).obs;
 
   /// `all` or a residence id.
   final RxString historyResidenceFilter = 'all'.obs;
@@ -153,19 +155,12 @@ class StaffAttendanceController
 
   List<StaffAttendanceHistoryItem> get filteredHistory {
     final items = overview?.history ?? const <StaffAttendanceHistoryItem>[];
-    final date = historyDateFilter.value;
+    final week = historyWeek.value;
     final residence = historyResidenceFilter.value;
     final status = historyStatusFilter.value;
     return items.where((item) {
-      if (date != null) {
-        final at = item.occurredAt;
-        if (at == null ||
-            at.year != date.year ||
-            at.month != date.month ||
-            at.day != date.day) {
-          return false;
-        }
-      }
+      final at = item.occurredAt;
+      if (at == null || !week.contains(at)) return false;
       if (residence != 'all' && item.residenceId != residence) return false;
       if (status != 'all') {
         final s = item.status;
@@ -184,7 +179,8 @@ class StaffAttendanceController
     }).toList();
   }
 
-  void setHistoryDateFilter(DateTime? date) => historyDateFilter.value = date;
+  void setHistoryWeek(DateTime day) =>
+      historyWeek.value = AttendanceWeek.containing(day);
 
   void setHistoryResidenceFilter(String residenceId) =>
       historyResidenceFilter.value = residenceId;

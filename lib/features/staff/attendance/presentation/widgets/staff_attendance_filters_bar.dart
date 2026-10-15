@@ -4,48 +4,31 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../hr/attendance/domain/entities/attendance_week.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
+import '../../../../hr/attendance/presentation/widgets/attendance_filters.dart';
 
-/// Date + residence + status filters for Attendance History (BUG_Report006).
-/// Matches web: date range control, "All Residences", "Any status".
+/// Week + residence + status filters for Attendance History.
+/// The web date control is a Monday–Sunday week, not a single day.
 class StaffAttendanceFiltersBar extends StatelessWidget {
-  final DateTime? selectedDate;
+  final AttendanceWeek week;
   final String residenceFilter;
   final String statusFilter;
   final List<ManualEntryResidenceOption> residences;
-  final ValueChanged<DateTime?> onDateChanged;
+  final ValueChanged<DateTime> onWeekChanged;
   final ValueChanged<String> onResidenceChanged;
   final ValueChanged<String> onStatusChanged;
 
   const StaffAttendanceFiltersBar({
     super.key,
-    required this.selectedDate,
+    required this.week,
     required this.residenceFilter,
     required this.statusFilter,
     required this.residences,
-    required this.onDateChanged,
+    required this.onWeekChanged,
     required this.onResidenceChanged,
     required this.onStatusChanged,
   });
-
-  String _dateLabel(DateTime? date) {
-    if (date == null) return 'All dates';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,16 +60,12 @@ class StaffAttendanceFiltersBar extends StatelessWidget {
                 child: InkWell(
                   key: const Key('staff-attendance-date-picker'),
                   onTap: () async {
-                    final now = DateTime.now();
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate ?? now,
-                      firstDate: now.subtract(const Duration(days: 365)),
-                      lastDate: now.add(const Duration(days: 365)),
+                    final picked = await showAttendanceWeekPicker(
+                      context,
+                      week: week,
                     );
-                    if (picked != null) onDateChanged(picked);
+                    if (picked != null) onWeekChanged(picked);
                   },
-                  onLongPress: () => onDateChanged(null),
                   borderRadius: BorderRadius.circular(
                     ResponsiveHelper.getResponsiveRadius(context, 14),
                   ),
@@ -117,7 +96,7 @@ class StaffAttendanceFiltersBar extends StatelessWidget {
                         ),
                         Expanded(
                           child: Text(
-                            _dateLabel(selectedDate),
+                            week.label,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

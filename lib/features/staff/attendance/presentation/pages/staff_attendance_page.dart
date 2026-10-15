@@ -169,11 +169,11 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
                       ),
                     ],
                     StaffAttendanceFiltersBar(
-                      selectedDate: controller.historyDateFilter.value,
+                      week: controller.historyWeek.value,
                       residenceFilter: controller.historyResidenceFilter.value,
                       statusFilter: controller.historyStatusFilter.value,
                       residences: controller.residenceOptions.toList(),
-                      onDateChanged: controller.setHistoryDateFilter,
+                      onWeekChanged: controller.setHistoryWeek,
                       onResidenceChanged:
                           controller.setHistoryResidenceFilter,
                       onStatusChanged: controller.setHistoryStatusFilter,

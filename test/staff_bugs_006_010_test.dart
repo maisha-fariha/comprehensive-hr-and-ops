@@ -9,6 +9,7 @@ import 'package:comprehensive_hr_and_ops/features/staff/attendance/presentation/
 import 'package:comprehensive_hr_and_ops/features/staff/attendance/domain/entities/staff_attendance_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/attendance/domain/repositories/staff_attendance_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/attendance/presentation/pages/staff_manual_attendance_entry_page.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/attendance_week.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/manual_entry_options.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_residence.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_shift_handover.dart';
@@ -736,14 +737,14 @@ void main() {
             body: Padding(
               padding: const EdgeInsets.all(16),
               child: StaffAttendanceFiltersBar(
-                selectedDate: null,
+                week: AttendanceWeek.containing(DateTime(2026, 6, 17)),
                 residenceFilter: 'all',
                 statusFilter: 'all',
                 residences: const [
                   ManualEntryResidenceOption(id: 'res-1', name: 'Elm House'),
                   ManualEntryResidenceOption(id: 'res-2', name: 'Mala Box'),
                 ],
-                onDateChanged: _noopDate,
+                onWeekChanged: _noopDate,
                 onResidenceChanged: _noopStatus,
                 onStatusChanged: _noopStatus,
               ),
@@ -765,7 +766,7 @@ void main() {
         find.byKey(const Key('staff-attendance-status-dropdown')),
         findsOneWidget,
       );
-      expect(find.text('All dates'), findsOneWidget);
+      expect(find.text('15 Jun – 21 Jun 2026'), findsOneWidget);
       expect(find.text('All Residences'), findsOneWidget);
       expect(find.text('Any status'), findsOneWidget);
 
@@ -1065,5 +1066,5 @@ void main() {
   );
 }
 
-void _noopDate(DateTime? _) {}
+void _noopDate(DateTime _) {}
 void _noopStatus(String _) {}
