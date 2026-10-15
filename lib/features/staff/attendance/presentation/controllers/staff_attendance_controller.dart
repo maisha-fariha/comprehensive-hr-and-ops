@@ -91,6 +91,7 @@ class StaffAttendanceController
       residences: residenceOptions.toList(),
       initialResidenceId: current?.residenceId,
       shiftId: current?.shiftId,
+      shiftEndsAt: current?.shiftEndsAt,
       showNotRosteredWarning:
           isCheckIn && !(current?.hasRosteredShiftNow ?? false),
     );

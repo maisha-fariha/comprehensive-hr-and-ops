@@ -193,6 +193,7 @@ class StaffDashboardPage extends StatelessWidget {
       residences: residences.value ?? const [],
       initialResidenceId: shift.residenceId,
       shiftId: shift.shiftId,
+      shiftEndsAt: shift.endsAt,
       showNotRosteredWarning:
           !shift.clockedIn && (shift.shiftId == null || shift.shiftId!.isEmpty),
     );

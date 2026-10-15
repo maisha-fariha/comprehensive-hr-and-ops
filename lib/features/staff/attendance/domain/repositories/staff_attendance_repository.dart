@@ -25,6 +25,8 @@ abstract class StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   });
 
   /// `POST /uploads?category=attendance` → URL for [selfieUrl].

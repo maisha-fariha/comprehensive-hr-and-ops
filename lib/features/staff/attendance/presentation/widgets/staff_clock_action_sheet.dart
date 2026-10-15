@@ -13,6 +13,9 @@ import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
+import '../../../../hr/attendance/presentation/attendance_formatters.dart';
+import '../../../../hr/attendance/presentation/pages/attendance_clock_page.dart'
+    show earlyDepartureReasons;
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
@@ -75,6 +78,7 @@ class StaffClockActionSheet extends StatefulWidget {
   final bool isCheckIn;
   final String? initialResidenceId;
   final String? shiftId;
+  final DateTime? shiftEndsAt;
   final bool showNotRosteredWarning;
   final List<ManualEntryResidenceOption> residences;
   final Future<StaffClockFix> Function()? locate;
@@ -85,6 +89,7 @@ class StaffClockActionSheet extends StatefulWidget {
     required this.residences,
     this.initialResidenceId,
     this.shiftId,
+    this.shiftEndsAt,
     this.showNotRosteredWarning = false,
     this.locate,
   });
@@ -95,6 +100,7 @@ class StaffClockActionSheet extends StatefulWidget {
     required List<ManualEntryResidenceOption> residences,
     String? initialResidenceId,
     String? shiftId,
+    DateTime? shiftEndsAt,
     bool showNotRosteredWarning = false,
     Future<StaffClockFix> Function()? locate,
   }) {
@@ -111,6 +117,7 @@ class StaffClockActionSheet extends StatefulWidget {
         residences: residences,
         initialResidenceId: initialResidenceId,
         shiftId: shiftId,
+        shiftEndsAt: shiftEndsAt,
         showNotRosteredWarning: showNotRosteredWarning,
         locate: locate,
       ),
@@ -134,6 +141,8 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   String? _locationError;
   String? _submitError;
   bool _writeHandover = false;
+  String? _earlyReason;
+  final _earlyNotes = TextEditingController();
   Timer? _locationGiveUp;
   late final Future<void> _locationTask;
 
@@ -156,7 +165,16 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   @override
   void dispose() {
     _locationGiveUp?.cancel();
+    _earlyNotes.dispose();
     super.dispose();
+  }
+
+  /// Web shows the early-leave box only while the rostered shift is still
+  /// running. After it ends the reason is not kept.
+  bool get _leavingEarly {
+    final endsAt = widget.shiftEndsAt;
+    if (widget.isCheckIn || endsAt == null) return false;
+    return DateTime.now().isBefore(endsAt);
   }
 
   Future<void> _captureLocation() async {
@@ -275,6 +293,9 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
             longitude: fix?.longitude,
             accuracyMeters: fix?.accuracyMeters,
             selfieUrl: selfieUrl,
+            earlyDepartureReason: _leavingEarly ? _earlyReason : null,
+            earlyDepartureNotes:
+                _leavingEarly ? _earlyNotes.text.trim() : null,
           );
     if (!mounted) return;
 
@@ -541,6 +562,19 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                         ),
                       ),
                     ),
+                    if (_leavingEarly) ...[
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
+                      _EarlyLeaveBox(
+                        endsAt: widget.shiftEndsAt!,
+                        reason: _earlyReason,
+                        notesController: _earlyNotes,
+                        onReason: _submitting
+                            ? null
+                            : (value) => setState(() => _earlyReason = value),
+                      ),
+                    ],
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 14),
                     ),
@@ -801,6 +835,122 @@ class _ClockLocationRow extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Same early-leave block the web clock-out dialog shows while the shift
+/// is still running. The reason and notes are optional.
+class _EarlyLeaveBox extends StatelessWidget {
+  final DateTime endsAt;
+  final String? reason;
+  final TextEditingController notesController;
+  final ValueChanged<String?>? onReason;
+
+  const _EarlyLeaveBox({
+    required this.endsAt,
+    required this.reason,
+    required this.notesController,
+    required this.onReason,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.urgentAmber),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your shift runs until ${AttendanceFormat.time(endsAt)}',
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              color: AppColors.primaryNavy,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Only kept if you are actually finishing early.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Why are you leaving early?',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceWhite,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.searchBorder),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                hint: const Text('Choose a reason (optional)'),
+                value: reason,
+                items: [
+                  for (final option in earlyDepartureReasons)
+                    DropdownMenuItem(value: option.$1, child: Text(option.$2)),
+                ],
+                onChanged: onReason,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: notesController,
+            enabled: onReason != null,
+            maxLines: 2,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 14,
+              color: AppColors.textHeading,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Anything worth recording',
+              hintStyle: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                color: AppColors.textMuted,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.searchBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.searchBorder),
+              ),
+            ),
+          ),
         ],
       ),
     );

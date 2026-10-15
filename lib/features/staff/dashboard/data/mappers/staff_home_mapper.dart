@@ -102,6 +102,9 @@ abstract final class StaffHomeMapper {
         onBreak: onBreak,
         shiftId: JsonCodec.string(shift['id'] ?? shift['shiftId']),
         residenceId: session.residenceId,
+        endsAt: JsonCodec.dateTime(
+          shift['endAt'] ?? shift['endsAt'] ?? shift['endTime'] ?? shift['to'],
+        ),
       ),
       overviewStats: _stats(
         onShift: inShift,

@@ -551,6 +551,8 @@ class _FakeAttendanceRepo implements StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   }) async => Result.success(null);
 
   @override

@@ -71,6 +71,8 @@ class _FakeAttendanceRepo extends Fake implements StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   }) async {
     calls.add('check-out:$residenceId');
     return Result.success(null);

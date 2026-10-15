@@ -122,6 +122,8 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   }) {
     return _clockAction(
       ApiEndpoints.attendanceCheckOut,
@@ -131,6 +133,8 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       longitude: longitude,
       accuracyMeters: accuracyMeters,
       selfieUrl: selfieUrl,
+      earlyDepartureReason: earlyDepartureReason,
+      earlyDepartureNotes: earlyDepartureNotes,
     );
   }
 
@@ -295,6 +299,8 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   }) async {
     final resolvedResidence = residenceId ?? _session.residenceId;
     final staffId = await _staffIdForClock();
@@ -307,6 +313,10 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       if (longitude != null) 'longitude': longitude,
       if (accuracyMeters != null) 'accuracyMeters': accuracyMeters,
       if (selfieUrl != null && selfieUrl.isNotEmpty) 'selfieUrl': selfieUrl,
+      if (earlyDepartureReason != null && earlyDepartureReason.isNotEmpty)
+        'earlyDepartureReason': earlyDepartureReason,
+      if (earlyDepartureNotes != null && earlyDepartureNotes.isNotEmpty)
+        'earlyDepartureNotes': earlyDepartureNotes,
     };
     final result = await _api.post(path, data: body);
     return result.when(

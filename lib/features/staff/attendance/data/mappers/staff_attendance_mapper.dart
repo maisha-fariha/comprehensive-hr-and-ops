@@ -187,6 +187,7 @@ abstract final class StaffAttendanceMapper {
             JsonCodec.mapAt(open ?? {}, 'shift')?['id'],
       ),
       residenceId: residenceId,
+      shiftEndsAt: end,
       hasRosteredShiftNow: hasRosteredShiftNow,
       metrics: metricsFrom(summaryBody, historySource),
       history: [

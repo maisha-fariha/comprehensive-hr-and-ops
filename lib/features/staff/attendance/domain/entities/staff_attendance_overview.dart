@@ -22,6 +22,9 @@ class StaffAttendanceOverview {
   final String breakStatusLabel;
   final String? shiftId;
   final String? residenceId;
+
+  /// Scheduled end of the shift being clocked out. Null when none is rostered.
+  final DateTime? shiftEndsAt;
   final bool hasRosteredShiftNow;
   final StaffAttendanceMetrics metrics;
   final List<StaffAttendanceHistoryItem> history;
@@ -43,6 +46,7 @@ class StaffAttendanceOverview {
     required this.breakStatusLabel,
     this.shiftId,
     this.residenceId,
+    this.shiftEndsAt,
     this.hasRosteredShiftNow = false,
     this.metrics = StaffAttendanceMetrics.empty,
     this.history = const [],
@@ -70,6 +74,7 @@ class StaffAttendanceOverview {
       breakStatusLabel: breakStatusLabel ?? this.breakStatusLabel,
       shiftId: shiftId,
       residenceId: residenceId,
+      shiftEndsAt: shiftEndsAt,
       hasRosteredShiftNow: hasRosteredShiftNow,
       metrics: metrics,
       history: history,

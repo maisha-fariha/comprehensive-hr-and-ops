@@ -17,6 +17,10 @@ class TodayShiftSummary {
   final String? shiftId;
   final String? residenceId;
 
+  /// Scheduled end of today's shift. Clock-out uses this for the web
+  /// "Your shift runs until …" early-leave box.
+  final DateTime? endsAt;
+
   const TodayShiftSummary({
     required this.statusLabel,
     required this.dateLabel,
@@ -26,5 +30,6 @@ class TodayShiftSummary {
     this.onBreak = false,
     this.shiftId,
     this.residenceId,
+    this.endsAt,
   });
 }
