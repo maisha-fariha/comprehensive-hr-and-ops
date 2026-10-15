@@ -31,7 +31,8 @@ class Step3InvestigateForm extends StatelessWidget {
               const WizardSectionHeader(
                 number: 3,
                 title: 'Investigation',
-                subtitle: 'Document findings, root cause and follow-up',
+                subtitle:
+                    'Document the investigation, root cause and any corrective follow-up.',
                 badgeBackground: _badgeBackground,
                 badgeForeground: _badgeForeground,
               ),
@@ -56,6 +57,9 @@ class Step3InvestigateForm extends StatelessWidget {
                       : 'Select investigator...',
                   onTap: () => controller.pickInvestigator(context),
                 ),
+              ),
+              const WizardHelperText(
+                'Noted on the report. The investigation is credited to whoever records the findings.',
               ),
               gap,
               const WizardFieldLabel('Investigation Notes'),

@@ -8,6 +8,8 @@ import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/network/json_codec.dart';
+import '../../domain/entities/incident_detail.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_incident_options.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
@@ -19,9 +21,19 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 /// GetX controller for the Staff "Create Incident" form.
 class IncidentCreationController extends GetxController {
   final StaffIncidentsRepository repository;
+  final String? editIncidentId;
 
-  IncidentCreationController({StaffIncidentsRepository? repository})
-      : repository = repository ?? GetIt.instance<StaffIncidentsRepository>();
+  IncidentCreationController({
+    StaffIncidentsRepository? repository,
+    this.editIncidentId,
+  }) : repository = repository ?? GetIt.instance<StaffIncidentsRepository>();
+
+  bool get isEditMode =>
+      editIncidentId != null && editIncidentId!.trim().isNotEmpty;
+
+  final RxBool isLoadingEdit = false.obs;
+  bool _editApplied = false;
+  final Set<String> _existingEvidenceUrls = {};
 
   /// 0-based wizard index matching web's 5-step create flow.
   final RxInt wizardStep = 0.obs;
@@ -240,6 +252,11 @@ class IncidentCreationController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    if (isEditMode) {
+      isLoadingEdit.value = true;
+      loadOptions();
+      return;
+    }
     final now = DateTime.now();
     incidentDateController.text = _formatDate(now);
     incidentTimeController.text = _formatTime(TimeOfDay.fromDateTime(now));
@@ -324,7 +341,7 @@ class IncidentCreationController extends GetxController {
     staff.when(
       success: (list) {
         staffOptions.assignAll(list);
-        if (reportedByStaff.value == null && list.isNotEmpty) {
+        if (!isEditMode && reportedByStaff.value == null && list.isNotEmpty) {
           final match = list.where(
             (s) =>
                 s.name.toLowerCase() == reporterName.value.toLowerCase(),
@@ -334,6 +351,290 @@ class IncidentCreationController extends GetxController {
       },
       failure: (_) {},
     );
+    if (isEditMode && !_editApplied) {
+      _editApplied = true;
+      await _loadExisting();
+    }
+  }
+
+  Future<void> _loadExisting() async {
+    final result = await repository.getIncidentDetail(editIncidentId!.trim());
+    result.when(
+      success: _applyDetail,
+      failure: (error) {
+        showFormBanner(
+          error.message.trim().isEmpty
+              ? 'Could not open this incident for editing.'
+              : error.message,
+        );
+      },
+    );
+    if (!isClosed) isLoadingEdit.value = false;
+  }
+
+  void _applyDetail(IncidentDetail detail) {
+    final json = detail.source;
+    final payload = Map<String, dynamic>.from(
+      JsonCodec.mapAt(json, 'payload') ??
+          JsonCodec.mapAt(json, 'payloadJson') ??
+          const {},
+    );
+
+    incidentTitleController.text = detail.title;
+    descriptionController.text = detail.description;
+    severity.value = detail.severity;
+    categoryDetailsController.text = JsonCodec.stringOr(
+      payload['categoryDetail'],
+      '',
+    );
+    final during = JsonCodec.string(
+      payload['detectedDuring'] ?? json['detectedDuring'],
+    );
+    if (during != null && during.isNotEmpty) detectedDuring.value = during;
+
+    final categoryMap = JsonCodec.mapAt(json, 'category') ?? const {};
+    final categoryId = JsonCodec.string(json['categoryId'] ?? categoryMap['id']);
+    StaffIncidentCategoryOption? category;
+    for (final option in categories) {
+      if (option.id == categoryId || option.name == detail.categoryLabel) {
+        category = option;
+        break;
+      }
+    }
+    if (category == null && categoryId != null && categoryId.isNotEmpty) {
+      category = StaffIncidentCategoryOption(
+        id: categoryId,
+        name: detail.categoryLabel.isEmpty ? 'Incident' : detail.categoryLabel,
+      );
+    }
+    selectedCategory.value = category;
+
+    final occurred = JsonCodec.dateTime(
+      json['occurredAt'] ?? json['reportedAt'] ?? json['createdAt'],
+    );
+    if (occurred != null) {
+      final local = occurred.toLocal();
+      incidentDateController.text = _formatDate(local);
+      incidentTimeController.text = _formatTime(TimeOfDay.fromDateTime(local));
+    }
+    final end = JsonCodec.string(payload['endTime']);
+    if (end != null && end.isNotEmpty) {
+      final parsed = _parseTime(end);
+      endTimeController.text = parsed == null ? end : _formatTime(parsed);
+    }
+
+    final residenceMap = JsonCodec.mapAt(json, 'residence') ?? const {};
+    final residenceId = JsonCodec.string(
+      json['residenceId'] ?? residenceMap['id'],
+    );
+    if (residenceId != null && residenceId.isNotEmpty) {
+      StaffIncidentResidenceOption? residence;
+      for (final option in residences) {
+        if (option.id == residenceId) {
+          residence = option;
+          break;
+        }
+      }
+      selectedResidence.value = residence ??
+          StaffIncidentResidenceOption(
+            id: residenceId,
+            name: detail.residenceName.isEmpty ? 'Residence' : detail.residenceName,
+          );
+    }
+
+    final clientMap = JsonCodec.mapAt(json, 'client') ??
+        JsonCodec.mapAt(json, 'resident') ??
+        const {};
+    final clientId = JsonCodec.string(json['clientId'] ?? clientMap['id']);
+    if (clientId != null && clientId.isNotEmpty) {
+      final client = StaffIncidentClientOption(
+        id: clientId,
+        name: detail.residentName.isEmpty ? 'Client' : detail.residentName,
+        residenceId: residenceId,
+        residenceName: detail.residenceName,
+      );
+      selectedClient.value = client;
+      clientSearchController.text = client.name;
+    }
+
+    childIdController.text = JsonCodec.stringOr(payload['childIdNumber'], '');
+    cipController.text = JsonCodec.stringOr(
+      payload['cipName'] ??
+          payload['cip'] ??
+          payload['childInterventionPractitioner'],
+      '',
+    );
+    cipOfficeController.text = JsonCodec.stringOr(payload['cipOffice'], '');
+    final allowedCfs = {for (final option in cfsStatusOptions) option.$1};
+    final cfsRaw = payload['cfsStatus'];
+    cfsStatuses.assignAll(
+      (cfsRaw is List ? cfsRaw : [?cfsRaw])
+          .map((item) => item.toString().trim().toUpperCase())
+          .where(allowedCfs.contains)
+          .toSet(),
+    );
+    witnesses.assignAll(_witnessNames(payload['witnesses'] ?? json['witnesses']));
+
+    immediateActionController.text = JsonCodec.stringOr(
+      json['immediateAction'] ?? payload['immediateAction'],
+      '',
+    );
+    emergencyServicesContacted.value =
+        json['emergencyServicesContacted'] == true ||
+            payload['emergencyServicesContacted'] == true;
+    externalAgencyType.value = JsonCodec.string(
+      json['externalAgencyType'] ?? payload['externalAgencyType'],
+    );
+    agencyReferenceController.text = JsonCodec.stringOr(
+      json['externalAgencyReference'] ?? payload['externalAgencyReference'],
+      '',
+    );
+    agencyResponderController.text = JsonCodec.stringOr(
+      json['externalAgencyResponder'] ?? payload['externalAgencyResponder'],
+      '',
+    );
+    familyGuardianNotified.value =
+        json['familyNotified'] == true || payload['familyNotified'] == true;
+
+    final reporterMap = JsonCodec.mapAt(json, 'reporter') ??
+        JsonCodec.mapAt(json, 'reportedBy') ??
+        const {};
+    final reporterId = JsonCodec.string(
+      json['reportedByStaffId'] ?? reporterMap['id'] ?? payload['reportedByStaffId'],
+    );
+    if (reporterId != null && reporterId.isNotEmpty) {
+      reportedByStaff.value = _staffOption(
+        reporterId,
+        detail.reportedByName.isEmpty ? 'Staff' : detail.reportedByName,
+      );
+    }
+    final supervisorId = JsonCodec.string(
+      payload['supervisorId'] ?? json['supervisorId'],
+    );
+    if (supervisorId != null && supervisorId.isNotEmpty) {
+      supervisorStaff.value = _staffOption(
+        supervisorId,
+        JsonCodec.stringOr(payload['supervisorName'], 'Supervisor'),
+      );
+    }
+
+    final status = JsonCodec.string(
+      payload['investigationStatus'] ??
+          JsonCodec.mapAt(json, 'investigation')?['status'],
+    );
+    if (status != null && status.isNotEmpty) {
+      investigationStatus.value = status.toLowerCase();
+    }
+    final investigatorId = JsonCodec.string(payload['investigatorId']);
+    if (investigatorId != null && investigatorId.isNotEmpty) {
+      investigator.value = _staffOption(
+        investigatorId,
+        JsonCodec.stringOr(payload['investigatorName'], 'Investigator'),
+      );
+    }
+    investigationNotesController.text = JsonCodec.stringOr(
+      payload['investigationNotes'] ?? detail.investigationFindings,
+      '',
+    );
+    rootCauseController.text = JsonCodec.stringOr(
+      payload['rootCause'] ?? detail.investigationRootCause,
+      '',
+    );
+    correctiveActionController.text = JsonCodec.stringOr(
+      payload['correctiveAction'] ?? detail.investigationCorrectiveAction,
+      '',
+    );
+    followUpRequired.value = payload['followUpRequired'] == true;
+    followUpDateController.text = JsonCodec.stringOr(payload['followUpDueDate'], '');
+    final assignedId = JsonCodec.string(payload['assignedToId']);
+    if (assignedId != null && assignedId.isNotEmpty) {
+      assignedTo.value = _staffOption(
+        assignedId,
+        JsonCodec.stringOr(payload['assignedToName'], 'Staff'),
+      );
+    }
+    debriefCompleted.value = payload['debriefCompleted'] == true;
+    debriefDetailsController.text = JsonCodec.stringOr(payload['debriefDetails'], '');
+    childInformedOfRights.value = payload['childInformedOfRights'] == true;
+    transcriptionController.text = JsonCodec.stringOr(payload['transcription'], '');
+    _applyParties(payload['notifications']);
+
+    final templateId = JsonCodec.string(
+      json['cirTemplateId'] ?? payload['cirTemplateId'],
+    );
+    if (templateId != null && templateId.isNotEmpty) {
+      for (final template in cirTemplates) {
+        if (template.id == templateId) {
+          selectedCirTemplate.value = template;
+          for (final section in template.sections) {
+            for (final field in section.fields) {
+              final value = payload[field.key];
+              if (value == null) continue;
+              reportFormAnswerController(field.key).text = value.toString();
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    final files = <StaffIncidentEvidenceFile>[];
+    for (final item in detail.evidence) {
+      if (item.fileUrl.trim().isEmpty) continue;
+      files.add(
+        StaffIncidentEvidenceFile(
+          localPath: '',
+          fileName: item.displayName,
+          mimeType: item.fileType,
+          fileUrl: item.fileUrl,
+        ),
+      );
+      _existingEvidenceUrls.add(item.fileUrl);
+    }
+    if (files.isNotEmpty) evidenceFiles.assignAll(files);
+  }
+
+  StaffIncidentStaffOption _staffOption(String id, String name) {
+    for (final option in staffOptions) {
+      if (option.id == id) return option;
+    }
+    return StaffIncidentStaffOption(id: id, name: name);
+  }
+
+  List<String> _witnessNames(dynamic raw) {
+    if (raw is! List) return const [];
+    final names = <String>[];
+    for (final item in raw) {
+      if (item is String && item.trim().isNotEmpty) {
+        names.add(item.trim());
+      } else if (item is Map) {
+        final name = JsonCodec.string(item['name'] ?? item['witnessName']);
+        if (name != null && name.isNotEmpty) names.add(name);
+      }
+    }
+    return names;
+  }
+
+  void _applyParties(dynamic raw) {
+    if (raw is! List) return;
+    for (var index = 0; index < partyNotifications.length; index++) {
+      final party = partyNotifications[index].party;
+      Map<String, dynamic>? match;
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final row = JsonCodec.asMap(item);
+        if (JsonCodec.stringOr(row['party'], '') == party) {
+          match = row;
+          break;
+        }
+      }
+      if (match == null) continue;
+      partyNotifications[index] = partyNotifications[index].copyWith(
+        notified: match['notified'] == true,
+        contactName: JsonCodec.stringOr(match['contactName'], ''),
+        dateNotified: JsonCodec.stringOr(match['dateNotified'], ''),
+      );
+    }
   }
 
   void selectSeverity(IncidentSeverity value) => severity.value = value;
@@ -854,52 +1155,93 @@ class IncidentCreationController extends GetxController {
     isSubmitting.value = true;
     clearFormBanner();
 
+    final immediateAction = immediateActionController.text.trim().isEmpty
+        ? null
+        : immediateActionController.text.trim();
+    final agencyReference = agencyReferenceController.text.trim().isEmpty
+        ? null
+        : agencyReferenceController.text.trim();
+    final agencyResponder = agencyResponderController.text.trim().isEmpty
+        ? null
+        : agencyResponderController.text.trim();
+
     try {
-      final create = await repository.createIncident(
-        residenceId: residenceId,
-        clientId: client.id,
-        categoryId: category.id,
-        title: incidentTitleController.text.trim(),
-        severity: severity.value.name,
-        payload: payload,
-        cirTemplateId: selectedCirTemplate.value?.id,
-        occurredAt: occurredAt,
-        description: description,
-        familyNotified: familyGuardianNotified.value,
-        immediateAction: immediateActionController.text.trim().isEmpty
-            ? null
-            : immediateActionController.text.trim(),
-        emergencyServicesContacted: emergencyServicesContacted.value,
-        externalAgencyType: emergencyServicesContacted.value
-            ? externalAgencyType.value
-            : null,
-        externalAgencyReference: agencyReferenceController.text.trim().isEmpty
-            ? null
-            : agencyReferenceController.text.trim(),
-        externalAgencyResponder: agencyResponderController.text.trim().isEmpty
-            ? null
-            : agencyResponderController.text.trim(),
-        reportedByStaffId: reportedByStaff.value?.id,
-      );
+      late final String incidentId;
+      if (isEditMode) {
+        final update = await repository.updateIncident(
+          incidentId: editIncidentId!.trim(),
+          residenceId: residenceId,
+          clientId: client.id,
+          categoryId: category.id,
+          title: incidentTitleController.text.trim(),
+          severity: severity.value.name,
+          payload: payload,
+          cirTemplateId: selectedCirTemplate.value?.id,
+          occurredAt: occurredAt,
+          description: description,
+          familyNotified: familyGuardianNotified.value,
+          immediateAction: immediateAction,
+          emergencyServicesContacted: emergencyServicesContacted.value,
+          externalAgencyType: emergencyServicesContacted.value
+              ? externalAgencyType.value
+              : null,
+          externalAgencyReference: agencyReference,
+          externalAgencyResponder: agencyResponder,
+          reportedByStaffId: reportedByStaff.value?.id,
+        );
+        if (update.isFailure) {
+          final info = AppErrorMapper.from(
+            update.error,
+            fallbackTitle: 'Could not save incident',
+          );
+          showFormBanner(info.message);
+          AppErrorDialog.showResultError(
+            update.error,
+            fallbackTitle: 'Could not save incident',
+          );
+          return;
+        }
+        incidentId = editIncidentId!.trim();
+      } else {
+        final create = await repository.createIncident(
+          residenceId: residenceId,
+          clientId: client.id,
+          categoryId: category.id,
+          title: incidentTitleController.text.trim(),
+          severity: severity.value.name,
+          payload: payload,
+          cirTemplateId: selectedCirTemplate.value?.id,
+          occurredAt: occurredAt,
+          description: description,
+          familyNotified: familyGuardianNotified.value,
+          immediateAction: immediateAction,
+          emergencyServicesContacted: emergencyServicesContacted.value,
+          externalAgencyType: emergencyServicesContacted.value
+              ? externalAgencyType.value
+              : null,
+          externalAgencyReference: agencyReference,
+          externalAgencyResponder: agencyResponder,
+          reportedByStaffId: reportedByStaff.value?.id,
+        );
 
-      if (create.isFailure) {
-        final info = AppErrorMapper.from(
-          create.error,
-          fallbackTitle: 'Could not submit incident',
-        );
-        showFormBanner(info.message);
-        // Dialog may be skipped if API client already showed one — banner
-        // still surfaces the message inside the form.
-        AppErrorDialog.showResultError(
-          create.error,
-          fallbackTitle: 'Could not submit incident',
-        );
-        return;
+        if (create.isFailure) {
+          final info = AppErrorMapper.from(
+            create.error,
+            fallbackTitle: 'Could not submit incident',
+          );
+          showFormBanner(info.message);
+          AppErrorDialog.showResultError(
+            create.error,
+            fallbackTitle: 'Could not submit incident',
+          );
+          return;
+        }
+        incidentId = create.value!;
       }
-
-      final incidentId = create.value!;
       var evidenceFailed = false;
-      for (final file in evidenceFiles.where((f) => f.isReady)) {
+      for (final file in evidenceFiles.where(
+        (f) => f.isReady && !_existingEvidenceUrls.contains(f.fileUrl),
+      )) {
         final attached = await repository.attachEvidence(
           incidentId: incidentId,
           fileUrl: file.fileUrl!,
@@ -914,12 +1256,15 @@ class IncidentCreationController extends GetxController {
         }
       } catch (_) {}
 
-      final successTitle = 'Incident submitted';
+      final successTitle =
+          isEditMode ? 'Incident updated' : 'Incident submitted';
       final successMessage = evidenceFailed
           ? 'Report saved for supervisor review. Some evidence failed to attach.'
-          : 'The report is open for supervisor review.';
+          : (isEditMode
+              ? 'The report was saved.'
+              : 'The report is open for supervisor review.');
 
-      Get.back();
+      Get.back(result: true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         AppSnackbar.show(
           successTitle,

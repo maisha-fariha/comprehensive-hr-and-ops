@@ -33,7 +33,8 @@ class Step4EvidenceForm extends StatelessWidget {
               const WizardSectionHeader(
                 number: 4,
                 title: 'Evidence & Submission',
-                subtitle: 'Attach supporting evidence before submitting',
+                subtitle:
+                    "Attach evidence, add final notes, and confirm who's been notified.",
                 badgeBackground: _badgeBackground,
                 badgeForeground: _badgeForeground,
               ),

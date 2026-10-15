@@ -786,7 +786,7 @@ void main() {
 
     testWidgets('tapping Client / Resident lists every client; typing filters; the choice '
         'shows as Selected and X clears it', (tester) async {
-      final (c, repo) = await _openWizardStep(tester, (c) => Step1DetailsForm(controller: c));
+      final (c, repo) = await _openWizardStep(tester, (c) => Step2PeopleForm(controller: c));
       expect(find.text('Type to search client'), findsOneWidget);
 
       await _tap(tester, _field(c.clientController));

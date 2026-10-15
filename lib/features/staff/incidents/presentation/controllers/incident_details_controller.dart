@@ -177,8 +177,11 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
           AppSnackbar.show(
             'Could not open file',
             saveResult.error ?? 'Could not save or open the file.',
+            force: true,
           );
+          return;
         }
+        _confirmDownloaded(saveResult.displayLocation);
         return;
       }
 
@@ -192,21 +195,36 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
         AppSnackbar.show(
           'Could not download file',
           saveResult.error ?? 'Could not save the file.',
+          force: true,
         );
         return;
       }
       final path = saveResult.path;
       if (path != null && path.isNotEmpty) {
-        await OpenFilex.open(path, type: mime);
-      } else {
-        AppSnackbar.show(
-          'Downloaded',
-          '${item.fileName} saved to ${saveResult.displayLocation}.',
-        );
+        final opened = await OpenFilex.open(path, type: mime);
+        if (opened.type != ResultType.done) {
+          AppSnackbar.show(
+            'Could not open file',
+            opened.message,
+            force: true,
+          );
+          return;
+        }
       }
+      _confirmDownloaded(saveResult.displayLocation);
     } finally {
       isOpeningEvidence.value = false;
     }
+  }
+
+  /// Shown only after the file is saved. A failed download keeps its error toast.
+  void _confirmDownloaded(String location) {
+    final where = location.trim();
+    AppSnackbar.show(
+      'Document downloaded successfully.',
+      where.isEmpty ? '' : 'Saved to $where.',
+      force: true,
+    );
   }
 
   static String _mimeFor(IncidentEvidenceItem item) {

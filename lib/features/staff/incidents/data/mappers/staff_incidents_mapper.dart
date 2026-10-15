@@ -252,6 +252,7 @@ abstract final class StaffIncidentsMapper {
       investigationRecordedAtLabel: investigationRecordedAt == null
           ? null
           : IsoDateRange.formatShortDate(investigationRecordedAt.toLocal()),
+      source: Map<String, dynamic>.from(json),
     );
   }
 

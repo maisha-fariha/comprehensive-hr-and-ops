@@ -587,6 +587,12 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   }) async {
     final data = <String, dynamic>{
       'residenceId': residenceId,
@@ -605,6 +611,20 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
       if (supervisorNotified != null) 'supervisorNotified': supervisorNotified,
       if (familyNotified != null) 'familyNotified': familyNotified,
       if (carePlanReviewed != null) 'carePlanReviewed': carePlanReviewed,
+      if (immediateAction != null && immediateAction.trim().isNotEmpty)
+        'immediateAction': immediateAction.trim(),
+      if (emergencyServicesContacted != null)
+        'emergencyServicesContacted': emergencyServicesContacted,
+      if (externalAgencyType != null && externalAgencyType.isNotEmpty)
+        'externalAgencyType': externalAgencyType,
+      if (externalAgencyReference != null &&
+          externalAgencyReference.trim().isNotEmpty)
+        'externalAgencyReference': externalAgencyReference.trim(),
+      if (externalAgencyResponder != null &&
+          externalAgencyResponder.trim().isNotEmpty)
+        'externalAgencyResponder': externalAgencyResponder.trim(),
+      if (reportedByStaffId != null && reportedByStaffId.isNotEmpty)
+        'reportedByStaffId': reportedByStaffId,
     };
 
     final result = await _api.patch(

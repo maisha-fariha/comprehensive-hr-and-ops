@@ -105,6 +105,8 @@ class IncidentCreationController extends GetxController {
       Rxn<IncidentCirTemplateOption>();
 
   final TextEditingController incidentTitleController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
+  final TextEditingController categoryDetailController = TextEditingController();
   final TextEditingController clientController = TextEditingController();
   final Rxn<IncidentClientOption> selectedClient = Rxn<IncidentClientOption>();
   final RxList<IncidentClientOption> clientSuggestions =
@@ -125,6 +127,7 @@ class IncidentCreationController extends GetxController {
   final TextEditingController incidentTimeController = TextEditingController();
   final TextEditingController endTimeController = TextEditingController();
   final Rx<IncidentSeverity> severity = IncidentSeverity.high.obs;
+  final RxInt formRevision = 0.obs;
   final RxnString detectedDuring = RxnString();
 
   static const Duration _clientSearchDebounce = Duration(milliseconds: 350);
@@ -132,6 +135,107 @@ class IncidentCreationController extends GetxController {
   int _clientSearchRequestId = 0;
 
   String? get incidentCategory => selectedCategory.value?.name;
+
+  /// Web shows this extra prompt only for a few categories.
+  static const categoryDetailHints = {
+    'Injury to Child':
+        'Describe the level of harm and who was involved (self / peer / staff / community member).',
+    'Injury to Staff/Caregiver': 'Describe the level of harm and who was involved.',
+    'Allegation of Abuse/Neglect':
+        'Describe who the allegation relates to (current staff, peer, parent/guardian, previous caregiver, community member).',
+    'Substance Use/Abuse':
+        'Note whether use occurred in or outside of the licensed facility/placement.',
+  };
+
+  String? get categoryDetailHint => categoryDetailHints[selectedCategory.value?.name];
+
+  static const stepTips = {
+    IncidentCreationStep.details:
+        'Reports auto-save as draft. Critical incidents notify the on-call supervisor instantly.',
+    IncidentCreationStep.people:
+        'CFS status and CIP details are optional but speed up compliance notification.',
+    IncidentCreationStep.investigate:
+        'Investigation Status here matches the Status column on the incident list.',
+    IncidentCreationStep.evidence:
+        'Attach evidence and confirm who has been notified before submitting.',
+    IncidentCreationStep.reportForm:
+        'The form is stored with the report, so a later revision cannot change what this one asked.',
+  };
+
+  static const stepDescriptions = {
+    IncidentCreationStep.details: 'What happened & how serious',
+    IncidentCreationStep.people: 'Residence, client & staff',
+    IncidentCreationStep.investigate: 'Findings & corrective action',
+    IncidentCreationStep.evidence: 'Attachments & notifications',
+    IncidentCreationStep.reportForm: 'The form the regulator requires',
+  };
+
+  static const stepTitles = {
+    IncidentCreationStep.details: 'Incident Details',
+    IncidentCreationStep.people: 'Location & People',
+    IncidentCreationStep.investigate: 'Investigation',
+    IncidentCreationStep.evidence: 'Evidence & Submission',
+    IncidentCreationStep.reportForm: 'Report Form',
+  };
+
+  /// Web checklist marks every step before the one on screen.
+  bool stepChecked(IncidentCreationStep step) =>
+      steps.indexOf(step) < currentStepIndex;
+
+  /// Required fields the web uses for "N of 5 steps complete".
+  int get completedStepCount {
+    formRevision.value;
+    var count = 0;
+    final detailsReady = selectedCategory.value != null &&
+        incidentTitleController.text.trim().isNotEmpty &&
+        incidentDateController.text.trim().isNotEmpty &&
+        incidentTimeController.text.trim().isNotEmpty &&
+        descriptionController.text.trim().isNotEmpty;
+    if (detailsReady) count++;
+    final residenceId = selectedResidenceId.value ?? '';
+    if (residenceId.isNotEmpty && (reportedBy.value ?? '').trim().isNotEmpty) {
+      count++;
+    }
+    return count;
+  }
+
+  String get severityLabel {
+    final name = severity.value.name;
+    return '${name[0].toUpperCase()}${name.substring(1)}';
+  }
+
+  String? validateCurrentStep() {
+    switch (currentStep.value) {
+      case IncidentCreationStep.details:
+        if (selectedCategory.value == null) return 'Incident category is required.';
+        if (incidentTitleController.text.trim().isEmpty) {
+          return 'Incident title is required.';
+        }
+        if (incidentDateController.text.trim().isEmpty) {
+          return 'Incident date is required.';
+        }
+        if (incidentTimeController.text.trim().isEmpty) {
+          return 'Incident time is required.';
+        }
+        if (descriptionController.text.trim().isEmpty) {
+          return 'Incident description is required.';
+        }
+        return null;
+      case IncidentCreationStep.people:
+        final residenceId = selectedResidenceId.value ?? session.residenceId;
+        if (residenceId == null || residenceId.isEmpty) {
+          return 'Residence is required.';
+        }
+        if ((reportedBy.value ?? '').trim().isEmpty) {
+          return 'Reported by staff is required.';
+        }
+        return null;
+      case IncidentCreationStep.investigate:
+      case IncidentCreationStep.evidence:
+      case IncidentCreationStep.reportForm:
+        return null;
+    }
+  }
   String? get cirTemplateLabel {
     final template = selectedCirTemplate.value;
     if (template == null) return null;
@@ -244,6 +348,15 @@ class IncidentCreationController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    for (final field in [
+      incidentTitleController,
+      incidentDateController,
+      incidentTimeController,
+      descriptionController,
+    ]) {
+      field.addListener(_bumpForm);
+    }
+
     if (!isEditMode) {
       final now = DateTime.now();
       incidentDateController.text = _formatIncidentDate(now);
@@ -423,13 +536,6 @@ class IncidentCreationController extends GetxController {
     showClientSuggestions.value = false;
     clientSearchError.value = '';
     isSearchingClients.value = false;
-
-    // Keep Step 2 involved client in sync when empty / same client.
-    if (selectedInvolvedClient.value == null ||
-        involvedClientController.text.trim().isEmpty ||
-        selectedInvolvedClient.value?.id == option.id) {
-      selectInvolvedClient(option);
-    }
 
     if (option.residenceName != null && option.residenceName!.isNotEmpty) {
       selectResidence(
@@ -760,6 +866,53 @@ class IncidentCreationController extends GetxController {
       },
     );
     if (selected != null) detectedDuring.value = selected;
+  }
+
+  Future<void> pickSeverity(BuildContext context) async {
+    final selected = await showAppBottomSheet<IncidentSeverity>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Severity',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              for (final option in IncidentSeverity.values)
+                ListTile(
+                  title: Text(
+                    '${option.name[0].toUpperCase()}${option.name.substring(1)}',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  trailing: severity.value == option
+                      ? const Icon(Icons.check_rounded, color: AppColors.secondaryTeal)
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(option),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null) severity.value = selected;
   }
 
   Future<void> pickStaffInvolved(BuildContext context) async {
@@ -1377,6 +1530,12 @@ class IncidentCreationController extends GetxController {
       orElse: () => IncidentSeverity.high,
     );
 
+    descriptionController.text = JsonCodec.stringOr(
+      payload['description'] ?? payload['summary'] ?? json['description'],
+      '',
+    );
+    categoryDetailController.text =
+        JsonCodec.stringOr(payload['categoryDetail'], '');
     locationController.text = JsonCodec.stringOr(payload['location'], '');
     detectedDuring.value = JsonCodec.string(payload['detectedDuring']);
     immediateActionController.text = JsonCodec.stringOr(
@@ -1508,9 +1667,24 @@ class IncidentCreationController extends GetxController {
 
   // ── Navigation ─────────────────────────────────────────────────────────
 
-  void goToStep(IncidentCreationStep step) => currentStep.value = step;
+  void goToStep(IncidentCreationStep step) {
+    final target = steps.indexOf(step);
+    if (target > currentStepIndex) {
+      final error = validateCurrentStep();
+      if (error != null) {
+        AppSnackbar.show('Check your details', error, force: true);
+        return;
+      }
+    }
+    currentStep.value = step;
+  }
 
   void nextStep() {
+    final error = validateCurrentStep();
+    if (error != null) {
+      AppSnackbar.show('Check your details', error, force: true);
+      return;
+    }
     final index = currentStepIndex;
     if (index < steps.length - 1) {
       currentStep.value = steps[index + 1];
@@ -1733,7 +1907,9 @@ class IncidentCreationController extends GetxController {
   }
 
   Map<String, dynamic> _buildPayload() {
+    final description = descriptionController.text.trim();
     final summaryParts = <String>[
+      if (description.isNotEmpty) description,
       if (immediateActionController.text.trim().isNotEmpty)
         immediateActionController.text.trim(),
       if (investigationNotesController.text.trim().isNotEmpty)
@@ -1743,6 +1919,9 @@ class IncidentCreationController extends GetxController {
     ];
 
     return <String, dynamic>{
+      if (description.isNotEmpty) 'description': description,
+      if (categoryDetailController.text.trim().isNotEmpty)
+        'categoryDetail': categoryDetailController.text.trim(),
       'summary': summaryParts.isEmpty
           ? incidentTitleController.text.trim()
           : summaryParts.join('\n\n'),
@@ -1888,11 +2067,23 @@ class IncidentCreationController extends GetxController {
     return '$hour:$minute';
   }
 
+  void _bumpForm() => formRevision.value++;
+
   @override
   void onClose() {
+    for (final field in [
+      incidentTitleController,
+      incidentDateController,
+      incidentTimeController,
+      descriptionController,
+    ]) {
+      field.removeListener(_bumpForm);
+    }
     _clientSearchDebounceTimer?.cancel();
     _involvedClientDebounce?.cancel();
     incidentTitleController.dispose();
+    descriptionController.dispose();
+    categoryDetailController.dispose();
     clientController.dispose();
     incidentDateController.dispose();
     incidentTimeController.dispose();

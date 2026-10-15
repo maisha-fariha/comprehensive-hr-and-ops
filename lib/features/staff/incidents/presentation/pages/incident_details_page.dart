@@ -4,8 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import 'create_incident_page.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../controllers/incident_details_controller.dart';
@@ -63,7 +63,13 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
   }
 
   void _onEdit() {
-    AppSnackbar.show('Edit', 'Editing opens on web for now');
+    Get.to(
+      () => CreateIncidentPage(incidentId: widget.incidentId),
+    )?.then((saved) {
+      if (saved == true) {
+        _controller.loadDetail(widget.incidentId, force: true);
+      }
+    });
   }
 
   @override

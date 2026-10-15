@@ -33,11 +33,49 @@ class Step2PeopleForm extends StatelessWidget {
               const WizardSectionHeader(
                 number: 2,
                 title: 'Location & People',
-                subtitle: 'Who was involved and where it happened',
+                subtitle:
+                    'Link the incident to a location, the people involved, and immediate response.',
                 badgeBackground: _badgeBackground,
                 badgeForeground: _badgeForeground,
               ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+              const WizardFieldLabel('Residence', required: true),
+              Obx(
+                () => WizardDropdownField(
+                  value: controller.residence.value,
+                  placeholder: controller.isLoadingResidences.value
+                      ? 'Loading residences…'
+                      : 'Select residence',
+                  onTap: () => controller.pickResidence(context),
+                ),
+              ),
+              gap,
+              const WizardFieldLabel('Related Client'),
+              Obx(() {
+                final selected = controller.selectedClient.value;
+                if (selected != null) {
+                  return IncidentSelectedClientCard(
+                    client: selected,
+                    onClear: controller.clearClient,
+                  );
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    WizardSearchField(
+                      controller: controller.clientController,
+                      hint: 'Search client...',
+                      onChanged: controller.onClientQueryChanged,
+                      onTap: controller.openClientSuggestions,
+                    ),
+                    if (controller.showClientSuggestions.value)
+                      _RelatedClientSuggestions(controller: controller)
+                    else
+                      const WizardHelperText('Type to search client'),
+                  ],
+                );
+              }),
+              gap,
               const WizardFieldLabel('Involved Client'),
               Obx(() {
                 final selected = controller.selectedInvolvedClient.value;
@@ -74,7 +112,7 @@ class Step2PeopleForm extends StatelessWidget {
                 onTap: () => controller.pickStaffInvolved(context),
               ),
               gap,
-              const WizardFieldLabel('Reported By'),
+              const WizardFieldLabel('Reported By Staff', required: true),
               Obx(
                 () => WizardDropdownField(
                   value: controller.reportedBy.value,
@@ -82,6 +120,17 @@ class Step2PeopleForm extends StatelessWidget {
                       ? 'Loading staff…'
                       : 'Select reporter',
                   onTap: () => controller.pickReporter(context),
+                ),
+              ),
+              gap,
+              const WizardFieldLabel('Supervisor'),
+              Obx(
+                () => WizardDropdownField(
+                  value: controller.selectedSupervisor.value?.name,
+                  placeholder: controller.isLoadingStaff.value
+                      ? 'Loading staff…'
+                      : 'Select supervisor',
+                  onTap: () => controller.pickSupervisor(context),
                 ),
               ),
               gap,
@@ -284,17 +333,18 @@ class _InvolvedClientSuggestions extends StatelessWidget {
       padding: EdgeInsets.only(
         top: ResponsiveHelper.getResponsiveHeight(context, 8),
       ),
-      child: Container(
-        width: double.infinity,
-        constraints: BoxConstraints(
-          maxHeight: ResponsiveHelper.getResponsiveHeight(context, 180),
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceWhite,
-          border: Border.all(color: AppColors.searchBorder),
+      child: Material(
+        color: AppColors.surfaceWhite,
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radius),
+          side: const BorderSide(color: AppColors.searchBorder),
         ),
-        child: Obx(() {
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: ResponsiveHelper.getResponsiveHeight(context, 180),
+          ),
+          child: Obx(() {
           if (controller.isSearchingInvolvedClients.value &&
               controller.involvedClientSuggestions.isEmpty) {
             return const Padding(
@@ -362,6 +412,103 @@ class _InvolvedClientSuggestions extends StatelessWidget {
             },
           );
         }),
+        ),
+      ),
+    );
+  }
+}
+
+class _RelatedClientSuggestions extends StatelessWidget {
+  final IncidentCreationController controller;
+
+  const _RelatedClientSuggestions({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 14);
+    return Padding(
+      padding: EdgeInsets.only(top: ResponsiveHelper.getResponsiveHeight(context, 8)),
+      child: Material(
+        color: AppColors.surfaceWhite,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius),
+          side: const BorderSide(color: AppColors.searchBorder),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
+          ),
+          child: Obx(() {
+          if (controller.isSearchingClients.value && controller.clientSuggestions.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(20),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: AppColors.secondaryTeal,
+                  ),
+                ),
+              ),
+            );
+          }
+          final error = controller.clientSearchError.value;
+          if (error.isNotEmpty && controller.clientSuggestions.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(error, style: const TextStyle(fontFamily: 'Outfit', fontSize: 13)),
+            );
+          }
+          if (controller.clientSuggestions.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'No matches found',
+                style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textSecondary),
+              ),
+            );
+          }
+          return ListView.separated(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            itemCount: controller.clientSuggestions.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final option = controller.clientSuggestions[index];
+              final selected = controller.selectedClient.value?.id == option.id;
+              return ListTile(
+                dense: true,
+                title: Text(
+                  option.name,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+                subtitle: option.subtitle == null
+                    ? null
+                    : Text(
+                        option.subtitle!,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                trailing: selected
+                    ? const Icon(Icons.check_rounded, color: AppColors.secondaryTeal)
+                    : null,
+                onTap: () => controller.selectClient(option),
+              );
+            },
+          );
+        }),
+        ),
       ),
     );
   }

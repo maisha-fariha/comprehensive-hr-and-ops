@@ -27,7 +27,9 @@ import '../widgets/staff_incidents_header.dart';
 /// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
 /// matches reference frames that show the staff bottom nav.
 class CreateIncidentPage extends StatefulWidget {
-  const CreateIncidentPage({super.key});
+  final String? incidentId;
+
+  const CreateIncidentPage({super.key, this.incidentId});
 
   /// Index of the "More" slot in [StaffBottomNavBar.items].
   static const int moreTabIndex = 4;
@@ -55,6 +57,7 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
     _controller = Get.put(
       IncidentCreationController(
         repository: GetIt.instance<StaffIncidentsRepository>(),
+        editIncidentId: widget.incidentId,
       ),
     );
   }
@@ -87,14 +90,24 @@ class _CreateIncidentPageState extends State<CreateIncidentPage> {
             Container(
               color: AppColors.surfaceWhite,
               child: StaffIncidentsHeader(
-                title: 'Add New Incident',
-                subtitle:
-                    'Report incident for safety, compliance & supervisor review',
+                title: widget.incidentId == null
+                    ? 'Add New Incident'
+                    : 'Edit Incident',
+                subtitle: widget.incidentId == null
+                    ? 'Report incident for safety, compliance & supervisor review'
+                    : 'Update this incident report for safety, compliance and supervisor review.',
                 onBack: Get.back,
               ),
             ),
             Expanded(
               child: Obx(() {
+                if (_controller.isLoadingEdit.value) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.secondaryTeal,
+                    ),
+                  );
+                }
                 final step = _controller.wizardStep.value;
                 final banner = _controller.formBannerMessage.value;
                 return Column(
