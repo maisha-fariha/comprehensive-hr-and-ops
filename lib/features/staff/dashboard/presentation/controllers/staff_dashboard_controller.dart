@@ -48,7 +48,7 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
     if (shift == null || clockBusy.value) return;
 
     clockBusy.value = true;
-    final result = shift.onShift
+    final result = shift.clockedIn
         ? await repository.checkOut(
             shiftId: shift.shiftId,
             residenceId: shift.residenceId,
@@ -62,8 +62,8 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
     result.when(
       success: (_) async {
         AppSnackbar.show(
-          shift.onShift ? 'Clocked out' : 'Clocked in',
-          shift.onShift
+          shift.clockedIn ? 'Clocked out' : 'Clocked in',
+          shift.clockedIn
               ? 'Your shift attendance was updated.'
               : 'You are now on shift.',
         );

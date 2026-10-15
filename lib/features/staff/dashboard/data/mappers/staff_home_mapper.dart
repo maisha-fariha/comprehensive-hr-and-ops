@@ -13,12 +13,13 @@ abstract final class StaffHomeMapper {
     required UserSession session,
     required dynamic body,
     int? unreadNotificationCount,
+    DateTime? now,
   }) {
     final json = JsonCodec.unwrapMap(body);
     final tiles = JsonCodec.mapAt(json, 'tiles') ?? {};
     final attendance = JsonCodec.mapAt(json, 'attendance') ?? {};
     final shift = JsonCodec.mapAt(json, 'shift') ?? {};
-    final now = DateTime.now();
+    final clock = now ?? DateTime.now();
     final firstName = session.displayName.split(' ').first;
 
     session.applyPermissions(
@@ -37,16 +38,19 @@ abstract final class StaffHomeMapper {
     );
 
     // `/mobile/home` also reports `onShift: true` for a missed record that was
-    // never clocked into; check-out then 404s. Like the web, only a punch with
-    // `checkInAt` and no `checkOutAt` is open.
-    final neverClockedIn = attendance.containsKey('checkInAt') &&
-        JsonCodec.dateTime(attendance['checkInAt']) == null;
+    // never clocked into; check-out then 404s. Clock out only for a real
+    // open punch. A shift whose hours cover now is still "On Shift" so the
+    // person can clock in.
+    final checkIn = JsonCodec.dateTime(attendance['checkInAt']);
+    final neverClockedIn =
+        attendance.containsKey('checkInAt') && checkIn == null;
     final clockedOut = JsonCodec.dateTime(attendance['checkOutAt']) != null;
-    final onShift = (JsonCodec.boolean(attendance['onShift']) ?? false) &&
-        !neverClockedIn &&
-        !clockedOut;
+    final reportedOnShift = JsonCodec.boolean(attendance['onShift']) ?? false;
+    final clockedIn = (checkIn != null && !clockedOut) ||
+        (reportedOnShift && !neverClockedIn && !clockedOut);
+    final inShift = clockedIn || _coversNow(shift, clock);
     final onBreak =
-        onShift && (JsonCodec.boolean(attendance['onBreak']) ?? false);
+        clockedIn && (JsonCodec.boolean(attendance['onBreak']) ?? false);
     final clients = _tileInt(tiles, 'clients');
     final tasksDue = _tileInt(tiles, 'tasksDue');
     final medsDue = _tileInt(tiles, 'medicationsDue');
@@ -57,33 +61,34 @@ abstract final class StaffHomeMapper {
           session.residenceName ??
           JsonCodec.string(shift['residenceName']) ??
           'Residence',
-      dateLabel: IsoDateRange.formatDisplayDate(now),
-      greetingLine: '${IsoDateRange.greetingPrefix(now)}, $firstName 👋',
+      dateLabel: IsoDateRange.formatDisplayDate(clock),
+      greetingLine: '${IsoDateRange.greetingPrefix(clock)}, $firstName 👋',
       greetingSubtitle: "Here's what's happening on your shift.",
       unreadNotificationCount: unreadNotificationCount ??
           JsonCodec.integerOr(json['unreadCount'], 0),
       todayShift: TodayShiftSummary(
         statusLabel: onBreak
             ? 'On Break'
-            : onShift
+            : inShift
                 ? 'On Shift'
                 : 'Off Shift',
-        dateLabel: IsoDateRange.formatMonthDay(now),
+        dateLabel: IsoDateRange.formatMonthDay(clock),
         timeRange: _shiftRange(shift),
-        onShift: onShift,
+        onShift: inShift,
+        clockedIn: clockedIn,
         onBreak: onBreak,
         shiftId: JsonCodec.string(shift['id'] ?? shift['shiftId']),
         residenceId: session.residenceId,
       ),
       overviewStats: _stats(
-        onShift: onShift,
+        onShift: inShift,
         onBreak: onBreak,
         tiles: tiles,
       ),
       alertCount: alerts,
       alertLabel: 'Alerts',
       quickActions: _quickActions(
-        onShift: onShift,
+        onShift: inShift,
         clients: clients,
         tasksDue: tasksDue,
         medsDue: medsDue,
@@ -138,6 +143,19 @@ abstract final class StaffHomeMapper {
   static int? _tileInt(Map<String, dynamic> tiles, String key) {
     if (!tiles.containsKey(key) || tiles[key] == null) return null;
     return JsonCodec.integerOr(tiles[key], 0);
+  }
+
+  /// True when [now] falls inside the scheduled shift, compared as instants.
+  static bool _coversNow(Map<String, dynamic> shift, DateTime now) {
+    final start = JsonCodec.dateTime(
+      shift['startAt'] ?? shift['startsAt'] ?? shift['startTime'] ?? shift['from'],
+    );
+    final end = JsonCodec.dateTime(
+      shift['endAt'] ?? shift['endsAt'] ?? shift['endTime'] ?? shift['to'],
+    );
+    if (start == null || end == null) return false;
+    final instant = now.toUtc();
+    return !instant.isBefore(start.toUtc()) && !instant.isAfter(end.toUtc());
   }
 
   static String _shiftRange(Map<String, dynamic> shift) {

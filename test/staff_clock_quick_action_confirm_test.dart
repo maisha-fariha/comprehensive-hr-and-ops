@@ -220,6 +220,38 @@ void main() {
     String clockTrailing(StaffDashboardOverview o) =>
         o.quickActions.firstWhere((a) => a.id == 'clock-in-out').trailing;
 
+    test('a shift happening now is On Shift and still a clock-in', () {
+      final now = DateTime.utc(2026, 10, 15, 5, 18);
+      final overview = StaffHomeMapper.compose(
+        session: Get.find<UserSession>(),
+        now: now,
+        body: {
+          'success': true,
+          'data': {
+            'attendance': {
+              'id': '93068bc1-0a73-4bca-ab54-62ec74580f4b',
+              'checkInAt': null,
+              'onShift': true,
+              'onBreak': false,
+              'residence': {'id': 'elm', 'name': 'Elm House'},
+            },
+            'shift': {
+              'id': 'c9180a2c-ed4c-4ab9-a6c1-5dc48f0699b6',
+              'startsAt': now.subtract(const Duration(hours: 4)).toIso8601String(),
+              'endsAt': now.add(const Duration(hours: 4)).toIso8601String(),
+            },
+            'tiles': const {},
+          },
+        },
+      );
+
+      expect(overview.todayShift.onShift, isTrue);
+      expect(overview.todayShift.clockedIn, isFalse);
+      expect(overview.todayShift.statusLabel, 'On Shift');
+      expect(overview.overviewStats.first.value, 'On Shift');
+      expect(clockTrailing(overview), 'On Shift');
+    });
+
     test('a missed record never clocked into is Off Shift (live shape)', () {
       final overview = compose({
         'id': '3069fbbd-bf27-46f2-9a71-efdc72c471e4',

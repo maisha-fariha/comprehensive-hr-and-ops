@@ -189,12 +189,12 @@ class StaffDashboardPage extends StatelessWidget {
     }
     final saved = await StaffClockActionSheet.show(
       context,
-      isCheckIn: !shift.onShift,
+      isCheckIn: !shift.clockedIn,
       residences: residences.value ?? const [],
       initialResidenceId: shift.residenceId,
       shiftId: shift.shiftId,
       showNotRosteredWarning:
-          !shift.onShift && (shift.shiftId == null || shift.shiftId!.isEmpty),
+          !shift.clockedIn && (shift.shiftId == null || shift.shiftId!.isEmpty),
     );
     if (saved == true) {
       await controller.refresh();

@@ -9,6 +9,10 @@ class TodayShiftSummary {
   final String dateLabel;
   final String timeRange;
   final bool onShift;
+
+  /// Open punch. Clock out is only offered when this is true; a rostered
+  /// shift that has not been clocked into stays a clock-in.
+  final bool clockedIn;
   final bool onBreak;
   final String? shiftId;
   final String? residenceId;
@@ -18,6 +22,7 @@ class TodayShiftSummary {
     required this.dateLabel,
     required this.timeRange,
     this.onShift = false,
+    this.clockedIn = false,
     this.onBreak = false,
     this.shiftId,
     this.residenceId,
