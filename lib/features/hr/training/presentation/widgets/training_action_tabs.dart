@@ -572,7 +572,7 @@ class TrainingSittingsTab extends StatelessWidget {
     final c = controller;
     return Obx(() {
       final quiz = c.quiz.value;
-      final canSit = (quiz?.questions.isNotEmpty ?? false) && quiz?.passingScore != null;
+      final canSit = quiz?.questions.isNotEmpty ?? false;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

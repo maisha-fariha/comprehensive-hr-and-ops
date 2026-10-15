@@ -303,22 +303,86 @@ abstract final class StaffTasksMessagesMapper {
       id: JsonCodec.stringOr(json['id'], 'task'),
       title: JsonCodec.stringOr(json['title'] ?? json['name'], 'Task'),
       description: JsonCodec.stringOr(
-        json['description'] ?? json['body'] ?? json['notes'],
+        json['description'] ?? json['body'],
         '',
       ),
       statusRaw: JsonCodec.stringOr(json['status'], ''),
       dueLabel: due == null
           ? JsonCodec.stringOr(json['dueLabel'], '')
-          : IsoDateRange.timeLabel(due.toLocal()),
+          : _webDateTime(due),
       location: JsonCodec.stringOr(
         json['residenceName'] ??
             JsonCodec.mapAt(json, 'residence')?['name'] ??
             json['location'],
         '',
       ),
+      assigneeName: _assigneeNames(json),
+      priorityRaw: JsonCodec.stringOr(json['priority'], ''),
+      taskTypeRaw: JsonCodec.stringOr(
+        json['taskType'] ?? json['type'] ?? json['category'],
+        '',
+      ),
       notes: notesFrom(notesBody),
+      checklist: _checklist(json['checklist']),
+      documents: _documents(json['evidence']),
       requiresSignOff: JsonCodec.boolean(json['requiresSignOff']) ?? false,
+      requiresReview: JsonCodec.boolean(json['requiresReview']) ?? false,
     );
+  }
+
+  /// Web task dialog: `dd/MM/yyyy HH:mm` in local time.
+  static String _webDateTime(DateTime value) {
+    final local = value.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        '${two(local.hour)}:${two(local.minute)}';
+  }
+
+  static String _assigneeNames(Map<String, dynamic> json) {
+    final names = <String>[];
+    for (final raw in JsonCodec.unwrapList(json['assignees'])) {
+      if (raw is! Map) continue;
+      final map = JsonCodec.asMap(raw);
+      final staff = JsonCodec.mapAt(map, 'staff') ?? map;
+      final name = IsoDateRange.personName(staff);
+      if (name.isNotEmpty && name != 'Unknown') names.add(name);
+    }
+    return names.join(', ');
+  }
+
+  static List<StaffTaskCheckItem> _checklist(dynamic raw) {
+    return [
+      for (final item in JsonCodec.unwrapList(raw))
+        if (item is Map)
+          StaffTaskCheckItem(
+            label: JsonCodec.stringOr(
+              JsonCodec.asMap(item)['label'] ??
+                  JsonCodec.asMap(item)['title'] ??
+                  JsonCodec.asMap(item)['text'] ??
+                  JsonCodec.asMap(item)['name'],
+              'Item',
+            ),
+            done: JsonCodec.asMap(item)['done'] == true ||
+                JsonCodec.asMap(item)['completed'] == true ||
+                JsonCodec.asMap(item)['checked'] == true,
+          ),
+    ];
+  }
+
+  static List<StaffTaskDocument> _documents(dynamic raw) {
+    return [
+      for (final item in JsonCodec.unwrapList(raw))
+        if (item is Map)
+          StaffTaskDocument(
+            label: JsonCodec.stringOr(
+              JsonCodec.asMap(item)['label'] ??
+                  JsonCodec.asMap(item)['name'] ??
+                  JsonCodec.asMap(item)['fileName'] ??
+                  JsonCodec.asMap(item)['url'],
+              'File',
+            ),
+          ),
+    ];
   }
 
   static List<StaffTaskNote> notesFrom(dynamic body) {

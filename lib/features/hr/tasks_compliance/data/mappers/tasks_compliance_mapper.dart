@@ -145,7 +145,9 @@ abstract final class TasksComplianceMapper {
         TaskStat(id: 'upcoming', tag: TaskStatTag.upcoming, value: '$upcoming', label: 'Upcoming'),
         TaskStat(id: 'completed', tag: TaskStatTag.completed, value: '$completed', label: 'Completed'),
       ],
-      tasksDueCount: dueToday > 0 ? dueToday : tasks.length,
+      tasksDueCount: tasks
+          .where((item) => item.status != TaskStatus.completed)
+          .length,
       taskItems: tasks,
       reviewQueueItems: reviewItems,
       recurringItems: recurringItems,

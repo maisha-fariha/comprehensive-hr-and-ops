@@ -225,13 +225,17 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
     final completedOffline =
         widget.controller.pendingCompletedTaskIds.contains(detail.id);
     final isCompleted = detail.isCompleted || completedOffline;
-    return ListView(
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 20,
-        top: 16,
-        bottom: 24,
-      ),
+    final pad = ResponsiveHelper.getResponsivePadding(
+      context,
+      horizontal: 20,
+      top: 16,
+      bottom: 24,
+    );
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+      padding: pad,
       children: [
         if (_summaryOnly)
           Container(
@@ -264,35 +268,92 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
               child: PendingSyncChip(label: 'Completed · pending sync'),
             ),
           ),
-        Text(
-          detail.title,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                detail.title,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
+                  color: AppColors.textHeading,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _StatusPill(label: detail.statusLabel),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Task details, checklist progress, documentation and notes.',
           style: TextStyle(
             fontFamily: 'Outfit',
-            fontWeight: FontWeight.w700,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
-            color: AppColors.textHeading,
+            fontSize: 12.5,
+            color: AppColors.textMuted,
           ),
         ),
-        if (detail.dueLabel.isNotEmpty) ...[
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-          Text(
-            'Due: ${detail.dueLabel}',
-            style: const TextStyle(
-              fontFamily: 'Outfit',
-              color: AppColors.textSecondary,
-            ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+        _DetailCard(
+          title: 'Task Details',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DetailPair(
+                leftLabel: 'Assigned staff',
+                left: _AssigneeLine(
+                  name: detail.assigneeName.isEmpty
+                      ? 'Unassigned'
+                      : detail.assigneeName,
+                ),
+                rightLabel: 'Residence',
+                right: Text(
+                  detail.location.isEmpty ? '—' : detail.location,
+                  style: _valueStyle,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _DetailPair(
+                leftLabel: 'Due',
+                left: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      detail.dueLabel.isEmpty ? 'No due date' : detail.dueLabel,
+                      style: _valueStyle,
+                    ),
+                    if (detail.kindLine.isNotEmpty)
+                      Text(
+                        detail.kindLine,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
+                rightLabel: 'Review',
+                right: Text(
+                  detail.requiresReview ? 'Required' : 'Not required',
+                  style: _valueStyle,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _DetailField(
+                label: 'Sign-off',
+                child: Text(
+                  detail.requiresSignOff ? 'Required' : 'Not required',
+                  style: _valueStyle,
+                ),
+              ),
+            ],
           ),
-        ],
-        if (detail.location.isNotEmpty)
-          Text(
-            detail.location,
-            style: const TextStyle(
-              fontFamily: 'Outfit',
-              color: AppColors.textMuted,
-            ),
-          ),
+        ),
         if (detail.description.isNotEmpty) ...[
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
           Text(
             detail.description,
             style: TextStyle(
@@ -303,6 +364,83 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
             ),
           ),
         ],
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        _DetailCard(
+          title: 'Checklist Progress',
+          trailing: '${detail.checklistPercent}%',
+          child: Text(
+            '${detail.checklistDone} of ${detail.checklist.length} items complete',
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        _DetailCard(
+          title: 'Checklist',
+          child: detail.checklist.isEmpty
+              ? const Text(
+                  'This task has no checklist.',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: AppColors.textMuted,
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (final item in detail.checklist)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        value: item.done,
+                        onChanged: null,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        activeColor: AppColors.secondaryTeal,
+                        title: Text(
+                          item.label,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 13.5,
+                            color: AppColors.textHeading,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        _DetailCard(
+          title: 'Documentation Uploads',
+          child: detail.documents.isEmpty
+              ? const Text(
+                  'No documents uploaded.',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: AppColors.textMuted,
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final file in detail.documents)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          file.label,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            color: AppColors.textHeading,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
         Text(
           'Notes',
@@ -394,46 +532,246 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
               ),
             ),
           ],
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-        TextField(
-          controller: _noteController,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Add a note',
-            border: OutlineInputBorder(),
+      ],
           ),
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _busy ? null : _addNote,
-                child: const Text('Add note'),
-              ),
-            ),
-            if (!detail.requiresSignOff || isCompleted) ...[
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: (_busy || isCompleted) ? null : _complete,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.secondaryTeal,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: Text(isCompleted ? 'Completed' : 'Complete'),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            12 + MediaQuery.paddingOf(context).bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _noteController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  hintText: 'Add a note',
+                  border: OutlineInputBorder(),
                 ),
               ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : _addNote,
+                      child: const Text('Add note'),
+                    ),
+                  ),
+                  if (!detail.requiresSignOff || isCompleted) ...[
+                    SizedBox(
+                      width: ResponsiveHelper.getResponsiveWidth(context, 10),
+                    ),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: (_busy || isCompleted) ? null : _complete,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.secondaryTeal,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: Text(isCompleted ? 'Completed' : 'Complete'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (detail.requiresSignOff && !isCompleted) ...[
+                const SizedBox(height: 12),
+                _SignOffBox(
+                  busy: _busy,
+                  onConfirm: () => _complete(signOff: true),
+                ),
+              ],
             ],
-          ],
-        ),
-        if (detail.requiresSignOff && !isCompleted) ...[
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          _SignOffBox(
-            busy: _busy,
-            onConfirm: () => _complete(signOff: true),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+const _valueStyle = TextStyle(
+  fontFamily: 'Outfit',
+  fontWeight: FontWeight.w600,
+  fontSize: 13.5,
+  color: AppColors.textHeading,
+);
+
+class _StatusPill extends StatelessWidget {
+  final String label;
+
+  const _StatusPill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.urgentBackgroundSoft,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+          color: AppColors.urgentAmber,
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailCard extends StatelessWidget {
+  final String title;
+  final String? trailing;
+  final Widget child;
+
+  const _DetailCard({
+    required this.title,
+    required this.child,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.cardBorder),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              if (trailing != null)
+                Text(
+                  trailing!,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: AppColors.secondaryTeal,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
         ],
+      ),
+    );
+  }
+}
+
+class _DetailPair extends StatelessWidget {
+  final String leftLabel;
+  final Widget left;
+  final String rightLabel;
+  final Widget right;
+
+  const _DetailPair({
+    required this.leftLabel,
+    required this.left,
+    required this.rightLabel,
+    required this.right,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: _DetailField(label: leftLabel, child: left)),
+        const SizedBox(width: 12),
+        Expanded(child: _DetailField(label: rightLabel, child: right)),
+      ],
+    );
+  }
+}
+
+class _DetailField extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _DetailField({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: 11,
+            letterSpacing: 0.4,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 4),
+        child,
+      ],
+    );
+  }
+}
+
+class _AssigneeLine extends StatelessWidget {
+  final String name;
+
+  const _AssigneeLine({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = name == 'Unassigned'
+        ? '—'
+        : name
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((part) => part.isNotEmpty)
+            .take(2)
+            .map((part) => part[0].toUpperCase())
+            .join();
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 14,
+          backgroundColor: AppColors.quickActionCreateShiftBg,
+          child: Text(
+            initials,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
+              color: AppColors.secondaryTeal,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(name, style: _valueStyle),
+        ),
       ],
     );
   }

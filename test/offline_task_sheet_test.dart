@@ -113,7 +113,7 @@ void main() {
 
     expect(find.byKey(const Key('task-detail-offline-summary')), findsOneWidget);
     expect(find.text('Restock kitchen'), findsOneWidget);
-    expect(find.text('Due: 8:00 AM'), findsOneWidget);
+    expect(find.text('8:00 AM'), findsOneWidget);
     expect(find.text('Sunrise Home'), findsOneWidget);
     expect(find.text('Retry'), findsNothing);
     expect(find.textContaining('could not reach'), findsNothing);

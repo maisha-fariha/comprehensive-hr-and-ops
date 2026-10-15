@@ -169,6 +169,17 @@ class UserSession extends GetxService {
     }
   }
 
+  /// Reloads `/mobile/me` so a permission the tenant admin just changed
+  /// shows up without signing out. The web refetches on window focus.
+  Future<void> refreshProfile() async {
+    if (_role.value == null) return;
+    try {
+      final me = await GetIt.instance<AuthRepository>().fetchMe(silent: true);
+      final profile = me.value;
+      if (profile != null) applyProfile(profile);
+    } catch (_) {}
+  }
+
   void applyProfile(MobileProfile profile) {
     _role.value = profile.role;
     _roleRaw.value = profile.roleRaw.isEmpty ? null : profile.roleRaw;

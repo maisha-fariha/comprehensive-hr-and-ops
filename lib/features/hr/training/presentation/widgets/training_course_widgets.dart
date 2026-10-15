@@ -1,9 +1,12 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/network/authorized_file.dart';
+import '../../../../../core/storage/media_store_download.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/hr_training.dart';
 import '../../domain/entities/training_course_view.dart';
@@ -12,6 +15,49 @@ import 'training_common.dart';
 Future<void> copyTrainingLink(String url) async {
   await Clipboard.setData(ClipboardData(text: url));
   AppSnackbar.show('Link copied', url);
+}
+
+/// Downloads a course file (`/api/v1/files/...`) with the session and opens it.
+Future<void> openTrainingMaterial(String url) async {
+  final resolved = AuthorizedFile.resolveUrl(url);
+  final segments = Uri.tryParse(resolved)?.pathSegments.where((part) => part.isNotEmpty).toList() ?? const <String>[];
+  final name = segments.isEmpty ? 'training-file' : segments.last;
+  try {
+    final response = await Dio().get<List<int>>(
+      resolved,
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: AuthorizedFile.headers(),
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+    final data = response.data;
+    if (response.statusCode != 200 || data == null || data.isEmpty) {
+      AppSnackbar.show('Could not open file', 'This file is no longer available.');
+      return;
+    }
+    final lower = name.toLowerCase();
+    final mime = lower.endsWith('.pdf')
+        ? 'application/pdf'
+        : lower.endsWith('.png')
+            ? 'image/png'
+            : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
+                ? 'image/jpeg'
+                : lower.endsWith('.mp4')
+                    ? 'video/mp4'
+                    : 'application/octet-stream';
+    final saved = await MediaStoreDownload.saveFileAndOpen(
+      fileName: name,
+      bytes: Uint8List.fromList(data),
+      mimeType: mime,
+      chooserTitle: 'Open training file',
+    );
+    if (!saved.success) {
+      AppSnackbar.show('Could not open file', saved.error ?? 'Could not save the file.');
+    }
+  } catch (_) {
+    AppSnackbar.show('Could not open file', 'This file is no longer available.');
+  }
 }
 
 TrainingTone trainingCardBadgeTone(String badge) => switch (badge) {
@@ -201,7 +247,7 @@ class TrainingCourseRow extends StatelessWidget {
             child: url == null
                 ? Text('None', style: handoverText(context, 13, color: AppColors.infoBlue))
                 : GestureDetector(
-                    onTap: () => copyTrainingLink(url),
+                    onTap: () => openTrainingMaterial(url),
                     child: Text(
                       course.materialType ?? 'Material',
                       style: handoverText(context, 13, color: AppColors.secondaryTeal),

@@ -66,12 +66,14 @@ class TrainingContentTab extends StatelessWidget {
   final TrainingCourseView view;
   final bool canWrite;
   final VoidCallback onEdit;
+  final VoidCallback? onTakeQuiz;
 
   const TrainingContentTab({
     super.key,
     required this.view,
     required this.canWrite,
     required this.onEdit,
+    this.onTakeQuiz,
   });
 
   @override
@@ -144,7 +146,7 @@ class TrainingContentTab extends StatelessWidget {
                             style: handoverText(context, 13, weight: FontWeight.w600),
                           ),
                           GestureDetector(
-                            onTap: () => copyTrainingLink(item.url),
+                            onTap: () => openTrainingMaterial(item.url),
                             child: Text(
                               item.url,
                               overflow: TextOverflow.ellipsis,
@@ -156,9 +158,33 @@ class TrainingContentTab extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     TrainingPill(label: item.type, tone: TrainingTone.info),
+                    IconButton(
+                      tooltip: 'Download',
+                      onPressed: () => openTrainingMaterial(item.url),
+                      icon: const Icon(Icons.download_rounded, color: AppColors.secondaryTeal),
+                    ),
                   ],
                 ),
               ),
+          if (onTakeQuiz != null) ...[
+            const SizedBox(height: 16),
+            Text('Ready to take the examination?', style: handoverText(context, 14, weight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(
+              'Test your understanding of this material to complete the course and earn your certificate.',
+              style: handoverText(context, 12.5, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: HandoverButton(
+                key: const ValueKey('training-take-quiz'),
+                label: 'Take Quiz Now',
+                filled: true,
+                onPressed: onTakeQuiz,
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -1141,6 +1141,7 @@ class _MedicineCard extends StatelessWidget {
                 ),
                 _Labeled(
                   label: 'At what times',
+                  required: !isPrn,
                   hint: '24-hour, one per entry — 08:00, 14:00, 20:00',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

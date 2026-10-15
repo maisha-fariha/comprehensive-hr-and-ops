@@ -187,6 +187,10 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       error = 'Which house is this held at?';
     } else if (!_prn && _resident.isEmpty) {
       error = 'A prescription is for one resident — choose who.';
+    } else if (!_prn && _times.isEmpty && _timeInput.text.trim().isEmpty) {
+      error = 'A scheduled medication needs at least one time of day';
+    } else if (_starts.isNotEmpty && _ends.isNotEmpty && _ends.compareTo(_starts) < 0) {
+      error = 'A course cannot end before it starts';
     }
     if (error != null) {
       setState(() => _error = error);
@@ -597,7 +601,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const MarLabel('At what times'),
+        const MarLabel('At what times', required: true),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(

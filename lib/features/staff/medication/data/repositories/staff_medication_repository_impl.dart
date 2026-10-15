@@ -294,6 +294,13 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       ? null
       : DateTime.utc(value.year, value.month, value.day).toIso8601String();
 
+  /// End of that calendar day. A same-day course must end after its start
+  /// midnight — the API rejects an end that is not later.
+  static String? _endOfDay(DateTime? value) => value == null
+      ? null
+      : DateTime.utc(value.year, value.month, value.day, 23, 59, 59, 999)
+          .toIso8601String();
+
   static String? _blank(String? value) {
     final t = value?.trim() ?? '';
     return t.isEmpty ? null : t;
@@ -323,7 +330,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       },
       'isControlled': input.isControlled,
       'startsAt': _day(input.startsAt),
-      'endsAt': _day(input.endsAt),
+      'endsAt': _endOfDay(input.endsAt),
       'stockUnitsPerDose': input.stockUnitsPerDose,
       'requiresCheckScheduleId': checkId,
       'requiresCheckWithinMinutes': checkId == null
@@ -350,7 +357,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       'stockUnitsPerDose': input.stockUnitsPerDose,
       'route': ?_route(input.route, update: update),
       'startsAt': _day(input.startsAt),
-      'endsAt': _day(input.endsAt),
+      'endsAt': _endOfDay(input.endsAt),
       'requiresCheckScheduleId': checkId,
       'requiresCheckWithinMinutes': checkId == null
           ? null

@@ -213,6 +213,15 @@ abstract final class MedicationMapper {
     return DateTime.utc(parsed.year, parsed.month, parsed.day).toIso8601String();
   }
 
+  /// End of the chosen calendar day. A same-day course must still end after
+  /// its start midnight — the API rejects an end that is not later.
+  static String? _isoEndOfDay(String day) {
+    final parsed = DateTime.tryParse(day.trim());
+    if (parsed == null) return null;
+    return DateTime.utc(parsed.year, parsed.month, parsed.day, 23, 59, 59, 999)
+        .toIso8601String();
+  }
+
   static num? _number(String text) {
     final t = text.trim();
     if (t.isEmpty) return null;
@@ -243,7 +252,7 @@ abstract final class MedicationMapper {
       'isControlled': d.isControlled,
       'route': ?_route(d.route, update),
       'startsAt': _isoMidnight(d.startsAt),
-      'endsAt': _isoMidnight(d.endsAt),
+      'endsAt': _isoEndOfDay(d.endsAt),
       'stockUnitsPerDose': _number(d.stockUnitsPerDose),
       'requiresCheckScheduleId': checkId,
       'requiresCheckWithinMinutes':
@@ -277,7 +286,7 @@ abstract final class MedicationMapper {
         'stockUnitsPerDose': _number(d.stockUnitsPerDose),
         'route': ?_route(d.route, update),
         'startsAt': _isoMidnight(d.startsAt),
-        'endsAt': _isoMidnight(d.endsAt),
+        'endsAt': _isoEndOfDay(d.endsAt),
         'requiresCheckScheduleId': _blank(d.requiresCheckScheduleId),
         'requiresCheckWithinMinutes': _number(d.requiresCheckWithinMinutes),
       };

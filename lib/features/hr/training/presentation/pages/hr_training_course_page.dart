@@ -276,6 +276,12 @@ class _HrTrainingCoursePageState extends State<HrTrainingCoursePage> {
           view: view,
           canWrite: _c.canManage,
           onEdit: () => _edit(view),
+          onTakeQuiz: view.quizEnabled
+              ? () => showTrainingSheet<void>(
+                    context,
+                    builder: (_) => TrainingRecordSittingSheet(controller: _c),
+                  )
+              : null,
         ),
       'quiz' => TrainingQuizTab(controller: _c),
       'assignments' => TrainingAssignmentsTab(controller: _c),

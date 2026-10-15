@@ -10,6 +10,7 @@ import 'package:get_it/get_it.dart';
 
 import '../config/app_env.dart';
 import '../offline/offline_config.dart';
+import '../roles/user_session.dart';
 import 'app_api_client.dart';
 
 /// App-wide online/offline flag. Syncs queued writes when connectivity returns.
@@ -166,6 +167,9 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
     unawaited(() async {
       if (await refresh()) await _flushQueue(ignoreBackoff: true);
     }());
+    if (Get.isRegistered<UserSession>()) {
+      unawaited(Get.find<UserSession>().refreshProfile());
+    }
   }
 
   Future<void> _flushQueue({required bool ignoreBackoff}) async {

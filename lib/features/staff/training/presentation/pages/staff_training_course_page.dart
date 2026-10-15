@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../hr/training/presentation/widgets/training_course_widgets.dart';
 import '../../../extras/presentation/pages/staff_training_quiz_page.dart';
 import '../../domain/entities/staff_training.dart';
 import '../controllers/staff_training_course_controller.dart';
@@ -57,15 +57,7 @@ class _StaffTrainingCoursePageState extends State<StaffTrainingCoursePage> {
     super.dispose();
   }
 
-  Future<void> _copyMaterialUrl(String url) async {
-    await Clipboard.setData(ClipboardData(text: url));
-    Get.snackbar(
-      'Link copied',
-      url,
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 2),
-    );
-  }
+  Future<void> _openMaterial(String url) => openTrainingMaterial(url);
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +216,7 @@ class _StaffTrainingCoursePageState extends State<StaffTrainingCoursePage> {
                         onCopyMaterial: course.materialUrl == null ||
                                 course.materialUrl!.trim().isEmpty
                             ? null
-                            : () => _copyMaterialUrl(course.materialUrl!),
+                            : () => _openMaterial(course.materialUrl!),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -341,7 +333,11 @@ class _TabBody extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (tab) {
       case 1:
-        return _ContentTab(course: course, onCopyMaterial: onCopyMaterial);
+        return _ContentTab(
+          course: course,
+          onCopyMaterial: onCopyMaterial,
+          onOpenQuiz: onOpenQuiz,
+        );
       case 2:
         return _QuizTab(course: course, onOpenQuiz: onOpenQuiz);
       case 3:
@@ -438,8 +434,13 @@ class _OverviewTab extends StatelessWidget {
 class _ContentTab extends StatelessWidget {
   final StaffTrainingCourse course;
   final VoidCallback? onCopyMaterial;
+  final VoidCallback onOpenQuiz;
 
-  const _ContentTab({required this.course, required this.onCopyMaterial});
+  const _ContentTab({
+    required this.course,
+    required this.onCopyMaterial,
+    required this.onOpenQuiz,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -484,10 +485,39 @@ class _ContentTab extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primaryNavy,
               ),
-              icon: const Icon(Icons.link_rounded, size: 18),
-              label: const Text('Copy material link'),
+              icon: const Icon(Icons.download_rounded, size: 18),
+              label: const Text('Download'),
             ),
           ],
+          const SizedBox(height: 16),
+          const Text(
+            'Ready to take the examination?',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Test your understanding of this material to complete the course and earn your certificate.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12.5,
+              color: AppColors.textMuted,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: onOpenQuiz,
+              style: FilledButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              child: const Text('Take Quiz Now'),
+            ),
+          ),
         ],
       ),
     );
