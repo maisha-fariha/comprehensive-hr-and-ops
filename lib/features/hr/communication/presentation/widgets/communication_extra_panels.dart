@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
-import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
-import '../../../../../core/roles/user_session.dart';
 import '../../domain/repositories/communication_repository.dart';
 
 class AnnouncementsPanel extends StatefulWidget {
@@ -19,24 +17,8 @@ class AnnouncementsPanel extends StatefulWidget {
 class _AnnouncementsPanelState extends State<AnnouncementsPanel> {
   bool _loading = true;
   String? _error;
-  String _view = 'feed';
   int _unread = 0;
   List<HrAnnouncement> _items = const [];
-
-  bool get _canSend {
-    if (!Get.isRegistered<UserSession>()) return false;
-    final session = Get.find<UserSession>();
-    if (!session.canWriteMessaging) return false;
-    final raw = (session.roleRaw ?? '')
-        .toLowerCase()
-        .replaceAll('-', '_')
-        .split(RegExp(r'[^a-z_]+'))
-        .where((part) => part.isNotEmpty);
-    return raw.any(
-      (role) =>
-          role == 'tenant_admin' || role == 'manager' || role == 'residence_manager',
-    );
-  }
 
   @override
   void initState() {
@@ -49,7 +31,7 @@ class _AnnouncementsPanelState extends State<AnnouncementsPanel> {
       _loading = true;
       _error = null;
     });
-    final result = await widget.repository.getAnnouncements(view: _view);
+    final result = await widget.repository.getAnnouncements();
     if (!mounted) return;
     result.when(
       success: (feed) => setState(() {
@@ -62,12 +44,6 @@ class _AnnouncementsPanelState extends State<AnnouncementsPanel> {
         _loading = false;
       }),
     );
-  }
-
-  void _selectView(String view) {
-    if (_view == view) return;
-    setState(() => _view = view);
-    _load();
   }
 
   Future<void> _markRead(HrAnnouncement item) async {
@@ -84,30 +60,15 @@ class _AnnouncementsPanelState extends State<AnnouncementsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final forMe = _view == 'feed'
-        ? (_unread > 0 ? 'For me ($_unread unread)' : 'For me')
-        : 'For me';
+    final forMe = _unread > 0 ? 'For me ($_unread unread)' : 'For me';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _ViewChip(
-                label: forMe,
-                selected: _view == 'feed',
-                onTap: () => _selectView('feed'),
-              ),
-              if (_canSend)
-                _ViewChip(
-                  label: 'Sent by me',
-                  selected: _view == 'sent',
-                  onTap: () => _selectView('sent'),
-                ),
-            ],
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _ViewChip(label: forMe, selected: true, onTap: () {}),
           ),
         ),
         Expanded(child: _body()),
@@ -122,7 +83,7 @@ class _AnnouncementsPanelState extends State<AnnouncementsPanel> {
     }
     if (_items.isEmpty) {
       return _MessageState(
-        title: _view == 'sent' ? 'You have not sent an announcement' : 'No announcements',
+        title: 'No announcements',
         message: 'Announcements from management appear here.',
       );
     }
