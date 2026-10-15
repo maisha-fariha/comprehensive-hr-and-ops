@@ -126,7 +126,9 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
               ),
               Expanded(
                 child: Text(
-                  'Daily Logs',
+                  'Daily Logs & Operations',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: handoverText(context, 18, weight: FontWeight.w700),
                 ),
               ),
@@ -175,38 +177,37 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
     final tab = _c.tab.value;
     final hasResidence = _c.hasResidence;
     return [
+      DailyLogsTabs(controller: _c, row: DailyLogsTabRow.section),
+      const SizedBox(height: 15),
       DailyLogsFilters(controller: _c),
       const SizedBox(height: 15),
-      if (hasResidence && tab != DailyLogsTab.day) ...[
+      if (tab != DailyLogsTab.day) ...[
         DailyLogsKpis(controller: _c),
         const SizedBox(height: 15),
+        DailyLogsTabs(controller: _c),
+        const SizedBox(height: 15),
       ],
-      DailyLogsTabs(controller: _c),
-      const SizedBox(height: 15),
-      if (!hasResidence)
-        const DailyLogEmptyCard(
-          title: 'Choose a residence to begin',
-          description: 'Daily logs are read one residence at a time.',
-        )
-      else ...[
+      ...[
         ..._main(context, tab),
-        const SizedBox(height: 15),
-        ShiftDocumentationPanel(
-          rows: _c.shiftLogs.toList(),
-          loading: _c.shiftLogsLoading.value,
-          canWrite: _c.canWrite,
-          canReview: _c.canReview,
-          busyId: _c.busyShiftId.value,
-          onUpdate: _c.updateShiftLog,
-        ),
-        const SizedBox(height: 15),
-        PriorityNotesPanel(
-          flags: _c.flags.toList(),
-          loading: _c.flagsLoading.value,
-          error: _c.flagsError.value,
-          canResolve: _c.canResolveFlags,
-          onResolve: (f) => showResolveFlagSheet(context, controller: _c, flag: f),
-        ),
+        if (hasResidence) ...[
+          const SizedBox(height: 15),
+          ShiftDocumentationPanel(
+            rows: _c.shiftLogs.toList(),
+            loading: _c.shiftLogsLoading.value,
+            canWrite: _c.canWrite,
+            canReview: _c.canReview,
+            busyId: _c.busyShiftId.value,
+            onUpdate: _c.updateShiftLog,
+          ),
+          const SizedBox(height: 15),
+          PriorityNotesPanel(
+            flags: _c.flags.toList(),
+            loading: _c.flagsLoading.value,
+            error: _c.flagsError.value,
+            canResolve: _c.canResolveFlags,
+            onResolve: (f) => showResolveFlagSheet(context, controller: _c, flag: f),
+          ),
+        ],
       ],
     ];
   }
@@ -236,7 +237,12 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
             rows: rows,
             loading: _c.reviewLoading.value,
             error: _c.reviewError.value,
-            onOpen: (r) => _c.openDay(r.clientId, r.logDate, name: r.clientName),
+            onOpen: (r) => _c.openDay(
+              r.clientId,
+              r.logDate,
+              name: r.clientName,
+              residence: r.residenceId,
+            ),
           ),
           if (rows.isNotEmpty) _pagination(),
         ];
@@ -247,7 +253,12 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
             rows: rows,
             loading: _c.missingLoading.value,
             error: _c.missingError.value,
-            onWrite: (r) => _c.openDay(r.clientId, r.logDate, name: r.clientName),
+            onWrite: (r) => _c.openDay(
+              r.clientId,
+              r.logDate,
+              name: r.clientName,
+              residence: r.residenceId,
+            ),
           ),
           if (rows.isNotEmpty) _pagination(),
         ];

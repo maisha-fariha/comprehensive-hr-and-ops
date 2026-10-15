@@ -22,12 +22,15 @@ class DailyLogsController extends GetxController {
   static String dayKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  final Rx<DailyLogsTab> tab = DailyLogsTab.review.obs;
+  /// Web opens on Operational Logbook, across every residence.
+  final Rx<DailyLogsTab> tab = DailyLogsTab.activity.obs;
 
   final RxList<DailyLogOption> residences = <DailyLogOption>[].obs;
   final RxList<DailyLogOption> clients = <DailyLogOption>[].obs;
+  final RxList<DailyLogOption> staff = <DailyLogOption>[].obs;
   final RxString residenceId = ''.obs;
   final RxString clientId = ''.obs;
+  final RxString staffId = ''.obs;
   final RxString from = dayKey(DateTime.now().subtract(const Duration(days: 6))).obs;
   final RxString to = dayKey(DateTime.now()).obs;
   final RxString logDate = dayKey(DateTime.now()).obs;
@@ -76,6 +79,7 @@ class DailyLogsController extends GetxController {
       tab.value == DailyLogsTab.day && clientId.value.isNotEmpty && hasResidence && canWrite;
 
   String get residenceName => _labelOf(residences, residenceId.value);
+  String get staffName => _labelOf(staff, staffId.value);
   /// Falls back to the name from the queue row that opened the day, since
   /// residents outside the user's client scope aren't in [clients].
   String get clientName {
@@ -86,6 +90,9 @@ class DailyLogsController extends GetxController {
   }
 
   (String, String)? _openedClient;
+
+  /// Residence of the day being viewed when the filter is "All residences".
+  String? _openedResidence;
 
   static String _labelOf(List<DailyLogOption> options, String id) =>
       options.firstWhereOrNull((o) => o.id == id)?.label ?? '';
@@ -104,19 +111,33 @@ class DailyLogsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    repository.residences().then((r) => r.when(success: residences.assignAll, failure: (_) {}));
-    loadFlags();
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    final homes = await repository.residences();
+    homes.when(success: residences.assignAll, failure: (_) {});
+    await Future.wait([
+      _loadClients(),
+      _loadStaff(),
+      loadFlags(),
+      loadQueues(),
+      loadActivity(),
+    ]);
+  }
+
+  Future<void> _loadStaff() async {
+    final result = await repository.staff();
+    result.when(success: staff.assignAll, failure: (_) => staff.clear());
   }
 
   Future<void> refreshAll() async {
     await Future.wait([
       loadFlags(),
-      if (hasResidence) ...[
-        loadQueues(),
-        loadShiftLogs(),
-        if (tab.value == DailyLogsTab.activity) loadActivity(),
-        if (tab.value == DailyLogsTab.day) loadDay(),
-      ],
+      loadQueues(),
+      if (tab.value == DailyLogsTab.activity) loadActivity(),
+      if (hasResidence) loadShiftLogs(),
+      if (tab.value == DailyLogsTab.day) loadDay(),
     ]);
   }
 
@@ -128,9 +149,11 @@ class DailyLogsController extends GetxController {
   }
 
   /// Changing the residence clears the resident, as the web does.
+  /// Empty [id] is "All residences".
   void setResidence(String id) {
     residenceId.value = id;
     clientId.value = '';
+    _openedResidence = null;
     clients.clear();
     page.value = 1;
     _loadClients();
@@ -139,9 +162,17 @@ class DailyLogsController extends GetxController {
 
   void setClient(String id) {
     clientId.value = id;
+    if (id.isEmpty) _openedResidence = null;
     page.value = 1;
     loadQueues();
     loadDay();
+  }
+
+  /// Empty [id] is "All staff". Only the operational logbook sends it.
+  void setStaff(String id) {
+    staffId.value = id;
+    page.value = 1;
+    loadActivity();
   }
 
   /// A `from` after `to` (or the reverse) collapses both to [value].
@@ -168,8 +199,9 @@ class DailyLogsController extends GetxController {
   }
 
   /// "Open day" / "Write entry": the resident and date, on the day tab.
-  void openDay(String client, String date, {String? name}) {
+  void openDay(String client, String date, {String? name, String? residence}) {
     if (name != null && name.isNotEmpty) _openedClient = (client, name);
+    if (residence != null && residence.isNotEmpty) _openedResidence = residence;
     clientId.value = client;
     logDate.value = date.length >= 10 ? date.substring(0, 10) : date;
     tab.value = DailyLogsTab.day;
@@ -190,67 +222,165 @@ class DailyLogsController extends GetxController {
 
   Future<void> _loadClients() async {
     final serial = ++_clientSerial;
-    final result = await repository.clients(residenceId.value);
+    final scope = residenceId.value.isEmpty ? null : residenceId.value;
+    final result = await repository.clients(scope);
     if (serial != _clientSerial) return;
     result.when(success: clients.assignAll, failure: (_) => clients.clear());
   }
 
+  String? get _dayResidence {
+    if (hasResidence) return residenceId.value;
+    final opened = _openedResidence;
+    if (opened != null && opened.isNotEmpty) return opened;
+    return clients.firstWhereOrNull((c) => c.id == clientId.value)?.residenceId;
+  }
+
   String? get _client => clientId.value.isEmpty ? null : clientId.value;
 
+  /// One residence uses the server page. "All residences" asks each home
+  /// (the web does the same) and pages the merged list here.
   Future<void> loadQueues() async {
-    if (!hasResidence) return;
+    final ids = hasResidence
+        ? [residenceId.value]
+        : [for (final home in residences) home.id];
     final serial = ++_queueSerial;
+    if (ids.isEmpty) {
+      review.value = const DailyLogPage(items: [], total: 0, totalPages: 0);
+      missing.value = const DailyLogPage(items: [], total: 0, totalPages: 0);
+      reviewError.value = null;
+      missingError.value = null;
+      return;
+    }
     reviewLoading.value = true;
     missingLoading.value = true;
-    final results = await Future.wait([
-      repository.reviewQueue(
-        residenceId: residenceId.value,
-        clientId: _client,
-        from: from.value,
-        to: to.value,
-        page: page.value,
-        limit: limit.value,
-      ),
-      repository.missing(
-        residenceId: residenceId.value,
-        clientId: _client,
-        from: from.value,
-        to: to.value,
-        page: page.value,
-        limit: limit.value,
-      ),
+    final wide = ids.length > 1;
+    final pageNo = wide ? 1 : page.value;
+    final pageSize = wide ? 100 : limit.value;
+    final reviewPages = await Future.wait([
+      for (final id in ids)
+        repository.reviewQueue(
+          residenceId: id,
+          clientId: _client,
+          from: from.value,
+          to: to.value,
+          page: pageNo,
+          limit: pageSize,
+        ),
+    ]);
+    final missingPages = await Future.wait([
+      for (final id in ids)
+        repository.missing(
+          residenceId: id,
+          clientId: _client,
+          from: from.value,
+          to: to.value,
+          page: pageNo,
+          limit: pageSize,
+        ),
     ]);
     if (serial != _queueSerial) return;
-    (results[0] as Result<DailyLogPage<DailyLogReviewRow>>).when(
-      success: (data) {
-        review.value = data;
-        reviewError.value = null;
-      },
-      failure: (error) {
-        review.value = null;
-        reviewError.value = error.message;
-      },
-    );
-    (results[1] as Result<DailyLogPage<DailyLogMissingRow>>).when(
-      success: (data) {
-        missing.value = data;
-        missingError.value = null;
-      },
-      failure: (error) {
-        missing.value = null;
-        missingError.value = error.message;
-      },
-    );
+    _applyReview(ids, reviewPages, wide);
+    _applyMissing(ids, missingPages, wide);
     reviewLoading.value = false;
     missingLoading.value = false;
   }
 
+  void _applyReview(
+    List<String> ids,
+    List<Result<DailyLogPage<DailyLogReviewRow>>> pages,
+    bool wide,
+  ) {
+    final items = <DailyLogReviewRow>[];
+    String? error;
+    var ok = false;
+    for (var i = 0; i < pages.length; i++) {
+      pages[i].when(
+        success: (data) {
+          ok = true;
+          items.addAll([for (final row in data.items) row.atResidence(ids[i])]);
+        },
+        failure: (failure) => error = failure.message,
+      );
+    }
+    if (!ok) {
+      review.value = null;
+      reviewError.value = error;
+      return;
+    }
+    if (!wide) {
+      final first = pages.first;
+      first.when(
+        success: (data) {
+          review.value = DailyLogPage(
+            items: [for (final row in data.items) row.atResidence(ids.first)],
+            total: data.total,
+            totalPages: data.totalPages,
+          );
+          reviewError.value = null;
+        },
+        failure: (_) {},
+      );
+      return;
+    }
+    items.sort((a, b) => b.logDate.compareTo(a.logDate));
+    review.value = _slice(items);
+    reviewError.value = null;
+  }
+
+  void _applyMissing(
+    List<String> ids,
+    List<Result<DailyLogPage<DailyLogMissingRow>>> pages,
+    bool wide,
+  ) {
+    final items = <DailyLogMissingRow>[];
+    String? error;
+    var ok = false;
+    for (var i = 0; i < pages.length; i++) {
+      pages[i].when(
+        success: (data) {
+          ok = true;
+          items.addAll([for (final row in data.items) row.atResidence(ids[i])]);
+        },
+        failure: (failure) => error = failure.message,
+      );
+    }
+    if (!ok) {
+      missing.value = null;
+      missingError.value = error;
+      return;
+    }
+    if (!wide) {
+      pages.first.when(
+        success: (data) {
+          missing.value = DailyLogPage(
+            items: [for (final row in data.items) row.atResidence(ids.first)],
+            total: data.total,
+            totalPages: data.totalPages,
+          );
+          missingError.value = null;
+        },
+        failure: (_) {},
+      );
+      return;
+    }
+    items.sort((a, b) => b.logDate.compareTo(a.logDate));
+    missing.value = _slice(items);
+    missingError.value = null;
+  }
+
+  DailyLogPage<T> _slice<T>(List<T> items) {
+    final start = (page.value - 1) * limit.value;
+    final slice = start >= items.length ? <T>[] : items.skip(start).take(limit.value).toList();
+    final pages = items.isEmpty ? 0 : (items.length / limit.value).ceil();
+    return DailyLogPage(items: slice, total: items.length, totalPages: pages);
+  }
+
   Future<void> loadActivity() async {
-    if (!hasResidence) return;
     final serial = ++_activitySerial;
     activityLoading.value = true;
     final result = await repository.activity(
-      residenceId: residenceId.value,
+      residenceId: hasResidence ? residenceId.value : null,
+      staffId: staffId.value.isEmpty ? null : staffId.value,
       from: from.value,
       to: to.value,
       page: page.value,
@@ -262,7 +392,8 @@ class DailyLogsController extends GetxController {
   }
 
   Future<void> loadDay() async {
-    if (!hasResidence || clientId.value.isEmpty) {
+    final residence = _dayResidence;
+    if (residence == null || residence.isEmpty || clientId.value.isEmpty) {
       day.value = null;
       return;
     }
@@ -270,7 +401,7 @@ class DailyLogsController extends GetxController {
     dayLoading.value = true;
     final result = await repository.day(
       clientId: clientId.value,
-      residenceId: residenceId.value,
+      residenceId: residence,
       logDate: logDate.value,
     );
     if (serial != _daySerial) return;
@@ -288,11 +419,15 @@ class DailyLogsController extends GetxController {
   }
 
   Future<void> loadShiftLogs() async {
-    if (!hasResidence) return;
+    final residence = _dayResidence;
+    if (residence == null || residence.isEmpty) {
+      shiftLogs.clear();
+      return;
+    }
     final serial = ++_shiftSerial;
     shiftLogsLoading.value = true;
     final result = await repository.shiftLogs(
-      residenceId: residenceId.value,
+      residenceId: residence,
       logDate: logDate.value,
     );
     if (serial != _shiftSerial) return;

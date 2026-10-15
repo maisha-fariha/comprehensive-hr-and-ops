@@ -21,7 +21,6 @@ class DailyLogsFilters extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller;
     return Obx(() {
-      final hasResidence = c.hasResidence;
       final dayMode = c.tab.value == DailyLogsTab.day;
       return HandoverPanel(
         child: Column(
@@ -30,38 +29,63 @@ class DailyLogsFilters extends StatelessWidget {
             DailyLogSelect(
               key: const ValueKey('dl-residence'),
               label: 'Residence',
-              required: true,
               value: c.residenceName,
-              placeholder: 'Choose a residence',
+              placeholder: 'All residences',
               onTap: () async {
                 final picked = await pickDailyLogOption(
                   context,
                   'Residence',
-                  [for (final r in c.residences) (r.id, r.label)],
+                  [
+                    ('', 'All residences'),
+                    for (final r in c.residences) (r.id, r.label),
+                  ],
                   c.residenceId.value,
                 );
                 if (picked != null && picked != c.residenceId.value) c.setResidence(picked);
               },
+              onClear: c.residenceId.value.isEmpty ? null : () => c.setResidence(''),
             ),
             const SizedBox(height: 12),
-            DailyLogSelect(
-              key: const ValueKey('dl-resident'),
-              label: 'Resident',
-              value: c.clientName,
-              placeholder: hasResidence ? 'Choose a resident' : 'Choose a residence first',
-              onTap: hasResidence
-                  ? () async {
-                      final picked = await pickDailyLogOption(
-                        context,
-                        'Resident',
-                        [for (final r in c.clients) (r.id, r.label)],
-                        c.clientId.value,
-                      );
-                      if (picked != null && picked != c.clientId.value) c.setClient(picked);
-                    }
-                  : null,
-              onClear: () => c.setClient(''),
-            ),
+            if (c.tab.value == DailyLogsTab.activity)
+              DailyLogSelect(
+                key: const ValueKey('dl-staff'),
+                label: 'Staff member',
+                value: c.staffName,
+                placeholder: 'All staff',
+                onTap: () async {
+                  final picked = await pickDailyLogOption(
+                    context,
+                    'Staff member',
+                    [
+                      ('', 'All staff'),
+                      for (final person in c.staff) (person.id, person.label),
+                    ],
+                    c.staffId.value,
+                  );
+                  if (picked != null && picked != c.staffId.value) c.setStaff(picked);
+                },
+                onClear: c.staffId.value.isEmpty ? null : () => c.setStaff(''),
+              )
+            else
+              DailyLogSelect(
+                key: const ValueKey('dl-resident'),
+                label: 'Resident',
+                value: c.clientName,
+                placeholder: 'All residents',
+                onTap: () async {
+                  final picked = await pickDailyLogOption(
+                    context,
+                    'Resident',
+                    [
+                      ('', 'All residents'),
+                      for (final r in c.clients) (r.id, r.label),
+                    ],
+                    c.clientId.value,
+                  );
+                  if (picked != null && picked != c.clientId.value) c.setClient(picked);
+                },
+                onClear: c.clientId.value.isEmpty ? null : () => c.setClient(''),
+              ),
             const SizedBox(height: 12),
             if (dayMode)
               CheckPickerField(
@@ -126,7 +150,7 @@ class DailyLogsKpis extends StatelessWidget {
           icon: Icons.description_outlined,
           color: AppColors.secondaryTeal,
           value: c.entriesLogged,
-          label: 'Entries Logged',
+          label: 'Entries To Sign Off',
           caption: DailyLogLabels.window(c.from.value, c.to.value),
         ),
         _Kpi(
@@ -134,16 +158,16 @@ class DailyLogsKpis extends StatelessWidget {
           icon: Icons.find_in_page_outlined,
           color: AppColors.infoBlue,
           value: c.review.value?.total ?? 0,
-          label: 'Days To Review',
-          caption: 'Resident-days with entries on them',
+          label: 'Awaiting Sign-off',
+          caption: 'Finished shifts not yet signed off',
         ),
         _Kpi(
           key: const ValueKey('dl-kpi-missing'),
           icon: Icons.insert_drive_file_outlined,
           color: AppColors.urgentAmber,
           value: c.missing.value?.total ?? 0,
-          label: 'Missing Logs',
-          caption: 'Resident-days with nothing written',
+          label: 'Days With Gaps',
+          caption: 'A dose, a check or a note owed',
         ),
         _Kpi(
           key: const ValueKey('dl-kpi-flags'),
@@ -221,46 +245,133 @@ class _Kpi extends StatelessWidget {
   }
 }
 
+/// Which tab row to draw. The web puts Daily Log / Resident Activity above
+/// the filters, and Operational Logbook / Missing Logs / Shift Sign-Off
+/// under the cards.
+enum DailyLogsTabRow { section, queue }
+
 class DailyLogsTabs extends StatelessWidget {
   final DailyLogsController controller;
+  final DailyLogsTabRow row;
 
-  const DailyLogsTabs({super.key, required this.controller});
+  const DailyLogsTabs({
+    super.key,
+    required this.controller,
+    this.row = DailyLogsTabRow.queue,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Obx(
-      () => HandoverPanel(
-        padding: const EdgeInsets.all(8),
-        child: Wrap(
-          spacing: 4,
-          runSpacing: 4,
-          children: [
-            for (final t in DailyLogsTab.values)
-              InkWell(
-                key: ValueKey('dl-tab-${t.name}'),
-                onTap: () => controller.setTab(t),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: t == controller.tab.value
-                        ? AppColors.filterButtonBackground
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    DailyLogLabels.tabs[t.index],
-                    style: handoverText(
-                      context,
-                      13,
-                      weight: t == controller.tab.value ? FontWeight.w600 : FontWeight.w400,
-                      color: t == controller.tab.value
-                          ? AppColors.primaryNavy
-                          : AppColors.textMuted,
-                    ),
-                  ),
+      () {
+        final tab = controller.tab.value;
+        final onDay = tab == DailyLogsTab.day;
+        if (row == DailyLogsTabRow.section) {
+          return HandoverPanel(
+            padding: const EdgeInsets.all(8),
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                _TabChip(
+                  tabKey: 'section-log',
+                  label: 'Daily Log',
+                  selected: !onDay,
+                  onTap: () {
+                    if (onDay) controller.setTab(DailyLogsTab.activity);
+                  },
                 ),
+                _TabChip(
+                  tabKey: 'day',
+                  label: 'Resident Activity',
+                  selected: onDay,
+                  onTap: () => controller.setTab(DailyLogsTab.day),
+                ),
+              ],
+            ),
+          );
+        }
+        if (onDay) return const SizedBox.shrink();
+        return HandoverPanel(
+          padding: const EdgeInsets.all(8),
+          child: Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              _TabChip(
+                tabKey: 'activity',
+                label: 'Operational Logbook',
+                selected: tab == DailyLogsTab.activity,
+                onTap: () => controller.setTab(DailyLogsTab.activity),
               ),
+              _TabChip(
+                tabKey: 'missing',
+                label: 'Missing Logs',
+                count: controller.missing.value?.total ?? 0,
+                selected: tab == DailyLogsTab.missing,
+                onTap: () => controller.setTab(DailyLogsTab.missing),
+              ),
+              _TabChip(
+                tabKey: 'review',
+                label: 'Shift Sign-Off',
+                count: controller.review.value?.total ?? 0,
+                selected: tab == DailyLogsTab.review,
+                onTap: () => controller.setTab(DailyLogsTab.review),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TabChip extends StatelessWidget {
+  final String tabKey;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final int count;
+
+  const _TabChip({
+    required this.tabKey,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.count = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      key: ValueKey('dl-tab-$tabKey'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.filterButtonBackground : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: handoverText(
+                context,
+                13,
+                weight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: selected ? AppColors.primaryNavy : AppColors.textMuted,
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Text(
+                '$count',
+                style: handoverText(context, 11, weight: FontWeight.w700, color: AppColors.urgentAmber),
+              ),
+            ],
           ],
         ),
       ),

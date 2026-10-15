@@ -1,8 +1,9 @@
 class DailyLogOption {
   final String id;
   final String label;
+  final String? residenceId;
 
-  const DailyLogOption({required this.id, required this.label});
+  const DailyLogOption({required this.id, required this.label, this.residenceId});
 }
 
 class DailyLogPage<T> {
@@ -22,6 +23,7 @@ class DailyLogReviewRow {
   final int entriesCount;
   final String? shiftLabel;
   final String? summary;
+  final String? residenceId;
 
   const DailyLogReviewRow({
     required this.id,
@@ -31,7 +33,19 @@ class DailyLogReviewRow {
     required this.entriesCount,
     this.shiftLabel,
     this.summary,
+    this.residenceId,
   });
+
+  DailyLogReviewRow atResidence(String residenceId) => DailyLogReviewRow(
+        id: id,
+        clientId: clientId,
+        clientName: clientName,
+        logDate: logDate,
+        entriesCount: entriesCount,
+        shiftLabel: shiftLabel,
+        summary: summary,
+        residenceId: residenceId,
+      );
 }
 
 /// One gap on a missing resident-day (`gaps[]` from `/daily-logs?status=missing`).
@@ -48,13 +62,23 @@ class DailyLogMissingRow {
   final String clientName;
   final String logDate;
   final List<DailyLogGap> gaps;
+  final String? residenceId;
 
   const DailyLogMissingRow({
     required this.clientId,
     required this.clientName,
     required this.logDate,
     this.gaps = const [],
+    this.residenceId,
   });
+
+  DailyLogMissingRow atResidence(String residenceId) => DailyLogMissingRow(
+        clientId: clientId,
+        clientName: clientName,
+        logDate: logDate,
+        gaps: gaps,
+        residenceId: residenceId,
+      );
 }
 
 class DailyLogEntryFlag {

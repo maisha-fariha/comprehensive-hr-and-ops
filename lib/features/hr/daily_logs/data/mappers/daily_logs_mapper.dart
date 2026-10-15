@@ -34,6 +34,17 @@ abstract final class DailyLogsMapper {
   static List<DailyLogOption> clientsFrom(dynamic body) => [
         for (final row in JsonCodec.unwrapList(body).whereType<Map>())
           if (JsonCodec.string(row['id']) case final id?)
+            DailyLogOption(
+              id: id,
+              label: _personName(row),
+              residenceId: JsonCodec.string(row['residenceId']) ??
+                  JsonCodec.string(JsonCodec.mapAt(JsonCodec.asMap(row), 'residence')?['id']),
+            ),
+      ];
+
+  static List<DailyLogOption> staffFrom(dynamic body) => [
+        for (final row in JsonCodec.unwrapList(body).whereType<Map>())
+          if (JsonCodec.string(row['id']) case final id?)
             DailyLogOption(id: id, label: _personName(row)),
       ];
 

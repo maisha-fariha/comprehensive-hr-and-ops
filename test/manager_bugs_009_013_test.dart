@@ -802,6 +802,11 @@ class _FakeDailyLogsRepo implements DailyLogsRepository {
       ]);
 
   @override
+  Future<Result<List<DailyLogOption>>> staff() async => Result.success(const [
+        DailyLogOption(id: 's1', label: 'Jamal Uddin'),
+      ]);
+
+  @override
   Future<Result<List<DailyLogOption>>> clients(String? residenceId) async {
     clientQueries.add(residenceId);
     return Result.success(clientRows);
@@ -912,15 +917,21 @@ class _FakeDailyLogsRepo implements DailyLogsRepository {
 
   @override
   Future<Result<DailyLogPage<ResidenceActivityRow>>> activity({
-    required String residenceId,
+    String? residenceId,
+    String? staffId,
     required String from,
     required String to,
     required int page,
     required int limit,
   }) async {
-    activityQueries.add(
-      {'residenceId': residenceId, 'from': from, 'to': to, 'page': page, 'limit': limit},
-    );
+    activityQueries.add({
+      'residenceId': residenceId,
+      'staffId': staffId,
+      'from': from,
+      'to': to,
+      'page': page,
+      'limit': limit,
+    });
     return Result.success(DailyLogPage(
       items: activityRows,
       total: activityRows.length,
@@ -1973,24 +1984,54 @@ void main() {
       expect(NewLogEntrySheet.defaultOccurredAt('2026-08-27', now: clock), DateTime(2026, 8, 27, 12));
     });
 
-    testWidgets('starts on "Choose a residence to begin" with Residence*, Resident and '
-        'From / To defaulting to the last seven days', (tester) async {
+    testWidgets('starts on the operational logbook for all residences, with All staff '
+        'and From / To defaulting to the last seven days', (tester) async {
       final (repo, _) = await _openLogs(tester);
 
-      expect(find.text('Daily Logs'), findsOneWidget);
-      expect(_label('Residence *'), findsOneWidget);
-      expect(find.text('Choose a residence'), findsOneWidget);
-      expect(find.text('Choose a residence first'), findsOneWidget);
+      expect(find.text('Daily Logs & Operations'), findsOneWidget);
+      expect(find.text('All residences'), findsOneWidget);
+      expect(find.text('All staff'), findsOneWidget);
+      expect(find.text('Residence *'), findsNothing);
       expect(inKey('dl-from', find.text(shown(weekAgo))), findsOneWidget);
       expect(inKey('dl-to', find.text(shown(today))), findsOneWidget);
-      for (final tab in ['To review', 'Missing', 'Resident day view', 'House activity']) {
+      for (final tab in [
+        'Daily Log',
+        'Resident Activity',
+        'Operational Logbook',
+        'Missing Logs',
+        'Shift Sign-Off',
+      ]) {
         expect(find.text(tab), findsOneWidget);
       }
-      expect(find.text('Choose a residence to begin'), findsOneWidget);
-      expect(find.text('Daily logs are read one residence at a time.'), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-kpi-entries')), findsNothing);
+      expect(find.text('Choose a residence to begin'), findsNothing);
+      expect(find.byKey(const ValueKey('dl-kpi-entries')), findsOneWidget);
       expect(find.byKey(const ValueKey('dl-shift-docs')), findsNothing);
-      expect(repo.queueQueries, isEmpty);
+      expect(repo.clientQueries, [null]);
+      expect(repo.activityQueries, [
+        {
+          'residenceId': null,
+          'staffId': null,
+          'from': weekAgo,
+          'to': today,
+          'page': 1,
+          'limit': 20,
+        },
+      ]);
+      Map<String, Object?> wide(String status, String residence) => {
+            'status': status,
+            'residenceId': residence,
+            'clientId': null,
+            'from': weekAgo,
+            'to': today,
+            'page': 1,
+            'limit': 100,
+          };
+      expect(repo.queueQueries, [
+        wide('review', 'elm'),
+        wide('review', 'oak'),
+        wide('missing', 'elm'),
+        wide('missing', 'oak'),
+      ]);
       expect(repo.flagQueries, [null]);
 
       await tester.tap(find.byKey(const ValueKey('dl-from')));
@@ -2005,17 +2046,26 @@ void main() {
       final (repo, _) = await _openLogs(tester);
       await _pickResidence(tester);
 
-      Map<String, Object?> q(String status, {String r = 'elm', String? c}) => {
+      Map<String, Object?> q(
+        String status, {
+        String r = 'elm',
+        String? c,
+        int limit = 20,
+      }) =>
+          {
             'status': status,
             'residenceId': r,
             'clientId': c,
             'from': weekAgo,
             'to': today,
             'page': 1,
-            'limit': 20,
+            'limit': limit,
           };
-      expect(repo.queueQueries, [q('review'), q('missing')]);
-      expect(repo.clientQueries, ['elm']);
+      expect(repo.queueQueries.sublist(repo.queueQueries.length - 2), [
+        q('review'),
+        q('missing'),
+      ]);
+      expect(repo.clientQueries, [null, 'elm']);
       expect(repo.shiftQueries, [
         {'residenceId': 'elm', 'logDate': today},
       ]);
@@ -2028,27 +2078,34 @@ void main() {
       }
 
       expect(inKey('dl-kpi-entries', find.text('5')), findsOneWidget);
-      expect(inKey('dl-kpi-entries', find.text('ENTRIES LOGGED')), findsOneWidget);
+      expect(inKey('dl-kpi-entries', find.text('ENTRIES TO SIGN OFF')), findsOneWidget);
       expect(inKey('dl-kpi-entries', find.text('${md(weekAgo)} – ${md(today)}')), findsOneWidget);
       expect(inKey('dl-kpi-review', find.text('7')), findsOneWidget);
-      expect(inKey('dl-kpi-review', find.text('Resident-days with entries on them')), findsOneWidget);
+      expect(inKey('dl-kpi-review', find.text('Finished shifts not yet signed off')), findsOneWidget);
       expect(inKey('dl-kpi-missing', find.text('4')), findsOneWidget);
-      expect(inKey('dl-kpi-missing', find.text('Resident-days with nothing written')), findsOneWidget);
+      expect(inKey('dl-kpi-missing', find.text('A dose, a check or a note owed')), findsOneWidget);
       expect(inKey('dl-kpi-flags', find.text('2')), findsOneWidget);
       expect(inKey('dl-kpi-flags', find.text('Raised and not yet resolved')), findsOneWidget);
 
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       expect(inKey('dl-review-c1-2026-08-27', find.text('Ayaan Karim')), findsOneWidget);
       expect(inKey('dl-review-c1-2026-08-27', find.text('2026-08-27')), findsOneWidget);
       expect(inKey('dl-review-c1-2026-08-27', find.text('2')), findsOneWidget);
       expect(find.text('Open day'), findsNWidgets(2));
 
       await _choose(tester, find.byKey(const ValueKey('dl-resident')), 'Nadia Islam');
-      expect(repo.queueQueries.sublist(2), [q('review', c: 'c2'), q('missing', c: 'c2')]);
+      expect(repo.queueQueries.sublist(repo.queueQueries.length - 2), [
+        q('review', c: 'c2'),
+        q('missing', c: 'c2'),
+      ]);
 
       await _pickResidence(tester, 'Oak Lodge');
-      expect(find.text('Choose a resident'), findsOneWidget);
-      expect(repo.queueQueries.sublist(4), [q('review', r: 'oak'), q('missing', r: 'oak')]);
-      expect(repo.clientQueries, ['elm', 'oak']);
+      expect(find.text('All residents'), findsOneWidget);
+      expect(repo.queueQueries.sublist(repo.queueQueries.length - 2), [
+        q('review', r: 'oak'),
+        q('missing', r: 'oak'),
+      ]);
+      expect(repo.clientQueries, [null, 'elm', 'oak']);
     });
 
     testWidgets('From after To (or To before From) collapses both, as the web does', (tester) async {
@@ -2079,6 +2136,7 @@ void main() {
       expect(find.text('A day view is one resident on one date.'), findsOneWidget);
       expect(find.byKey(const ValueKey('dl-add-entry')), findsNothing);
 
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-section-log')));
       await _tap(tester, find.byKey(const ValueKey('dl-tab-missing')));
       expect(find.text('DAY WITH NO LOG'), findsOneWidget);
       expect(inKey('dl-missing-c2-2026-08-28', find.text('2026-08-28')), findsOneWidget);
@@ -2111,6 +2169,7 @@ void main() {
       final repo = _FakeDailyLogsRepo()..clientRows = const [];
       await _openLogs(tester, repo: repo);
       await _pickResidence(tester);
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
 
       await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
       expect(inKey('dl-resident', find.text('Ayaan Karim')), findsOneWidget);
@@ -2122,6 +2181,7 @@ void main() {
     testWidgets('day timeline: entries and checks by time with every web pill', (tester) async {
       final (repo, _) = await _openLogs(tester);
       await _pickResidence(tester);
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
       expect(repo.dayQueries.last, {'clientId': 'c1', 'residenceId': 'elm', 'logDate': '2026-08-27'});
 
@@ -2169,6 +2229,7 @@ void main() {
         'the API', (tester) async {
       final (repo, _) = await _openLogs(tester);
       await _pickResidence(tester);
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
 
       await _tap(tester, find.byKey(const ValueKey('dl-entry-view-e2')));
@@ -2240,6 +2301,7 @@ void main() {
         pickFiles: () async => [('/tmp/chart.png', 'chart.png'), ('/tmp/letter.png', 'letter.png')],
       );
       await _pickResidence(tester);
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
       await _tap(tester, find.byKey(const ValueKey('dl-add-entry')));
 
@@ -2424,6 +2486,7 @@ void main() {
       await _pickResidence(tester);
       expect(find.byKey(const ValueKey('dl-flag-resolve-f1')), findsNothing);
 
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
       expect(find.byKey(const ValueKey('dl-add-entry')), findsNothing);
       expect(find.byKey(const ValueKey('dl-entry-view-e3')), findsOneWidget);
@@ -2437,9 +2500,14 @@ void main() {
       await _pickResidence(tester);
       await _tap(tester, find.byKey(const ValueKey('dl-tab-activity')));
 
-      expect(repo.activityQueries, [
-        {'residenceId': 'elm', 'from': weekAgo, 'to': today, 'page': 1, 'limit': 20},
-      ]);
+      expect(repo.activityQueries.last, {
+        'residenceId': 'elm',
+        'staffId': null,
+        'from': weekAgo,
+        'to': today,
+        'page': 1,
+        'limit': 20,
+      });
       expect(find.byKey(const ValueKey('dl-kpi-entries')), findsOneWidget);
       Finder a1(String text) => inKey('dl-activity-a1', find.text(text));
       expect(a1('16:20'), findsOneWidget);
@@ -2464,7 +2532,8 @@ void main() {
       await _openLogs(tester, repo: repo);
       await _pickResidence(tester);
 
-      expect(find.text('Nothing waiting to be reviewed.'), findsOneWidget);
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
+      expect(find.text('No finished shift is waiting to be signed off.'), findsOneWidget);
       expect(
         find.text('No shift is running for this home today, so there is nothing to document '
             'yet. A record appears for each resident when a shift starts.'),
@@ -2472,9 +2541,9 @@ void main() {
       );
       expect(find.text('No priority notes right now.'), findsOneWidget);
       await _tap(tester, find.byKey(const ValueKey('dl-tab-missing')));
-      expect(find.text('Every resident has a log for this period.'), findsOneWidget);
+      expect(find.text('Nothing owed and not done in this period.'), findsOneWidget);
       await _tap(tester, find.byKey(const ValueKey('dl-tab-activity')));
-      expect(find.text('Nothing recorded for this home in the period chosen.'), findsOneWidget);
+      expect(find.text('Nothing recorded in the period chosen.'), findsOneWidget);
       await _tap(tester, find.byKey(const ValueKey('dl-tab-day')));
       await _choose(tester, find.byKey(const ValueKey('dl-resident')), 'Ayaan Karim');
       expect(find.text('Nothing recorded for this day'), findsOneWidget);

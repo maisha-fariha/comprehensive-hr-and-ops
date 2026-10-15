@@ -8,6 +8,9 @@ abstract class DailyLogsRepository {
 
   Future<Result<List<DailyLogOption>>> clients(String? residenceId);
 
+  /// `GET /staff` — the logbook "All staff" filter.
+  Future<Result<List<DailyLogOption>>> staff();
+
   Future<Result<DailyLogPage<DailyLogReviewRow>>> reviewQueue({
     required String residenceId,
     String? clientId,
@@ -49,8 +52,11 @@ abstract class DailyLogsRepository {
 
   Future<Result<void>> deleteEntry(String id);
 
+  /// Omit [residenceId] for every residence, and [staffId] for every staff
+  /// member. The web logbook does both.
   Future<Result<DailyLogPage<ResidenceActivityRow>>> activity({
-    required String residenceId,
+    String? residenceId,
+    String? staffId,
     required String from,
     required String to,
     required int page,

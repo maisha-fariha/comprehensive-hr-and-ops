@@ -43,8 +43,19 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
   @override
   Future<Result<List<DailyLogOption>>> clients(String? residenceId) => _get(
         ApiEndpoints.clients,
-        {'residenceId': ?residenceId, 'page': 1, 'limit': 100},
+        {
+          'residenceId': ?((residenceId != null && residenceId.isNotEmpty) ? residenceId : null),
+          'page': 1,
+          'limit': 100,
+        },
         DailyLogsMapper.clientsFrom,
+      );
+
+  @override
+  Future<Result<List<DailyLogOption>>> staff() => _get(
+        ApiEndpoints.staff,
+        const {'page': 1, 'limit': 100},
+        DailyLogsMapper.staffFrom,
       );
 
   Map<String, dynamic> _queue({
@@ -167,7 +178,8 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
 
   @override
   Future<Result<DailyLogPage<ResidenceActivityRow>>> activity({
-    required String residenceId,
+    String? residenceId,
+    String? staffId,
     required String from,
     required String to,
     required int page,
@@ -176,7 +188,8 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
       _get(
         ApiEndpoints.residenceActivity,
         {
-          'residenceId': residenceId,
+          'residenceId': ?((residenceId != null && residenceId.isNotEmpty) ? residenceId : null),
+          'staffId': ?((staffId != null && staffId.isNotEmpty) ? staffId : null),
           'from': from,
           // The web sends the end of the chosen day. A date-only `to` is
           // midnight, so that day's activity never comes back.

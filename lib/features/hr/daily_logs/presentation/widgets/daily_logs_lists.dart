@@ -189,7 +189,9 @@ class ReviewQueueList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
-      return _ListMessage(loading ? 'Loading…' : error ?? 'Nothing waiting to be reviewed.');
+      return _ListMessage(
+        loading ? 'Loading…' : error ?? 'No finished shift is waiting to be signed off.',
+      );
     }
     return Column(
       children: _spaced([
@@ -232,7 +234,7 @@ class MissingLogsList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
       return _ListMessage(
-        loading ? 'Loading…' : error ?? 'Every resident has a log for this period.',
+        loading ? 'Loading…' : error ?? 'Nothing owed and not done in this period.',
       );
     }
     return Column(
@@ -273,7 +275,7 @@ class HouseActivityList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const _ListMessage('Loading…');
     if (rows.isEmpty) {
-      return const _ListMessage('Nothing recorded for this home in the period chosen.');
+      return const _ListMessage('Nothing recorded in the period chosen.');
     }
     return HandoverPanel(
       child: Column(
