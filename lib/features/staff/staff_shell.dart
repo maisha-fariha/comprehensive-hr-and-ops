@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../core/roles/user_session.dart';
+import 'dashboard/presentation/controllers/staff_dashboard_controller.dart';
 import 'dashboard/presentation/pages/staff_dashboard_page.dart';
 import 'daily_logs/presentation/pages/staff_daily_logs_page.dart';
 import 'presentation/pages/staff_mar_tasks_menu_page.dart';
@@ -33,6 +34,12 @@ class _StaffShellState extends State<StaffShell> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, 4);
+    _refreshHomeIfReturning();
+  }
+
+  void _refreshHomeIfReturning() {
+    if (!Get.isRegistered<StaffDashboardController>()) return;
+    Get.find<StaffDashboardController>().refresh();
   }
 
   @override
@@ -68,7 +75,10 @@ class _StaffShellState extends State<StaffShell> {
         ),
         bottomNavigationBar: StaffBottomNavBar(
           currentIndex: index,
-          onTap: (value) => setState(() => _currentIndex = value),
+          onTap: (value) {
+            setState(() => _currentIndex = value);
+            if (value == 0) _refreshHomeIfReturning();
+          },
         ),
       );
     });

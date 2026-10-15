@@ -252,6 +252,32 @@ void main() {
       expect(clockTrailing(overview), 'On Shift');
     });
 
+    test('an open punch overrides a home row that never clocked in', () {
+      final home = <String, dynamic>{
+        'attendance': {
+          'id': 'missed',
+          'checkInAt': null,
+          'onShift': true,
+          'residence': {'id': 'elm', 'name': 'Elm House'},
+        },
+        'shift': {'id': 's1'},
+        'tiles': const {},
+      };
+      StaffHomeMapper.applyOpenPunch(home, {
+        'checkInAt': '2026-10-15T05:18:31.422Z',
+        'checkOutAt': null,
+        'onBreak': false,
+        'residenceId': 'mala',
+        'residence': {'id': 'mala', 'name': 'Mala Box'},
+      });
+      final overview = StaffHomeMapper.compose(
+        session: Get.find<UserSession>(),
+        body: {'data': home},
+      );
+      expect(overview.todayShift.clockedIn, isTrue);
+      expect(overview.todayShift.statusLabel, 'On Shift');
+    });
+
     test('a missed record never clocked into is Off Shift (live shape)', () {
       final overview = compose({
         'id': '3069fbbd-bf27-46f2-9a71-efdc72c471e4',

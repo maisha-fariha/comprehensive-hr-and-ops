@@ -64,6 +64,7 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       }
     }
     homeBody['tiles'] = tiles;
+    StaffHomeMapper.applyOpenPunch(homeBody, await _openPunch());
 
     var unread = 0;
     final notifications = await _api.get(
@@ -84,6 +85,32 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
         unreadNotificationCount: unread,
       ),
     );
+  }
+
+  /// Same window as the web `useMyOpenAttendance` and the Attendance screen.
+  Future<Map<String, dynamic>?> _openPunch() async {
+    final now = DateTime.now().toUtc();
+    final result = await _api.get(
+      ApiEndpoints.attendance,
+      query: {
+        'mine': true,
+        'from': now.subtract(const Duration(hours: 48)).toIso8601String(),
+        'to': now.add(const Duration(hours: 1)).toIso8601String(),
+        'page': 1,
+        'limit': 50,
+      },
+      silent: true,
+    );
+    if (result.isFailure) return null;
+    for (final raw in JsonCodec.unwrapList(result.value)) {
+      if (raw is! Map) continue;
+      final json = JsonCodec.asMap(raw);
+      final checkIn = JsonCodec.dateTime(json['checkInAt'] ?? json['clockInAt']);
+      if (checkIn == null) continue;
+      final checkOut = JsonCodec.dateTime(json['checkOutAt'] ?? json['clockOutAt']);
+      if (checkOut == null) return json;
+    }
+    return null;
   }
 
   @override

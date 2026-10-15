@@ -9,6 +9,29 @@ import '../../domain/entities/staff_quick_action.dart';
 import '../../domain/entities/today_shift_summary.dart';
 
 abstract final class StaffHomeMapper {
+  /// `/mobile/home` can keep a missed row (`checkInAt: null`) while the
+  /// attendance list already has an open punch. The web clock button follows
+  /// that punch, so Home must too.
+  static void applyOpenPunch(Map<String, dynamic> home, Map<String, dynamic>? open) {
+    if (open == null) return;
+    final checkIn = JsonCodec.dateTime(open['checkInAt'] ?? open['clockInAt']);
+    if (checkIn == null) return;
+    final checkOut = JsonCodec.dateTime(open['checkOutAt'] ?? open['clockOutAt']);
+    if (checkOut != null) return;
+    final attendance = Map<String, dynamic>.from(
+      JsonCodec.mapAt(home, 'attendance') ?? const {},
+    );
+    attendance['checkInAt'] = open['checkInAt'] ?? open['clockInAt'];
+    attendance['checkOutAt'] = null;
+    attendance['onShift'] = true;
+    attendance['onBreak'] = open['onBreak'] ?? false;
+    final residenceId = JsonCodec.string(open['residenceId']);
+    if (residenceId != null) attendance['residenceId'] = residenceId;
+    final residence = open['residence'];
+    if (residence != null) attendance['residence'] = residence;
+    home['attendance'] = attendance;
+  }
+
   static StaffDashboardOverview compose({
     required UserSession session,
     required dynamic body,
