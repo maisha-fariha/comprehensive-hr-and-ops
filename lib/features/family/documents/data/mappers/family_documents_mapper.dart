@@ -34,13 +34,8 @@ abstract final class FamilyDocumentsMapper {
                 json['fileName'] ?? upload['fileName'],
               ) ??
               _fileNameFromPath(fileUrl);
-          final category = JsonCodec.stringOr(
-            json['category'] ??
-                json['documentType'] ??
-                json['type'] ??
-                _categoryFromPath(fileUrl),
-            '',
-          );
+          final signature = JsonCodec.mapAt(json, 'signature') ?? const {};
+          final category = JsonCodec.string(json['category']) ?? '';
           return FamilyDocument(
             id: JsonCodec.stringOr(json['id'], name),
             title: name,
@@ -65,6 +60,12 @@ abstract final class FamilyDocumentsMapper {
             fileName: fileName,
             tenantId: JsonCodec.string(json['tenantId'] ?? upload['tenantId']),
             category: category,
+            documentType: JsonCodec.string(json['documentType']),
+            uploadedByMe: json['uploadedByMe'] == true,
+            updatedAt: at,
+            signatureRequired: signature['required'] == true,
+            signatureAcknowledgedAt: JsonCodec.dateTime(signature['acknowledgedAt']),
+            signatureDueAt: JsonCodec.dateTime(signature['dueAt']),
           );
         })
         .toList();
@@ -79,17 +80,6 @@ abstract final class FamilyDocumentsMapper {
     final uriPath = Uri.tryParse(path)?.path ?? path;
     final parts = uriPath.split('/').where((part) => part.isNotEmpty).toList();
     return parts.isEmpty ? null : parts.last;
-  }
-
-  static String? _categoryFromPath(String? path) {
-    if (path == null || path.isEmpty) return null;
-    final uriPath = Uri.tryParse(path)?.path ?? path;
-    final parts = uriPath.split('/').where((part) => part.isNotEmpty).toList();
-    // /files/{category}/{fileName} or /files/{tenantId}/{category}/{fileName}
-    if (parts.length >= 3 && parts.first == 'files') {
-      return parts.length >= 4 ? parts[2] : parts[1];
-    }
-    return null;
   }
 
   const FamilyDocumentsMapper._();

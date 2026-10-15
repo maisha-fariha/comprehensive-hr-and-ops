@@ -30,4 +30,7 @@ abstract class FamilyDocumentsRepository {
   Future<Result<FamilyDocumentOpenPayload>> openDocument(
     FamilyDocument document,
   );
+
+  /// `POST /family/documents/{id}/sign`.
+  Future<Result<void>> signDocument(String id);
 }

@@ -1,11 +1,13 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/widgets/searchable_option_list.dart';
+import '../../../appointments/presentation/widgets/appointment_form_fields.dart';
 import '../../domain/repositories/family_documents_repository.dart';
 
 Future<bool?> showFamilySendDocumentSheet({
@@ -71,6 +73,66 @@ class _SendDocumentSheetState extends State<_SendDocumentSheet> {
         _error = error.message;
         _loadingPeople = false;
       }),
+    );
+  }
+
+  Future<void> _pickCategory() async {
+    final picked = await _pickOption(
+      title: 'What is it?',
+      options: _categories,
+      selected: _category,
+    );
+    if (picked != null) setState(() => _category = picked);
+  }
+
+  Future<String?> _pickOption({
+    required String title,
+    required List<(String, String)> options,
+    required String selected,
+  }) {
+    return showAppBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: AppColors.surfaceWhite,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+            ),
+            for (final option in options)
+              ListTile(
+                title: Text(
+                  option.$2,
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+                trailing: option.$1 == selected
+                    ? const Icon(Icons.check_rounded, color: AppColors.secondaryTeal)
+                    : null,
+                onTap: () => Navigator.of(sheetContext).pop(option.$1),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
@@ -167,122 +229,219 @@ class _SendDocumentSheetState extends State<_SendDocumentSheet> {
         .where((person) => person.id == _clientId)
         .map((person) => person.name)
         .firstOrNull;
+    final categoryLabel = _categories
+        .where((option) => option.$1 == _category)
+        .map((option) => option.$2)
+        .firstOrNull;
     final noteLabel = _category == 'resident_memory'
         ? 'Caption (Optional)'
         : 'Note for the care home (Optional)';
+    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.9),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: ResponsiveHelper.getResponsivePadding(
+              context,
+              horizontal: 20,
+              vertical: 16,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Send a Document or Photo',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: AppColors.textHeading,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: ResponsiveHelper.getResponsiveSize(context, 44),
+                      height: ResponsiveHelper.getResponsiveSize(context, 44),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryNavy,
+                        borderRadius: BorderRadius.circular(
+                          ResponsiveHelper.getResponsiveRadius(context, 12),
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.upload_file_rounded,
+                        color: Colors.white,
+                        size: ResponsiveHelper.getResponsiveSize(context, 22),
+                      ),
+                    ),
+                    SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Send a Document or Photo',
+                            style: TextStyle(
+                              fontFamily: 'Manrope',
+                              fontWeight: FontWeight.w800,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
+                              color: AppColors.primaryNavy,
+                              height: 1.2,
+                            ),
+                          ),
+                          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+                          Text(
+                            'A signed consent form, or a family photo or memory for your relative.',
+                            style: TextStyle(
+                              fontFamily: 'Manrope',
+                              fontWeight: FontWeight.w500,
+                              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                              color: AppColors.textMuted,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'A signed consent form, or a family photo or memory for your relative.',
-                  style: TextStyle(fontFamily: 'Manrope', fontSize: 12.5, color: AppColors.textSecondary),
-                ),
+                gap,
                 if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_error!, style: const TextStyle(color: AppColors.criticalRed, fontSize: 13)),
+                  AppointmentFormErrorBanner(message: _error!),
+                  gap,
                 ],
                 if (_loadingPeople)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: CircularProgressIndicator()),
+                    child: Center(child: CircularProgressIndicator(color: AppColors.secondaryTeal)),
                   )
-                else ...[
-                  if (_residents.length > 1) ...[
-                    const SizedBox(height: 16),
-                    const Text('Resident', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 6),
-                    OutlinedButton(
-                      onPressed: _busy ? null : _pickResident,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(residentName ?? 'Choose a resident'),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  const Text('Document Title *', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _name,
-                    enabled: !_busy,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. Signed Medical Power of Attorney',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('What is it?', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: _category,
-                    items: [
-                      for (final option in _categories)
-                        DropdownMenuItem(value: option.$1, child: Text(option.$2)),
-                    ],
-                    onChanged: _busy
-                        ? null
-                        : (value) => setState(() => _category = value ?? 'consent_form'),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('Attached File *', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  OutlinedButton(
-                    onPressed: _busy ? null : _pickFile,
-                    child: Text(
-                      _file?.name ??
-                          (_category == 'resident_memory'
-                              ? 'A photo: PNG, JPEG or WebP'
-                              : 'PDF, Word, PNG or JPEG'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(noteLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _notes,
-                    enabled: !_busy,
-                    decoration: InputDecoration(
-                      hintText: _category == 'resident_memory'
-                          ? 'e.g. Mum at the seaside, summer 1982'
-                          : 'Anything the care home should know about this form',
+                else
+                  AbsorbPointer(
+                    absorbing: _busy,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_residents.length > 1) ...[
+                          const AppointmentFieldLabel('Resident', required: true),
+                          AppointmentDropdownField(
+                            value: residentName ?? 'Choose a resident',
+                            isPlaceholder: residentName == null,
+                            onTap: _pickResident,
+                          ),
+                          gap,
+                        ],
+                        const AppointmentFieldLabel('Document Title', required: true),
+                        AppointmentTextField(
+                          controller: _name,
+                          hint: 'e.g. Signed Medical Power of Attorney',
+                        ),
+                        gap,
+                        const AppointmentFieldLabel('What is it?'),
+                        AppointmentDropdownField(
+                          value: categoryLabel ?? 'Signed consent form',
+                          onTap: _pickCategory,
+                        ),
+                        gap,
+                        const AppointmentFieldLabel('Attached File', required: true),
+                        AppointmentDropdownField(
+                          value: _file?.name ??
+                              (_category == 'resident_memory'
+                                  ? 'A photo: PNG, JPEG or WebP'
+                                  : 'PDF, Word, PNG or JPEG'),
+                          isPlaceholder: _file == null,
+                          trailingIcon: Icons.attach_file_rounded,
+                          onTap: _pickFile,
+                        ),
+                        gap,
+                        AppointmentFieldLabel(noteLabel),
+                        AppointmentNoteField(
+                          controller: _notes,
+                          hint: _category == 'resident_memory'
+                              ? 'e.g. Mum at the seaside, summer 1982'
+                              : 'Anything the care home should know about this form',
+                        ),
+                        gap,
+                        _SheetActions(
+                          busy: _busy,
+                          busyLabel: 'Sending...',
+                          actionLabel: 'Send to the care home',
+                          onCancel: () => Navigator.of(context).pop(false),
+                          onConfirm: _submit,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      TextButton(
-                        onPressed: _busy ? null : () => Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                      const Spacer(),
-                      FilledButton(
-                        onPressed: _busy ? null : _submit,
-                        child: Text(_busy ? 'Sending...' : 'Send to the care home'),
-                      ),
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SheetActions extends StatelessWidget {
+  final bool busy;
+  final String busyLabel;
+  final String actionLabel;
+  final VoidCallback onCancel;
+  final VoidCallback onConfirm;
+
+  const _SheetActions({
+    required this.busy,
+    required this.busyLabel,
+    required this.actionLabel,
+    required this.onCancel,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: busy ? null : onCancel,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.textHeading,
+              side: const BorderSide(color: AppColors.searchBorder),
+              backgroundColor: AppColors.surfaceWhite,
+              padding: EdgeInsets.symmetric(
+                vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+            ),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+        Expanded(
+          child: FilledButton(
+            onPressed: busy ? null : onConfirm,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryNavy,
+              disabledBackgroundColor: AppColors.primaryNavy.withValues(alpha: 0.5),
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                vertical: ResponsiveHelper.getResponsiveHeight(context, 14),
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+            ),
+            child: Text(
+              busy ? busyLabel : actionLabel,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

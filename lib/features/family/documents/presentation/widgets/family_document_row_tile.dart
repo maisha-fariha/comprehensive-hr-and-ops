@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/formatting/web_formats.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_document_enums.dart';
@@ -22,6 +24,7 @@ class FamilyDocumentRowTile extends StatelessWidget {
   final FamilyDocument document;
   final VoidCallback? onDownloadTap;
   final VoidCallback? onPreviewTap;
+  final VoidCallback? onSignTap;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _metaColor = Color(0xFF71839B);
@@ -66,6 +69,7 @@ class FamilyDocumentRowTile extends StatelessWidget {
     required this.document,
     this.onDownloadTap,
     this.onPreviewTap,
+    this.onSignTap,
   });
 
   _DocVisual get _visual {
@@ -116,7 +120,10 @@ class FamilyDocumentRowTile extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
         children: [
           Container(
             width: iconBoxSize,
@@ -178,8 +185,8 @@ class FamilyDocumentRowTile extends StatelessWidget {
                   height: ResponsiveHelper.getResponsiveHeight(context, 4),
                 ),
                 Text(
-                  document.subtitle,
-                  maxLines: 1,
+                  '${document.updatedAt == null ? 'On file' : WebFormat.date(document.updatedAt)} • ${document.kindLabel}',
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Manrope',
@@ -203,7 +210,13 @@ class FamilyDocumentRowTile extends StatelessWidget {
                 onPressed: onPreviewTap,
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
+                  foregroundColor: AppColors.secondaryTeal,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
+                  textStyle: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
                 ),
                 child: const Text('Preview'),
               ),
@@ -223,6 +236,57 @@ class FamilyDocumentRowTile extends StatelessWidget {
                     _downloadAsset,
                     size: 19,
                   ),
+                ),
+              ),
+            ],
+          ),
+        ],
+          ),
+          if (document.signatureRequired) ...[
+            const SizedBox(height: 10),
+            if (document.signatureAcknowledgedAt != null)
+              Text(
+                'You signed this on ${WebFormat.date(document.signatureAcknowledgedAt)}.',
+                style: const TextStyle(fontFamily: 'Manrope', fontSize: 12.5, color: AppColors.successGreen),
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'The care home asks you to read this and confirm you agree${document.signatureDueAt == null ? '' : ' by ${WebFormat.date(document.signatureDueAt)}'}.',
+                    style: const TextStyle(fontFamily: 'Manrope', fontSize: 12.5),
+                  ),
+                  if (onSignTap != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: onSignTap,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.secondaryTeal,
+                          textStyle: const TextStyle(
+                            fontFamily: 'Manrope',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        icon: const Icon(Icons.draw_outlined, size: 16),
+                        label: const Text('Sign Document'),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                document.sourceLabel,
+                style: const TextStyle(
+                  fontFamily: 'Manrope',
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.secondaryTeal,
                 ),
               ),
             ],

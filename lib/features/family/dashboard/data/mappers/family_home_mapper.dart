@@ -309,12 +309,11 @@ abstract final class FamilyHomeMapper {
           label: 'Send\nMessage',
           asset: 'assets/icons/family_core/message.svg',
         ),
-      if (visibility.documents)
-        const FamilyQuickAction(
-          id: 'view-documents',
-          label: 'View\nDocuments',
-          asset: 'assets/icons/family_core/document.svg',
-        ),
+      const FamilyQuickAction(
+        id: 'view-documents',
+        label: 'View\nDocuments',
+        asset: 'assets/icons/family_core/document.svg',
+      ),
     ];
   }
 

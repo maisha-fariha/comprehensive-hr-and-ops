@@ -165,6 +165,18 @@ class FamilyDocumentsRepositoryImpl implements FamilyDocumentsRepository {
     }
   }
 
+  @override
+  Future<Result<void>> signDocument(String id) async {
+    final result = await _api.post(
+      ApiEndpoints.familyDocumentSign(id),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
   Future<Result<_ResolvedFileTarget>> _resolveOpenUrl(
     FamilyDocument document,
   ) async {

@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:open_filex/open_filex.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/storage/media_store_download.dart';
 import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_documents_overview.dart';
@@ -34,6 +35,27 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
 
   @override
   Future<void> refresh() => loadOverview();
+
+  Future<bool> signDocument(FamilyDocument document) async {
+    final result = await repository.signDocument(document.id);
+    var signed = false;
+    await result.when(
+      success: (_) async {
+        signed = true;
+        AppSnackbar.show(
+          'Thank you — your signature has been recorded',
+          '',
+          force: true,
+        );
+        await loadOverview();
+      },
+      failure: (error) async => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not sign document',
+      ),
+    );
+    return signed;
+  }
 
   /// Opens a document via `GET /files/.../link` (or fallbacks), then launches
   /// the system viewer.

@@ -64,11 +64,10 @@ class FamilyMoreMenuPage extends StatelessWidget {
                 entry: _visitRequests,
                 onTap: () => Get.to(() => const FamilyVisitRequestsListPage()),
               ),
-            if (visibility.documents)
-              (
-                entry: _documents,
-                onTap: () => Get.to(() => const FamilyDocumentsPage()),
-              ),
+            (
+              entry: _documents,
+              onTap: () => Get.to(() => const FamilyDocumentsPage()),
+            ),
             (
               entry: _profile,
               onTap: () => Get.to(() => const FamilyProfileSettingsPage()),
