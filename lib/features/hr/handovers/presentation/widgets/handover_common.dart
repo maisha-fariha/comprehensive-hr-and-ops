@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/searchable_option_list.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 TextStyle handoverText(
@@ -292,26 +293,14 @@ Future<String?> pickHandoverOption(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
         ),
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text(
-                title,
-                style: handoverText(sheetContext, 16, weight: FontWeight.w700),
-              ),
-            ),
-            for (final (id, label) in options)
-              ListTile(
-                title: Text(label, style: handoverText(sheetContext, 14)),
-                trailing: id == selected
-                    ? const Icon(Icons.check_rounded, color: AppColors.secondaryTeal)
-                    : null,
-                onTap: () => Navigator.of(sheetContext).pop(id),
-              ),
-            const SizedBox(height: 8),
-          ],
+        child: SearchableOptionList<(String, String)>(
+          title: title,
+          options: options,
+          labelOf: (option) => option.$2,
+          idOf: (option) => option.$1,
+          selectedId: selected,
+          searchHint: 'Search $title',
+          onSelected: (option) => Navigator.of(sheetContext).pop(option.$1),
         ),
       ),
     ),

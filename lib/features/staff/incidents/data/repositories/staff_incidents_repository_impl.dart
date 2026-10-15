@@ -455,41 +455,44 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   Future<Result<List<StaffIncidentStaffOption>>> getStaffOptions({
     String? residenceId,
   }) async {
+    // Web incident form uses GET /staff/directory, unfiltered, and shows
+    // category name (for example "Personal Support Worker").
+    final directory = await _api.get(ApiEndpoints.staffDirectory, silent: true);
+    if (directory.isSuccess) {
+      final rows = _staffDirectoryOptions(directory.value);
+      if (rows.isNotEmpty) return Result.success(rows);
+    }
     final result = await _api.get(
       ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': 100,
-        if (residenceId != null &&
-            residenceId.isNotEmpty &&
-            residenceId != 'all')
-          'residenceId': residenceId,
-      },
+      query: const {'page': 1, 'limit': 100},
       silent: true,
     );
     return result.when(
-      success: (body) async {
-        final rows = JsonCodec.unwrapList(body).whereType<Map>().map((item) {
-          final json = JsonCodec.asMap(item);
-          final first = JsonCodec.stringOr(json['firstName'], '');
-          final last = JsonCodec.stringOr(json['lastName'], '');
-          final name = '$first $last'.trim();
-          final category = JsonCodec.mapAt(json, 'category');
-          return StaffIncidentStaffOption(
-            id: JsonCodec.stringOr(json['id'], ''),
-            name: name.isEmpty
-                ? JsonCodec.stringOr(json['email'], 'Staff')
-                : name,
-            subtitle: JsonCodec.stringOr(
-              category?['name'] ?? json['employmentType'] ?? json['email'],
-              '',
-            ),
-          );
-        }).where((item) => item.id.isNotEmpty).toList();
-        return Result.success(rows);
-      },
-      failure: (error) async => Result.failure(error),
+      success: (body) async => Result.success(_staffDirectoryOptions(body)),
+      failure: (error) async => Result.failure(
+        directory.isFailure ? (directory.error ?? error) : error,
+      ),
     );
+  }
+
+  List<StaffIncidentStaffOption> _staffDirectoryOptions(dynamic body) {
+    return JsonCodec.unwrapList(body).whereType<Map>().map((item) {
+      final json = JsonCodec.asMap(item);
+      final user = JsonCodec.mapAt(json, 'user') ?? json;
+      final first = JsonCodec.stringOr(user['firstName'] ?? json['firstName'], '');
+      final last = JsonCodec.stringOr(user['lastName'] ?? json['lastName'], '');
+      final name = '$first $last'.trim().isNotEmpty
+          ? '$first $last'.trim()
+          : JsonCodec.stringOr(user['name'] ?? json['name'], '');
+      final category = JsonCodec.mapAt(json, 'category') ??
+          JsonCodec.mapAt(json, 'staffCategory') ??
+          JsonCodec.mapAt(user, 'category');
+      return StaffIncidentStaffOption(
+        id: JsonCodec.stringOr(json['id'] ?? user['id'], ''),
+        name: name.isEmpty ? 'Staff' : name,
+        subtitle: JsonCodec.stringOr(category?['name'], 'Staff'),
+      );
+    }).where((item) => item.id.isNotEmpty && item.name != 'Staff').toList();
   }
 
   @override

@@ -118,7 +118,7 @@ class Step2PeopleForm extends StatelessWidget {
                   value: controller.reportedBy.value,
                   placeholder: controller.isLoadingStaff.value
                       ? 'Loading staff…'
-                      : 'Select reporter',
+                      : 'Search reported by staff...',
                   onTap: () => controller.pickReporter(context),
                 ),
               ),
@@ -129,7 +129,7 @@ class Step2PeopleForm extends StatelessWidget {
                   value: controller.selectedSupervisor.value?.name,
                   placeholder: controller.isLoadingStaff.value
                       ? 'Loading staff…'
-                      : 'Select supervisor',
+                      : 'Search supervisor...',
                   onTap: () => controller.pickSupervisor(context),
                 ),
               ),

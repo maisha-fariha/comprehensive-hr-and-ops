@@ -22,6 +22,7 @@ import '../../domain/entities/incidents_enums.dart';
 import '../../domain/repositories/incidents_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/searchable_option_list.dart';
 
 /// GetX controller for the 5-step "Create Incident" wizard (web parity).
 class IncidentCreationController extends GetxController {
@@ -1061,6 +1062,8 @@ class IncidentCreationController extends GetxController {
       selectedId: null,
       idOf: (option) => option.id,
       onRetry: loadStaff,
+      showInitials: true,
+      searchHint: 'Search ${title.toLowerCase()}...',
     );
   }
 
@@ -1074,9 +1077,12 @@ class IncidentCreationController extends GetxController {
     required Future<void> Function() onRetry,
     String? selectedId,
     String Function(T)? subtitleOf,
+    bool showInitials = false,
+    String? searchHint,
   }) {
     return showAppBottomSheet<T>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1115,50 +1121,21 @@ class IncidentCreationController extends GetxController {
                 ),
               );
             }
-            return ListView(
-              shrinkWrap: true,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                ),
-                for (final option in options)
-                  ListTile(
-                    title: Text(
-                      labelOf(option),
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textHeading,
-                      ),
-                    ),
-                    subtitle: subtitleOf == null ||
-                            subtitleOf(option).trim().isEmpty
-                        ? null
-                        : Text(
-                            subtitleOf(option),
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                    trailing: selectedId != null && idOf(option) == selectedId
-                        ? const Icon(
-                            Icons.check_rounded,
-                            color: AppColors.secondaryTeal,
-                          )
-                        : null,
-                    onTap: () => Navigator.of(sheetContext).pop(option),
-                  ),
-              ],
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+              ),
+              child: SearchableOptionList<T>(
+                title: title,
+                options: options.toList(),
+                labelOf: labelOf,
+                subtitleOf: subtitleOf,
+                idOf: idOf,
+                selectedId: selectedId,
+                showInitials: showInitials,
+                searchHint: searchHint ?? 'Search $title',
+                onSelected: (option) => Navigator.of(sheetContext).pop(option),
+              ),
             );
           }),
         );

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_document.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/searchable_option_list.dart';
 
 class StaffDocumentsFiltersBar extends StatelessWidget {
   final TextEditingController searchController;
@@ -229,47 +229,26 @@ class StaffDocumentsFiltersBar extends StatelessWidget {
   }) async {
     final selected = await showAppBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(ctx, 16),
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              for (final opt in options)
-                ListTile(
-                  title: Text(
-                    opt.$2,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight:
-                          opt.$1 == current ? FontWeight.w700 : FontWeight.w500,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  trailing: opt.$1 == current
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.secondaryTeal,
-                        )
-                      : null,
-                  onTap: () => Navigator.pop(ctx, opt.$1),
-                ),
-            ],
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.7,
+            ),
+            child: SearchableOptionList<(String, String)>(
+              title: title,
+              options: options,
+              labelOf: (option) => option.$2,
+              idOf: (option) => option.$1,
+              selectedId: current,
+              searchHint: 'Search $title',
+              onSelected: (option) => Navigator.pop(ctx, option.$1),
+            ),
           ),
         );
       },

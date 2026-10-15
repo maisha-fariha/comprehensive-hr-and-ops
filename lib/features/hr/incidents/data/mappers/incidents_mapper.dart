@@ -259,8 +259,12 @@ abstract final class IncidentsMapper {
           name: name,
           email: JsonCodec.string(json['email']),
           roleLabel: JsonCodec.string(
-            category['name'] ?? json['role'] ?? json['jobTitle'],
-          ),
+            category['name'] ??
+                json['categoryName'] ??
+                json['role'] ??
+                json['jobTitle'],
+          ) ??
+              'Staff',
         ),
       );
     }

@@ -100,7 +100,7 @@ class CreateIncidentPeopleLocationSection extends StatelessWidget {
               key: const Key('staff-incident-reported-by-staff'),
               value: controller.reportedByStaffLabel ??
                   controller.reporterName.value,
-              placeholder: 'Select staff...',
+              placeholder: 'Search reported by staff...',
               onTap: controller.pickReportedByStaff,
             ),
           ),
@@ -110,7 +110,7 @@ class CreateIncidentPeopleLocationSection extends StatelessWidget {
             () => CreateIncidentDropdownField(
               key: const Key('staff-incident-supervisor-staff'),
               value: controller.supervisorStaffLabel,
-              placeholder: 'Select supervisor...',
+              placeholder: 'Search supervisor...',
               onTap: controller.pickSupervisorStaff,
             ),
           ),

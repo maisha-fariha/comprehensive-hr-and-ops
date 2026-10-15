@@ -15,8 +15,10 @@ import '../../domain/entities/staff_incident_options.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
 import '../../domain/repositories/staff_incidents_repository.dart';
 import 'staff_incidents_controller.dart';
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/media/app_file_picker.dart';
-import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/searchable_option_list.dart';
 
 /// GetX controller for the Staff "Create Incident" form.
 class IncidentCreationController extends GetxController {
@@ -305,9 +307,7 @@ class IncidentCreationController extends GetxController {
     final templates = await repository.getCirTemplates();
     final residenceResult = await repository.getResidences();
     final assigned = await repository.getClients(assignedToMe: true);
-    final staff = await repository.getStaffOptions(
-      residenceId: selectedResidence.value?.id,
-    );
+    final staff = await repository.getStaffOptions();
     isLoadingOptions.value = false;
 
     cats.when(
@@ -346,7 +346,7 @@ class IncidentCreationController extends GetxController {
             (s) =>
                 s.name.toLowerCase() == reporterName.value.toLowerCase(),
           );
-          reportedByStaff.value = match.isNotEmpty ? match.first : list.first;
+          if (match.isNotEmpty) reportedByStaff.value = match.first;
         }
       },
       failure: (_) {},
@@ -855,6 +855,8 @@ class IncidentCreationController extends GetxController {
       options: options,
       labelOf: (o) => o.name,
       subtitleOf: (o) => o.subtitle,
+      showInitials: true,
+      searchHint: 'Search client...',
     );
     if (selected == null) return;
     selectClientFromSearch(selected);
@@ -884,9 +886,7 @@ class IncidentCreationController extends GetxController {
 
   Future<void> _ensureStaffLoaded() async {
     if (staffOptions.isNotEmpty) return;
-    final result = await repository.getStaffOptions(
-      residenceId: selectedResidence.value?.id,
-    );
+    final result = await repository.getStaffOptions();
     result.when(
       success: staffOptions.assignAll,
       failure: (error) => AppErrorDialog.showResultError(
@@ -903,6 +903,8 @@ class IncidentCreationController extends GetxController {
       options: staffOptions.toList(),
       labelOf: (o) => o.name,
       subtitleOf: (o) => o.subtitle,
+      showInitials: true,
+      searchHint: 'Search reported by staff...',
     );
     if (selected != null) reportedByStaff.value = selected;
   }
@@ -914,6 +916,8 @@ class IncidentCreationController extends GetxController {
       options: staffOptions.toList(),
       labelOf: (o) => o.name,
       subtitleOf: (o) => o.subtitle,
+      showInitials: true,
+      searchHint: 'Search supervisor...',
     );
     if (selected != null) supervisorStaff.value = selected;
   }
@@ -925,6 +929,8 @@ class IncidentCreationController extends GetxController {
       options: staffOptions.toList(),
       labelOf: (o) => o.name,
       subtitleOf: (o) => o.subtitle,
+      showInitials: true,
+      searchHint: 'Search investigator...',
     );
     if (selected != null) investigator.value = selected;
   }
@@ -936,6 +942,8 @@ class IncidentCreationController extends GetxController {
       options: staffOptions.toList(),
       labelOf: (o) => o.name,
       subtitleOf: (o) => o.subtitle,
+      showInitials: true,
+      searchHint: 'Search staff...',
     );
     if (selected != null) assignedTo.value = selected;
   }
@@ -1319,6 +1327,8 @@ class IncidentCreationController extends GetxController {
     required List<T> options,
     required String Function(T) labelOf,
     String Function(T)? subtitleOf,
+    bool showInitials = false,
+    String? searchHint,
   }) async {
     if (options.isEmpty) {
       AppErrorDialog.showPageError(
@@ -1327,34 +1337,35 @@ class IncidentCreationController extends GetxController {
       );
       return null;
     }
+    final context = Get.context;
+    if (context == null) return null;
     return showAppBottomSheet<T>(
-      context: Get.context!,
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (sheetContext) {
         return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                ),
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
               ),
-              for (final option in options)
-                ListTile(
-                  title: Text(labelOf(option)),
-                  subtitle: subtitleOf == null ||
-                          subtitleOf(option).trim().isEmpty
-                      ? null
-                      : Text(subtitleOf(option)),
-                  onTap: () => Navigator.of(sheetContext).pop(option),
-                ),
-            ],
+              child: SearchableOptionList<T>(
+                title: title,
+                options: options,
+                labelOf: labelOf,
+                subtitleOf: subtitleOf,
+                showInitials: showInitials,
+                searchHint: searchHint ?? 'Search $title',
+                onSelected: (option) => Navigator.of(sheetContext).pop(option),
+              ),
+            ),
           ),
         );
       },

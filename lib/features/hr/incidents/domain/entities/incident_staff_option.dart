@@ -17,11 +17,8 @@ class IncidentStaffOption {
   });
 
   String? get subtitle {
-    final parts = <String>[
-      if (roleLabel != null && roleLabel!.isNotEmpty) roleLabel!,
-      if (email != null && email!.isNotEmpty) email!,
-    ];
-    if (parts.isEmpty) return null;
-    return parts.join(' · ');
+    final role = roleLabel?.trim();
+    if (role == null || role.isEmpty) return 'Staff';
+    return role;
   }
 }

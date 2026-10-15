@@ -319,15 +319,15 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
 
   @override
   Future<Result<List<IncidentStaffOption>>> getStaff() async {
-    final result = await _api.get(
-      ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': 100,
-        'residenceId': ?_session.residenceId,
-      },
-      silent: true,
-    );
+    // Same list the web incident form uses: GET /staff/directory, no residence filter.
+    var result = await _api.get(ApiEndpoints.staffDirectory, silent: true);
+    if (result.isFailure || JsonCodec.unwrapList(result.value).isEmpty) {
+      result = await _api.get(
+        ApiEndpoints.staff,
+        query: const {'page': 1, 'limit': 100},
+        silent: true,
+      );
+    }
     return result.when(
       success: (body) async =>
           Result.success(IncidentsMapper.staffFrom(body)),
