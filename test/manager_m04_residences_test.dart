@@ -124,6 +124,7 @@ class _Repo implements ResidencesRepository, ResidenceAdminRepository {
   (bool, bool)? payroll;
   String? archivedRoom;
   Map<String, Object?>? createdRoom;
+  Map<String, Object?>? updatedRoom;
 
   _Repo({List<ResidenceSummary>? rows, this.tenant = const ResidenceTenantContext()})
       : rows = rows ?? [_elm, _oak];
@@ -249,6 +250,27 @@ class _Repo implements ResidencesRepository, ResidenceAdminRepository {
 
   @override
   Future<Result<void>> reactivateRoom(String residenceId, String roomId) async => Result.success(null);
+
+  @override
+  Future<Result<void>> updateRoom(
+    String residenceId,
+    String roomId, {
+    required String name,
+    required int capacity,
+    String? floor,
+    String? wing,
+    String? roomType,
+  }) async {
+    updatedRoom = {
+      'id': roomId,
+      'name': name,
+      'capacity': capacity,
+      'floor': floor,
+      'wing': wing,
+      'roomType': roomType,
+    };
+    return Result.success(null);
+  }
 
   @override
   Future<Result<void>> archiveRoom(String residenceId, String roomId) async {

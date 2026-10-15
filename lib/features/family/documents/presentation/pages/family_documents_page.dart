@@ -5,12 +5,15 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
+import '../../domain/entities/family_document.dart';
 import '../../../family_shell.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/family_documents_controller.dart';
 import '../widgets/family_document_row_tile.dart';
 import '../widgets/family_documents_caption.dart';
 import '../widgets/family_documents_header.dart';
+import '../widgets/family_send_document_sheet.dart';
 
 /// "Documents" — the Family portal's screen listing documents shared by the
 /// care facility (care plans, appointment summaries, policies, etc.).
@@ -79,6 +82,23 @@ class FamilyDocumentsPage extends StatelessWidget {
                 child: Column(
                   children: [
                     FamilyDocumentsHeader(onBackTap: () => Navigator.maybePop(context)),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            final sent = await showFamilySendDocumentSheet(
+                              context: context,
+                              repository: controller.repository,
+                            );
+                            if (sent == true) controller.refresh();
+                          },
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('Send Document or Photo'),
+                        ),
+                      ),
+                    ),
                     FamilyDocumentsCaption(text: overview.captionText),
                   ],
                 ),
@@ -99,7 +119,7 @@ class FamilyDocumentsPage extends StatelessWidget {
                             ),
                           ),
                           const Center(
-                            child: Text('No approved documents have been shared.'),
+                            child: Text('No documents on file yet'),
                           ),
                         ],
                       )
@@ -118,6 +138,7 @@ class FamilyDocumentsPage extends StatelessWidget {
                     return FamilyDocumentRowTile(
                       document: document,
                       onDownloadTap: () => controller.openDocument(document),
+                      onPreviewTap: () => _previewDocument(context, controller, document),
                     );
                   },
                 ),
@@ -128,6 +149,55 @@ class FamilyDocumentsPage extends StatelessWidget {
       }),
     );
   }
+}
+
+Future<void> _previewDocument(
+  BuildContext context,
+  FamilyDocumentsController controller,
+  FamilyDocument document,
+) {
+  return showAppBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.surfaceWhite,
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              document.title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'This document is securely encrypted on the care home server. Click below to download or view the full file.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontFamily: 'Manrope', fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(sheetContext).pop();
+                controller.openDocument(document);
+              },
+              child: const Text('Download File to Device'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(sheetContext).pop(),
+              child: const Text('Close Preview'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _FamilyDocumentsError extends StatelessWidget {

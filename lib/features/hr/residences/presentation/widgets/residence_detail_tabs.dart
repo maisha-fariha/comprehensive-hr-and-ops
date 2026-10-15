@@ -279,6 +279,7 @@ class ResidenceRoomsTab extends StatefulWidget {
 class _ResidenceRoomsTabState extends State<ResidenceRoomsTab> {
   bool _includeArchived = false;
   bool _adding = false;
+  String? _editingId;
   bool _loadingNow = true;
   String? _error;
   ResidenceRoomBoard? _board;
@@ -416,7 +417,23 @@ class _ResidenceRoomsTabState extends State<ResidenceRoomsTab> {
             ),
           )
         else
-          for (final room in rooms) _roomCard(context, room),
+          for (final room in rooms)
+            if (_editingId == room.id && widget.canManage)
+              _EditRoomForm(
+                key: ValueKey('residence-room-edit-${room.id}'),
+                repository: widget.repository,
+                residenceId: widget.residenceId,
+                room: room,
+                onDone: (saved) {
+                  setState(() => _editingId = null);
+                  if (saved) {
+                    widget.onChanged?.call();
+                    _load();
+                  }
+                },
+              )
+            else
+              _roomCard(context, room),
       ],
     );
   }
@@ -427,7 +444,7 @@ class _ResidenceRoomsTabState extends State<ResidenceRoomsTab> {
     final closable = room.isActive && room.occupied == 0;
     final place = [room.floor, room.wing].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
     final line = [
-      if (room.roomType != null && room.roomType!.isNotEmpty) ResidencesLabels.humanise(room.roomType),
+      if (room.roomType != null && room.roomType!.isNotEmpty) room.roomType,
       if (place.isNotEmpty) place,
     ].join(' — ');
     return Padding(
@@ -480,6 +497,14 @@ class _ResidenceRoomsTabState extends State<ResidenceRoomsTab> {
                   Expanded(
                     child: Text('${room.occupied} of ${room.capacity}',
                         style: handoverText(context, 11.5, color: AppColors.textMuted)),
+                  ),
+                  TextButton.icon(
+                    key: ValueKey('residence-room-edit-${room.id}'),
+                    onPressed: busy
+                        ? null
+                        : () => setState(() => _editingId = room.id),
+                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    label: const Text('Edit'),
                   ),
                   if (room.isActive)
                     Tooltip(
@@ -622,6 +647,173 @@ class _AddRoomFormState extends State<_AddRoomForm> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EditRoomForm extends StatefulWidget {
+  final ResidenceAdminRepository? repository;
+  final String residenceId;
+  final ResidenceRoom room;
+  final ValueChanged<bool> onDone;
+
+  const _EditRoomForm({
+    super.key,
+    required this.repository,
+    required this.residenceId,
+    required this.room,
+    required this.onDone,
+  });
+
+  @override
+  State<_EditRoomForm> createState() => _EditRoomFormState();
+}
+
+class _EditRoomFormState extends State<_EditRoomForm> {
+  late final TextEditingController _name;
+  late final TextEditingController _floor;
+  late final TextEditingController _wing;
+  late final TextEditingController _sleeps;
+  late String _type;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final room = widget.room;
+    _name = TextEditingController(text: room.name);
+    _floor = TextEditingController(text: room.floor ?? '');
+    _wing = TextEditingController(text: room.wing ?? '');
+    _sleeps = TextEditingController(text: '${room.capacity}');
+    _type = room.roomType ?? 'single';
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _floor.dispose();
+    _wing.dispose();
+    _sleeps.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final repo = widget.repository;
+    final name = _name.text.trim();
+    if (repo == null || name.isEmpty || _saving) return;
+    final occupied = widget.room.occupied;
+    var capacity = int.tryParse(_sleeps.text.trim()) ?? 1;
+    if (capacity < 1) capacity = 1;
+    if (capacity < occupied) capacity = occupied;
+    if (capacity > 20) capacity = 20;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+    final result = await repo.updateRoom(
+      widget.residenceId,
+      widget.room.id,
+      name: name,
+      capacity: capacity,
+      floor: opt(_floor),
+      wing: opt(_wing),
+      roomType: _type,
+    );
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _error = result.error?.message;
+    });
+    if (result.isSuccess) widget.onDone(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final room = widget.room;
+    final held = room.occupied > 0
+        ? 'Currently holds ${room.occupied} resident${room.occupied == 1 ? '' : 's'}'
+        : null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: HandoverPanel(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Edit Room ${room.name}', style: handoverText(context, 14, weight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            ResidenceTextInput(
+              field: 'editRoomName-${room.id}',
+              label: 'Room name',
+              required: true,
+              controller: _name,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 10),
+            ResidenceSelectInput(
+              field: 'editRoomType-${room.id}',
+              label: 'Type',
+              value: _type,
+              options: ResidencesLabels.roomTypes,
+              onChanged: (value) => setState(() {
+                _type = value;
+                if (_sleeps.text.trim() == '1' && (value == 'double' || value == 'twin')) {
+                  _sleeps.text = '2';
+                }
+              }),
+            ),
+            const SizedBox(height: 10),
+            ResidenceTextInput(
+              field: 'editRoomFloor-${room.id}',
+              label: 'Floor',
+              placeholder: 'e.g. 1',
+              controller: _floor,
+              onChanged: (_) {},
+            ),
+            const SizedBox(height: 10),
+            ResidenceTextInput(
+              field: 'editRoomWing-${room.id}',
+              label: 'Wing',
+              placeholder: 'e.g. East',
+              controller: _wing,
+              onChanged: (_) {},
+            ),
+            const SizedBox(height: 10),
+            ResidenceTextInput(
+              field: 'editRoomBeds-${room.id}',
+              label: 'Capacity (Beds)',
+              numeric: true,
+              helper: held,
+              controller: _sleeps,
+              onChanged: (_) => setState(() {}),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: handoverText(context, 12, color: AppColors.criticalRed)),
+            ],
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _saving ? null : () => widget.onDone(false),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                HandoverButton(
+                  key: ValueKey('residence-room-save-${room.id}'),
+                  label: _saving ? 'Saving…' : 'Save changes',
+                  filled: true,
+                  compact: true,
+                  onPressed: _name.text.trim().isEmpty || _saving ? null : _save,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

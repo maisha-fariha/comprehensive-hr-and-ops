@@ -5,6 +5,8 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/residences/domain/repositories/residences_repository.dart';
+import '../../../../hr/residences/presentation/widgets/residence_detail_tabs.dart';
 import '../../domain/entities/staff_residence.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
 import 'staff_residence_edit_page.dart';
@@ -34,7 +36,6 @@ class _StaffResidenceDetailPageState extends State<StaffResidenceDetailPage>
   String? _error;
   StaffResidence? _residence;
   List<Map<String, String>> _clients = const [];
-  List<Map<String, String>> _rooms = const [];
   List<Map<String, String>> _staff = const [];
   List<Map<String, String>> _shifts = const [];
   List<Map<String, String>> _logs = const [];
@@ -78,20 +79,17 @@ class _StaffResidenceDetailPageState extends State<StaffResidenceDetailPage>
     }
 
     final clientsResult = await _repository.getResidenceClients(id);
-    final roomsResult = await _repository.getResidenceRooms(id);
     final staffResult = await _repository.getResidenceStaffMembers(id);
     final shiftsResult = await _repository.getResidenceShifts(id);
     final logsResult = await _repository.getResidenceDailyLogs(id);
     if (!mounted) return;
 
     List<Map<String, String>> clients = const [];
-    List<Map<String, String>> rooms = const [];
     List<Map<String, String>> staff = const [];
     List<Map<String, String>> shifts = const [];
     List<Map<String, String>> logs = const [];
 
     clientsResult.when(success: (v) => clients = v, failure: (_) {});
-    roomsResult.when(success: (v) => rooms = v, failure: (_) {});
     staffResult.when(success: (v) => staff = v, failure: (_) {});
     shiftsResult.when(success: (v) => shifts = v, failure: (_) {});
     logsResult.when(success: (v) => logs = v, failure: (_) {});
@@ -99,7 +97,6 @@ class _StaffResidenceDetailPageState extends State<StaffResidenceDetailPage>
     setState(() {
       _residence = residence;
       _clients = clients;
-      _rooms = rooms;
       _staff = staff;
       _shifts = shifts;
       _logs = logs;
@@ -174,9 +171,9 @@ class _StaffResidenceDetailPageState extends State<StaffResidenceDetailPage>
                               emptyLabel: 'No clients assigned yet.',
                               items: _clients,
                             ),
-                            _RowsTab(
-                              emptyLabel: 'None recorded yet.',
-                              items: _rooms,
+                            _ResidenceRoomsBody(
+                              residenceId: residence.id,
+                              bedCapacity: residence.bedCapacity ?? 0,
                             ),
                             _RowsTab(
                               emptyLabel: 'No staff posted here yet.',
@@ -708,6 +705,36 @@ class _SectionCard extends StatelessWidget {
           ...children,
         ],
       ),
+    );
+  }
+}
+
+/// Web rooms tab: counts, type and floor, free beds, Edit and Close.
+class _ResidenceRoomsBody extends StatelessWidget {
+  final String residenceId;
+  final int bedCapacity;
+
+  const _ResidenceRoomsBody({
+    required this.residenceId,
+    required this.bedCapacity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final getIt = GetIt.instance;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: [
+        ResidenceRoomsTab(
+          repository: getIt.isRegistered<ResidenceAdminRepository>()
+              ? getIt<ResidenceAdminRepository>()
+              : null,
+          residenceId: residenceId,
+          bedCapacity: bedCapacity,
+          canManage: getIt.isRegistered<UserSession>() &&
+              getIt<UserSession>().can('residences:update'),
+        ),
+      ],
     );
   }
 }

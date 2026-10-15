@@ -21,6 +21,7 @@ class _DocVisual {
 class FamilyDocumentRowTile extends StatelessWidget {
   final FamilyDocument document;
   final VoidCallback? onDownloadTap;
+  final VoidCallback? onPreviewTap;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _metaColor = Color(0xFF71839B);
@@ -64,6 +65,7 @@ class FamilyDocumentRowTile extends StatelessWidget {
     super.key,
     required this.document,
     this.onDownloadTap,
+    this.onPreviewTap,
   });
 
   _DocVisual get _visual {
@@ -193,24 +195,37 @@ class FamilyDocumentRowTile extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          GestureDetector(
-            onTap: onDownloadTap,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: downloadSize,
-              height: downloadSize,
-              decoration: BoxDecoration(
-                color: _downloadBg,
-                borderRadius: BorderRadius.all(Radius.circular(12)),
-                border: Border.all(color: Color(0xFFE7EBF0), width: 1)
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: onPreviewTap,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                child: const Text('Preview'),
               ),
-              alignment: Alignment.center,
-              child: const AppSvgIcon(
-                _downloadAsset,
-                size: 19,
+              GestureDetector(
+                onTap: onDownloadTap,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: downloadSize,
+                  height: downloadSize,
+                  decoration: BoxDecoration(
+                    color: _downloadBg,
+                    borderRadius: const BorderRadius.all(Radius.circular(12)),
+                    border: Border.all(color: Color(0xFFE7EBF0)),
+                  ),
+                  alignment: Alignment.center,
+                  child: const AppSvgIcon(
+                    _downloadAsset,
+                    size: 19,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),

@@ -11,6 +11,48 @@ class CommunicationResidenceOption {
   const CommunicationResidenceOption({required this.id, required this.name});
 }
 
+class HrAnnouncement {
+  final String id;
+  final String title;
+  final String body;
+  final String authorName;
+  final String audienceLabel;
+  final String createdLabel;
+  final bool important;
+  final bool read;
+
+  const HrAnnouncement({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.authorName,
+    required this.audienceLabel,
+    required this.createdLabel,
+    required this.important,
+    required this.read,
+  });
+}
+
+class CommunicationLogEntry {
+  final String id;
+  final String whenLabel;
+  final String sender;
+  final String recipient;
+  final String typeLabel;
+  final String preview;
+  final String? conversationId;
+
+  const CommunicationLogEntry({
+    required this.id,
+    required this.whenLabel,
+    required this.sender,
+    required this.recipient,
+    required this.typeLabel,
+    required this.preview,
+    this.conversationId,
+  });
+}
+
 class CommunicationClientOption {
   final String id;
   final String name;
@@ -24,7 +66,13 @@ class CommunicationClientOption {
 }
 
 abstract class CommunicationRepository {
-  Future<Result<List<HrConversation>>> getConversations();
+  Future<Result<List<HrConversation>>> getConversations({bool monitor = false});
+
+  Future<Result<List<HrAnnouncement>>> getAnnouncements({String view = 'feed'});
+
+  Future<Result<void>> markAnnouncementRead(String id);
+
+  Future<Result<List<CommunicationLogEntry>>> getCommunicationLogs();
 
   Future<Result<List<HrMessageContact>>> getContacts();
 

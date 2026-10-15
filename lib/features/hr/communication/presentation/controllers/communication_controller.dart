@@ -22,6 +22,7 @@ class CommunicationController extends BaseController<List<HrConversation>> {
   }
 
   final selectedTab = CommunicationTab.messages.obs;
+  final monitoring = false.obs;
   final selectedFilter = ConversationFilter.all.obs;
   final searchQuery = ''.obs;
   final selectedConversationId = RxnString();
@@ -83,15 +84,21 @@ class CommunicationController extends BaseController<List<HrConversation>> {
         (sum, conversation) => sum + conversation.unreadCount,
       );
 
-  void selectTab(CommunicationTab tab) => selectedTab.value = tab;
+  void selectTab(CommunicationTab tab) {
+    selectedTab.value = tab;
+    if (tab == CommunicationTab.messages || tab == CommunicationTab.monitoring) {
+      monitoring.value = tab == CommunicationTab.monitoring;
+      loadConversations(monitor: monitoring.value);
+    }
+  }
 
   void selectFilter(ConversationFilter filter) => selectedFilter.value = filter;
 
   void onSearchChanged(String value) => searchQuery.value = value;
 
-  Future<void> loadConversations() async {
+  Future<void> loadConversations({bool monitor = false}) async {
     setLoading(true);
-    final result = await repository.getConversations();
+    final result = await repository.getConversations(monitor: monitor);
     result.when(
       success: (items) {
         setSuccess(items);

@@ -186,6 +186,9 @@ abstract final class ApiEndpoints {
   static const String documentTypes = '/document-types';
   static const String conversations = '/conversations';
   static const String conversationContacts = '/conversations/contacts';
+  static const String announcements = '/announcements';
+  static const String communicationLogs = '/communication-logs';
+  static String announcementRead(String id) => '$announcements/$id/read';
 
   static String staffById(String staffId) => '$staff/$staffId';
   static String staffDocuments(String staffId) => '$staff/$staffId/documents';

@@ -238,6 +238,31 @@ class ResidencesRepositoryImpl
       );
 
   @override
+  Future<Result<void>> updateRoom(
+    String residenceId,
+    String roomId, {
+    required String name,
+    required int capacity,
+    String? floor,
+    String? wing,
+    String? roomType,
+  }) =>
+      _send(
+        _api.patch(
+          ResidencesEndpoints.room(residenceId, roomId),
+          data: {
+            'name': name,
+            'capacity': capacity,
+            'floor': ?floor,
+            'wing': ?wing,
+            'roomType': ?roomType,
+          },
+          silent: true,
+          allowQueue: false,
+        ),
+      );
+
+  @override
   Future<Result<void>> archiveRoom(String residenceId, String roomId) => _send(
         _api.delete(
           ResidencesEndpoints.room(residenceId, roomId),

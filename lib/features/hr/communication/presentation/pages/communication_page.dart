@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../staff/presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../../staff/staff_shell.dart';
 import '../../domain/entities/communication_enums.dart';
@@ -11,7 +12,9 @@ import '../../domain/entities/hr_message_contact.dart';
 import '../../domain/repositories/communication_repository.dart';
 import '../controllers/communication_controller.dart';
 import '../widgets/chat_panel.dart';
+import '../widgets/communication_extra_panels.dart';
 import '../widgets/communication_header.dart';
+import '../widgets/communication_segment_tabs.dart';
 import '../widgets/conversations_panel.dart';
 import '../widgets/new_conversation_dialog.dart';
 
@@ -91,11 +94,17 @@ class _CommunicationPageState extends State<CommunicationPage> {
   Widget build(BuildContext context) {
     final controller = _resolve();
     final staffNav = widget.showStaffBottomNav;
+    final tabs = <CommunicationTab>[
+      CommunicationTab.messages,
+      CommunicationTab.announcements,
+      if (GetIt.instance<UserSession>().canMonitorMessaging) ...[
+        CommunicationTab.monitoring,
+        CommunicationTab.communicationLog,
+      ],
+    ];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _seedIfNeeded(controller);
-      // Staff web has Messages only — never leave Log selected.
-      if (staffNav &&
-          controller.selectedTab.value == CommunicationTab.communicationLog) {
+      if (!tabs.contains(controller.selectedTab.value)) {
         controller.selectTab(CommunicationTab.messages);
       }
     });
@@ -116,13 +125,30 @@ class _CommunicationPageState extends State<CommunicationPage> {
               onNewConversation: () =>
                   _openNewConversation(context, controller),
             ),
+            Obx(
+              () => CommunicationSegmentTabs(
+                tabs: tabs,
+                selected: tabs.contains(controller.selectedTab.value)
+                    ? controller.selectedTab.value
+                    : CommunicationTab.messages,
+                onSelected: controller.selectTab,
+              ),
+            ),
             Expanded(
               child: Obx(() {
-                // Communication Log is not on staff web and remains unwired.
-                if (!staffNav &&
-                    controller.selectedTab.value ==
-                        CommunicationTab.communicationLog) {
-                  return const _CommunicationLogPlaceholder();
+                if (controller.selectedTab.value ==
+                    CommunicationTab.announcements) {
+                  return AnnouncementsPanel(repository: controller.repository);
+                }
+                if (controller.selectedTab.value ==
+                    CommunicationTab.communicationLog) {
+                  return CommunicationLogPanel(
+                    repository: controller.repository,
+                    onOpenConversation: (id) {
+                      controller.selectConversation(id);
+                      controller.selectTab(CommunicationTab.monitoring);
+                    },
+                  );
                 }
 
                 if (controller.isLoading.value &&
@@ -149,8 +175,9 @@ class _CommunicationPageState extends State<CommunicationPage> {
                   onSearchChanged: controller.onSearchChanged,
                   onFilterSelected: controller.selectFilter,
                   onConversationTap: controller.selectConversation,
-                  onComposeTap: () =>
-                      _openNewConversation(context, controller),
+                  onComposeTap: controller.monitoring.value
+                      ? null
+                      : () => _openNewConversation(context, controller),
                   onMarkAllRead:
                       controller.unreadCount > 0 ? controller.markAllRead : null,
                 );
@@ -161,6 +188,7 @@ class _CommunicationPageState extends State<CommunicationPage> {
                   onSend: controller.sendMessage,
                   isLoading: controller.isLoadingMessages.value,
                   isSending: controller.isSending.value,
+                  readOnly: controller.monitoring.value,
                 );
 
                 if (wide) {
@@ -257,47 +285,3 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-class _CommunicationLogPlaceholder extends StatelessWidget {
-  const _CommunicationLogPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: ResponsiveHelper.getResponsivePadding(context, all: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.history_edu_outlined,
-              size: ResponsiveHelper.getResponsiveSize(context, 40),
-              color: AppColors.textMuted,
-            ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-            Text(
-              'Communication Log',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-                color: AppColors.textHeading,
-              ),
-            ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-            Text(
-              'Audit entries for monitored conversations will appear here.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w400,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                color: AppColors.textSecondary,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

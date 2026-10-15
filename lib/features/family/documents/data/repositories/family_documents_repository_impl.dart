@@ -79,10 +79,107 @@ class FamilyDocumentsRepositoryImpl implements FamilyDocumentsRepository {
     );
   }
 
+  @override
+  Future<Result<List<FamilyDocumentResident>>> linkedResidents() async {
+    final result = await _api.get(ApiEndpoints.familyHome, silent: true);
+    return result.when(
+      success: (body) async {
+        final home = JsonCodec.unwrapMap(body);
+        final rows = JsonCodec.unwrapList(home['linkedClients']);
+        final people = <FamilyDocumentResident>[];
+        for (final raw in rows.whereType<Map>()) {
+          final json = JsonCodec.asMap(raw);
+          final visibility = JsonCodec.mapAt(json, 'visibility');
+          if (visibility != null && visibility['documents'] == false) continue;
+          final id = JsonCodec.string(json['id']);
+          if (id == null || id.isEmpty) continue;
+          final name = JsonCodec.string(json['name']) ??
+              [
+                JsonCodec.string(json['firstName']),
+                JsonCodec.string(json['lastName']),
+              ].whereType<String>().where((part) => part.isNotEmpty).join(' ');
+          if (name.isEmpty) continue;
+          people.add(FamilyDocumentResident(id: id, name: name));
+        }
+        return Result.success(people);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> sendDocument({
+    required String clientId,
+    required String name,
+    required String category,
+    required String localPath,
+    required String fileName,
+    String? notes,
+  }) async {
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(localPath, filename: fileName),
+      });
+      final upload = await _api.post(
+        ApiEndpoints.uploads,
+        data: form,
+        query: const {'category': 'family-uploads'},
+        allowQueue: false,
+      );
+      final uploaded = await upload.when(
+        success: (body) async => Result.success(JsonCodec.unwrapMap(body)),
+        failure: (error) async => Result<Map<String, dynamic>>.failure(error),
+      );
+      if (uploaded.isFailure) {
+        return Result.failure(
+          uploaded.error ?? const ApiError(message: 'Could not upload the file.'),
+        );
+      }
+      final fileUrl = JsonCodec.string(
+        uploaded.value?['fileUrl'] ?? uploaded.value?['url'],
+      );
+      if (fileUrl == null || fileUrl.isEmpty) {
+        return Result.failure(
+          const ApiError(message: 'Upload succeeded but file URL was missing.'),
+        );
+      }
+      final mime = _mimeForName(fileName);
+      final created = await _api.post(
+        ApiEndpoints.familyDocuments,
+        data: {
+          'clientId': clientId,
+          'category': category,
+          'name': name,
+          'fileUrl': fileUrl,
+          if (mime != null) 'fileType': mime,
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        },
+        allowQueue: false,
+      );
+      return await created.when(
+        success: (_) async => Result.success(null),
+        failure: (error) async => Result.failure(error),
+      );
+    } catch (error) {
+      return Result.failure(ApiError(message: 'Could not upload $fileName.'));
+    }
+  }
+
   Future<Result<_ResolvedFileTarget>> _resolveOpenUrl(
     FamilyDocument document,
   ) async {
-    // 1) Prefer documented GET /files/.../link from fileUrl or path parts.
+    // Web downloads the stored file path with the session, not a signed /link.
+    final raw = (document.fileUrl ?? document.downloadUrl)?.trim();
+    final apiPath = _apiFilePath(raw);
+    if (apiPath != null) {
+      return Result.success(_ResolvedFileTarget(url: apiPath, needsAuth: true));
+    }
+    if (raw != null &&
+        raw.isNotEmpty &&
+        (raw.startsWith('http://') || raw.startsWith('https://'))) {
+      return Result.success(_ResolvedFileTarget(url: raw, needsAuth: false));
+    }
+
     final filePath = _filesPathFor(document);
     if (filePath != null) {
       final linkPath = ApiEndpoints.fileLinkPath(filePath);
@@ -159,6 +256,28 @@ class FamilyDocumentsRepositoryImpl implements FamilyDocumentsRepository {
     return Result.failure(
       const ApiError(message: 'This document does not have a file yet.'),
     );
+  }
+
+  String? _apiFilePath(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    const marker = '/api/v1/';
+    final at = raw.indexOf(marker);
+    final path = at >= 0 ? raw.substring(at + '/api/v1'.length) : raw;
+    if (path.startsWith('/files/')) return path;
+    return null;
+  }
+
+  String? _mimeForName(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    if (lower.endsWith('.doc')) return 'application/msword';
+    if (lower.endsWith('.docx')) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    return null;
   }
 
   String? _filesPathFor(FamilyDocument document) {

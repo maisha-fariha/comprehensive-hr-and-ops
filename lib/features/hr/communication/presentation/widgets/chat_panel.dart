@@ -13,6 +13,7 @@ class ChatPanel extends StatelessWidget {
   final VoidCallback onSend;
   final bool isLoading;
   final bool isSending;
+  final bool readOnly;
 
   const ChatPanel({
     super.key,
@@ -22,6 +23,7 @@ class ChatPanel extends StatelessWidget {
     required this.onSend,
     this.isLoading = false,
     this.isSending = false,
+    this.readOnly = false,
   });
 
   @override
@@ -100,12 +102,14 @@ class ChatPanel extends StatelessWidget {
                         },
                       ),
           ),
-          const Divider(height: 1, color: AppColors.cardBorder),
-          _Composer(
-            controller: messageController,
-            onSend: isSending ? null : onSend,
-            isSending: isSending,
-          ),
+          if (!readOnly) ...[
+            const Divider(height: 1, color: AppColors.cardBorder),
+            _Composer(
+              controller: messageController,
+              onSend: isSending ? null : onSend,
+              isSending: isSending,
+            ),
+          ],
         ],
       ),
     );
