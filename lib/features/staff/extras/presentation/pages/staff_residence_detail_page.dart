@@ -731,8 +731,8 @@ class _ResidenceRoomsBody extends StatelessWidget {
               : null,
           residenceId: residenceId,
           bedCapacity: bedCapacity,
-          canManage: getIt.isRegistered<UserSession>() &&
-              getIt<UserSession>().can('residences:update'),
+          canManage: Get.isRegistered<UserSession>() &&
+              Get.find<UserSession>().can('residences:update'),
         ),
       ],
     );

@@ -376,7 +376,7 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
   }
 
   @override
-  Future<Result<List<HrAnnouncement>>> getAnnouncements({
+  Future<Result<AnnouncementFeed>> getAnnouncements({
     String view = 'feed',
   }) async {
     final result = await _api.get(
@@ -388,7 +388,12 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
       success: (body) async {
         final map = JsonCodec.unwrapMap(body);
         final rows = JsonCodec.unwrapList(map.isEmpty ? body : map['items'] ?? body);
-        return Result.success(rows.whereType<Map>().map(_announcement).toList());
+        return Result.success(
+          AnnouncementFeed(
+            items: rows.whereType<Map>().map(_announcement).toList(),
+            unreadCount: JsonCodec.integerOr(map['unreadCount'], 0),
+          ),
+        );
       },
       failure: (error) async => Result.failure(error),
     );

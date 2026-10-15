@@ -11,6 +11,13 @@ class CommunicationResidenceOption {
   const CommunicationResidenceOption({required this.id, required this.name});
 }
 
+class AnnouncementFeed {
+  final List<HrAnnouncement> items;
+  final int unreadCount;
+
+  const AnnouncementFeed({required this.items, this.unreadCount = 0});
+}
+
 class HrAnnouncement {
   final String id;
   final String title;
@@ -68,7 +75,7 @@ class CommunicationClientOption {
 abstract class CommunicationRepository {
   Future<Result<List<HrConversation>>> getConversations({bool monitor = false});
 
-  Future<Result<List<HrAnnouncement>>> getAnnouncements({String view = 'feed'});
+  Future<Result<AnnouncementFeed>> getAnnouncements({String view = 'feed'});
 
   Future<Result<void>> markAnnouncementRead(String id);
 

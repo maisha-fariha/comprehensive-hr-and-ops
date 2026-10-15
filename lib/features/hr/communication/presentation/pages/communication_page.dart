@@ -97,7 +97,8 @@ class _CommunicationPageState extends State<CommunicationPage> {
     final tabs = <CommunicationTab>[
       CommunicationTab.messages,
       CommunicationTab.announcements,
-      if (GetIt.instance<UserSession>().canMonitorMessaging) ...[
+      if (Get.isRegistered<UserSession>() &&
+          Get.find<UserSession>().canMonitorMessaging) ...[
         CommunicationTab.monitoring,
         CommunicationTab.communicationLog,
       ],
