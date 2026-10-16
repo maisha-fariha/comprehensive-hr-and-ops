@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'dart:ui' show DartPluginRegistrant;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     show
         AndroidFlutterLocalNotificationsPlugin,
         AndroidInitializationSettings,
+        AndroidNotificationCategory,
         AndroidNotificationChannel,
         AndroidNotificationDetails,
         DarwinInitializationSettings,
@@ -39,17 +42,33 @@ final FlutterLocalNotificationsPlugin messageNotifications =
 
 /// Posts one alert per message.
 ///
-/// On Android, Firebase also displays a notification payload. That copy uses
-/// a silent channel because a repeated tag replaces the first alert instead
-/// of showing the next one. iOS already presents each system notification.
+/// The server reuses one Android tag (`FCM-Notification:…`, id 0). Android
+/// then replaces the alert already in the tray and does not pop the next
+/// message. This handler posts a new alert and removes that collapsed one.
+/// iOS already presents each system notification.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (!Platform.isAndroid && message.notification != null) return;
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (_) {}
-  await prepareMessageNotifications();
-  await showMessageNotification(message.data, remote: message);
+  try {
+    await prepareMessageNotifications();
+    await showMessageNotification(message.data, remote: message);
+    await dismissCollapsedFirebaseNotifications();
+  } catch (_) {}
+}
+
+/// Removes the server notification that always uses the same tag.
+Future<void> dismissCollapsedFirebaseNotifications() async {
+  final active = await messageNotifications.getActiveNotifications();
+  for (final notification in active) {
+    final tag = notification.tag ?? '';
+    if (!tag.startsWith('FCM-Notification')) continue;
+    await messageNotifications.cancel(id: notification.id ?? 0, tag: tag);
+  }
 }
 
 Future<void> prepareMessageNotifications({
@@ -81,7 +100,8 @@ Future<void> showMessageNotification(
       _text(data['title']) ??
       'New message';
   final body = _text(remote?.notification?.body) ?? _text(data['body']) ?? '';
-  final id = nextMessageNotificationId();
+  final messageId = _text(data['messageId']) ?? remote?.messageId;
+  final id = nextMessageNotificationId(messageId);
   await messageNotifications.show(
     id: id,
     title: title,
@@ -97,6 +117,10 @@ Future<void> showMessageNotification(
         ticker: body.isEmpty ? title : body,
         onlyAlertOnce: false,
         autoCancel: true,
+        playSound: true,
+        enableVibration: true,
+        tag: 'msg-$id',
+        category: AndroidNotificationCategory.message,
       ),
       iOS: DarwinNotificationDetails(
         presentAlert: true,
@@ -112,11 +136,12 @@ int _messageNotificationSerial = 0;
 
 /// A new id for every message. Reusing the conversation id makes Android
 /// replace the first alert, so later messages never pop up again.
-int nextMessageNotificationId() {
+int nextMessageNotificationId([String? messageId]) {
   _messageNotificationSerial = (_messageNotificationSerial + 1) & 0x7fffffff;
   final mixed = Object.hash(
     DateTime.now().microsecondsSinceEpoch,
     _messageNotificationSerial,
+    messageId,
   );
   final id = mixed & 0x7fffffff;
   return id == 0 ? 1 : id;
@@ -209,6 +234,10 @@ class FirebasePushBridge {
     final body = message.notification?.body;
     if (title != null && title.isNotEmpty) data['title'] = title;
     if (body != null && body.isNotEmpty) data['body'] = body;
+    final messageId = message.messageId;
+    if (messageId != null && messageId.isNotEmpty) {
+      data['messageId'] = messageId;
+    }
     return PushMessage(
       id: message.messageId,
       title: _text(data['title']),

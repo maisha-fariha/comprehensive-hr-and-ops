@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
@@ -397,6 +399,11 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       refreshProfile();
+      // POST /devices again. The server drops a token it could not deliver,
+      // and the next message would then never arrive.
+      try {
+        unawaited(GetIt.instance<DeviceRegistrationService>().syncAfterAuth());
+      } catch (_) {}
     }
   }
 

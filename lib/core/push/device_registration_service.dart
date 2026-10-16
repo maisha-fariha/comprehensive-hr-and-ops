@@ -54,9 +54,6 @@ class DeviceRegistrationService {
     final token = await _resolveToken();
     if (token == null || token.isEmpty) return;
 
-    final already = _prefs.getString(_prefsRegisteredKey);
-    if (already == token) return;
-
     _syncing = true;
     try {
       final platform = _platformLabel();

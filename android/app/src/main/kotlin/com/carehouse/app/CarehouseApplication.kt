@@ -22,25 +22,14 @@ class CarehouseApplication : Application() {
             enableVibration(true)
             setShowBadge(true)
         }
-        // Firebase's own copy is posted here. A shared tag would replace the
-        // first alert, so this channel stays silent and the app posts each
-        // message itself on [ALERT_CHANNEL_ID].
-        val delivery = NotificationChannel(
-            DELIVERY_CHANNEL_ID,
-            "Message delivery",
-            NotificationManager.IMPORTANCE_NONE,
-        ).apply {
-            description = "Internal delivery channel"
-            setSound(null, null)
-            enableVibration(false)
-            setShowBadge(false)
-        }
         manager.createNotificationChannel(alerts)
-        manager.createNotificationChannel(delivery)
+        // An older build posted Firebase alerts here with no sound or popup.
+        // Android will not raise that channel's importance, so drop it.
+        manager.deleteNotificationChannel(SILENT_CHANNEL_ID)
     }
 
     companion object {
         const val ALERT_CHANNEL_ID = "messages_high"
-        const val DELIVERY_CHANNEL_ID = "messages_fcm"
+        const val SILENT_CHANNEL_ID = "messages_fcm"
     }
 }

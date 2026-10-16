@@ -44,7 +44,10 @@ class CommunicationPushRouter {
   }
 
   Future<void> _onForeground(PushMessage message) async {
-    await showMessageNotification(message.data);
+    try {
+      await showMessageNotification(message.data);
+      await dismissCollapsedFirebaseNotifications();
+    } catch (_) {}
     if (!isCommunicationPush(message.data)) return;
     await _refreshOpenThread(conversationIdOf(message.data));
   }
