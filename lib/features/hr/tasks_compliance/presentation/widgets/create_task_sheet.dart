@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_assets.dart';
+import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
@@ -23,26 +24,39 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 Future<void> showCreateTaskSheet(
   BuildContext context, {
   VoidCallback? onCreated,
+  String? editingTaskId,
+  Map<String, dynamic>? editing,
 }) {
   return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _CreateTaskSheet(onCreated: onCreated),
+    builder: (_) => _CreateTaskSheet(
+      onCreated: onCreated,
+      editingTaskId: editingTaskId,
+      editing: editing,
+    ),
   );
 }
 
 class _ChecklistDraft {
-  _ChecklistDraft({required this.label});
+  _ChecklistDraft({required this.label, this.done = false});
 
   final String label;
   bool mustBeDone = false;
+  bool done;
 }
 
 class _CreateTaskSheet extends StatefulWidget {
   final VoidCallback? onCreated;
+  final String? editingTaskId;
+  final Map<String, dynamic>? editing;
 
-  const _CreateTaskSheet({this.onCreated});
+  const _CreateTaskSheet({
+    this.onCreated,
+    this.editingTaskId,
+    this.editing,
+  });
 
   @override
   State<_CreateTaskSheet> createState() => _CreateTaskSheetState();
@@ -125,6 +139,10 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
   bool _recurring = false;
   final List<_ChecklistDraft> _checklist = [];
   final List<CreateTaskAttachment> _attachments = [];
+  List<Map<String, dynamic>> _existingEvidence = const [];
+  String? _pendingShiftId;
+
+  bool get _editing => widget.editingTaskId != null;
 
   Timer? _residentSearchDebounce;
   int _residentSearchRequestId = 0;
@@ -158,7 +176,10 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
         setState(() {
           _residences = items;
           _loadingResidences = false;
-          if (_residence == null && items.isNotEmpty) {
+          final editing = widget.editing;
+          if (editing != null) {
+            _applyEditing(editing);
+          } else if (_residence == null && items.isNotEmpty) {
             _residence = items.first;
           }
         });
@@ -189,8 +210,92 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     setState(() {
       _loadingShifts = false;
       rooms.when(success: (items) => _rooms = items, failure: (_) {});
-      shifts.when(success: (items) => _shifts = items, failure: (_) {});
+      shifts.when(success: (items) {
+        _shifts = items;
+        final pending = _pendingShiftId;
+        if (pending != null) {
+          final match = items.where((shift) => shift.id == pending);
+          if (match.isNotEmpty) _shift = match.first;
+          _pendingShiftId = null;
+        }
+      }, failure: (_) {});
     });
+  }
+
+  void _applyEditing(Map<String, dynamic> detail) {
+    String? text(dynamic value) {
+      final parsed = JsonCodec.string(value)?.trim();
+      return parsed == null || parsed.isEmpty ? null : parsed;
+    }
+
+    final residenceId = text(detail['residenceId'] ?? JsonCodec.mapAt(detail, 'residence')?['id']);
+    final match = _residences.where((item) => item.id == residenceId);
+    if (match.isNotEmpty) _residence = match.first;
+
+    _titleController.text = text(detail['title']) ?? '';
+    _descriptionController.text = text(detail['description']) ?? '';
+    final type = text(detail['taskType'] ?? detail['type']);
+    if (type != null && _taskTypes.any((option) => option.$1 == type)) {
+      _taskType = type;
+    }
+    final priority = text(detail['priority']);
+    if (priority != null && _priorities.any((option) => option.$1 == priority)) {
+      _priority = priority;
+    }
+    _requiresReview = detail['requiresReview'] == true;
+    _requiresSignOff = detail['requiresSignOff'] == true;
+    _roomArea = text(detail['roomArea']);
+    _dueAt = JsonCodec.dateTime(detail['dueAt'] ?? detail['dueDate'])?.toLocal();
+    if (_dueAt != null) _dueController.text = _formatDue(_dueAt!);
+    _pendingShiftId = text(detail['shiftId'] ?? JsonCodec.mapAt(detail, 'shift')?['id']);
+
+    final client = JsonCodec.mapAt(detail, 'client');
+    final clientId = text(detail['clientId'] ?? client?['id']);
+    final clientName = text(client?['name'] ?? client?['fullName']) ??
+        [
+          text(client?['firstName']),
+          text(client?['lastName']),
+        ].whereType<String>().join(' ').trim();
+    if (clientId != null && clientName.isNotEmpty) {
+      _selectedResident = TaskClientOption(id: clientId, name: clientName);
+      _residentController.text = clientName;
+    }
+
+    _selectedStaff
+      ..clear()
+      ..addAll([
+        for (final raw in JsonCodec.unwrapList(detail['assignees']))
+          if (raw is Map)
+            () {
+              final map = JsonCodec.asMap(raw);
+              final staff = JsonCodec.mapAt(map, 'staff') ?? map;
+              final id = text(staff['id'] ?? staff['staffId'] ?? map['staffId']);
+              final name = text(staff['name'] ?? staff['fullName']) ??
+                  [
+                    text(staff['firstName']),
+                    text(staff['lastName']),
+                  ].whereType<String>().join(' ').trim();
+              if (id == null || name.isEmpty) return null;
+              return TaskStaffOption(id: id, name: name);
+            }(),
+      ].whereType<TaskStaffOption>());
+
+    _checklist
+      ..clear()
+      ..addAll([
+        for (final raw in JsonCodec.unwrapList(detail['checklist']))
+          if (raw is Map)
+            _ChecklistDraft(
+              label: text(JsonCodec.asMap(raw)['label']) ?? 'Item',
+              done: JsonCodec.asMap(raw)['done'] == true ||
+                  JsonCodec.asMap(raw)['completed'] == true,
+            )..mustBeDone = JsonCodec.asMap(raw)['required'] == true,
+      ]);
+
+    _existingEvidence = [
+      for (final raw in JsonCodec.unwrapList(detail['evidence']))
+        if (raw is Map) JsonCodec.asMap(raw),
+    ];
   }
 
   void _selectResidence(TaskResidenceOption? residence) {
@@ -580,6 +685,86 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
         ),
       );
 
+  Future<void> _saveEdit({
+    required String title,
+    required String description,
+    required String notes,
+  }) async {
+    final taskId = widget.editingTaskId!;
+    final result = await _repository.updateTask(
+      taskId: taskId,
+      body: {
+        'residenceId': _residence!.id,
+        'title': title,
+        'taskType': _taskType,
+        'priority': _priority,
+        'requiresReview': _requiresReview,
+        'requiresSignOff': _requiresSignOff,
+        'assignedStaffIds': [for (final staff in _selectedStaff) staff.id],
+        'checklist': [
+          for (final step in _checklist)
+            {
+              'label': step.label,
+              'done': step.done,
+              'required': step.mustBeDone,
+            },
+        ],
+        if (description.isNotEmpty) 'description': description,
+        if (_roomArea != null && _roomArea!.isNotEmpty) 'roomArea': _roomArea,
+        if (_selectedResident != null) 'clientId': _selectedResident!.id,
+        if (_shift != null) 'shiftId': _shift!.id,
+        if (_dueAt != null) 'dueAt': _dueAt!.toUtc().toIso8601String(),
+      },
+    );
+    if (result.isSuccess) {
+      await _repository.replaceAssignees(
+        taskId: taskId,
+        staffIds: [for (final staff in _selectedStaff) staff.id],
+      );
+      if (notes.isNotEmpty) {
+        await _repository.addTaskNote(taskId: taskId, body: notes);
+      }
+      if (_attachments.isNotEmpty) {
+        final evidence = [..._existingEvidence];
+        for (final file in _attachments) {
+          final uploaded = await _repository.uploadTaskFile(
+            path: file.path,
+            name: file.name,
+          );
+          if (uploaded.isFailure) {
+            if (!mounted) return;
+            setState(() => _submitting = false);
+            AppSnackbar.show(
+              'Could not upload',
+              uploaded.error?.message ?? file.name,
+            );
+            return;
+          }
+          final url = uploaded.value;
+          if (url != null && url.isNotEmpty) {
+            evidence.add({'url': url, 'label': file.name});
+          }
+        }
+        await _repository.updateTask(
+          taskId: taskId,
+          body: {'evidence': evidence},
+        );
+      }
+    }
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    result.when(
+      success: (_) {
+        _close();
+        widget.onCreated?.call();
+        AppSnackbar.show('Task updated', '“$title” was saved.');
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not update task', error.message);
+      },
+    );
+  }
+
   Future<void> _onCreate() async {
     if (_submitting) return;
     final errors = _validate();
@@ -590,6 +775,10 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     final description = _descriptionController.text.trim();
     final notes = _notesController.text.trim();
     setState(() => _submitting = true);
+    if (_editing) {
+      await _saveEdit(title: title, description: description, notes: notes);
+      return;
+    }
     final result = await _repository.createTask(
       CreateTaskRequest(
         residenceId: _residence!.id,
@@ -671,7 +860,13 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                   bottom: 20,
                 ),
                 children: [
-                  _Header(onClose: _close),
+                  _Header(
+                    onClose: _close,
+                    title: _editing ? 'Edit task' : 'New Task',
+                    subtitle: _editing
+                        ? 'Update the assignment, checklist, notes, and attachments.'
+                        : 'Create and assign task, add checklist, notes, and attachments.',
+                  ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                   if (_loadingResidences)
                     const Padding(
@@ -873,19 +1068,20 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                         setState(() => _attachments.removeAt(index)),
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                  _ToggleBlock(
-                    key: const ValueKey('create-task-recurring'),
-                    title: 'Recurring Task',
-                    subtitle:
-                        'Repeat this task on a schedule and share it between staff',
-                    value: _recurring,
-                    onChanged: (value) => setState(() {
-                      _recurring = value;
-                      _errors = const {};
-                    }),
-                    bordered: true,
-                    child: _recurring ? _buildRecurrence(context) : null,
-                  ),
+                  if (!_editing)
+                    _ToggleBlock(
+                      key: const ValueKey('create-task-recurring'),
+                      title: 'Recurring Task',
+                      subtitle:
+                          'Repeat this task on a schedule and share it between staff',
+                      value: _recurring,
+                      onChanged: (value) => setState(() {
+                        _recurring = value;
+                        _errors = const {};
+                      }),
+                      bordered: true,
+                      child: _recurring ? _buildRecurrence(context) : null,
+                    ),
                 ],
               ),
             ),
@@ -893,6 +1089,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
               onCancel: _close,
               onCreate: _onCreate,
               saving: _submitting,
+              submitLabel: _editing ? 'Save changes' : 'Create Task',
             ),
           ],
         ),
@@ -1089,8 +1286,14 @@ class _FieldError extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   final VoidCallback onClose;
+  final String title;
+  final String subtitle;
 
-  const _Header({required this.onClose});
+  const _Header({
+    required this.onClose,
+    this.title = 'New Task',
+    this.subtitle = 'Create and assign task, add checklist, notes, and attachments.',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1120,7 +1323,7 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'New Task',
+                title,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
@@ -1130,7 +1333,7 @@ class _Header extends StatelessWidget {
               ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
               Text(
-                'Create and assign task, add checklist, notes, and attachments.',
+                subtitle,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w400,
@@ -1961,11 +2164,13 @@ class _Footer extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onCreate;
   final bool saving;
+  final String submitLabel;
 
   const _Footer({
     required this.onCancel,
     required this.onCreate,
     this.saving = false,
+    this.submitLabel = 'Create Task',
   });
 
   @override
@@ -2032,7 +2237,7 @@ class _Footer extends StatelessWidget {
                       vertical: 12,
                     ),
                     child: Text(
-                      saving ? 'Saving…' : 'Create Task',
+                      saving ? 'Saving…' : submitLabel,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,

@@ -1,53 +1,283 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/media/app_file_picker.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'create_task_sheet.dart';
 
 Future<void> showTaskDetailSheet(
   BuildContext context, {
   required TaskItem task,
+  VoidCallback? onChanged,
 }) {
   return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _TaskDetailSheet(task: task),
+    builder: (_) => _TaskDetailSheet(task: task, onChanged: onChanged),
   );
 }
 
 class _TaskDetailSheet extends StatefulWidget {
   final TaskItem task;
+  final VoidCallback? onChanged;
 
-  const _TaskDetailSheet({required this.task});
+  const _TaskDetailSheet({required this.task, this.onChanged});
 
   @override
   State<_TaskDetailSheet> createState() => _TaskDetailSheetState();
 }
 
+class _CheckDraft {
+  _CheckDraft({
+    this.id,
+    required this.label,
+    required this.done,
+    required this.required,
+  });
+
+  final String? id;
+  final String label;
+  bool done;
+  final bool required;
+
+  Map<String, dynamic> toJson() => {
+        if (id != null && id!.isNotEmpty) 'id': id,
+        'label': label,
+        'done': done,
+        'required': required,
+      };
+}
+
 class _TaskDetailSheetState extends State<_TaskDetailSheet> {
+  static const _maxUploadBytes = 25 * 1024 * 1024;
+
+  late final TasksComplianceRepository _repository;
   late final TaskDetailLoad _load;
   final _reviewNotes = TextEditingController();
+  final _note = TextEditingController();
+  final _completion = TextEditingController();
   bool _reviewing = false;
+  bool _busy = false;
+  bool _formReady = false;
+  List<_CheckDraft> _checks = const [];
 
   @override
   void initState() {
     super.initState();
-    _load = TaskDetailLoad(GetIt.instance<TasksComplianceRepository>());
+    _repository = GetIt.instance<TasksComplianceRepository>();
+    _load = TaskDetailLoad(_repository);
+    _load.addListener(_syncForm);
     _load.fetch(widget.task.id);
   }
 
   @override
   void dispose() {
+    _load.removeListener(_syncForm);
     _reviewNotes.dispose();
+    _note.dispose();
+    _completion.dispose();
     super.dispose();
+  }
+
+  void _syncForm() {
+    if (_formReady || _load.loading || _load.detail == null) return;
+    _formReady = true;
+    final detail = _load.detail!;
+    _completion.text = JsonCodec.stringOr(detail['completionNotes'], '');
+    _checks = [
+      for (final raw in JsonCodec.unwrapList(detail['checklist']))
+        if (raw is Map)
+          _CheckDraft(
+            id: JsonCodec.string(JsonCodec.asMap(raw)['id']),
+            label: JsonCodec.stringOr(
+              JsonCodec.asMap(raw)['label'] ??
+                  JsonCodec.asMap(raw)['title'] ??
+                  JsonCodec.asMap(raw)['text'] ??
+                  JsonCodec.asMap(raw)['name'],
+              'Item',
+            ),
+            done: JsonCodec.asMap(raw)['completed'] == true ||
+                JsonCodec.asMap(raw)['done'] == true ||
+                JsonCodec.asMap(raw)['checked'] == true,
+            required: JsonCodec.asMap(raw)['required'] == true,
+          ),
+    ];
+    if (mounted) setState(() {});
+  }
+
+  Map<String, dynamic> _progressBody({String? status}) {
+    final notes = _completion.text.trim();
+    return {
+      'status': ?status,
+      'completionNotes': notes,
+      'checklist': [for (final step in _checks) step.toJson()],
+    };
+  }
+
+  Future<void> _saveProgress() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final status = _statusRaw(_load.detail);
+    final result = await _repository.updateTask(
+      taskId: widget.task.id,
+      body: _progressBody(
+        status: status == 'open' || status == 'pending' ? 'in_progress' : null,
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Progress saved', widget.task.title, force: true);
+        _formReady = false;
+        _load.fetch(widget.task.id);
+        widget.onChanged?.call();
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not save progress', error.message, force: true);
+      },
+    );
+  }
+
+  Future<void> _complete() async {
+    if (_busy) return;
+    final detail = _load.detail ?? const <String, dynamic>{};
+    setState(() => _busy = true);
+    final result = await _repository.updateTask(
+      taskId: widget.task.id,
+      body: {
+        ..._progressBody(status: 'completed'),
+        if (detail['requiresSignOff'] == true) 'signOff': true,
+      },
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Task completed', widget.task.title, force: true);
+        widget.onChanged?.call();
+        Navigator.of(context).pop();
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not complete task', error.message, force: true);
+      },
+    );
+  }
+
+  Future<void> _addNote() async {
+    final text = _note.text.trim();
+    if (_busy) return;
+    if (text.isEmpty) {
+      AppSnackbar.show(
+        'Add a note',
+        'Add a note or reminder for this task.',
+        force: true,
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    final result = await _repository.addTaskNote(
+      taskId: widget.task.id,
+      body: text,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        _note.clear();
+        _load.fetch(widget.task.id);
+        widget.onChanged?.call();
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not add note', error.message, force: true);
+      },
+    );
+    setState(() => _busy = false);
+  }
+
+  Future<void> _upload() async {
+    if (_busy) return;
+    final picked = await AppFilePicker.pickFiles(
+      context: context,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+    );
+    if (picked == null || !mounted) return;
+    final file = picked.files.first;
+    final path = file.path;
+    if (path == null) return;
+    if (file.size > _maxUploadBytes) {
+      AppSnackbar.show(
+        'File too large',
+        'PDF, JPG, PNG · Max 25MB',
+        force: true,
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    final uploaded = await _repository.uploadTaskFile(path: path, name: file.name);
+    if (!mounted) return;
+    if (uploaded.isFailure) {
+      setState(() => _busy = false);
+      AppSnackbar.show(
+        'Could not upload',
+        uploaded.error?.message ?? 'Upload failed.',
+        force: true,
+      );
+      return;
+    }
+    final existing = [
+      for (final raw in JsonCodec.unwrapList(_load.detail?['evidence']))
+        if (raw is Map) JsonCodec.asMap(raw),
+    ];
+    final result = await _repository.updateTask(
+      taskId: widget.task.id,
+      body: {
+        'evidence': [
+          ...existing,
+          {'url': uploaded.value, 'label': file.name},
+        ],
+      },
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Document uploaded', file.name, force: true);
+        _formReady = false;
+        _load.fetch(widget.task.id);
+        widget.onChanged?.call();
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not attach document', error.message, force: true);
+      },
+    );
+  }
+
+  Future<void> _edit() async {
+    final detail = _load.detail;
+    if (detail == null || _busy) return;
+    await showCreateTaskSheet(
+      context,
+      editingTaskId: widget.task.id,
+      editing: detail,
+      onCreated: () {
+        _formReady = false;
+        _load.fetch(widget.task.id);
+        widget.onChanged?.call();
+      },
+    );
   }
 
   Future<void> _review(String decision) async {
@@ -80,258 +310,350 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.sizeOf(context).height * 0.72;
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceWhite,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(
-              ResponsiveHelper.getResponsiveRadius(context, 20),
+    final height = MediaQuery.sizeOf(context).height * 0.92;
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: inset),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceWhite,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(
+                ResponsiveHelper.getResponsiveRadius(context, 20),
+              ),
             ),
           ),
-        ),
-        child: Column(
-          children: [
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            Container(
-              width: ResponsiveHelper.getResponsiveWidth(context, 40),
-              height: ResponsiveHelper.getResponsiveHeight(context, 4),
-              decoration: BoxDecoration(
-                color: AppColors.dividerLight,
-                borderRadius: BorderRadius.circular(999),
+          child: Column(
+            children: [
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+              Container(
+                width: ResponsiveHelper.getResponsiveWidth(context, 40),
+                height: ResponsiveHelper.getResponsiveHeight(context, 4),
+                decoration: BoxDecoration(
+                  color: AppColors.dividerLight,
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
-            ),
-            Padding(
-              padding: ResponsiveHelper.getResponsivePadding(
-                context,
-                horizontal: 16,
-                top: 14,
-                bottom: 8,
+              Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 16,
+                  top: 14,
+                  bottom: 8,
+                ),
+                child: _SheetHeader(
+                  title: widget.task.title,
+                  onClose: () => Navigator.of(context).pop(),
+                ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.task.title,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize:
-                            ResponsiveHelper.getResponsiveFontSize(context, 17),
-                        color: AppColors.textHeading,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: AnimatedBuilder(
-                animation: _load,
-                builder: (context, _) {
-                  if (_load.loading) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.secondaryTeal,
-                      ),
-                    );
-                  }
-                  if (_load.error != null) {
-                    return Center(
-                      child: Padding(
-                        padding: ResponsiveHelper.getResponsivePadding(
-                          context,
-                          all: 24,
+              Expanded(
+                child: AnimatedBuilder(
+                  animation: _load,
+                  builder: (context, _) {
+                    if (_load.loading && _load.detail == null) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.secondaryTeal,
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _load.error!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'Outfit',
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () => _load.fetch(widget.task.id),
-                              child: const Text(
-                                'Retry',
-                                style: TextStyle(fontFamily: 'Outfit'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  final detail = _load.detail ?? const <String, dynamic>{};
-                  final description = JsonCodec.stringOr(
-                    detail['description'] ?? detail['body'],
-                    'No description.',
-                  );
-                  final statusRaw = JsonCodec.stringOr(
-                    detail['status'] ?? detail['state'],
-                    widget.task.status.name,
-                  );
-                  final status = _statusLabel(statusRaw);
-                  final priority = _priorityLabel(
-                    JsonCodec.stringOr(detail['priority'], ''),
-                  );
-                  final typeLabel = _typeLabel(
-                    JsonCodec.stringOr(detail['taskType'] ?? detail['type'], ''),
-                  );
-
-                  return ListView(
-                    padding: ResponsiveHelper.getResponsivePadding(
-                      context,
-                      horizontal: 16,
-                      bottom: 24,
-                    ).copyWith(
-                      bottom: 24 + MediaQuery.paddingOf(context).bottom,
-                    ),
-                    children: [
-                      _MetaRow(label: 'Status', value: status),
-                      _MetaRow(
-                        label: 'Type',
-                        value: () {
-                          final line = [
-                            typeLabel,
-                            priority,
-                          ].where((part) => part.isNotEmpty).join(' · ');
-                          return line.isEmpty ? '—' : line;
-                        }(),
-                      ),
-                      _MetaRow(label: 'Assigned', value: _assigned(detail)),
-                      _MetaRow(label: 'Residence', value: _residence(detail)),
-                      _MetaRow(label: 'Due', value: _due(detail)),
-                      _MetaRow(
-                        label: 'Review',
-                        value: detail['requiresReview'] == true ? 'Required' : 'Not required',
-                      ),
-                      _MetaRow(
-                        label: 'Sign-off',
-                        value: detail['requiresSignOff'] == true ? 'Required' : 'Not required',
-                      ),
-                      ..._checklist(context, detail),
-                      ..._evidence(context, detail),
-                      if (_canReview(detail, statusRaw)) ..._reviewBox(context),
-                      SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 12),
-                      ),
-                      Text(
-                        'Description',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      );
+                    }
+                    if (_load.error != null && _load.detail == null) {
+                      return Center(
+                        child: Padding(
+                          padding: ResponsiveHelper.getResponsivePadding(
                             context,
-                            14,
+                            all: 24,
                           ),
-                          color: AppColors.textHeading,
-                        ),
-                      ),
-                      SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 6),
-                      ),
-                      Text(
-                        description,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w400,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            13,
-                          ),
-                          color: AppColors.textBody,
-                          height: 1.4,
-                        ),
-                      ),
-                      SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 16),
-                      ),
-                      Text(
-                        'Notes',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            14,
-                          ),
-                          color: AppColors.textHeading,
-                        ),
-                      ),
-                      SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 8),
-                      ),
-                      if (_load.notes.isEmpty)
-                        Text(
-                          'No notes yet.',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            color: AppColors.textSecondary,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(
-                              context,
-                              13,
-                            ),
-                          ),
-                        )
-                      else
-                        for (final note in _load.notes) ...[
-                          Container(
-                            width: double.infinity,
-                            margin: EdgeInsets.only(
-                              bottom: ResponsiveHelper.getResponsiveHeight(
-                                context,
-                                8,
-                              ),
-                            ),
-                            padding: ResponsiveHelper.getResponsivePadding(
-                              context,
-                              all: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: AppColors.searchBorder),
-                              borderRadius: BorderRadius.circular(
-                                ResponsiveHelper.getResponsiveRadius(context, 12),
-                              ),
-                            ),
-                            child: Text(
-                              JsonCodec.stringOr(
-                                note['body'] ?? note['text'] ?? note['note'],
-                                'Note',
-                              ),
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                  context,
-                                  13,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _load.error!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  color: AppColors.textSecondary,
                                 ),
-                                color: AppColors.textBody,
                               ),
-                            ),
+                              TextButton(
+                                onPressed: () => _load.fetch(widget.task.id),
+                                child: const Text(
+                                  'Retry',
+                                  style: TextStyle(fontFamily: 'Outfit'),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                    ],
-                  );
-                },
+                        ),
+                      );
+                    }
+
+                    final detail = _load.detail ?? const <String, dynamic>{};
+                    final description = JsonCodec.string(
+                      detail['description'] ?? detail['body'],
+                    );
+                    final statusRaw = _statusRaw(detail);
+                    final completed = _isCompleted(statusRaw);
+                    final files = [
+                      for (final raw in JsonCodec.unwrapList(detail['evidence']))
+                        if (raw is Map)
+                          JsonCodec.stringOr(
+                            JsonCodec.asMap(raw)['label'] ??
+                                JsonCodec.asMap(raw)['name'] ??
+                                JsonCodec.asMap(raw)['fileName'],
+                            'File',
+                          ),
+                    ];
+                    final doneCount = _checks.where((step) => step.done).length;
+
+                    return ListView(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 16,
+                        bottom: 16,
+                      ),
+                      children: [
+                        _SectionCard(
+                          title: 'Task details',
+                          child: Column(
+                            children: [
+                              _MetaRow(label: 'Status', value: _statusLabel(statusRaw)),
+                              _MetaRow(
+                                label: 'Type',
+                                value: () {
+                                  final line = [
+                                    _typeLabel(JsonCodec.stringOr(
+                                      detail['taskType'] ?? detail['type'],
+                                      '',
+                                    )),
+                                    _priorityLabel(JsonCodec.stringOr(detail['priority'], '')),
+                                  ].where((part) => part.isNotEmpty).join(' · ');
+                                  return line.isEmpty ? '—' : line;
+                                }(),
+                              ),
+                              _MetaRow(label: 'Assigned', value: _assigned(detail)),
+                              _MetaRow(label: 'Residence', value: _residence(detail)),
+                              _MetaRow(label: 'Due', value: _due(detail)),
+                              _MetaRow(
+                                label: 'Review',
+                                value: detail['requiresReview'] == true
+                                    ? 'Required'
+                                    : 'Not required',
+                              ),
+                              _MetaRow(
+                                label: 'Sign-off',
+                                value: detail['requiresSignOff'] == true
+                                    ? 'Required'
+                                    : 'Not required',
+                              ),
+                              if (description != null && description.trim().isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    description.trim(),
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 13,
+                                      color: AppColors.textBody,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _SectionCard(
+                          title: 'Checklist',
+                          subtitle: _checks.isEmpty
+                              ? '0 of 0 items complete'
+                              : '$doneCount of ${_checks.length} items complete',
+                          child: _checks.isEmpty
+                              ? const Text(
+                                  'This task has no checklist.',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 13,
+                                    color: AppColors.textMuted,
+                                  ),
+                                )
+                              : Column(
+                                  children: [
+                                    for (var i = 0; i < _checks.length; i++)
+                                      CheckboxListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
+                                        value: _checks[i].done,
+                                        onChanged: completed
+                                            ? null
+                                            : (value) => setState(
+                                                  () => _checks[i].done = value ?? false,
+                                                ),
+                                        title: Text(
+                                          _checks[i].label,
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                        ),
+                        const SizedBox(height: 12),
+                        _SectionCard(
+                          title: 'Documentation Uploads',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _UploadZone(busy: _busy, onTap: _upload),
+                              for (final name in files)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 13,
+                                      color: AppColors.textHeading,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _SectionCard(
+                          title: 'Notes / Reminders',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                controller: _note,
+                                minLines: 3,
+                                maxLines: 5,
+                                decoration: _fieldDecoration(
+                                  'Add a note or reminder for this task...',
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: OutlinedButton.icon(
+                                  key: const Key('task-add-note'),
+                                  onPressed: _busy ? null : _addNote,
+                                  icon: const Icon(Icons.note_add_outlined, size: 16),
+                                  label: const Text('Add Note'),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              if (_load.notes.isEmpty)
+                                const Text(
+                                  'Nothing written yet.',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 13,
+                                    color: AppColors.textMuted,
+                                  ),
+                                )
+                              else
+                                for (final note in _load.notes)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      JsonCodec.stringOr(
+                                        note['body'] ?? note['text'] ?? note['note'],
+                                        'Note',
+                                      ),
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 13,
+                                        color: AppColors.textBody,
+                                      ),
+                                    ),
+                                  ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _SectionCard(
+                          title: 'Finishing up',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Completion notes',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: AppColors.textHeading,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _completion,
+                                minLines: 3,
+                                maxLines: 5,
+                                decoration: _fieldDecoration(
+                                  'What was done, and anything the next person should know...',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_canReview(detail, statusRaw)) ..._reviewBox(context),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+              _ActionBar(
+                busy: _busy,
+                completed: _isCompleted(_statusRaw(_load.detail)),
+                onClose: () => Navigator.of(context).pop(),
+                onEdit: _load.detail == null ? null : _edit,
+                onSave: _load.detail == null ? null : _saveProgress,
+                onComplete: _load.detail == null ? null : _complete,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+String _statusRaw(Map<String, dynamic>? detail) {
+  return JsonCodec.stringOr(
+    detail?['status'] ?? detail?['state'],
+    '',
+  ).toLowerCase();
+}
+
+bool _isCompleted(String raw) {
+  return raw == 'completed' || raw == 'done' || raw == 'complete' || raw == 'closed';
+}
+
+InputDecoration _fieldDecoration(String hint) {
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textMuted),
+    contentPadding: const EdgeInsets.all(12),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.searchBorder),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.searchBorder),
+    ),
+  );
 }
 
 String _assigned(Map<String, dynamic> detail) {
@@ -412,110 +734,6 @@ bool _canReview(Map<String, dynamic> detail, String status) {
   return detail['requiresReview'] == true || raw.contains('review');
 }
 
-List<Widget> _checklist(BuildContext context, Map<String, dynamic> detail) {
-  final steps = [
-    for (final raw in JsonCodec.unwrapList(detail['checklist']))
-      if (raw is Map) JsonCodec.asMap(raw),
-  ];
-  if (steps.isEmpty) {
-    return [
-      const SizedBox(height: 12),
-      Text(
-        'Checklist',
-        style: TextStyle(
-          fontFamily: 'Outfit',
-          fontWeight: FontWeight.w700,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-          color: AppColors.textHeading,
-        ),
-      ),
-      const Text(
-        '0 of 0 items complete',
-        style: TextStyle(fontFamily: 'Outfit', fontSize: 12.5, color: AppColors.textSecondary),
-      ),
-      const Text(
-        'This task has no checklist.',
-        style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textMuted),
-      ),
-    ];
-  }
-  final done = steps.where((step) {
-    return step['completed'] == true || step['done'] == true || step['checked'] == true;
-  }).length;
-  return [
-    const SizedBox(height: 12),
-    Text(
-      'Checklist',
-      style: TextStyle(
-        fontFamily: 'Outfit',
-        fontWeight: FontWeight.w700,
-        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-        color: AppColors.textHeading,
-      ),
-    ),
-    Text(
-      '$done of ${steps.length} items complete',
-      style: const TextStyle(fontFamily: 'Outfit', fontSize: 12.5, color: AppColors.textSecondary),
-    ),
-    for (final step in steps)
-      CheckboxListTile(
-        contentPadding: EdgeInsets.zero,
-        dense: true,
-        value: step['completed'] == true || step['done'] == true || step['checked'] == true,
-        onChanged: null,
-        title: Text(
-          JsonCodec.stringOr(step['label'] ?? step['title'] ?? step['text'] ?? step['name'], 'Item'),
-          style: const TextStyle(fontFamily: 'Outfit', fontSize: 13),
-        ),
-      ),
-  ];
-}
-
-List<Widget> _evidence(BuildContext context, Map<String, dynamic> detail) {
-  final files = [
-    for (final raw in JsonCodec.unwrapList(detail['evidence']))
-      if (raw is Map) JsonCodec.asMap(raw),
-  ];
-  if (files.isEmpty) {
-    return [
-      const SizedBox(height: 8),
-      Text(
-        'Documentation Uploads',
-        style: TextStyle(
-          fontFamily: 'Outfit',
-          fontWeight: FontWeight.w700,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-          color: AppColors.textHeading,
-        ),
-      ),
-      const Text(
-        'No documents uploaded.',
-        style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textMuted),
-      ),
-    ];
-  }
-  return [
-    const SizedBox(height: 8),
-    Text(
-      'Documentation',
-      style: TextStyle(
-        fontFamily: 'Outfit',
-        fontWeight: FontWeight.w700,
-        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-        color: AppColors.textHeading,
-      ),
-    ),
-    for (final file in files)
-      Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Text(
-          JsonCodec.stringOr(file['label'] ?? file['name'] ?? file['fileName'] ?? file['url'], 'File'),
-          style: const TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textBody),
-        ),
-      ),
-  ];
-}
-
 extension on _TaskDetailSheetState {
   List<Widget> _reviewBox(BuildContext context) {
     return [
@@ -559,6 +777,262 @@ extension on _TaskDetailSheetState {
         ],
       ),
     ];
+  }
+}
+
+class _SheetHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onClose;
+
+  const _SheetHeader({required this.title, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final iconSize = ResponsiveHelper.getResponsiveSize(context, 40);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: iconSize,
+          height: iconSize,
+          decoration: BoxDecoration(
+            color: AppColors.secondaryTeal,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          alignment: Alignment.center,
+          child: const AppSvgIcon(AppAssets.clipboardCheck, size: 20, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
+                  color: AppColors.textHeading,
+                ),
+              ),
+              const SizedBox(height: 2),
+              const Text(
+                'Task details, checklist progress, documentation and notes.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  color: AppColors.textMuted,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: onClose,
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget child;
+
+  const _SectionCard({required this.title, required this.child, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.searchBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+              color: AppColors.textHeading,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle!,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 12.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _UploadZone extends StatelessWidget {
+  final bool busy;
+  final VoidCallback onTap;
+
+  const _UploadZone({required this.busy, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF7FAFB),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        key: const Key('task-upload'),
+        onTap: busy ? null : onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFD5DEE6)),
+          ),
+          child: const Column(
+            children: [
+              Icon(Icons.cloud_upload_outlined, color: AppColors.secondaryTeal),
+              SizedBox(height: 8),
+              Text(
+                'Upload Document or drag & drop',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                  color: AppColors.secondaryTeal,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'PDF, JPG, PNG · Max 25MB',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionBar extends StatelessWidget {
+  final bool busy;
+  final bool completed;
+  final VoidCallback onClose;
+  final VoidCallback? onEdit;
+  final VoidCallback? onSave;
+  final VoidCallback? onComplete;
+
+  const _ActionBar({
+    required this.busy,
+    required this.completed,
+    required this.onClose,
+    required this.onEdit,
+    required this.onSave,
+    required this.onComplete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceWhite,
+        border: Border(top: BorderSide(color: AppColors.cardBorder)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _BarButton(label: 'Close', onTap: onClose),
+              _BarButton(label: 'Edit', onTap: busy ? null : onEdit),
+              _BarButton(
+                key: const Key('task-save-progress'),
+                label: 'Save progress',
+                onTap: busy || completed ? null : onSave,
+              ),
+              _BarButton(
+                key: const Key('task-complete'),
+                label: 'Complete task',
+                filled: true,
+                onTap: busy || completed ? null : onComplete,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+  final bool filled;
+
+  const _BarButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = filled ? AppColors.primaryNavy : AppColors.surfaceWhite;
+    final textColor = filled ? Colors.white : AppColors.textHeading;
+    return Material(
+      color: onTap == null && filled ? AppColors.primaryNavy.withValues(alpha: 0.4) : color,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: filled ? null : Border.all(color: AppColors.searchBorder),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: textColor,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

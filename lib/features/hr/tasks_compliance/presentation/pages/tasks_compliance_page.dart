@@ -199,6 +199,7 @@ class TasksCompliancePage extends StatelessWidget {
                           onTaskTap: (task) => showTaskDetailSheet(
                             context,
                             task: task,
+                            onChanged: controller.refresh,
                           ),
                           onApproveReview: (task) =>
                               _approveReview(controller, task),

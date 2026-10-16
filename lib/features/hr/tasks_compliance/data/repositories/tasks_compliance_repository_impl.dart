@@ -501,6 +501,60 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
   }
 
   @override
+  Future<Result<void>> addTaskNote({
+    required String taskId,
+    required String body,
+  }) async {
+    final id = taskId.trim();
+    final text = body.trim();
+    if (id.isEmpty) {
+      return Result.failure(const ValidationError(message: 'Missing task id.'));
+    }
+    if (text.isEmpty) {
+      return Result.failure(const ValidationError(message: 'Write a note first.'));
+    }
+    final result = await _api.post(
+      ApiEndpoints.taskNotes(id),
+      data: {'body': text},
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> updateTask({
+    required String taskId,
+    required Map<String, dynamic> body,
+  }) async {
+    final id = taskId.trim();
+    if (id.isEmpty) {
+      return Result.failure(const ValidationError(message: 'Missing task id.'));
+    }
+    final result = await _api.patch(
+      ApiEndpoints.taskById(id),
+      data: body,
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<String>> uploadTaskFile({
+    required String path,
+    required String name,
+  }) {
+    return _upload(path, name);
+  }
+
+  @override
   Future<Result<void>> replaceAssignees({
     required String taskId,
     required List<String> staffIds,

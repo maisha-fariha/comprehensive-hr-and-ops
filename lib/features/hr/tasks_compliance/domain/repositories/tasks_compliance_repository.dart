@@ -38,6 +38,24 @@ abstract class TasksComplianceRepository {
   /// `GET /tasks/{taskId}/notes`
   Future<Result<List<Map<String, dynamic>>>> getTaskNotes(String taskId);
 
+  /// `POST /tasks/{taskId}/notes` with `{ "body" }`.
+  Future<Result<void>> addTaskNote({
+    required String taskId,
+    required String body,
+  });
+
+  /// `PATCH /tasks/{taskId}` — progress, completion, evidence, or an edit.
+  Future<Result<void>> updateTask({
+    required String taskId,
+    required Map<String, dynamic> body,
+  });
+
+  /// `POST /uploads?category=tasks`, then the caller patches `evidence`.
+  Future<Result<String>> uploadTaskFile({
+    required String path,
+    required String name,
+  });
+
   /// `POST /tasks/recurring` for a recurrence; otherwise `POST /tasks`, then
   /// assignees, the note and uploaded documents, as the web does.
   Future<Result<void>> createTask(CreateTaskRequest request);
