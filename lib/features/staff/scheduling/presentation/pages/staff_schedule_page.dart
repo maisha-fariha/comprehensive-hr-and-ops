@@ -14,6 +14,7 @@ import '../widgets/staff_schedule_header.dart';
 import '../widgets/swap_requests_section.dart';
 import '../widgets/upcoming_appointments_section.dart';
 import '../widgets/week_navigator.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// "My Schedule" — the Staff (care-worker) portal's Scheduling screen.
 class StaffSchedulePage extends StatelessWidget {
@@ -96,7 +97,7 @@ class StaffSchedulePage extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: ListView(

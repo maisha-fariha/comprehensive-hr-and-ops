@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/portal_notification.dart';
 import '../controllers/portal_notifications_controller.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 class PortalNotificationsPage extends StatefulWidget {
   const PortalNotificationsPage({super.key});
@@ -119,7 +120,7 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
           children: [
             _filters(context, all: items.length, unread: unread),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: _controller.refresh,
                 child: visible.isEmpty

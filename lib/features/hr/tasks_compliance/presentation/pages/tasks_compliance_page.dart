@@ -21,6 +21,7 @@ import '../widgets/tasks_tab_view.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The "Tasks & Compliance" screen — shared white header + pill tab bar,
 /// with Tasks / Compliance / Corrective body content.
@@ -214,7 +215,7 @@ class TasksCompliancePage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(

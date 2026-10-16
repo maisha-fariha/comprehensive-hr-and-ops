@@ -9,6 +9,7 @@ import '../../../extras/presentation/pages/staff_training_quiz_page.dart';
 import '../../domain/entities/staff_training.dart';
 import '../controllers/staff_training_course_controller.dart';
 import '../widgets/staff_training_metrics_strip.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Course detail — web `/dashboard/training/[id]` parity.
 class StaffTrainingCoursePage extends StatefulWidget {
@@ -112,7 +113,7 @@ class _StaffTrainingCoursePageState extends State<StaffTrainingCoursePage> {
                 title: 'Back to Training',
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.reload,
                   child: ListView(

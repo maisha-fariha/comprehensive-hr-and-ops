@@ -11,6 +11,7 @@ import '../widgets/family_messages_search_bar.dart';
 import '../widgets/new_message_fab.dart';
 import 'compose_message_page.dart';
 import 'family_conversation_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Family "Messages" screen: a search bar over a list of conversations
 /// with care team members and family/group chats.
@@ -102,7 +103,7 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
                 ),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.refresh,
                   child: conversations.isEmpty

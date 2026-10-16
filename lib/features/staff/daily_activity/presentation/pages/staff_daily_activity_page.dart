@@ -15,6 +15,7 @@ import '../widgets/staff_daily_activity_filters_bar.dart';
 import '../widgets/staff_daily_activity_metrics_strip.dart';
 import '../widgets/staff_daily_activity_registry_list.dart';
 import '../widgets/staff_daily_activity_tab_bar.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Daily Activity — web-parity registry, metrics, filters, record sheet.
 class StaffDailyActivityPage extends StatefulWidget {
@@ -158,7 +159,7 @@ class _StaffDailyActivityPageState extends State<StaffDailyActivityPage> {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: _controller.refresh,
                 child: ListView(

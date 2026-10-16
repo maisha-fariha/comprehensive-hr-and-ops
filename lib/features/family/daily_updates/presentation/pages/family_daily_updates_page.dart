@@ -12,6 +12,7 @@ import '../widgets/family_daily_update_timeline_tile.dart';
 import '../widgets/family_daily_updates_app_bar.dart';
 import '../widgets/family_daily_updates_date_chip.dart';
 import '../widgets/family_daily_updates_footer_banner.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Family "Daily Updates" screen: an approved-only timeline of the
 /// resident's day.
@@ -71,7 +72,7 @@ class FamilyDailyUpdatesPage extends StatelessWidget {
                 },
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: ListView(

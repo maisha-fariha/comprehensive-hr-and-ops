@@ -20,6 +20,7 @@ import '../widgets/shift_details_card.dart';
 import '../widgets/staff_attendance_filters_bar.dart';
 import '../widgets/staff_attendance_header.dart';
 import '../widgets/staff_attendance_metrics_strip.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Attendance — web-parity metrics, filters, list, and clock in/out.
 class StaffAttendancePage extends StatefulWidget {
@@ -110,7 +111,7 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
               onSynced: () => controller.refresh(),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(

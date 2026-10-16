@@ -13,6 +13,7 @@ import '../inventory_labels.dart';
 import '../widgets/inventory_common.dart';
 import '../widgets/purchase_order_form_sheet.dart';
 import '../widgets/purchasing_sheets.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Web `/dashboard/purchasing`.
 class PurchasingView extends StatefulWidget {
@@ -40,7 +41,7 @@ class _PurchasingViewState extends State<PurchasingView> {
   @override
   Widget build(BuildContext context) {
     final pad = ResponsiveHelper.getResponsiveWidth(context, 16);
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: AppColors.secondaryTeal,
       onRefresh: _c.refreshAll,
       child: Obx(() {

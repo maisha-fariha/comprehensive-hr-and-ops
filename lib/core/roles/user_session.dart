@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
@@ -41,7 +42,7 @@ class FamilyVisibility {
 /// App-wide session for the signed-in user's portal role and profile.
 ///
 /// Role is never chosen on the login screen — it comes from `GET /mobile/me`.
-class UserSession extends GetxService {
+class UserSession extends GetxService with WidgetsBindingObserver {
   final Rxn<UserRole> _role = Rxn<UserRole>();
   final RxnString _userId = RxnString();
   final RxString _displayName = ''.obs;
@@ -58,6 +59,8 @@ class UserSession extends GetxService {
   final Rxn<StaffKind> _staffKind = Rxn<StaffKind>();
   final RxList<String> _permissions = <String>[].obs;
   final RxBool _permissionsReady = false.obs;
+  final RxInt _permissionEpoch = 0.obs;
+  Future<void>? _profileRefresh;
   final RxBool _medAdminCertified = false.obs;
   final RxBool _medAdminApproved = false.obs;
   final Rx<FamilyVisibility> _familyVisibility = FamilyVisibility.unknown.obs;
@@ -111,6 +114,9 @@ class UserSession extends GetxService {
   /// (e.g. `clients:read`, `mar:write`). Empty list = first paint before
   /// permissions arrive — keep shell visible.
   bool can(String permission) {
+    // Touch the epoch so every Obx that checks a permission rebuilds
+    // after a refresh, even when the list length stays the same.
+    _permissionEpoch.value;
     // A loaded empty set means the tenant admin revoked everything.
     if (_permissions.isEmpty) return !_permissionsReady.value;
     final needed = permission.toLowerCase().replaceAll('_', '-');
@@ -164,12 +170,14 @@ class UserSession extends GetxService {
   bool get canSeeStaffScheduleAppointments => can('appointments:read');
 
   void applyPermissions(Iterable<String> values) {
-    // `/mobile/home` sometimes omits permissions; keep `/mobile/me` values.
+    // `/mobile/home` sometimes omits permissions, and a later home payload
+    // must not replace the list `/mobile/me` already applied.
     final list = values.toList();
-    if (list.isEmpty) return;
+    if (list.isEmpty || _permissionsReady.value) return;
     _permissionsReady.value = true;
     if (_samePermissions(list)) return;
     _permissions.assignAll(list);
+    _permissionEpoch.value++;
   }
 
   void applyStaffContext({
@@ -199,12 +207,27 @@ class UserSession extends GetxService {
     }
   }
 
-  /// Reloads `/mobile/me` so a permission the tenant admin just changed
-  /// shows up without signing out. The web refetches on window focus.
-  Future<void> refreshProfile() async {
-    if (_role.value == null) return;
+  /// Reloads the access token and `/mobile/me` so a permission the tenant
+  /// admin just changed shows up without signing out. Pull-to-refresh and
+  /// returning to the app both call this. The web refetches on window focus.
+  Future<void> refreshProfile() {
+    if (_role.value == null) return Future<void>.value();
+    final current = _profileRefresh;
+    if (current != null) return current;
+    final run = _reloadProfile();
+    _profileRefresh = run;
+    return run.whenComplete(() {
+      if (identical(_profileRefresh, run)) _profileRefresh = null;
+    });
+  }
+
+  Future<void> _reloadProfile() async {
     try {
-      final me = await GetIt.instance<AuthRepository>().fetchMe(silent: true);
+      final auth = GetIt.instance<AuthRepository>();
+      // Permissions are also stored on the access token. A new token picks
+      // up a role change; `/mobile/me` then applies that list to the UI.
+      await auth.refreshTokens(silent: true);
+      final me = await auth.fetchMe(silent: true);
       final profile = me.value;
       if (profile != null) applyProfile(profile);
     } catch (_) {}
@@ -233,6 +256,7 @@ class UserSession extends GetxService {
     if (!_samePermissions(profile.permissions)) {
       _permissions.assignAll(profile.permissions);
     }
+    _permissionEpoch.value++;
     _medAdminCertified.value = profile.medAdminCertified;
     _medAdminApproved.value = profile.medAdminApproved;
   }
@@ -355,6 +379,25 @@ class UserSession extends GetxService {
     if (cached == null) return false;
     applyProfile(cached);
     return true;
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void onClose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      refreshProfile();
+    }
   }
 
   bool _samePermissions(List<String> next) {

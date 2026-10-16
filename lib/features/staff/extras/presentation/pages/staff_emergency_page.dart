@@ -12,6 +12,7 @@ import '../../domain/entities/staff_emergency_alert.dart';
 import '../widgets/staff_emergency_alert_card.dart';
 import '../widgets/staff_emergency_details_sheet.dart';
 import '../widgets/staff_raise_emergency_dialog.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 enum _EmergencyStatusFilter {
   all,
@@ -172,7 +173,7 @@ class _StaffEmergencyPageState extends State<StaffEmergencyPage> {
                       ),
                     ),
                     Expanded(
-                      child: RefreshIndicator(
+                      child: AppRefreshIndicator(
                         color: AppColors.secondaryTeal,
                         onRefresh: _load,
                         child: _items.isEmpty

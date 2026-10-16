@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../extras/presentation/pages/staff_training_certificates_page.dart';
 import '../../../extras/presentation/pages/staff_training_quiz_page.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 enum StaffQuickLinkKind { training, documents }
 
@@ -121,7 +122,7 @@ class _StaffQuickLinkListPageState extends State<StaffQuickLinkListPage> {
                         ),
                       ),
                     )
-                  : RefreshIndicator(
+                  : AppRefreshIndicator(
                       color: AppColors.secondaryTeal,
                       onRefresh: _load,
                       child: ListView.separated(

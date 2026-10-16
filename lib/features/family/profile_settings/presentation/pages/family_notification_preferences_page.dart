@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/family_notification_preference.dart';
 import '../controllers/family_profile_settings_controller.dart';
 import '../widgets/family_profile_settings_header.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Full-screen notification prefs: GET prefs + events, PUT …/bulk on save.
 class FamilyNotificationPreferencesPage extends StatefulWidget {
@@ -122,7 +123,7 @@ class _FamilyNotificationPreferencesPageState
                             ),
                           ),
                         )
-                      : RefreshIndicator(
+                      : AppRefreshIndicator(
                           color: AppColors.secondaryTeal,
                           onRefresh: _load,
                           child: ListView.separated(

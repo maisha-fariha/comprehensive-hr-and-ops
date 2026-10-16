@@ -16,6 +16,7 @@ import '../widgets/tasks_messages_header.dart';
 import '../widgets/tasks_messages_segmented_tabs.dart';
 import '../widgets/tasks_tab_view.dart';
 import 'message_thread_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Staff "Tasks & Messages" screen.
 ///
@@ -140,7 +141,7 @@ class StaffTasksMessagesPage extends StatelessWidget {
                 onSynced: () => controller.refresh(),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: ListView(

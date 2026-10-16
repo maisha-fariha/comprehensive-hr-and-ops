@@ -20,6 +20,7 @@ import '../widgets/day_timeline.dart';
 import '../widgets/entry_sheets.dart';
 import '../widgets/new_log_entry_sheet.dart';
 import '../widgets/side_panels.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Web `notificationHref` targets that have a manager screen in the app.
 const _entityDestinations = {
@@ -85,7 +86,7 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
         children: [
           _header(context),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshAll,
               child: Obx(

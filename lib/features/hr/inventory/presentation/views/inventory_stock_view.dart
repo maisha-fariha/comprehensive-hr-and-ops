@@ -16,6 +16,7 @@ import '../widgets/inventory_item_form_sheet.dart';
 import '../widgets/inventory_kpi_grid.dart';
 import '../widgets/inventory_stock_action_sheet.dart';
 import '../widgets/inventory_stock_panels.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Web `/dashboard/inventory` ("Stock").
 class InventoryStockView extends StatefulWidget {
@@ -58,7 +59,7 @@ class _InventoryStockViewState extends State<InventoryStockView> {
   @override
   Widget build(BuildContext context) {
     final pad = ResponsiveHelper.getResponsiveWidth(context, 16);
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: AppColors.secondaryTeal,
       onRefresh: _c.refreshAll,
       child: Obx(

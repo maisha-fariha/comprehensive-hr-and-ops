@@ -7,6 +7,7 @@ import '../../domain/entities/family_support_ticket_thread.dart';
 import '../controllers/family_profile_settings_controller.dart';
 import '../widgets/family_profile_settings_header.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Support thread: GET /family/tickets/{id} + …/messages.
 /// Reply: POST /tickets/{id}/messages. Close: POST /tickets/{id}/close.
@@ -253,7 +254,7 @@ class _FamilySupportTicketThreadPageState
                             ),
                           ),
                         )
-                      : RefreshIndicator(
+                      : AppRefreshIndicator(
                           color: AppColors.secondaryTeal,
                           onRefresh: _load,
                           child: ListView.separated(

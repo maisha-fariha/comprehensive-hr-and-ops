@@ -27,6 +27,7 @@ import '../../domain/entities/overview_stat.dart';
 import '../../domain/entities/quick_action.dart';
 import '../controllers/dashboard_controller.dart';
 import '../widgets/quick_action_button.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Manager/HR Dashboard - "Home" tab of the HR portal.
 ///
@@ -84,7 +85,7 @@ class ManagerDashboardPage extends StatelessWidget {
           AppDimens.searchBarOverlap,
         );
 
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           color: AppColors.secondaryTeal,
           onRefresh: controller.refresh,
           child: SingleChildScrollView(

@@ -13,6 +13,7 @@ import '../widgets/staff_residences_summary_row.dart';
 import 'staff_residence_detail_page.dart';
 import 'staff_residence_edit_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Residences list — layout mirrors web Residences Management
 /// (summary cards + rich residence rows + actions). BUG_Report002.
@@ -200,7 +201,7 @@ class _StaffResidencesPageState extends State<StaffResidencesPage> {
                     ),
                   ),
                 )
-              : RefreshIndicator(
+              : AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _load,
                   child: ListView(

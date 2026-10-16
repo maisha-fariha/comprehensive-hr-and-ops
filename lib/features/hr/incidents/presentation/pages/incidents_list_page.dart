@@ -22,6 +22,7 @@ import '../widgets/investigation_summary_sheet.dart';
 import '../widgets/open_incident_card.dart';
 import 'hr_incident_details_page.dart';
 import 'incident_creation_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Incidents list screen — "Open / Under Review / Closed" tabs.
 /// Open tab UI matches the "Open - Incidents" Figma reference.
@@ -110,7 +111,7 @@ class IncidentsListPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(

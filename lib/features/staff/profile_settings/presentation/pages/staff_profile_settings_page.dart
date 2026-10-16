@@ -21,6 +21,7 @@ import '../widgets/staff_profile_card.dart';
 import '../widgets/staff_profile_settings_header.dart';
 import 'staff_profile_detail_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Profile & Settings for the Staff portal — same visual design as Family.
 class StaffProfileSettingsPage extends StatefulWidget {
@@ -217,7 +218,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(

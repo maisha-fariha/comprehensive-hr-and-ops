@@ -21,6 +21,7 @@ import '../widgets/mar_resident_chart_tab.dart';
 import '../widgets/mar_row_card.dart';
 import '../widgets/mar_side_panels.dart';
 import '../widgets/medication_common.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Medication Administration Record (MAR)" — mirrors web
 /// `/dashboard/medication`.
@@ -145,7 +146,7 @@ class _MedicationPageState extends State<MedicationPage> {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: () async {
                 if (_c.canRead) await _c.refreshAll();

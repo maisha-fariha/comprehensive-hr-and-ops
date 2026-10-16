@@ -12,6 +12,7 @@ import '../controllers/stock_counts_controller.dart';
 import '../inventory_labels.dart';
 import '../widgets/inventory_common.dart';
 import '../widgets/stock_count_sheets.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Web "Stock counts".
 class StockCountsView extends StatefulWidget {
@@ -44,7 +45,7 @@ class _StockCountsViewState extends State<StockCountsView> {
   @override
   Widget build(BuildContext context) {
     final pad = ResponsiveHelper.getResponsiveWidth(context, 16);
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: AppColors.secondaryTeal,
       onRefresh: _c.load,
       child: Obx(

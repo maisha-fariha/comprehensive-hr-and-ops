@@ -16,6 +16,7 @@ import '../widgets/hr_documents_common.dart';
 import '../widgets/hr_documents_kpi_grid.dart';
 import '../widgets/hr_documents_registry.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Documents" — mirrors web `/dashboard/documents`.
 class HrDocumentsPage extends StatefulWidget {
@@ -166,7 +167,7 @@ class _HrDocumentsPageState extends State<HrDocumentsPage> {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshAll,
               child: Obx(() {

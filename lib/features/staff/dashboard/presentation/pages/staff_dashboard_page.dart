@@ -24,6 +24,7 @@ import '../widgets/staff_home_search_bar.dart';
 import '../widgets/staff_overview_section.dart';
 import '../widgets/staff_quick_actions_section.dart';
 import '../widgets/today_shift_card.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Staff Dashboard — "Home" screen of the Staff (care-worker) portal.
 class StaffDashboardPage extends StatelessWidget {
@@ -82,7 +83,7 @@ class StaffDashboardPage extends StatelessWidget {
         );
         final afterShiftGap = overlap + ResponsiveHelper.getResponsiveHeight(context, 16);
 
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           color: AppColors.secondaryTeal,
           onRefresh: controller.refresh,
           child: SingleChildScrollView(

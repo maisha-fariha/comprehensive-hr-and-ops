@@ -14,6 +14,7 @@ import '../widgets/scheduling_segmented_tabs.dart';
 import '../../../presentation/open_manager_menu.dart';
 import '../widgets/scheduling_top_bar.dart';
 import 'create_shift_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Manager/HR Scheduling screen — the "Schedule" tab of the HR portal.
 ///
@@ -147,7 +148,7 @@ class SchedulingPage extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: switch (controller.selectedTab.value) {

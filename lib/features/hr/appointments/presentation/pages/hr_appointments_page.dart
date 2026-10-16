@@ -15,6 +15,7 @@ import '../widgets/hr_appointment_reason_dialog.dart';
 import '../widgets/hr_appointments_kpi_grid.dart';
 import '../widgets/hr_appointments_toolbar.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Family Appointments & Approvals" — mirrors web
 /// `/dashboard/appointments`.
@@ -148,7 +149,7 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: () async {
                 if (_c.canRead) await _c.refreshAll();

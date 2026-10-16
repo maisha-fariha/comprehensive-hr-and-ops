@@ -15,6 +15,7 @@ import '../../../tasks_messages/domain/entities/recurring_check_instance.dart';
 import '../../../tasks_messages/domain/entities/recurring_check_schedule.dart';
 import '../../../tasks_messages/domain/repositories/staff_tasks_messages_repository.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Dedicated Recurring Checks module (BUG_Report008).
 class StaffRecurringChecksPage extends StatefulWidget {
@@ -412,7 +413,7 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
             )
           : _error != null
           ? _ErrorState(message: _error!, onRetry: _load)
-          : RefreshIndicator(
+          : AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _load,
               child: Column(

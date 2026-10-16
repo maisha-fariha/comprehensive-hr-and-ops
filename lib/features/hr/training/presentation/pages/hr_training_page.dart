@@ -13,6 +13,7 @@ import '../widgets/training_common.dart';
 import '../widgets/training_course_widgets.dart';
 import 'hr_training_course_page.dart';
 import 'hr_training_form_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Training" — mirrors web `/dashboard/training`.
 class HrTrainingPage extends StatefulWidget {
@@ -79,7 +80,7 @@ class _HrTrainingPageState extends State<HrTrainingPage> {
         children: [
           const TrainingHeader(title: 'Training'),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshAll,
               child: Obx(

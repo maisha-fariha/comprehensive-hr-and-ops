@@ -21,6 +21,7 @@ import '../widgets/hr_profile_card.dart';
 import '../widgets/hr_profile_settings_header.dart';
 import 'hr_my_profile_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Profile & Settings for the Hr portal — same visual design as Family.
 class HrProfileSettingsPage extends StatelessWidget {
@@ -207,7 +208,7 @@ class HrProfileSettingsPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(

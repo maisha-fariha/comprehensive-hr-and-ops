@@ -17,6 +17,7 @@ import '../widgets/clients_common.dart';
 import '../widgets/deleted_clients_sheet.dart';
 import '../widgets/move_client_sheet.dart';
 import 'client_detail_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Web `/dashboard/clients` ("Client Directory").
 class ClientsPage extends StatefulWidget {
@@ -104,7 +105,7 @@ class _ClientsPageState extends State<ClientsPage> {
           final items = controller.clients.toList();
           final loading = controller.isLoading.value;
           final error = controller.loadError.value;
-          return RefreshIndicator(
+          return AppRefreshIndicator(
             color: AppColors.secondaryTeal,
             onRefresh: controller.refresh,
             child: ListView(

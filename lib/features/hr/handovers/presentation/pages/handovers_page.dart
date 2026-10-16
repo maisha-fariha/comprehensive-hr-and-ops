@@ -13,6 +13,7 @@ import '../widgets/handover_common.dart';
 import '../widgets/handover_detail_sheet.dart';
 import '../widgets/record_handover_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Shift Handovers" — mirrors web `/dashboard/handovers`.
 class HandoversPage extends StatefulWidget {
@@ -125,7 +126,7 @@ class _HandoversPageState extends State<HandoversPage> {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.load,
               child: Obx(

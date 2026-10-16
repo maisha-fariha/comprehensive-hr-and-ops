@@ -17,6 +17,7 @@ import '../widgets/communication_header.dart';
 import '../widgets/communication_segment_tabs.dart';
 import '../widgets/conversations_panel.dart';
 import '../widgets/new_conversation_dialog.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Communication screen — Messages (staff omits Communication Log; not on staff web).
 class CommunicationPage extends StatefulWidget {
@@ -224,7 +225,7 @@ class _CommunicationPageState extends State<CommunicationPage> {
                   );
                 }
 
-                return RefreshIndicator(
+                return AppRefreshIndicator(
                   onRefresh: controller.refreshConversations,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),

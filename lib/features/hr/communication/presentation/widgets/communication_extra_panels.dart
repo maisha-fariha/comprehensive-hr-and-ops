@@ -4,6 +4,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../domain/repositories/communication_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 class AnnouncementsPanel extends StatefulWidget {
   final CommunicationRepository repository;
@@ -87,7 +88,7 @@ class _AnnouncementsPanelState extends State<AnnouncementsPanel> {
         message: 'Announcements from management appear here.',
       );
     }
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -211,7 +212,7 @@ class _CommunicationLogPanelState extends State<CommunicationLogPanel> {
     if (_items.isEmpty) {
       return const _MessageState(message: 'No communications match.');
     }
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),

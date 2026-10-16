@@ -16,6 +16,7 @@ import '../widgets/family_visit_requests_header.dart';
 import '../widgets/family_visit_requests_tab_bar.dart';
 import '../widgets/my_visit_request_card.dart';
 import 'visit_request_details_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Family Visit Requests — own `family_visit` appointments with status tabs
 /// (All / Pending / Approved / Rejected / Cancelled / Completed).
@@ -159,7 +160,7 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
     }
 
     final requests = overview.requestsFor(selectedTab);
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: AppColors.secondaryTeal,
       onRefresh: _controller.refresh,
       child: requests.isEmpty

@@ -17,6 +17,7 @@ import '../widgets/attendance_record_card.dart';
 import 'attendance_clock_page.dart';
 import 'manual_attendance_entry_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Attendance" — mirrors web `/dashboard/attendance`.
 class AttendancePage extends StatelessWidget {
@@ -58,7 +59,7 @@ class AttendancePage extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: controller.refresh,
               child: Obx(

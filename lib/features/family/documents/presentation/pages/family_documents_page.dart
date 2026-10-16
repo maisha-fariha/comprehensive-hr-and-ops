@@ -18,6 +18,7 @@ import '../widgets/family_document_row_tile.dart';
 import '../widgets/family_documents_header.dart';
 import '../widgets/family_send_document_sheet.dart';
 import '../widgets/family_sign_document_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// "Documents" — the Family portal's screen listing documents shared by the
 /// care facility (care plans, appointment summaries, policies, etc.).
@@ -174,7 +175,7 @@ class _FamilyDocumentsBodyState extends State<_FamilyDocumentsBody> {
           ),
         ),
         Expanded(
-          child: RefreshIndicator(
+          child: AppRefreshIndicator(
             color: AppColors.secondaryTeal,
             onRefresh: widget.onRefresh,
             child: ListView(

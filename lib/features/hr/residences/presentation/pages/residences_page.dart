@@ -15,6 +15,7 @@ import '../widgets/residence_card.dart';
 import '../widgets/residences_common.dart';
 import 'residence_detail_page.dart';
 import 'residence_form_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Residences Management" — mirrors web `/dashboard/residences`.
 class ResidencesPage extends StatefulWidget {
@@ -87,7 +88,7 @@ class _ResidencesPageState extends State<ResidencesPage> {
         top: false,
         child: Obx(() {
           final items = controller.residences;
-          return RefreshIndicator(
+          return AppRefreshIndicator(
             color: AppColors.secondaryTeal,
             onRefresh: controller.refresh,
             child: ListView(

@@ -14,6 +14,7 @@ import '../../domain/repositories/staff_extras_repository.dart';
 import '../widgets/staff_record_handover_dialog.dart';
 import '../widgets/staff_shift_handover_card.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 class StaffShiftHandoversPage extends StatefulWidget {
   const StaffShiftHandoversPage({super.key});
@@ -398,7 +399,7 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
                           ),
                         ),
                       )
-                    : RefreshIndicator(
+                    : AppRefreshIndicator(
                         color: AppColors.secondaryTeal,
                         onRefresh: _load,
                         child: _items.isEmpty

@@ -20,6 +20,7 @@ import '../widgets/staff_incidents_side_panels.dart';
 import '../widgets/staff_incidents_tab_bar.dart';
 import 'create_incident_page.dart';
 import 'incident_details_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Incident Reports list — metrics, tabs, filters, side panels, cards.
 ///
@@ -194,7 +195,7 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                 onSynced: () => _controller.refresh(),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.refresh,
                   child: ListView(

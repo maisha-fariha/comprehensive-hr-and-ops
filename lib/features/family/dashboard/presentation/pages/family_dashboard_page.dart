@@ -20,6 +20,7 @@ import '../widgets/family_today_at_a_glance_section.dart';
 import '../widgets/family_todays_overview_section.dart';
 import 'family_notifications_page.dart';
 import 'family_search_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Family Dashboard - "Home" tab of the Family portal.
 ///
@@ -66,7 +67,7 @@ class FamilyDashboardPage extends StatelessWidget {
           AppDimens.screenPaddingHorizontal,
         );
 
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           color: AppColors.secondaryTeal,
           onRefresh: controller.refresh,
           child: SingleChildScrollView(

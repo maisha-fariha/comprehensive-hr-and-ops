@@ -19,6 +19,7 @@ import '../widgets/daily_note_client_info_card.dart';
 import '../widgets/daily_note_field_row.dart';
 import '../widgets/daily_note_handover_section.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The "Daily Note" screen: a client-specific care-note form opened from a
 /// Staff Daily Logs client row/card.
@@ -91,7 +92,7 @@ class DailyNotePage extends StatelessWidget {
                   );
                 }
 
-                return RefreshIndicator(
+                return AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: () => controller.loadForClient(client),
                   child: ListView(

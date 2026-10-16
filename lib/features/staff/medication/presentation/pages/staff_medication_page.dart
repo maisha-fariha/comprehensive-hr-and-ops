@@ -23,6 +23,7 @@ import '../widgets/staff_medication_metrics_strip.dart';
 import '../widgets/staff_mar_filters_bar.dart';
 import '../widgets/staff_medication_tab_bar.dart';
 import '../widgets/staff_mar_metrics_row.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Medication MAR — web console parity:
 /// metrics + MAR / PRN / Given / Resident chart tabs.
@@ -120,7 +121,7 @@ class StaffMedicationPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(

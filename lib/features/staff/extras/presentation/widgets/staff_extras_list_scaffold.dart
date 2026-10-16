@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Shared list shell for B10 staff screens.
 class StaffExtrasListScaffold extends StatelessWidget {
@@ -68,7 +69,7 @@ class StaffExtrasListScaffold extends StatelessWidget {
                   ),
                 )
               : items.isEmpty
-                  ? RefreshIndicator(
+                  ? AppRefreshIndicator(
                       color: AppColors.secondaryTeal,
                       onRefresh: onRefresh,
                       child: ListView(
@@ -87,7 +88,7 @@ class StaffExtrasListScaffold extends StatelessWidget {
                         ],
                       ),
                     )
-                  : RefreshIndicator(
+                  : AppRefreshIndicator(
                       color: AppColors.secondaryTeal,
                       onRefresh: onRefresh,
                       child: ListView.separated(

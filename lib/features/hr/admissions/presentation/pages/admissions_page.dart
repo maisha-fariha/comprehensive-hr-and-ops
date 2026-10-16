@@ -17,6 +17,7 @@ import '../widgets/intake_forms_tab.dart';
 import '../widgets/referral_card.dart';
 import '../widgets/referral_detail_sheet.dart';
 import '../widgets/referral_form_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Admissions" — mirrors web `/dashboard/admissions`.
 class AdmissionsPage extends StatefulWidget {
@@ -108,7 +109,7 @@ class _AdmissionsPageState extends State<AdmissionsPage> {
           Expanded(
             child: !_c.canRead
                 ? _noAccess(context)
-                : RefreshIndicator(
+                : AppRefreshIndicator(
                     color: AppColors.secondaryTeal,
                     onRefresh: _c.refreshAll,
                     child: Obx(

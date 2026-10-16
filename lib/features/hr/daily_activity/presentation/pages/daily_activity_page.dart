@@ -16,6 +16,7 @@ import '../widgets/daily_activity_history_tab.dart';
 import '../widgets/daily_activity_kpi_grid.dart';
 import '../widgets/daily_activity_registry.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Daily Activity" — mirrors web `/dashboard/daily-activity`.
 class DailyActivityPage extends StatefulWidget {
@@ -129,7 +130,7 @@ class _DailyActivityPageState extends State<DailyActivityPage> {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshAll,
               child: Obx(

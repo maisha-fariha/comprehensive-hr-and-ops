@@ -17,6 +17,7 @@ import '../widgets/record_check_sheet.dart';
 import '../widgets/schedule_form_sheet.dart';
 import '../widgets/skip_check_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Recurring Checks" — mirrors web `/dashboard/recurring-checks`.
 class RecurringChecksPage extends StatefulWidget {
@@ -114,7 +115,7 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshCurrent,
               child: Obx(

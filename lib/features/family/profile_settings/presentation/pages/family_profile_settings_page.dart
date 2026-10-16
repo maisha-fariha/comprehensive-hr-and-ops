@@ -23,6 +23,7 @@ import '../widgets/family_profile_card.dart';
 import '../widgets/family_profile_settings_header.dart';
 import 'family_notification_preferences_page.dart';
 import 'family_support_tickets_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// "Profile & Settings" — the Family portal's screen for the signed-in
 /// family member's own profile, linked clients, and app preferences.
@@ -250,7 +251,7 @@ class FamilyProfileSettingsPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(

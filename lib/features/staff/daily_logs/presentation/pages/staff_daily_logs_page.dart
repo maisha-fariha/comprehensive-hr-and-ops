@@ -20,6 +20,7 @@ import '../widgets/staff_daily_logs_tab_bar.dart';
 import '../widgets/staff_house_activity_tab_view.dart';
 import '../widgets/staff_resident_day_tab_view.dart';
 import 'daily_note_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Daily Logs — web-parity filters + tabs.
 class StaffDailyLogsPage extends StatelessWidget {
@@ -164,7 +165,7 @@ class StaffDailyLogsPage extends StatelessWidget {
                 onSynced: () => controller.refresh(),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: !hasResidence
