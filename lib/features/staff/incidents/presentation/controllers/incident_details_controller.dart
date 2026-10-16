@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:printing/printing.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
@@ -160,9 +159,7 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
       }
 
       final bytes = Uint8List.fromList(fileBytes);
-      final fileName = item.fileName.trim().isEmpty
-          ? 'evidence.bin'
-          : item.fileName.trim();
+      final fileName = _downloadFileName(item);
       final isPdf = item.extensionLabel == 'PDF' ||
           item.fileType.toLowerCase().contains('pdf');
 
@@ -186,30 +183,19 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
       }
 
       final mime = _mimeFor(item);
-      final saveResult = await MediaStoreDownload.saveFile(
+      final saveResult = await MediaStoreDownload.saveFileAndOpen(
         fileName: fileName,
         bytes: bytes,
         mimeType: mime,
+        chooserTitle: 'Open evidence',
       );
       if (!saveResult.success) {
         AppSnackbar.show(
-          'Could not download file',
-          saveResult.error ?? 'Could not save the file.',
+          'Could not open file',
+          saveResult.error ?? 'Could not save or open the file.',
           force: true,
         );
         return;
-      }
-      final path = saveResult.path;
-      if (path != null && path.isNotEmpty) {
-        final opened = await OpenFilex.open(path, type: mime);
-        if (opened.type != ResultType.done) {
-          AppSnackbar.show(
-            'Could not open file',
-            opened.message,
-            force: true,
-          );
-          return;
-        }
       }
       _confirmDownloaded(saveResult.displayLocation);
     } finally {
@@ -225,6 +211,36 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
       where.isEmpty ? '' : 'Saved to $where.',
       force: true,
     );
+  }
+
+  /// `fileName` is often the mime type (`image/jpeg`) when the upload stored
+  /// no real name. A slash makes the phone look for `Download/image/jpeg`.
+  static String _downloadFileName(IncidentEvidenceItem item) {
+    final raw = item.fileName.trim();
+    final urlName = Uri.tryParse(item.fileUrl)
+            ?.pathSegments
+            .where((part) => part.isNotEmpty)
+            .lastOrNull ??
+        '';
+    final rawIsFile = raw.isNotEmpty &&
+        !raw.contains('/') &&
+        !raw.contains('\\') &&
+        raw.contains('.');
+    if (rawIsFile) {
+      return raw.replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
+    }
+    if (urlName.contains('.') && !urlName.contains('/')) {
+      return urlName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
+    }
+    final ext = switch (item.extensionLabel) {
+      'PDF' => 'pdf',
+      'PNG' => 'png',
+      'JPG' || 'JPEG' => 'jpg',
+      'WEBP' => 'webp',
+      'GIF' => 'gif',
+      _ => 'bin',
+    };
+    return 'evidence.$ext';
   }
 
   static String _mimeFor(IncidentEvidenceItem item) {

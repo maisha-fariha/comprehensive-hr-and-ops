@@ -5,7 +5,12 @@ import '../entities/staff_attendance_overview.dart';
 
 /// Contract for the staff member's live attendance/clock status.
 abstract class StaffAttendanceRepository {
-  Future<Result<StaffAttendanceOverview>> getOverview();
+  /// [from] and [to] are `yyyy-MM-dd`, the same week query the web table uses.
+  Future<Result<StaffAttendanceOverview>> getOverview({
+    String? from,
+    String? to,
+    String? residenceId,
+  });
 
   /// `POST /attendance/check-in`
   Future<Result<void>> checkIn({

@@ -26,12 +26,17 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
        _session = session;
 
   @override
-  Future<Result<StaffAttendanceOverview>> getOverview() async {
-    final residenceId = _session.residenceId;
+  Future<Result<StaffAttendanceOverview>> getOverview({
+    String? from,
+    String? to,
+    String? residenceId,
+  }) async {
+    final homeResidenceId = _session.residenceId;
 
-    // Web list uses `mine` without a tight from/to — date filters on the API
-    // drop missed rows (null checkInAt). Open punch uses the web's
-    // `useMyOpenAttendance` window (now-48h → now+1h) so overnight shifts count.
+    // Open punch uses the web's `useMyOpenAttendance` window
+    // (now-48h → now+1h) so overnight shifts count. The history list uses
+    // the same `mine` + week dates as the web table. An unscoped summary
+    // counts every staff member, so the cards are counted from this list.
     final now = DateTime.now().toUtc();
     final futures = <Future<Result<dynamic>>>[
       _api.get(
@@ -44,13 +49,15 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
           'limit': 50,
         },
       ),
-      // History: omit from/to so missed / pending rows are returned (web parity).
       _api.get(
         ApiEndpoints.attendance,
         query: {
           'mine': true,
           'page': 1,
           'limit': 50,
+          'from': ?from,
+          'to': ?to,
+          'residenceId': ?residenceId,
         },
       ),
       _api.get(
@@ -63,12 +70,10 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
           'limit': _pageLimit,
         },
       ),
-      // Summary drives Present / Late / Missed / Pending cards (web).
-      _api.get(ApiEndpoints.attendanceSummary, silent: true),
     ];
 
-    if (residenceId != null && residenceId.isNotEmpty) {
-      futures.add(_api.get(ApiEndpoints.residenceById(residenceId)));
+    if (homeResidenceId != null && homeResidenceId.isNotEmpty) {
+      futures.add(_api.get(ApiEndpoints.residenceById(homeResidenceId)));
     }
 
     final results = await Future.wait(futures);
@@ -85,11 +90,10 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
         todayAttendanceBody: results[0].isSuccess ? results[0].value : const [],
         historyBody: results[1].isSuccess ? results[1].value : const [],
         shiftsBody: results[2].isSuccess ? results[2].value : const [],
-        summaryBody: results[3].isSuccess ? results[3].value : null,
-        residenceBody: results.length > 4 && results[4].isSuccess
-            ? results[4].value
+        residenceBody: results.length > 3 && results[3].isSuccess
+            ? results[3].value
             : null,
-        sessionResidenceId: residenceId,
+        sessionResidenceId: homeResidenceId,
       ),
     );
   }

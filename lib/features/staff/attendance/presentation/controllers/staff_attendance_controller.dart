@@ -50,7 +50,13 @@ class StaffAttendanceController
 
   Future<void> loadOverview() async {
     setLoading(true);
-    final result = await repository.getOverview();
+    final week = historyWeek.value;
+    final residence = historyResidenceFilter.value;
+    final result = await repository.getOverview(
+      from: week.from,
+      to: week.to,
+      residenceId: residence == 'all' ? null : residence,
+    );
     result.when(
       success: (overview) {
         setSuccess(overview);
@@ -182,11 +188,15 @@ class StaffAttendanceController
     }).toList();
   }
 
-  void setHistoryWeek(DateTime day) =>
-      historyWeek.value = AttendanceWeek.containing(day);
+  void setHistoryWeek(DateTime day) {
+    historyWeek.value = AttendanceWeek.containing(day);
+    loadOverview();
+  }
 
-  void setHistoryResidenceFilter(String residenceId) =>
-      historyResidenceFilter.value = residenceId;
+  void setHistoryResidenceFilter(String residenceId) {
+    historyResidenceFilter.value = residenceId;
+    loadOverview();
+  }
 
   void setHistoryStatusFilter(String status) =>
       historyStatusFilter.value = status;
