@@ -1,4 +1,4 @@
-package com.example.comprehensive_hr_and_ops
+package com.carehouse.app
 
 import android.content.ContentValues
 import android.content.Intent
