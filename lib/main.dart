@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
@@ -10,6 +11,7 @@ import 'core/di/service_locator.dart';
 import 'core/network/connectivity_monitor.dart';
 import 'core/offline/offline_bootstrap.dart';
 import 'core/roles/user_session.dart';
+import 'core/push/firebase_push_bridge.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -21,6 +23,7 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   }
 
   await Get.put(ConnectivityMonitor(), permanent: true).start();
