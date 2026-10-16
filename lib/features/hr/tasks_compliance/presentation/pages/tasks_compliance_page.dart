@@ -93,6 +93,12 @@ class TasksCompliancePage extends StatelessWidget {
     return session.can('tasks:write') || session.can('tasks:manage');
   }
 
+  /// Creating a task matches the web: `tasks:manage`, not `tasks:write`.
+  bool _canCreateTasks() {
+    if (!Get.isRegistered<UserSession>()) return true;
+    return Get.find<UserSession>().can('tasks:manage');
+  }
+
   bool _canReviewTasks() {
     if (!Get.isRegistered<UserSession>()) return true;
     return Get.find<UserSession>().can('tasks:review');
@@ -222,7 +228,7 @@ class TasksCompliancePage extends StatelessWidget {
                     switch (selected) {
                       TasksComplianceTab.tasks => TasksTabView(
                           overview: overview,
-                          onNewTaskTap: _canWriteTasks()
+                          onNewTaskTap: _canCreateTasks()
                               ? () => showCreateTaskSheet(
                                     context,
                                     onCreated: controller.refresh,

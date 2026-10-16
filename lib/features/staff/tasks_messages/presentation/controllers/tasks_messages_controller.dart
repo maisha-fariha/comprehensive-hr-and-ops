@@ -2,6 +2,7 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/offline/offline_outbox.dart';
@@ -219,6 +220,10 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
 
   /// Opens New Task wizard (BUG_Report009).
   Future<void> showCreateTaskDialog() async {
+    if (Get.isRegistered<UserSession>() &&
+        !Get.find<UserSession>().can('tasks:manage')) {
+      return;
+    }
     final optionsResult = await repository.getTaskCreationOptions();
     if (optionsResult.isFailure || optionsResult.value == null) {
       AppErrorDialog.showResultError(

@@ -89,9 +89,10 @@ class StaffTasksMessagesPage extends StatelessWidget {
           final session = Get.isRegistered<UserSession>()
               ? Get.find<UserSession>()
               : null;
-          final canWriteTasks = session == null ||
-              session.can('tasks:write') ||
-              session.can('tasks:manage');
+          // Web shows New Task only with tasks:manage. tasks:write is for
+          // working an assigned task, which caregivers have.
+          final canCreateTasks =
+              session == null || session.can('tasks:manage');
           final canCompleteChecks = session == null ||
               session.can('recurring-checks:complete') ||
               session.can('recurring-checks:write');
@@ -107,7 +108,7 @@ class StaffTasksMessagesPage extends StatelessWidget {
                     TasksMessagesHeader(
                       title: 'Tasks & Messages',
                       onNewTaskTap: selectedTab == TasksMessagesTab.tasks &&
-                              canWriteTasks
+                              canCreateTasks
                           ? controller.showCreateTaskDialog
                           : null,
                     ),
