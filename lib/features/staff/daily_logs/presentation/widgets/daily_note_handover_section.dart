@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
@@ -127,9 +126,10 @@ class DailyNoteHandoverSection extends StatelessWidget {
             ],
           ),
         ),
+        if (onSubmit != null) ...[
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
         GestureDetector(
-          onTap: onSubmit ?? Get.back,
+          onTap: onSubmit,
           behavior: HitTestBehavior.opaque,
           child: Container(
             width: double.infinity,
@@ -176,6 +176,7 @@ class DailyNoteHandoverSection extends StatelessWidget {
             ),
           ),
         ),
+        ],
       ],
     );
   }

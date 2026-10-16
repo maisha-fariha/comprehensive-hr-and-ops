@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/connectivity_monitor.dart';
@@ -135,8 +136,14 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
     ];
   }
 
+  bool get _canMutateTasks {
+    if (!Get.isRegistered<UserSession>()) return true;
+    final session = Get.find<UserSession>();
+    return session.can('tasks:write') || session.can('tasks:manage');
+  }
+
   Future<void> _complete({bool signOff = false}) async {
-    if (_busy) return;
+    if (_busy || !_canMutateTasks) return;
     setState(() => _busy = true);
     await widget.controller.completeTask(widget.taskId, signOff: signOff);
     if (!mounted) return;
@@ -146,7 +153,7 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
 
   Future<void> _addNote() async {
     final text = _noteController.text.trim();
-    if (text.isEmpty || _busy) return;
+    if (text.isEmpty || _busy || !_canMutateTasks) return;
     setState(() => _busy = true);
     await widget.controller.addTaskNote(taskId: widget.taskId, body: text);
     _noteController.clear();
@@ -535,6 +542,7 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
       ],
           ),
         ),
+        if (_canMutateTasks)
         Padding(
           padding: EdgeInsets.fromLTRB(
             20,

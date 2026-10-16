@@ -156,11 +156,12 @@ class _SwapCard extends StatelessWidget {
               ),
             ),
           ],
-          if (swap.canRespond || swap.canCancel) ...[
+          if ((swap.canRespond && onAccept != null) ||
+              (swap.canCancel && onCancel != null)) ...[
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Row(
               children: [
-                if (swap.canRespond) ...[
+                if (swap.canRespond && onAccept != null) ...[
                   _ActionChip(
                     label: 'Decline',
                     filled: false,
@@ -172,13 +173,13 @@ class _SwapCard extends StatelessWidget {
                   _ActionChip(
                     label: 'Accept',
                     filled: true,
-                    onTap: onAccept == null ? null : () => onAccept!(swap),
+                    onTap: () => onAccept!(swap),
                   ),
-                ] else if (swap.canCancel)
+                ] else if (swap.canCancel && onCancel != null)
                   _ActionChip(
                     label: 'Cancel',
                     filled: false,
-                    onTap: onCancel == null ? null : () => onCancel!(swap),
+                    onTap: () => onCancel!(swap),
                   ),
               ],
             ),

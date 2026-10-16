@@ -57,6 +57,7 @@ class UserSession extends GetxService {
   final RxnString _roleRaw = RxnString();
   final Rxn<StaffKind> _staffKind = Rxn<StaffKind>();
   final RxList<String> _permissions = <String>[].obs;
+  final RxBool _permissionsReady = false.obs;
   final RxBool _medAdminCertified = false.obs;
   final RxBool _medAdminApproved = false.obs;
   final Rx<FamilyVisibility> _familyVisibility = FamilyVisibility.unknown.obs;
@@ -80,6 +81,10 @@ class UserSession extends GetxService {
   String? get roleRaw => _roleRaw.value;
   StaffKind? get staffKind => _staffKind.value;
   List<String> get permissions => List.unmodifiable(_permissions);
+
+  /// True after `/mobile/me` has applied a permission list, including an
+  /// empty one. Until then [can] stays open so the first frame can paint.
+  bool get permissionsReady => _permissionsReady.value;
   bool get medAdminCertified => _medAdminCertified.value;
   bool get medAdminApproved => _medAdminApproved.value;
   FamilyVisibility get familyVisibility => _familyVisibility.value;
@@ -90,7 +95,8 @@ class UserSession extends GetxService {
   /// (e.g. `clients:read`, `mar:write`). Empty list = first paint before
   /// permissions arrive — keep shell visible.
   bool can(String permission) {
-    if (_permissions.isEmpty) return true;
+    // A loaded empty set means the tenant admin revoked everything.
+    if (_permissions.isEmpty) return !_permissionsReady.value;
     final needed = permission.toLowerCase().replaceAll('_', '-');
     for (final raw in _permissions) {
       final perm = raw.toLowerCase().replaceAll('_', '-');
@@ -101,6 +107,13 @@ class UserSession extends GetxService {
       if (needed.contains(':') && perm == needed.split(':').first) return true;
     }
     return false;
+  }
+
+  /// True when any of [permissions] is granted. Empty means no extra check.
+  bool canAny(Iterable<String> permissions) {
+    final list = permissions.toList();
+    if (list.isEmpty) return true;
+    return list.any(can);
   }
 
   bool get canAccessClients => can('clients');
@@ -131,14 +144,15 @@ class UserSession extends GetxService {
   /// the API enforces certification/approval on submit when required.
   bool canAdministerMarDose({required bool isPrn}) => canWriteMar;
 
-  /// Staff Schedule "Upcoming Appointments" — nurse / caregiver only (B2).
-  bool get canSeeStaffScheduleAppointments =>
-      staffKind == StaffKind.nurse || staffKind == StaffKind.caregiver;
+  /// Staff Schedule "Upcoming Appointments" follows `appointments:read`.
+  bool get canSeeStaffScheduleAppointments => can('appointments:read');
 
   void applyPermissions(Iterable<String> values) {
     // `/mobile/home` sometimes omits permissions; keep `/mobile/me` values.
     final list = values.toList();
     if (list.isEmpty) return;
+    _permissionsReady.value = true;
+    if (_samePermissions(list)) return;
     _permissions.assignAll(list);
   }
 
@@ -199,7 +213,10 @@ class UserSession extends GetxService {
       _staffId.value = profile.staffId;
     }
     _relationship.value = profile.relationship;
-    _permissions.assignAll(profile.permissions);
+    _permissionsReady.value = true;
+    if (!_samePermissions(profile.permissions)) {
+      _permissions.assignAll(profile.permissions);
+    }
     _medAdminCertified.value = profile.medAdminCertified;
     _medAdminApproved.value = profile.medAdminApproved;
   }
@@ -309,6 +326,7 @@ class UserSession extends GetxService {
     _roleRaw.value = null;
     _staffKind.value = null;
     _permissions.clear();
+    _permissionsReady.value = false;
     _medAdminCertified.value = false;
     _medAdminApproved.value = false;
     _familyVisibility.value = FamilyVisibility.unknown;
@@ -320,6 +338,14 @@ class UserSession extends GetxService {
     final cached = auth.lastKnownProfile;
     if (cached == null) return false;
     applyProfile(cached);
+    return true;
+  }
+
+  bool _samePermissions(List<String> next) {
+    if (_permissions.length != next.length) return false;
+    for (var i = 0; i < next.length; i++) {
+      if (_permissions[i] != next[i]) return false;
+    }
     return true;
   }
 

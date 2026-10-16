@@ -219,7 +219,8 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
 
   @override
   Widget build(BuildContext context) {
-    final canWrite = _session.canAccessHandovers;
+    return Obx(() {
+    final canWrite = _session.can('shift-handovers:write');
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
@@ -454,6 +455,7 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
         ],
       ),
     );
+    });
   }
 }
 

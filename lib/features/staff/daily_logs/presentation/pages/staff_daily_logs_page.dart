@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_outbox_section.dart';
 import '../../../staff_shell.dart';
@@ -118,6 +119,8 @@ class StaffDailyLogsPage extends StatelessWidget {
           }
 
           final safeOverview = overview ?? StaffDailyLogsOverview.empty;
+          final canWriteLog = !Get.isRegistered<UserSession>() ||
+              Get.find<UserSession>().can('daily-logs:write');
 
           return Column(
             children: [
@@ -202,8 +205,9 @@ class StaffDailyLogsPage extends StatelessWidget {
                               clientName: safeOverview.dayClientName,
                               dateLabel: safeOverview.dayLogDateLabel,
                               entries: safeOverview.dayEntries,
-                              onWriteNote: () =>
-                                  _openNoteForSelected(controller),
+                              onWriteNote: canWriteLog
+                                  ? () => _openNoteForSelected(controller)
+                                  : null,
                             ),
                           StaffDailyLogsTab.houseActivity =>
                             StaffHouseActivityTabView(

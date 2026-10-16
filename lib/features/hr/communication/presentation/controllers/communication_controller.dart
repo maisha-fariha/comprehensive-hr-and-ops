@@ -178,9 +178,14 @@ class CommunicationController extends BaseController<List<HrConversation>> {
     isLoadingMessages.value = false;
   }
 
+  bool get canWriteMessages {
+    if (!Get.isRegistered<UserSession>()) return true;
+    return Get.find<UserSession>().can('messaging:write');
+  }
+
   Future<void> sendMessage() async {
     final text = messageController.text.trim();
-    if (text.isEmpty || isSending.value) return;
+    if (text.isEmpty || isSending.value || !canWriteMessages) return;
     final id = selectedConversationId.value;
     if (id == null) return;
 

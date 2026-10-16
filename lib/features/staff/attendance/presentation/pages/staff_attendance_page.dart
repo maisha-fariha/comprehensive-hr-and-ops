@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_outbox_section.dart';
@@ -81,6 +82,13 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
           );
         }
 
+        final session = Get.isRegistered<UserSession>()
+            ? Get.find<UserSession>()
+            : null;
+        // Clock in/out is own attendance (`attendance:write`). Manual Entry
+        // creates or corrects a record and needs `attendance:manage`.
+        final canClock = session == null || session.can('attendance:write');
+        final canManual = session == null || session.can('attendance:manage');
         return Column(
           children: [
             ColoredBox(
@@ -90,9 +98,10 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
                 child: StaffAttendanceHeader(
                   onBackTap: () => Navigator.maybePop(context),
                   isOnShift: overview.isOnShift,
-                  onClockInTap: controller.clockIn,
-                  onClockOutTap: controller.clockOut,
-                  onManualEntryTap: controller.showManualEntryDialog,
+                  onClockInTap: canClock ? controller.clockIn : null,
+                  onClockOutTap: canClock ? controller.clockOut : null,
+                  onManualEntryTap:
+                      canManual ? controller.showManualEntryDialog : null,
                 ),
               ),
             ),

@@ -58,6 +58,15 @@ enum UserRole {
         normalized.contains('supervisor')) {
       return UserRole.hr;
     }
+    // Other tenant roles use the manager shell. What they can open is
+    // decided by their permission list, not by the role name.
+    if (normalized.contains('compliance') ||
+        normalized.contains('scheduler') ||
+        normalized.contains('intake') ||
+        normalized.contains('coordinator') ||
+        normalized.contains('quality')) {
+      return UserRole.hr;
+    }
     return null;
   }
 }

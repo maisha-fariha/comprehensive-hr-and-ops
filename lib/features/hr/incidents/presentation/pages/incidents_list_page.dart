@@ -139,20 +139,40 @@ class IncidentsListPage extends StatelessWidget {
                   horizontalPad,
                   ResponsiveHelper.getResponsiveHeight(context, 10),
                 ),
-                child: Column(
+                child: Builder(
+                  builder: (context) {
+                    final session = Get.isRegistered<UserSession>()
+                        ? Get.find<UserSession>()
+                        : null;
+                    final canExport = session == null ||
+                        session.can('incidents:export');
+                    final canWrite =
+                        session == null || session.can('incidents:write');
+                    if (!canExport && !canWrite) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ExportListButton(
-                      isLoading: controller.isExporting.value,
-                      onTap: controller.exportIncidentList,
-                    ),
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 10),
-                    ),
-                    CreateIncidentButton(
-                      onTap: () => _openCreationWizard(controller),
-                    ),
+                    if (canExport)
+                      ExportListButton(
+                        isLoading: controller.isExporting.value,
+                        onTap: controller.exportIncidentList,
+                      ),
+                    if (canExport && canWrite)
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          10,
+                        ),
+                      ),
+                    if (canWrite)
+                      CreateIncidentButton(
+                        onTap: () => _openCreationWizard(controller),
+                      ),
                   ],
+                    );
+                  },
                 ),
               ),
             ),

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/roles/permission_gate.dart';
 import '../../core/roles/user_session.dart';
 import 'dashboard/presentation/controllers/staff_dashboard_controller.dart';
 import 'dashboard/presentation/pages/staff_dashboard_page.dart';
 import 'daily_logs/presentation/pages/staff_daily_logs_page.dart';
 import 'presentation/pages/staff_mar_tasks_menu_page.dart';
 import 'presentation/pages/staff_more_menu_page.dart';
-import 'presentation/pages/staff_unavailable_page.dart';
 import 'presentation/widgets/staff_bottom_nav_bar.dart';
 import 'scheduling/presentation/pages/staff_schedule_page.dart';
 
@@ -15,9 +15,8 @@ import 'scheduling/presentation/pages/staff_schedule_page.dart';
 /// switches between its 5 tabs: Home (Dashboard), Schedule, Daily Logs,
 /// MAR/Tasks and More.
 ///
-/// The Daily Logs slot stays in the bar so nav indices remain stable, but the
-/// body is replaced when `/mobile/home` permissions do not include clients
-/// (housekeeper).
+/// Tabs the signed-in user cannot read are left out of the bar. Home and More
+/// stay so there is always a place to land.
 class StaffShell extends StatefulWidget {
   final int initialIndex;
 
@@ -51,20 +50,27 @@ class _StaffShellState extends State<StaffShell> {
       // account's IndexedStack / tab Element tree.
       final userKey = session.userId ?? session.email;
 
+      bool allowed(int tab) => staffTabAllowed(session, tab);
       final tabs = <Widget>[
         const StaffDashboardPage(),
-        const StaffSchedulePage(),
-        session.canAccessDailyLogs || session.canAccessClients
+        allowed(1)
+            ? const StaffSchedulePage()
+            : const SizedBox.shrink(),
+        allowed(2)
             ? const StaffDailyLogsPage()
-            : const StaffUnavailablePage(
-                title: 'Daily Logs',
-                message:
-                    'Daily logs and client records are not part of this role.',
-              ),
-        const StaffMarTasksMenuPage(),
+            : const SizedBox.shrink(),
+        allowed(3)
+            ? const StaffMarTasksMenuPage()
+            : const SizedBox.shrink(),
         const StaffMoreMenuPage(),
       ];
-      final index = _currentIndex.clamp(0, tabs.length - 1);
+      final index = allowed(_currentIndex)
+          ? _currentIndex.clamp(0, tabs.length - 1)
+          : firstAllowedTab(
+              length: tabs.length,
+              allowed: allowed,
+              fallback: 4,
+            );
 
       return Scaffold(
         key: ValueKey('staff-shell-$userKey'),
@@ -76,6 +82,7 @@ class _StaffShellState extends State<StaffShell> {
         bottomNavigationBar: StaffBottomNavBar(
           currentIndex: index,
           onTap: (value) {
+            if (!allowed(value)) return;
             setState(() => _currentIndex = value);
             if (value == 0) _refreshHomeIfReturning();
           },

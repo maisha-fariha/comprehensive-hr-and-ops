@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/roles/permission_gate.dart';
+import '../../../../core/roles/user_session.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
 
 class StaffBottomNavItemData {
@@ -33,6 +36,19 @@ class StaffBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Obx(() {
+      final session = Get.isRegistered<UserSession>()
+          ? Get.find<UserSession>()
+          : null;
+      final indices = [
+        for (var index = 0; index < items.length; index++)
+          if (session == null || staffTabAllowed(session, index)) index,
+      ];
+      return _bar(context, indices);
+    });
+  }
+
+  Widget _bar(BuildContext context, List<int> indices) {
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -50,17 +66,16 @@ class StaffBottomNavBar extends StatelessWidget {
             top: 8,
           ),
           child: Row(
-            children: List.generate(items.length, (index) {
-              final item = items[index];
-              final isActive = index == currentIndex;
-              return Expanded(
-                child: _StaffBottomNavItem(
-                  data: item,
-                  isActive: isActive,
-                  onTap: () => onTap(index),
+            children: [
+              for (final index in indices)
+                Expanded(
+                  child: _StaffBottomNavItem(
+                    data: items[index],
+                    isActive: index == currentIndex,
+                    onTap: () => onTap(index),
+                  ),
                 ),
-              );
-            }),
+            ],
           ),
         ),
       ),

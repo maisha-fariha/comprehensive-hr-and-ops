@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_outbox_section.dart';
 import '../../../../hr/communication/presentation/pages/communication_page.dart';
@@ -85,6 +86,16 @@ class StaffTasksMessagesPage extends StatelessWidget {
           }
 
           final selectedTab = controller.selectedTab.value;
+          final session = Get.isRegistered<UserSession>()
+              ? Get.find<UserSession>()
+              : null;
+          final canWriteTasks = session == null ||
+              session.can('tasks:write') ||
+              session.can('tasks:manage');
+          final canCompleteChecks = session == null ||
+              session.can('recurring-checks:complete') ||
+              session.can('recurring-checks:write');
+          final canMessage = session == null || session.can('messaging:write');
 
           return Column(
             children: [
@@ -95,7 +106,8 @@ class StaffTasksMessagesPage extends StatelessWidget {
                   children: [
                     TasksMessagesHeader(
                       title: 'Tasks & Messages',
-                      onNewTaskTap: selectedTab == TasksMessagesTab.tasks
+                      onNewTaskTap: selectedTab == TasksMessagesTab.tasks &&
+                              canWriteTasks
                           ? controller.showCreateTaskDialog
                           : null,
                     ),
@@ -152,14 +164,19 @@ class StaffTasksMessagesPage extends StatelessWidget {
                           countFor: controller.countFor,
                           onFilterSelected: controller.selectFilter,
                           onTaskTap: controller.openTask,
-                          onRecurringTap: controller.completeRecurringCheck,
-                          onRecurringSkip: controller.skipRecurringCheck,
+                          onRecurringTap: canCompleteChecks
+                              ? controller.completeRecurringCheck
+                              : null,
+                          onRecurringSkip: canCompleteChecks
+                              ? controller.skipRecurringCheck
+                              : null,
                         ),
                         TasksMessagesTab.messages => MessagesTabView(
                           conversations: overview.conversations,
                           onMarkAllRead: controller.markAllConversationsRead,
-                          onNewMessage: () =>
-                              _openNewMessage(context, controller),
+                          onNewMessage: canMessage
+                              ? () => _openNewMessage(context, controller)
+                              : null,
                           onConversationTap: (conversation) {
                             _openConversation(
                               controller,

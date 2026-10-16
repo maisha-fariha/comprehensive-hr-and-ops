@@ -176,7 +176,8 @@ class _CommunicationPageState extends State<CommunicationPage> {
                   onSearchChanged: controller.onSearchChanged,
                   onFilterSelected: controller.selectFilter,
                   onConversationTap: controller.selectConversation,
-                  onComposeTap: controller.monitoring.value
+                  onComposeTap: controller.monitoring.value ||
+                          !controller.canWriteMessages
                       ? null
                       : () => _openNewConversation(context, controller),
                   onMarkAllRead:
@@ -189,7 +190,8 @@ class _CommunicationPageState extends State<CommunicationPage> {
                   onSend: controller.sendMessage,
                   isLoading: controller.isLoadingMessages.value,
                   isSending: controller.isSending.value,
-                  readOnly: controller.monitoring.value,
+                  readOnly: controller.monitoring.value ||
+                      !controller.canWriteMessages,
                 );
 
                 if (wide) {

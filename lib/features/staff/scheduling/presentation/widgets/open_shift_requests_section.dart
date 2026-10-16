@@ -118,9 +118,10 @@ class _OpenShiftCard extends StatelessWidget {
               ],
             ),
           ),
+          if (onRequestTap != null) ...[
           SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
           GestureDetector(
-            onTap: onRequestTap == null ? null : () => onRequestTap!(shift),
+            onTap: () => onRequestTap!(shift),
             behavior: HitTestBehavior.opaque,
             child: Container(
               padding: ResponsiveHelper.getResponsivePadding(
@@ -146,6 +147,7 @@ class _OpenShiftCard extends StatelessWidget {
               ),
             ),
           ),
+          ],
         ],
       ),
     );

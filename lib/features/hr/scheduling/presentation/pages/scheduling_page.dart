@@ -169,8 +169,12 @@ class SchedulingPage extends StatelessWidget {
                     ),
                     SchedulingTab.requests => RequestsTabView(
                       data: overview.requests,
-                      onApprove: controller.approveRequest,
-                      onDecline: controller.declineRequest,
+                      onApprove: controller.canWrite
+                          ? controller.approveRequest
+                          : null,
+                      onDecline: controller.canWrite
+                          ? controller.declineRequest
+                          : null,
                     ),
                   },
                 ),

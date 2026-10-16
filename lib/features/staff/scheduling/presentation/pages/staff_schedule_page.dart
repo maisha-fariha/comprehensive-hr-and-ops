@@ -60,6 +60,9 @@ class StaffSchedulePage extends StatelessWidget {
 
           final selectedShifts = controller.shiftsForSelectedDay;
           final dayLabel = controller.selectedDayShiftsLabel;
+          final session = Get.find<UserSession>();
+          final canBid = session.can('scheduling:bid') ||
+              session.can('scheduling:write');
 
           return Column(
             children: [
@@ -114,7 +117,7 @@ class StaffSchedulePage extends StatelessWidget {
                         shiftsThisWeekLabel: dayLabel,
                         shifts: selectedShifts,
                         onShiftTap: controller.openShiftDetail,
-                        onRequestSwap: controller.requestCoverSwap,
+                        onRequestSwap: canBid ? controller.requestCoverSwap : null,
                       ),
                       if (selectedShifts.isEmpty) ...[
                         SizedBox(
@@ -142,23 +145,30 @@ class StaffSchedulePage extends StatelessWidget {
                       ),
                       OpenShiftRequestsSection(
                         shifts: overview.openShiftRequests,
-                        onRequestTap: (shift) =>
-                            controller.requestOpenShift(shift.id),
+                        onRequestTap: canBid
+                            ? (shift) => controller.requestOpenShift(shift.id)
+                            : null,
                       ),
                       SizedBox(
                         height: ResponsiveHelper.getResponsiveHeight(context, 18),
                       ),
                       SwapRequestsSection(
                         swaps: overview.swapRequests,
-                        onAccept: (swap) => controller.respondToSwap(
-                          swapId: swap.id,
-                          accepted: true,
-                        ),
-                        onDecline: (swap) => controller.respondToSwap(
-                          swapId: swap.id,
-                          accepted: false,
-                        ),
-                        onCancel: (swap) => controller.cancelSwap(swap.id),
+                        onAccept: canBid
+                            ? (swap) => controller.respondToSwap(
+                                  swapId: swap.id,
+                                  accepted: true,
+                                )
+                            : null,
+                        onDecline: canBid
+                            ? (swap) => controller.respondToSwap(
+                                  swapId: swap.id,
+                                  accepted: false,
+                                )
+                            : null,
+                        onCancel: canBid
+                            ? (swap) => controller.cancelSwap(swap.id)
+                            : null,
                       ),
                       if (Get.find<UserSession>()
                           .canSeeStaffScheduleAppointments) ...[

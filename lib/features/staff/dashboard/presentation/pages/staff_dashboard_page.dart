@@ -176,6 +176,10 @@ class StaffDashboardPage extends StatelessWidget {
   ) async {
     final shift = controller.overview?.todayShift;
     if (shift == null || controller.clockBusy.value) return;
+    if (Get.isRegistered<UserSession>() &&
+        !Get.find<UserSession>().can('attendance:write')) {
+      return;
+    }
     if (!GetIt.instance.isRegistered<StaffAttendanceRepository>()) return;
     final attendance = GetIt.instance<StaffAttendanceRepository>();
     final residences = await attendance.getResidences();

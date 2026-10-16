@@ -118,8 +118,10 @@ abstract final class StaffHomeMapper {
         clients: clients,
         tasksDue: tasksDue,
         medsDue: medsDue,
-        canAccessClients: session.canAccessClients,
+        canClock: session.can('attendance:write'),
+        canDailyLogs: session.can('daily-logs'),
         canAccessMar: session.canAccessMar,
+        canTasks: session.can('tasks'),
       ),
     );
   }
@@ -129,18 +131,21 @@ abstract final class StaffHomeMapper {
     required int? clients,
     required int? tasksDue,
     required int? medsDue,
-    required bool canAccessClients,
+    required bool canClock,
+    required bool canDailyLogs,
     required bool canAccessMar,
+    required bool canTasks,
   }) {
     return [
-      StaffQuickAction(
-        id: 'clock-in-out',
-        asset: AppAssets.clock,
-        label: 'Clock In / Out',
-        subtitle: 'Tap to manage your shift',
-        trailing: onShift ? 'On Shift' : 'Off Shift',
-      ),
-      if (canAccessClients)
+      if (canClock)
+        StaffQuickAction(
+          id: 'clock-in-out',
+          asset: AppAssets.clock,
+          label: 'Clock In / Out',
+          subtitle: 'Tap to manage your shift',
+          trailing: onShift ? 'On Shift' : 'Off Shift',
+        ),
+      if (canDailyLogs)
         StaffQuickAction(
           id: 'daily-logs',
           asset: 'assets/icons/team_reports/team_doc.svg',
@@ -156,13 +161,14 @@ abstract final class StaffHomeMapper {
           subtitle: 'Administer & record meds',
           trailing: medsDue == null ? '' : '$medsDue Due',
         ),
-      StaffQuickAction(
-        id: 'my-tasks',
-        asset: 'assets/icons/staff_core/tasks_due.svg',
-        label: 'My Tasks',
-        subtitle: 'View assigned tasks',
-        trailing: tasksDue == null ? '' : '$tasksDue Due',
-      ),
+      if (canTasks)
+        StaffQuickAction(
+          id: 'my-tasks',
+          asset: 'assets/icons/staff_core/tasks_due.svg',
+          label: 'My Tasks',
+          subtitle: 'View assigned tasks',
+          trailing: tasksDue == null ? '' : '$tasksDue Due',
+        ),
     ];
   }
 

@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../appointments/presentation/pages/create_appointment_page.dart';
 import '../../../appointments/presentation/widgets/family_primary_button.dart';
 import '../../../family_shell.dart';
@@ -114,6 +115,8 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
                 ),
               ),
               Expanded(child: _buildBody(overview, selectedTab)),
+              if (!Get.isRegistered<UserSession>() ||
+                  Get.find<UserSession>().can('family:write'))
               ColoredBox(
                 color: AppColors.surfaceWhite,
                 child: Padding(

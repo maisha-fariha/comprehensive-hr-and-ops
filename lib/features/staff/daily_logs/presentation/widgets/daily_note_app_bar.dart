@@ -71,6 +71,7 @@ class DailyNoteAppBar extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onSave != null)
               Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(

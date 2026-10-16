@@ -127,7 +127,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   }
 
   Future<void> _saveProgress() async {
-    if (_busy) return;
+    if (_busy || !_canMutate()) return;
     setState(() => _busy = true);
     final status = _statusRaw(_load.detail);
     final result = await _repository.updateTask(
@@ -152,7 +152,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   }
 
   Future<void> _complete() async {
-    if (_busy) return;
+    if (_busy || !_canMutate()) return;
     final detail = _load.detail ?? const <String, dynamic>{};
     setState(() => _busy = true);
     final result = await _repository.updateTask(
@@ -178,7 +178,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
 
   Future<void> _addNote() async {
     final text = _note.text.trim();
-    if (_busy) return;
+    if (_busy || !_canMutate()) return;
     if (text.isEmpty) {
       AppSnackbar.show(
         'Add a note',
@@ -207,7 +207,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   }
 
   Future<void> _upload() async {
-    if (_busy) return;
+    if (_busy || !_canMutate()) return;
     final picked = await AppFilePicker.pickFiles(
       context: context,
       type: FileType.custom,
@@ -267,7 +267,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
 
   Future<void> _edit() async {
     final detail = _load.detail;
-    if (detail == null || _busy) return;
+    if (detail == null || _busy || !_canMutate()) return;
     await showCreateTaskSheet(
       context,
       editingTaskId: widget.task.id,
@@ -308,8 +308,19 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     );
   }
 
+  bool _canMutate() {
+    if (!Get.isRegistered<UserSession>()) return true;
+    final session = Get.find<UserSession>();
+    return session.can('tasks:write') || session.can('tasks:manage');
+  }
+
   @override
   Widget build(BuildContext context) {
+    return Obx(_buildSheet);
+  }
+
+  Widget _buildSheet() {
+    final canMutate = _canMutate();
     final height = MediaQuery.sizeOf(context).height * 0.92;
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     return Padding(
@@ -489,7 +500,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                         contentPadding: EdgeInsets.zero,
                                         dense: true,
                                         value: _checks[i].done,
-                                        onChanged: completed
+                                        onChanged: completed || !canMutate
                                             ? null
                                             : (value) => setState(
                                                   () => _checks[i].done = value ?? false,
@@ -511,7 +522,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _UploadZone(busy: _busy, onTap: _upload),
+                              if (canMutate) _UploadZone(busy: _busy, onTap: _upload),
                               for (final name in files)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
@@ -533,25 +544,27 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              TextField(
-                                controller: _note,
-                                minLines: 3,
-                                maxLines: 5,
-                                decoration: _fieldDecoration(
-                                  'Add a note or reminder for this task...',
+                              if (canMutate) ...[
+                                TextField(
+                                  controller: _note,
+                                  minLines: 3,
+                                  maxLines: 5,
+                                  decoration: _fieldDecoration(
+                                    'Add a note or reminder for this task...',
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: OutlinedButton.icon(
-                                  key: const Key('task-add-note'),
-                                  onPressed: _busy ? null : _addNote,
-                                  icon: const Icon(Icons.note_add_outlined, size: 16),
-                                  label: const Text('Add Note'),
+                                const SizedBox(height: 10),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: OutlinedButton.icon(
+                                    key: const Key('task-add-note'),
+                                    onPressed: _busy ? null : _addNote,
+                                    icon: const Icon(Icons.note_add_outlined, size: 16),
+                                    label: const Text('Add Note'),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
+                                const SizedBox(height: 8),
+                              ],
                               if (_load.notes.isEmpty)
                                 const Text(
                                   'Nothing written yet.',
@@ -596,14 +609,26 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              TextField(
-                                controller: _completion,
-                                minLines: 3,
-                                maxLines: 5,
-                                decoration: _fieldDecoration(
-                                  'What was done, and anything the next person should know...',
+                              if (canMutate)
+                                TextField(
+                                  controller: _completion,
+                                  minLines: 3,
+                                  maxLines: 5,
+                                  decoration: _fieldDecoration(
+                                    'What was done, and anything the next person should know...',
+                                  ),
+                                )
+                              else
+                                Text(
+                                  _completion.text.trim().isEmpty
+                                      ? 'No completion notes.'
+                                      : _completion.text.trim(),
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 13,
+                                    color: AppColors.textBody,
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
@@ -617,9 +642,10 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                 busy: _busy,
                 completed: _isCompleted(_statusRaw(_load.detail)),
                 onClose: () => Navigator.of(context).pop(),
-                onEdit: _load.detail == null ? null : _edit,
-                onSave: _load.detail == null ? null : _saveProgress,
-                onComplete: _load.detail == null ? null : _complete,
+                onEdit: canMutate && _load.detail != null ? _edit : null,
+                onSave: canMutate && _load.detail != null ? _saveProgress : null,
+                onComplete:
+                    canMutate && _load.detail != null ? _complete : null,
               ),
             ],
           ),

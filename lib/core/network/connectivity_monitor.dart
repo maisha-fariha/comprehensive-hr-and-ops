@@ -27,6 +27,7 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
   Timer? _debounce;
   Timer? _offlineProbeTimer;
   Timer? _pendingPoll;
+  Timer? _permissionPoll;
   Future<bool>? _probeInFlight;
   bool _hasInterface = true;
   bool _observing = false;
@@ -58,6 +59,10 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
       _observing = true;
     }
     if (_hasInterface) unawaited(_confirmReachability());
+    _permissionPoll ??= Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!Get.isRegistered<UserSession>()) return;
+      unawaited(Get.find<UserSession>().refreshProfile());
+    });
     return this;
   }
 
@@ -229,6 +234,7 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
     _debounce?.cancel();
     _offlineProbeTimer?.cancel();
     _pendingPoll?.cancel();
+    _permissionPoll?.cancel();
     if (_observing) WidgetsBinding.instance.removeObserver(this);
     super.onClose();
   }

@@ -7,6 +7,8 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/roles/permission_gate.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/attendance/domain/entities/attendance_week.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../domain/entities/staff_attendance_history_item.dart';
@@ -198,8 +200,16 @@ class StaffAttendanceController
   }
 
   Future<void> showManualEntryDialog() async {
+    if (Get.isRegistered<UserSession>() &&
+        !Get.find<UserSession>().can('attendance:manage')) {
+      return;
+    }
     final saved = await Get.to<bool>(
-      () => const StaffManualAttendanceEntryPage(),
+      () => const PermissionGate(
+        anyOf: ['attendance:manage'],
+        title: 'Manual Entry',
+        builder: StaffManualAttendanceEntryPage.new,
+      ),
     );
     if (saved == true) await loadOverview();
   }

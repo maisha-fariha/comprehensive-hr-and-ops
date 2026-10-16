@@ -46,13 +46,14 @@ class StaffMarTasksMenuPage extends StatelessWidget {
                     ? 'Due, administered, missed & refused doses'
                     : 'View due and recorded doses (read only)',
               ),
-            const StaffMenuEntry(
-              icon: Icons.fact_check_outlined,
-              iconBackground: AppColors.urgentBackground,
-              iconColor: AppColors.urgentAmber,
-              title: 'Tasks & Messages',
-              subtitle: 'Your to-dos and team conversations',
-            ),
+            if (session.can('tasks:read'))
+              const StaffMenuEntry(
+                icon: Icons.fact_check_outlined,
+                iconBackground: AppColors.urgentBackground,
+                iconColor: AppColors.urgentAmber,
+                title: 'Tasks & Messages',
+                subtitle: 'Your to-dos and team conversations',
+              ),
             if (session.canAccessMessaging)
               const StaffMenuEntry(
                 icon: Icons.forum_outlined,

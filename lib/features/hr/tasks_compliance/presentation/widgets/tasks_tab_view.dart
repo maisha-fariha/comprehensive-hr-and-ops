@@ -74,10 +74,11 @@ class _TasksTabViewState extends State<TasksTabView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: _NewTaskButton(onTap: widget.onNewTaskTap),
-        ),
+        if (widget.onNewTaskTap != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: _NewTaskButton(onTap: widget.onNewTaskTap),
+          ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         TaskStatsGrid(stats: overview.taskStats),
         SizedBox(height: sectionGap),
@@ -140,7 +141,8 @@ class _TasksTabViewState extends State<TasksTabView> {
                   ? null
                   : () => widget.onTaskTap!(tasks[i]),
             ),
-            if (_segment == TasksListSegment.reviewQueue) ...[
+            if (_segment == TasksListSegment.reviewQueue &&
+                widget.onApproveReview != null) ...[
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
               _ReviewActionsRow(
                 onApprove: widget.onApproveReview == null
@@ -151,7 +153,9 @@ class _TasksTabViewState extends State<TasksTabView> {
                     : () => widget.onRejectReview!(tasks[i]),
               ),
             ],
-            if (_segment == TasksListSegment.recurring) ...[
+            if (_segment == TasksListSegment.recurring &&
+                (widget.onPauseRecurring != null ||
+                    widget.onResumeRecurring != null)) ...[
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
               _RecurringActionsRow(
                 isActive: tasks[i].status != TaskStatus.completed,

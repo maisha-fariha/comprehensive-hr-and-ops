@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/roles/permission_gate.dart';
+import '../../core/roles/user_session.dart';
 import 'attendance/presentation/pages/attendance_page.dart';
 import 'dashboard/presentation/pages/manager_dashboard_page.dart';
 import 'incidents/presentation/pages/incidents_list_page.dart';
@@ -61,15 +63,32 @@ class _HrShellState extends State<HrShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _tabs),
-      bottomNavigationBar: Obx(
-        () => HrBottomNavBar(
-          currentIndex: _currentIndex,
-          onTap: _onBottomNavTap,
+    return Obx(() {
+      final session = Get.isRegistered<UserSession>()
+          ? Get.find<UserSession>()
+          : null;
+      bool allowed(int index) =>
+          session == null || managerTabAllowed(session, index);
+      final index = allowed(_currentIndex)
+          ? _currentIndex
+          : firstAllowedTab(length: _tabs.length, allowed: allowed, fallback: 4);
+      return Scaffold(
+        body: IndexedStack(
+          index: index,
+          children: [
+            for (var i = 0; i < _tabs.length; i++)
+              allowed(i) ? _tabs[i] : const SizedBox.shrink(),
+          ],
+        ),
+        bottomNavigationBar: HrBottomNavBar(
+          currentIndex: index,
+          onTap: (value) {
+            if (!allowed(value)) return;
+            _onBottomNavTap(value);
+          },
           alertsBadgeCount: hrAlertsBadgeCount(),
         ),
-      ),
-    );
+      );
+    });
   }
 }

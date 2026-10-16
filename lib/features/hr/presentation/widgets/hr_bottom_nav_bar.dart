@@ -5,6 +5,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/roles/permission_gate.dart';
+import '../../../../core/roles/user_session.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
 import '../../incidents/presentation/controllers/incidents_controller.dart';
 
@@ -69,7 +71,27 @@ class HrBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = _items;
+    return Obx(() {
+      final session = Get.isRegistered<UserSession>()
+          ? Get.find<UserSession>()
+          : null;
+      final items = [
+        for (var index = 0; index < _items.length; index++)
+          if (session == null || managerTabAllowed(session, index)) _items[index],
+      ];
+      final indices = [
+        for (var index = 0; index < _items.length; index++)
+          if (session == null || managerTabAllowed(session, index)) index,
+      ];
+      return _bar(context, items, indices);
+    });
+  }
+
+  Widget _bar(
+    BuildContext context,
+    List<HrBottomNavItemData> items,
+    List<int> indices,
+  ) {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -94,8 +116,9 @@ class HrBottomNavBar extends StatelessWidget {
             top: 10,
           ),
           child: Row(
-            children: List.generate(items.length, (index) {
-              final item = items[index];
+            children: List.generate(items.length, (slot) {
+              final item = items[slot];
+              final index = indices[slot];
               final isActive = index == currentIndex;
               return Expanded(
                 child: _HrBottomNavItem(

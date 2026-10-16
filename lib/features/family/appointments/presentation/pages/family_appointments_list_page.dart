@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../family_shell.dart';
 import '../../../visit_requests/presentation/pages/visit_request_details_page.dart';
 import '../../domain/entities/family_appointment.dart';
@@ -236,6 +237,8 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
                         ),
                 ),
               ),
+              if (!Get.isRegistered<UserSession>() ||
+                  Get.find<UserSession>().can('family:write'))
               ColoredBox(
                 color: AppColors.surfaceWhite,
                 child: Padding(

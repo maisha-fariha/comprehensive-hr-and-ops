@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/roles/permission_gate.dart';
 import '../../../core/roles/user_session.dart';
 import '../admissions/presentation/pages/admissions_page.dart';
 import '../appointments/presentation/pages/hr_appointments_page.dart';
@@ -73,8 +74,9 @@ List<ManagerDestination> managerDestinations() {
   bool can(String permission) => session?.can(permission) ?? true;
 
   return [
-    ManagerDestination(
-      title: 'Dashboard',
+    if (can('dashboard:read'))
+      ManagerDestination(
+        title: 'Dashboard',
       subtitle: 'Today at a glance',
       icon: Icons.dashboard_outlined,
       iconBackground: AppColors.infoBackground,
@@ -90,7 +92,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.home_work_outlined,
         iconBackground: AppColors.quickActionCreateShiftBg,
         iconColor: AppColors.secondaryTeal,
-        open: () => Get.to(() => const ResidencesPage()),
+        open: () => openPermittedPage(
+          title: 'Residences',
+          anyOf: const ['residences:read'],
+          builder: () => const ResidencesPage(),
+        ),
         keywords: const ['homes', 'beds', 'rooms', 'houses'],
       ),
     if (session?.canAccessClients ?? true)
@@ -100,7 +106,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.people_outline_rounded,
         iconBackground: AppColors.activeBackground,
         iconColor: AppColors.activeGreen,
-        open: () => Get.to(() => const ClientsPage()),
+        open: () => openPermittedPage(
+          title: 'Clients',
+          anyOf: const ['clients:read'],
+          builder: () => const ClientsPage(),
+        ),
         keywords: const ['residents', 'directory', 'care plan'],
       ),
     if (can('admissions:read'))
@@ -110,39 +120,46 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.person_add_alt_1_outlined,
         iconBackground: AppColors.quickActionCreateShiftBg,
         iconColor: AppColors.secondaryTeal,
-        open: () => Get.to(() => const AdmissionsPage()),
+        open: () => openPermittedPage(
+          title: 'Admissions',
+          anyOf: const ['admissions:read'],
+          builder: () => const AdmissionsPage(),
+        ),
         keywords: const ['admissions', 'admission', 'referral', 'referrals', 'waitlist', 'intake', 'admit'],
       ),
-    ManagerDestination(
-      title: 'Scheduling',
-      subtitle: 'Shifts, coverage & swap requests',
-      icon: Icons.calendar_month_outlined,
-      iconBackground: AppColors.infoBackground,
-      iconColor: AppColors.infoBlue,
-      open: () => _openTab(1),
-      keywords: const ['schedule', 'shifts', 'rota'],
-      inMoreMenu: false,
-    ),
-    ManagerDestination(
-      title: 'Attendance',
-      subtitle: 'Check-ins, lateness & overtime',
-      icon: Icons.access_time_rounded,
-      iconBackground: AppColors.activeBackground,
-      iconColor: AppColors.activeGreen,
-      open: () => _openTab(2),
-      keywords: const ['clock', 'timesheet'],
-      inMoreMenu: false,
-    ),
-    ManagerDestination(
-      title: 'Incidents',
-      subtitle: 'Alerts & incident reports',
-      icon: Icons.report_gmailerrorred_rounded,
-      iconBackground: AppColors.criticalBackgroundSoft,
-      iconColor: AppColors.criticalRed,
-      open: () => _openTab(3),
-      keywords: const ['alerts'],
-      inMoreMenu: false,
-    ),
+    if (can('scheduling:read'))
+      ManagerDestination(
+        title: 'Scheduling',
+        subtitle: 'Shifts, coverage & swap requests',
+        icon: Icons.calendar_month_outlined,
+        iconBackground: AppColors.infoBackground,
+        iconColor: AppColors.infoBlue,
+        open: () => _openTab(1),
+        keywords: const ['schedule', 'shifts', 'rota'],
+        inMoreMenu: false,
+      ),
+    if (can('attendance:read'))
+      ManagerDestination(
+        title: 'Attendance',
+        subtitle: 'Check-ins, lateness & overtime',
+        icon: Icons.access_time_rounded,
+        iconBackground: AppColors.activeBackground,
+        iconColor: AppColors.activeGreen,
+        open: () => _openTab(2),
+        keywords: const ['clock', 'timesheet'],
+        inMoreMenu: false,
+      ),
+    if (can('incidents:read'))
+      ManagerDestination(
+        title: 'Incidents',
+        subtitle: 'Alerts & incident reports',
+        icon: Icons.report_gmailerrorred_rounded,
+        iconBackground: AppColors.criticalBackgroundSoft,
+        iconColor: AppColors.criticalRed,
+        open: () => _openTab(3),
+        keywords: const ['alerts'],
+        inMoreMenu: false,
+      ),
     if (can('emergency:read'))
       ManagerDestination(
         title: 'Emergency',
@@ -150,18 +167,27 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.crisis_alert_rounded,
         iconBackground: AppColors.criticalBackgroundSoft,
         iconColor: AppColors.criticalRed,
-        open: () => Get.to(() => const EmergencyPage()),
+        open: () => openPermittedPage(
+          title: 'Emergency',
+          anyOf: const ['emergency:read'],
+          builder: () => const EmergencyPage(),
+        ),
         keywords: const ['emergency', 'alarm', 'alarms', 'sos', 'alert'],
       ),
-    ManagerDestination(
-      title: 'Daily Logs',
-      subtitle: 'Review queue, missing logs & resident days',
-      icon: Icons.assignment_outlined,
-      iconBackground: AppColors.infoBackground,
-      iconColor: AppColors.infoBlue,
-      open: () => Get.to(() => const DailyLogsPage()),
-      keywords: const ['handovers', 'logs', 'notes'],
-    ),
+    if (can('daily-logs:read'))
+      ManagerDestination(
+        title: 'Daily Logs',
+        subtitle: 'Review queue, missing logs & resident days',
+        icon: Icons.assignment_outlined,
+        iconBackground: AppColors.infoBackground,
+        iconColor: AppColors.infoBlue,
+        open: () => openPermittedPage(
+          title: 'Daily Logs',
+          anyOf: const ['daily-logs:read'],
+          builder: () => const DailyLogsPage(),
+        ),
+        keywords: const ['handovers', 'logs', 'notes'],
+      ),
     if (can('shift-handovers:read'))
       ManagerDestination(
         title: 'Shift Handovers',
@@ -169,7 +195,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.edit_note_rounded,
         iconBackground: AppColors.activeBackground,
         iconColor: AppColors.secondaryTeal,
-        open: () => Get.to(() => const HandoversPage()),
+        open: () => openPermittedPage(
+          title: 'Shift Handovers',
+          anyOf: const ['shift-handovers:read'],
+          builder: () => const HandoversPage(),
+        ),
         keywords: const ['handover', 'handovers', 'shift notes'],
       ),
     if (can('recurring-checks:read'))
@@ -179,7 +209,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.timer_outlined,
         iconBackground: AppColors.activeBackground,
         iconColor: AppColors.secondaryTeal,
-        open: () => Get.to(() => const RecurringChecksPage()),
+        open: () => openPermittedPage(
+          title: 'Recurring Checks',
+          anyOf: const ['recurring-checks:read'],
+          builder: () => const RecurringChecksPage(),
+        ),
         keywords: const ['recurring', 'checks', 'welfare', 'vitals', 'schedule'],
       ),
     if (can('mar:read'))
@@ -189,7 +223,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.medication_outlined,
         iconBackground: AppColors.activeBackground,
         iconColor: AppColors.activeGreen,
-        open: () => Get.to(() => const MedicationPage()),
+        open: () => openPermittedPage(
+          title: 'Medication',
+          anyOf: const ['mar:read'],
+          builder: () => const MedicationPage(),
+        ),
         keywords: const ['mar', 'meds'],
       ),
     if (can('client-activities:read'))
@@ -199,7 +237,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.monitor_heart_outlined,
         iconBackground: AppColors.quickActionCreateShiftBg,
         iconColor: AppColors.secondaryTeal,
-        open: () => Get.to(() => const DailyActivityPage()),
+        open: () => openPermittedPage(
+          title: 'Daily Activity',
+          anyOf: const ['client-activities:read'],
+          builder: () => const DailyActivityPage(),
+        ),
         keywords: const ['activity', 'activities', 'daily activity', 'outing', 'programme', 'school', 'resident history'],
       ),
     if (can('appointments:read'))
@@ -209,7 +251,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.event_available_rounded,
         iconBackground: AppColors.urgentBackground,
         iconColor: AppColors.urgentAmber,
-        open: () => Get.to(() => const HrAppointmentsPage()),
+        open: () => openPermittedPage(
+          title: 'Appointments',
+          anyOf: const ['appointments:read'],
+          builder: () => const HrAppointmentsPage(),
+        ),
         keywords: const ['appointments', 'appointment', 'visits', 'family visit', 'approvals', 'booking'],
       ),
     if (can('inventory:read'))
@@ -219,7 +265,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.inventory_2_outlined,
         iconBackground: AppColors.urgentBackground,
         iconColor: AppColors.urgentAmber,
-        open: () => Get.to(() => const InventoryPage()),
+        open: () => openPermittedPage(
+          title: 'Inventory',
+          anyOf: const ['inventory:read'],
+          builder: () => const InventoryPage(),
+        ),
         keywords: const ['inventory', 'stock', 'supplies', 'items', 'counts', 'transfers', 'purchasing', 'orders', 'suppliers'],
       ),
     if (can('documents:read'))
@@ -229,7 +279,11 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.folder_copy_outlined,
         iconBackground: AppColors.infoBackground,
         iconColor: AppColors.infoBlue,
-        open: () => Get.to(() => const HrDocumentsPage()),
+        open: () => openPermittedPage(
+          title: 'Documents',
+          anyOf: const ['documents:read'],
+          builder: () => const HrDocumentsPage(),
+        ),
         keywords: const ['documents', 'documentation', 'certificates', 'files', 'compliance', 'expiry', 'registry'],
       ),
     if (can('training:read'))
@@ -239,28 +293,42 @@ List<ManagerDestination> managerDestinations() {
         icon: Icons.school_outlined,
         iconBackground: AppColors.nightBackground,
         iconColor: AppColors.nightPurple,
-        open: () => Get.to(() => const HrTrainingPage()),
+        open: () => openPermittedPage(
+          title: 'Training',
+          anyOf: const ['training:read'],
+          builder: () => const HrTrainingPage(),
+        ),
         keywords: const ['training', 'course', 'courses', 'certificate', 'quiz', 'assignment', 'learning'],
       ),
-    ManagerDestination(
-      title: 'Tasks & Compliance',
-      subtitle: 'Due tasks, compliance checks & corrective actions',
-      icon: Icons.fact_check_outlined,
-      iconBackground: AppColors.urgentBackground,
-      iconColor: AppColors.urgentAmber,
-      open: () => Get.to(() => const TasksCompliancePage()),
-      keywords: const ['tasks', 'compliance', 'audit'],
-    ),
-    ManagerDestination(
-      title: 'Communication',
-      subtitle: 'Announcements & messages',
-      icon: Icons.chat_bubble_outline_rounded,
-      iconBackground: AppColors.quickActionMessageBg,
-      iconColor: AppColors.quickActionMessageIcon,
-      open: () => Get.to(() => const CommunicationPage()),
-      keywords: const ['messages', 'chat', 'announcements'],
-      inMoreMenu: false,
-    ),
+    if (can('tasks:read') || can('compliance:read'))
+      ManagerDestination(
+        title: 'Tasks & Compliance',
+        subtitle: 'Due tasks, compliance checks & corrective actions',
+        icon: Icons.fact_check_outlined,
+        iconBackground: AppColors.urgentBackground,
+        iconColor: AppColors.urgentAmber,
+        open: () => openPermittedPage(
+          title: 'Tasks & Compliance',
+          anyOf: const ['tasks:read', 'compliance:read'],
+          builder: () => const TasksCompliancePage(),
+        ),
+        keywords: const ['tasks', 'compliance', 'audit'],
+      ),
+    if (can('messaging:read'))
+      ManagerDestination(
+        title: 'Communication',
+        subtitle: 'Announcements & messages',
+        icon: Icons.chat_bubble_outline_rounded,
+        iconBackground: AppColors.quickActionMessageBg,
+        iconColor: AppColors.quickActionMessageIcon,
+        open: () => openPermittedPage(
+          title: 'Communication',
+          anyOf: const ['messaging:read'],
+          builder: () => const CommunicationPage(),
+        ),
+        keywords: const ['messages', 'chat', 'announcements'],
+        inMoreMenu: false,
+      ),
     ManagerDestination(
       title: 'Profile & Settings',
       subtitle: 'Account, residences & preferences',

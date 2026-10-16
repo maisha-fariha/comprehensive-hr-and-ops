@@ -143,7 +143,8 @@ class ManagerDashboardPage extends StatelessWidget {
                         stats: overview.overviewStats.take(4).toList(),
                         lastUpdatedLabel: overview.lastUpdatedLabel,
                       ),
-                      if (overview.quickActions.isNotEmpty) ...[
+                      if (_permittedQuickActions(overview.quickActions)
+                          case final actions when actions.isNotEmpty) ...[
                         SizedBox(
                           height: ResponsiveHelper.getResponsiveHeight(
                             context,
@@ -151,7 +152,7 @@ class ManagerDashboardPage extends StatelessWidget {
                           ),
                         ),
                         _QuickActionsSection(
-                          actions: overview.quickActions,
+                          actions: actions,
                           onActionTap: _onQuickActionTap,
                         ),
                       ],
@@ -164,6 +165,23 @@ class ManagerDashboardPage extends StatelessWidget {
         );
       }),
     );
+  }
+
+  List<QuickAction> _permittedQuickActions(List<QuickAction> actions) {
+    final session = Get.isRegistered<UserSession>()
+        ? Get.find<UserSession>()
+        : null;
+    if (session == null) return actions;
+    return [
+      for (final action in actions)
+        if (switch (action.type) {
+          QuickActionType.createShift || QuickActionType.approve =>
+            session.can('scheduling:write'),
+          QuickActionType.logNote => session.can('daily-logs:write'),
+          QuickActionType.message => session.can('messaging:write'),
+        })
+          action,
+    ];
   }
 
   void _onQuickActionTap(QuickAction action) {

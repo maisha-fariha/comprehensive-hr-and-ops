@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../core/constants/app_colors.dart';
@@ -19,8 +20,14 @@ class HrMoreMenuPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries =
-        managerDestinations().where((d) => d.inMoreMenu).toList();
+    return Obx(() {
+      final entries =
+          managerDestinations().where((d) => d.inMoreMenu).toList();
+      return _menu(context, entries);
+    });
+  }
+
+  Widget _menu(BuildContext context, List<ManagerDestination> entries) {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(

@@ -16,6 +16,7 @@ class TasksComplianceTabBar extends StatelessWidget {
   final TasksComplianceTab selectedTab;
   final ValueChanged<TasksComplianceTab> onTabSelected;
   final int complianceAlertCount;
+  final List<TasksComplianceTab>? tabs;
 
   static const Color _trackBackground = Color(0xFFF1F5F9);
   static const Color _selectedLabel = Color(0xFF0D685E);
@@ -27,6 +28,7 @@ class TasksComplianceTabBar extends StatelessWidget {
     required this.selectedTab,
     required this.onTabSelected,
     this.complianceAlertCount = 0,
+    this.tabs,
   });
 
   @override
@@ -42,7 +44,7 @@ class TasksComplianceTabBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          for (final tab in TasksComplianceTab.values)
+          for (final tab in tabs ?? TasksComplianceTab.values)
             Expanded(
               child: _TabSegment(
                 label: _tabLabels[tab]!,
