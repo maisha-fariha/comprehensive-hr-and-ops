@@ -41,7 +41,7 @@ abstract final class HrProfileMapper {
       profile: HrProfile(
         initials: session.avatarInitials,
         name: session.displayName,
-        role: session.role.label,
+        role: session.roleTitle,
         email: session.email,
       ),
       linkedItems: residences,

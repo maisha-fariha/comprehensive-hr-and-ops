@@ -21,15 +21,21 @@ class HrProfileSettingsRepositoryImpl implements HrProfileSettingsRepository {
 
   @override
   Future<Result<HrProfileSettingsOverview>> getOverview() async {
-    final residences = await _api.get(ApiEndpoints.residences);
-    if (residences.isFailure) {
-      return Result.failure(
-        residences.error ??
-            const ApiError(message: 'Could not load managed residences.'),
+    // Profile is the signed-in account. A missing residences permission must
+    // not replace the page with an error.
+    dynamic residencesBody = const <dynamic>[];
+    if (!_session.permissionsReady || _session.can('residences')) {
+      final residences = await _api.get(
+        ApiEndpoints.residences,
+        silent: true,
       );
+      if (residences.isSuccess) residencesBody = residences.value;
     }
 
-    final prefs = await _api.get(ApiEndpoints.notificationPreferences);
+    final prefs = await _api.get(
+      ApiEndpoints.notificationPreferences,
+      silent: true,
+    );
     final prefsMap = prefs.isSuccess
         ? JsonCodec.unwrapMap(prefs.value)
         : <String, dynamic>{};
@@ -44,7 +50,7 @@ class HrProfileSettingsRepositoryImpl implements HrProfileSettingsRepository {
     return Result.success(
       HrProfileMapper.compose(
         session: _session,
-        residencesBody: residences.value,
+        residencesBody: residencesBody,
         pushNotificationsEnabled: push,
       ),
     );

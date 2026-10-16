@@ -156,7 +156,7 @@ class HrMyProfilePage extends StatelessWidget {
                     ),
                     HrInfoRow(
                       label: 'Role',
-                      value: hrHumanize(session.roleRaw ?? session.role.label),
+                      value: session.roleTitle,
                     ),
                     if (session.residenceName != null)
                       HrInfoRow(label: 'Residence', value: session.residenceName!),

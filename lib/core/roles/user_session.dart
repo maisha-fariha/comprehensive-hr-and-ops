@@ -79,6 +79,22 @@ class UserSession extends GetxService {
   String? get relationship => _relationship.value;
   String? get selectedClientId => _selectedClientId.value;
   String? get roleRaw => _roleRaw.value;
+
+  /// Assigned role, such as Compliance Officer, rather than the portal name.
+  String get roleTitle {
+    final raw = (_roleRaw.value ?? '').trim();
+    if (raw.isEmpty) return role.label;
+    return raw
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) =>
+              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
   StaffKind? get staffKind => _staffKind.value;
   List<String> get permissions => List.unmodifiable(_permissions);
 
