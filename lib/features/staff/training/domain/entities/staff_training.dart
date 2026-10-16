@@ -18,12 +18,43 @@ class StaffTrainingSummary {
 }
 
 @immutable
+class StaffTrainingMaterial {
+  final String id;
+  final String name;
+  final String fileUrl;
+  final String? fileType;
+
+  const StaffTrainingMaterial({
+    required this.id,
+    required this.name,
+    required this.fileUrl,
+    this.fileType,
+  });
+
+  /// PDF stays PDF. Video and every other attachment is shown as a file.
+  String get badge {
+    final hint = '$name $fileUrl'.toLowerCase();
+    if (hint.contains('.pdf')) return 'PDF';
+    if (hint.contains('.doc')) return 'DOC';
+    if (hint.contains('.ppt')) return 'PPT';
+    if (hint.contains('.png') ||
+        hint.contains('.jpg') ||
+        hint.contains('.jpeg') ||
+        hint.contains('.webp')) {
+      return 'Image';
+    }
+    return 'File';
+  }
+}
+
+@immutable
 class StaffTrainingCourse {
   final String id;
   final String title;
   final String description;
   final String? materialUrl;
   final String? materialType;
+  final List<StaffTrainingMaterial> materials;
   final bool isActive;
   final String? category;
   final int? validityMonths;
@@ -40,6 +71,7 @@ class StaffTrainingCourse {
     this.description = '',
     this.materialUrl,
     this.materialType,
+    this.materials = const [],
     this.isActive = true,
     this.category,
     this.validityMonths,
@@ -67,9 +99,10 @@ class StaffTrainingCourse {
   }
 
   String get materialLabel {
-    final type = materialType?.trim();
-    if (type != null && type.isNotEmpty) return type;
-    if (materialUrl != null && materialUrl!.isNotEmpty) return 'Link';
+    if (materials.isNotEmpty) return materials.first.badge;
+    final hint = (materialUrl ?? '').toLowerCase();
+    if (hint.contains('.pdf')) return 'PDF';
+    if (hint.isNotEmpty) return 'File';
     return '—';
   }
 

@@ -61,6 +61,7 @@ class HrTrainingMapper {
       description: JsonCodec.string(json['description']),
       materialUrl: JsonCodec.string(json['materialUrl']),
       materialType: JsonCodec.string(json['materialType']),
+      materials: courseFilesFrom(json),
       category: JsonCodec.string(json['category']),
       validityMonths: JsonCodec.integer(json['validityMonths']),
       passingScore: JsonCodec.integer(json['passingScore']),
@@ -72,6 +73,36 @@ class HrTrainingMapper {
         for (final raw in JsonCodec.listAt(json, 'assignments').whereType<Map>())
           ?assignmentFrom(JsonCodec.asMap(raw)),
       ],
+    );
+  }
+
+  static List<TrainingCourseFile> courseFilesFrom(Map<String, dynamic> json) {
+    final rows = [
+      for (final raw in JsonCodec.listAt(json, 'materials').whereType<Map>())
+        ?_fileFrom(JsonCodec.asMap(raw)),
+    ];
+    if (rows.isNotEmpty) return rows;
+    final url = JsonCodec.string(json['materialUrl']);
+    if (url == null || url.isEmpty) return const [];
+    return [
+      TrainingCourseFile(
+        id: '${JsonCodec.string(json['id']) ?? 'course'}-material',
+        name: 'Course material',
+        fileUrl: url,
+        fileType: JsonCodec.string(json['materialType']),
+      ),
+    ];
+  }
+
+  static TrainingCourseFile? _fileFrom(Map<String, dynamic> json) {
+    final url = JsonCodec.string(json['fileUrl'] ?? json['url'] ?? json['materialUrl']);
+    if (url == null || url.isEmpty) return null;
+    final name = JsonCodec.string(json['name'] ?? json['fileName'] ?? json['title']);
+    return TrainingCourseFile(
+      id: JsonCodec.stringOr(json['id'], url),
+      name: (name == null || name.isEmpty) ? url.split('/').last : name,
+      fileUrl: url,
+      fileType: JsonCodec.string(json['fileType'] ?? json['materialType']),
     );
   }
 

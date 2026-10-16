@@ -54,12 +54,43 @@ class TrainingAssignment {
 }
 
 @immutable
+class TrainingCourseFile {
+  final String id;
+  final String name;
+  final String fileUrl;
+  final String? fileType;
+
+  const TrainingCourseFile({
+    required this.id,
+    required this.name,
+    required this.fileUrl,
+    this.fileType,
+  });
+
+  /// Web badge: a PDF stays PDF. Anything else, including video, is a file.
+  String get badge {
+    final hint = '$name $fileUrl'.toLowerCase();
+    if (hint.contains('.pdf')) return 'PDF';
+    if (hint.contains('.doc')) return 'DOC';
+    if (hint.contains('.ppt')) return 'PPT';
+    if (hint.contains('.png') ||
+        hint.contains('.jpg') ||
+        hint.contains('.jpeg') ||
+        hint.contains('.webp')) {
+      return 'Image';
+    }
+    return 'File';
+  }
+}
+
+@immutable
 class TrainingCourse {
   final String id;
   final String title;
   final String? description;
   final String? materialUrl;
   final String? materialType;
+  final List<TrainingCourseFile> materials;
   final String? category;
   final int? validityMonths;
   final int? passingScore;
@@ -77,6 +108,7 @@ class TrainingCourse {
     this.description,
     this.materialUrl,
     this.materialType,
+    this.materials = const [],
     this.category,
     this.validityMonths,
     this.passingScore,

@@ -213,20 +213,26 @@ class TrainingCourseView {
       customDurationMonths:
           validity != null && validity != 12 && validity != 24 ? validity : null,
       stats: stats,
-      content: material == null || material.isEmpty
-          ? const []
-          : [
-              TrainingContentItem(
-                id: '${course.id}-material',
-                type: switch (course.materialType) {
-                  'video' => 'Video',
-                  'document' => 'PDF',
-                  _ => 'Document',
-                },
-                title: course.title,
-                url: material,
-              ),
-            ],
+      content: [
+        for (final file in course.materials.isNotEmpty
+            ? course.materials
+            : (material == null || material.isEmpty)
+                ? const <TrainingCourseFile>[]
+                : [
+                    TrainingCourseFile(
+                      id: '${course.id}-material',
+                      name: 'Course material',
+                      fileUrl: material,
+                      fileType: course.materialType,
+                    ),
+                  ])
+          TrainingContentItem(
+            id: file.id,
+            type: file.badge,
+            title: file.name,
+            url: file.fileUrl,
+          ),
+      ],
       quizEnabled: questions.isNotEmpty || course.passingScore != null,
       questions: questions,
       staffProgress: [

@@ -38,6 +38,7 @@ abstract final class StaffTrainingMapper {
       description: JsonCodec.stringOr(json['description'], ''),
       materialUrl: JsonCodec.string(json['materialUrl']),
       materialType: JsonCodec.string(json['materialType']),
+      materials: materialsFrom(json),
       isActive: JsonCodec.boolean(json['isActive']) ?? true,
       category: JsonCodec.string(json['category']),
       validityMonths: JsonCodec.integer(json['validityMonths']),
@@ -48,6 +49,38 @@ abstract final class StaffTrainingMapper {
       createdAt: JsonCodec.dateTime(json['createdAt']),
       deletedAt: JsonCodec.dateTime(json['deletedAt']),
       assignments: assignments,
+    );
+  }
+
+  static List<StaffTrainingMaterial> materialsFrom(Map<String, dynamic> json) {
+    final rows = [
+      for (final raw in JsonCodec.listAt(json, 'materials').whereType<Map>())
+        ?_materialFrom(JsonCodec.asMap(raw)),
+    ];
+    if (rows.isNotEmpty) return rows;
+    final url = JsonCodec.string(json['materialUrl']);
+    if (url == null || url.isEmpty) return const [];
+    return [
+      StaffTrainingMaterial(
+        id: '${JsonCodec.string(json['id']) ?? 'course'}-material',
+        name: 'Course material',
+        fileUrl: url,
+        fileType: JsonCodec.string(json['materialType']),
+      ),
+    ];
+  }
+
+  static StaffTrainingMaterial? _materialFrom(Map<String, dynamic> json) {
+    final url = JsonCodec.string(
+      json['fileUrl'] ?? json['url'] ?? json['materialUrl'],
+    );
+    if (url == null || url.isEmpty) return null;
+    final name = JsonCodec.string(json['name'] ?? json['fileName'] ?? json['title']);
+    return StaffTrainingMaterial(
+      id: JsonCodec.stringOr(json['id'], url),
+      name: (name == null || name.isEmpty) ? url.split('/').last : name,
+      fileUrl: url,
+      fileType: JsonCodec.string(json['fileType'] ?? json['materialType']),
     );
   }
 

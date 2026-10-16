@@ -146,7 +146,7 @@ class TrainingContentTab extends StatelessWidget {
                             style: handoverText(context, 13, weight: FontWeight.w600),
                           ),
                           GestureDetector(
-                            onTap: () => openTrainingMaterial(item.url),
+                            onTap: () => openTrainingMaterial(item.url, fileName: item.title),
                             child: Text(
                               item.url,
                               overflow: TextOverflow.ellipsis,
@@ -160,7 +160,7 @@ class TrainingContentTab extends StatelessWidget {
                     TrainingPill(label: item.type, tone: TrainingTone.info),
                     IconButton(
                       tooltip: 'Download',
-                      onPressed: () => openTrainingMaterial(item.url),
+                      onPressed: () => openTrainingMaterial(item.url, fileName: item.title),
                       icon: const Icon(Icons.download_rounded, color: AppColors.secondaryTeal),
                     ),
                   ],

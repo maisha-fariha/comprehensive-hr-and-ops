@@ -57,7 +57,8 @@ class _StaffTrainingCoursePageState extends State<StaffTrainingCoursePage> {
     super.dispose();
   }
 
-  Future<void> _openMaterial(String url) => openTrainingMaterial(url);
+  Future<void> _openMaterial(String url, {String? fileName}) =>
+      openTrainingMaterial(url, fileName: fileName);
 
   @override
   Widget build(BuildContext context) {
@@ -213,10 +214,8 @@ class _StaffTrainingCoursePageState extends State<StaffTrainingCoursePage> {
                             courseTitle: course.title,
                           ),
                         ),
-                        onCopyMaterial: course.materialUrl == null ||
-                                course.materialUrl!.trim().isEmpty
-                            ? null
-                            : () => _openMaterial(course.materialUrl!),
+                        onCopyMaterial: (url, name) =>
+                            _openMaterial(url, fileName: name),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -318,7 +317,7 @@ class _TabBody extends StatelessWidget {
   final List<StaffTrainingCertificate> certificates;
   final List<StaffTrainingAssignment> completions;
   final VoidCallback onOpenQuiz;
-  final VoidCallback? onCopyMaterial;
+  final void Function(String url, String name)? onCopyMaterial;
 
   const _TabBody({
     required this.tab,
@@ -436,7 +435,7 @@ class _OverviewTab extends StatelessWidget {
 
 class _ContentTab extends StatelessWidget {
   final StaffTrainingCourse course;
-  final VoidCallback? onCopyMaterial;
+  final void Function(String url, String name)? onCopyMaterial;
   final VoidCallback onOpenQuiz;
 
   const _ContentTab({
@@ -447,7 +446,7 @@ class _ContentTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = course.materialUrl?.trim();
+    final files = course.materials;
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,7 +471,7 @@ class _ContentTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          if (url == null || url.isEmpty)
+          if (files.isEmpty)
             const Text(
               'No training material linked to this course.',
               style: TextStyle(
@@ -482,11 +481,17 @@ class _ContentTab extends StatelessWidget {
               ),
             )
           else
-            _MaterialRow(
-              url: url,
-              typeLabel: _materialBadge(course.materialType),
-              onOpen: onCopyMaterial,
-            ),
+            for (final file in files) ...[
+              _MaterialRow(
+                title: file.name,
+                url: file.fileUrl,
+                typeLabel: file.badge,
+                onOpen: onCopyMaterial == null
+                    ? null
+                    : () => onCopyMaterial!(file.fileUrl, file.name),
+              ),
+              const SizedBox(height: 8),
+            ],
           const SizedBox(height: 16),
           _TakeQuizCard(onOpenQuiz: onOpenQuiz),
         ],
@@ -552,19 +557,14 @@ class _TakeQuizCard extends StatelessWidget {
   }
 }
 
-String _materialBadge(String? type) => switch (type) {
-      'document' => 'PDF',
-      'video' => 'Video',
-      'link' => 'Link',
-      _ => 'File',
-    };
-
 class _MaterialRow extends StatelessWidget {
+  final String title;
   final String url;
   final String typeLabel;
   final VoidCallback? onOpen;
 
   const _MaterialRow({
+    required this.title,
     required this.url,
     required this.typeLabel,
     required this.onOpen,
@@ -598,9 +598,11 @@ class _MaterialRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Course material',
-                  style: TextStyle(
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w600,
                     fontSize: 13,

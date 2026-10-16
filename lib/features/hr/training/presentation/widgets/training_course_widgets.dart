@@ -17,11 +17,24 @@ Future<void> copyTrainingLink(String url) async {
   AppSnackbar.show('Link copied', url);
 }
 
-/// Downloads a course file (`/api/v1/files/...`) with the session and opens it.
-Future<void> openTrainingMaterial(String url) async {
+/// Downloads a course file (`/api/v1/files/...`) into device storage.
+///
+/// Video files are saved as files. They are not opened in a player. A
+/// success message is shown once the file is on the device.
+Future<void> openTrainingMaterial(String url, {String? fileName}) async {
   final resolved = AuthorizedFile.resolveUrl(url);
   final segments = Uri.tryParse(resolved)?.pathSegments.where((part) => part.isNotEmpty).toList() ?? const <String>[];
-  final name = segments.isEmpty ? 'training-file' : segments.last;
+  final urlName = segments.isEmpty ? 'training-file' : segments.last;
+  final name = _downloadName(fileName, urlName);
+  final lower = name.toLowerCase();
+  final video = lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm');
+  final mime = lower.endsWith('.pdf')
+      ? 'application/pdf'
+      : lower.endsWith('.png')
+          ? 'image/png'
+          : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
+              ? 'image/jpeg'
+              : 'application/octet-stream';
   try {
     final response = await Dio().get<List<int>>(
       resolved,
@@ -33,31 +46,39 @@ Future<void> openTrainingMaterial(String url) async {
     );
     final data = response.data;
     if (response.statusCode != 200 || data == null || data.isEmpty) {
-      AppSnackbar.show('Could not open file', 'This file is no longer available.');
+      AppSnackbar.show('Could not download file', 'This file is no longer available.');
       return;
     }
-    final lower = name.toLowerCase();
-    final mime = lower.endsWith('.pdf')
-        ? 'application/pdf'
-        : lower.endsWith('.png')
-            ? 'image/png'
-            : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
-                ? 'image/jpeg'
-                : lower.endsWith('.mp4')
-                    ? 'video/mp4'
-                    : 'application/octet-stream';
-    final saved = await MediaStoreDownload.saveFileAndOpen(
-      fileName: name,
-      bytes: Uint8List.fromList(data),
-      mimeType: mime,
-      chooserTitle: 'Open training file',
-    );
+    final bytes = Uint8List.fromList(data);
+    final saved = video
+        ? await MediaStoreDownload.saveFile(
+            fileName: name,
+            bytes: bytes,
+            mimeType: mime,
+          )
+        : await MediaStoreDownload.saveFileAndOpen(
+            fileName: name,
+            bytes: bytes,
+            mimeType: mime,
+            chooserTitle: 'Open training file',
+          );
     if (!saved.success) {
-      AppSnackbar.show('Could not open file', saved.error ?? 'Could not save the file.');
+      AppSnackbar.show('Could not download file', saved.error ?? 'Could not save the file.');
+      return;
     }
+    AppSnackbar.show('Downloaded', '$name saved to ${saved.displayLocation}.');
   } catch (_) {
-    AppSnackbar.show('Could not open file', 'This file is no longer available.');
+    AppSnackbar.show('Could not download file', 'This file is no longer available.');
   }
+}
+
+String _downloadName(String? preferred, String urlName) {
+  final ext = urlName.contains('.') ? urlName.split('.').last : '';
+  var base = (preferred ?? '').trim();
+  if (base.isEmpty || base == urlName) base = urlName;
+  final hasExt = base.contains('.') && base.split('.').last.length <= 5;
+  if (!hasExt && ext.isNotEmpty) base = '$base.$ext';
+  return base.replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
 }
 
 TrainingTone trainingCardBadgeTone(String badge) => switch (badge) {
