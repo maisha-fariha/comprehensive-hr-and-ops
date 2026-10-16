@@ -356,15 +356,16 @@ class _TabBody extends StatelessWidget {
         return _CertificatesTab(certificates: certificates);
       case 0:
       default:
-        return _OverviewTab(course: course);
+        return _OverviewTab(course: course, onOpenQuiz: onOpenQuiz);
     }
   }
 }
 
 class _OverviewTab extends StatelessWidget {
   final StaffTrainingCourse course;
+  final VoidCallback onOpenQuiz;
 
-  const _OverviewTab({required this.course});
+  const _OverviewTab({required this.course, required this.onOpenQuiz});
 
   @override
   Widget build(BuildContext context) {
@@ -392,6 +393,8 @@ class _OverviewTab extends StatelessWidget {
               height: 1.4,
             ),
           ),
+          const SizedBox(height: 16),
+          _TakeQuizCard(onOpenQuiz: onOpenQuiz),
           const SizedBox(height: 16),
           _InfoGrid(
             rows: [
@@ -450,7 +453,7 @@ class _ContentTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Content',
+            'Course Content',
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w700,
@@ -458,9 +461,17 @@ class _ContentTab extends StatelessWidget {
               color: AppColors.textHeading,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'The material staff work through. A course carries one — a file kept here, or a link to where it already lives.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: AppColors.textMuted,
+              height: 1.35,
+            ),
+          ),
           const SizedBox(height: 12),
-          _InfoRow(label: 'Material type', value: course.materialLabel),
-          const SizedBox(height: 10),
           if (url == null || url.isEmpty)
             const Text(
               'No training material linked to this course.',
@@ -470,26 +481,38 @@ class _ContentTab extends StatelessWidget {
                 fontSize: 13,
               ),
             )
-          else ...[
-            Text(
-              url,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                color: AppColors.secondaryTeal,
-              ),
+          else
+            _MaterialRow(
+              url: url,
+              typeLabel: _materialBadge(course.materialType),
+              onOpen: onCopyMaterial,
             ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: onCopyMaterial,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryNavy,
-              ),
-              icon: const Icon(Icons.download_rounded, size: 18),
-              label: const Text('Download'),
-            ),
-          ],
           const SizedBox(height: 16),
+          _TakeQuizCard(onOpenQuiz: onOpenQuiz),
+        ],
+      ),
+    );
+  }
+}
+
+class _TakeQuizCard extends StatelessWidget {
+  final VoidCallback onOpenQuiz;
+
+  const _TakeQuizCard({required this.onOpenQuiz});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.scaffoldBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           const Text(
             'Ready to take the examination?',
             style: TextStyle(
@@ -513,10 +536,114 @@ class _ContentTab extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton(
+              key: const ValueKey('training-take-quiz'),
               onPressed: onOpenQuiz,
-              style: FilledButton.styleFrom(backgroundColor: AppColors.secondaryTeal),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
               child: const Text('Take Quiz Now'),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _materialBadge(String? type) => switch (type) {
+      'document' => 'PDF',
+      'video' => 'Video',
+      'link' => 'Link',
+      _ => 'File',
+    };
+
+class _MaterialRow extends StatelessWidget {
+  final String url;
+  final String typeLabel;
+  final VoidCallback? onOpen;
+
+  const _MaterialRow({
+    required this.url,
+    required this.typeLabel,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.quickActionCreateShiftBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.description_outlined,
+              size: 18,
+              color: AppColors.secondaryTeal,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Course material',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: onOpen,
+                  child: Text(
+                    url,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11.5,
+                      color: AppColors.secondaryTeal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.quickActionCreateShiftBg,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              typeLabel,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                color: AppColors.secondaryTeal,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Open',
+            onPressed: onOpen,
+            icon: const Icon(Icons.download_rounded, color: AppColors.secondaryTeal),
           ),
         ],
       ),

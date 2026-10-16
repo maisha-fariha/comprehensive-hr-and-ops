@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../staff/extras/presentation/pages/staff_training_quiz_page.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/training_course_view.dart';
 import '../../domain/entities/training_form.dart';
@@ -270,18 +271,29 @@ class _HrTrainingCoursePageState extends State<HrTrainingCoursePage> {
     );
   }
 
+  bool _canTakeQuiz(TrainingCourseView view) {
+    if (view.quizEnabled) return true;
+    final quiz = _c.quiz.value;
+    if (quiz == null) return false;
+    return quiz.questions.isNotEmpty || quiz.passingScore != null;
+  }
+
+  void _openQuiz(TrainingCourseView view) {
+    Get.to(
+      () => StaffTrainingQuizPage(
+        courseId: view.course.id,
+        courseTitle: view.title,
+      ),
+    );
+  }
+
   Widget _tabBody(TrainingCourseView view) {
     return switch (_c.tab.value) {
       'content' => TrainingContentTab(
           view: view,
           canWrite: _c.canManage,
           onEdit: () => _edit(view),
-          onTakeQuiz: view.quizEnabled
-              ? () => showTrainingSheet<void>(
-                    context,
-                    builder: (_) => TrainingRecordSittingSheet(controller: _c),
-                  )
-              : null,
+          onTakeQuiz: _canTakeQuiz(view) ? () => _openQuiz(view) : null,
         ),
       'quiz' => TrainingQuizTab(controller: _c),
       'assignments' => TrainingAssignmentsTab(controller: _c),

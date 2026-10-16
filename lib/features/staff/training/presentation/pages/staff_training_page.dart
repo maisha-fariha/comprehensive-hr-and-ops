@@ -10,6 +10,7 @@ import '../controllers/staff_training_controller.dart';
 import '../widgets/staff_training_course_cards.dart';
 import '../widgets/staff_training_courses_table.dart';
 import '../widgets/staff_training_metrics_strip.dart';
+import '../../../extras/presentation/pages/staff_training_quiz_page.dart';
 import 'staff_training_course_page.dart';
 
 /// Staff Training — web `/dashboard/training` parity.
@@ -132,6 +133,12 @@ class _StaffTrainingPageState extends State<StaffTrainingPage> {
                         onView: (course) => _openCourse(
                           course.id,
                           title: course.title,
+                        ),
+                        onTakeQuiz: (course) => Get.to(
+                          () => StaffTrainingQuizPage(
+                            courseId: course.id,
+                            courseTitle: course.title,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
