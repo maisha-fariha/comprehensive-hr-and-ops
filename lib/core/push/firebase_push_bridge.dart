@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -22,7 +23,8 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 
 import '../../firebase_options.dart';
 
-const messageNotificationChannelId = 'messages';
+const messageNotificationChannelId = 'messages_high';
+const messageNotificationIcon = 'ic_stat_message';
 
 /// High-importance channel used for conversation pushes.
 const messageNotificationChannel = AndroidNotificationChannel(
@@ -35,12 +37,14 @@ const messageNotificationChannel = AndroidNotificationChannel(
 final FlutterLocalNotificationsPlugin messageNotifications =
     FlutterLocalNotificationsPlugin();
 
-/// Shows a data-only message while the app is in the background.
+/// Posts one alert per message.
 ///
-/// A payload that already has a `notification` block is shown by the OS.
+/// On Android, Firebase also displays a notification payload. That copy uses
+/// a silent channel because a repeated tag replaces the first alert instead
+/// of showing the next one. iOS already presents each system notification.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if (message.notification != null) return;
+  if (!Platform.isAndroid && message.notification != null) return;
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (_) {}
@@ -52,7 +56,7 @@ Future<void> prepareMessageNotifications({
   void Function(NotificationResponse response)? onTap,
 }) async {
   const settings = InitializationSettings(
-    android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    android: AndroidInitializationSettings(messageNotificationIcon),
     iOS: DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -77,19 +81,22 @@ Future<void> showMessageNotification(
       _text(data['title']) ??
       'New message';
   final body = _text(remote?.notification?.body) ?? _text(data['body']) ?? '';
-  final id = _text(data['conversationId']) ?? _text(data['entityId']) ?? title;
+  final id = nextMessageNotificationId();
   await messageNotifications.show(
-    id: id.hashCode,
+    id: id,
     title: title,
     body: body,
-    notificationDetails: const NotificationDetails(
+    notificationDetails: NotificationDetails(
       android: AndroidNotificationDetails(
         messageNotificationChannelId,
         'Messages',
         channelDescription: 'New messages in Communication',
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: messageNotificationIcon,
+        ticker: body.isEmpty ? title : body,
+        onlyAlertOnce: false,
+        autoCancel: true,
       ),
       iOS: DarwinNotificationDetails(
         presentAlert: true,
@@ -99,6 +106,20 @@ Future<void> showMessageNotification(
     ),
     payload: jsonEncode(data),
   );
+}
+
+int _messageNotificationSerial = 0;
+
+/// A new id for every message. Reusing the conversation id makes Android
+/// replace the first alert, so later messages never pop up again.
+int nextMessageNotificationId() {
+  _messageNotificationSerial = (_messageNotificationSerial + 1) & 0x7fffffff;
+  final mixed = Object.hash(
+    DateTime.now().microsecondsSinceEpoch,
+    _messageNotificationSerial,
+  );
+  final id = mixed & 0x7fffffff;
+  return id == 0 ? 1 : id;
 }
 
 String? _text(Object? value) {

@@ -34,20 +34,19 @@ class CommunicationPushRouter {
 
   void _onMessage(PushMessage message) {
     final data = normalizePushData(message.data);
-    if (!isCommunicationPush(data)) return;
     if (message.source == NotificationSource.foreground) {
       unawaited(_onForeground(message.copyWith(data: data)));
       return;
     }
+    if (!isCommunicationPush(data)) return;
     _pending = data;
     _flush();
   }
 
   Future<void> _onForeground(PushMessage message) async {
-    final id = conversationIdOf(message.data);
-    await _refreshOpenThread(id);
-    if (_viewing(id)) return;
     await showMessageNotification(message.data);
+    if (!isCommunicationPush(message.data)) return;
+    await _refreshOpenThread(conversationIdOf(message.data));
   }
 
   /// Local-notification tap, including a launch from a killed app.
@@ -143,17 +142,6 @@ class CommunicationPushRouter {
     if (id != null && controller.selectedConversationId.value == id) {
       await controller.loadMessages(id);
     }
-  }
-
-  bool _viewing(String? id) {
-    if (!Get.isRegistered<UserSession>()) return false;
-    if (Get.find<UserSession>().role == UserRole.family) {
-      return _viewingFamily(id);
-    }
-    return _viewingCommunication() &&
-        id != null &&
-        Get.isRegistered<CommunicationController>() &&
-        Get.find<CommunicationController>().selectedConversationId.value == id;
   }
 
   bool _viewingCommunication() {
