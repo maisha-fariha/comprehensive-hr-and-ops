@@ -13,6 +13,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/handovers/domain/entities/handover_options.dart';
 import '../../../../hr/handovers/domain/entities/shift_handover.dart';
 import '../../../../hr/handovers/domain/repositories/handovers_repository.dart';
+import '../../../../hr/handovers/presentation/handover_labels.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
@@ -42,13 +43,11 @@ class _PendingJob {
 
 class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
   static const _priorities = <String>['normal', 'important', 'urgent'];
-  static const _flagOptions = <({String? value, String label})>[
+  /// Same categories as the web / HR Record handover form.
+  static final _flagOptions = <({String? value, String label})>[
     (value: null, label: 'Not flagged'),
-    (value: 'behaviour', label: 'Behaviour'),
-    (value: 'medication', label: 'Medication'),
-    (value: 'health', label: 'Health'),
-    (value: 'safeguarding', label: 'Safeguarding'),
-    (value: 'other', label: 'Other'),
+    for (final option in HandoverLabels.flagCategories)
+      (value: option.$1, label: option.$2),
   ];
 
   final _summaryController = TextEditingController();
@@ -773,7 +772,7 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
                               : 'Your own shifts from the last 24 hours.',
                         ),
                         const SizedBox(height: 16),
-                        _optionalLabel('Handing over to'),
+                        _optionalLabel('Applies to shift'),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
                           key: ValueKey('to-shift-$_toShiftId-${_incoming.length}'),
@@ -782,9 +781,11 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
                               : null,
                           isExpanded: true,
                           decoration: _fieldDecoration(
-                            hint: _incoming.isNotEmpty
-                                ? 'Choose the next shift'
-                                : 'Choose a shift or a residence first',
+                            hint: _effectiveResidenceId.isEmpty
+                                ? 'Choose a shift or a residence first'
+                                : (_incoming.isNotEmpty
+                                    ? 'The shift coming on'
+                                    : 'No shift is rostered after this one'),
                             enabled: _incoming.isNotEmpty && !_submitting,
                           ),
                           icon: const Icon(
@@ -951,12 +952,30 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
                           initialValue: null,
                           isExpanded: true,
                           decoration: _fieldDecoration(
-                            hint: hasResidence
-                                ? (_loadingClients
-                                    ? 'Loading clients…'
-                                    : 'Choose a client')
-                                : 'Choose a shift or residence first',
-                            enabled: hasResidence && !_loadingClients,
+                            hint: () {
+                              if (!hasResidence) {
+                                return 'Choose a shift or residence first';
+                              }
+                              if (_loadingClients) return 'Loading clients…';
+                              final remaining = _clients
+                                  .where(
+                                    (client) => !_selectedClients
+                                        .any((picked) => picked.id == client.id),
+                                  )
+                                  .length;
+                              if (remaining == 0) {
+                                return 'Every resident here is already on this handover';
+                              }
+                              return _selectedClients.isNotEmpty
+                                  ? 'Add another resident'
+                                  : 'Add a resident to this handover';
+                            }(),
+                            enabled: hasResidence &&
+                                !_loadingClients &&
+                                _clients.any(
+                                  (client) => !_selectedClients
+                                      .any((picked) => picked.id == client.id),
+                                ),
                           ),
                           icon: const Icon(
                             Icons.keyboard_arrow_down_rounded,
@@ -980,7 +999,11 @@ class _StaffRecordHandoverDialogState extends State<StaffRecordHandoverDialog> {
                           ],
                           onChanged: (!hasResidence ||
                                   _loadingClients ||
-                                  _submitting)
+                                  _submitting ||
+                                  !_clients.any(
+                                    (client) => !_selectedClients
+                                        .any((picked) => picked.id == client.id),
+                                  ))
                               ? null
                               : _addClient,
                         ),
