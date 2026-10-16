@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io';
 import 'dart:ui' show DartPluginRegistrant;
 
 import 'package:firebase_core/firebase_core.dart';
@@ -23,8 +23,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart'
         NotificationResponse,
         Priority;
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../firebase_options.dart';
+import '../config/app_env.dart';
 
 const messageNotificationChannelId = 'messages_high';
 const messageNotificationIcon = 'ic_stat_message';
@@ -57,6 +59,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await prepareMessageNotifications();
     await showMessageNotification(message.data, remote: message);
+    await dismissCollapsedFirebaseNotifications();
+    await acknowledgeMessagePush(message.data);
+    // Firebase posts its copy after this handler starts. Remove it once more
+    // so the tray keeps the new alert, not the one shared tag.
+    await Future<void>.delayed(const Duration(milliseconds: 600));
     await dismissCollapsedFirebaseNotifications();
   } catch (_) {}
 }
@@ -246,6 +253,95 @@ class FirebasePushBridge {
       source: source,
     );
   }
+}
+
+/// The server sends another message push only after the previous
+/// `messaging.received` row is read. Clear that row when the alert is shown
+/// so the next message can notify. The chat itself stays unread.
+Future<void> acknowledgeMessagePush(Map<String, dynamic> data) async {
+  final event = (data['eventKey'] ?? '').toString().toLowerCase();
+  final conversationId = (data['conversationId'] ?? '').toString().trim();
+  if (!event.startsWith('messaging.') && conversationId.isEmpty) return;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final access = prefs.getString('mobile_access_token');
+    final tenant = prefs.getString('tenant_subdomain');
+    if (access == null || access.isEmpty || tenant == null || tenant.isEmpty) {
+      return;
+    }
+    final client = HttpClient();
+    try {
+      final body = await _pushGet(
+        client,
+        access,
+        tenant,
+        '/notifications?page=1&limit=20',
+      );
+      final rows = _notificationRows(body);
+      final ids = <String>[];
+      for (final row in rows) {
+        if ((row['eventKey'] ?? '').toString() != 'messaging.received') {
+          continue;
+        }
+        if (row['isRead'] == true) continue;
+        final meta = row['metaJson'];
+        final rowConversation = meta is Map
+            ? (meta['conversationId'] ?? '').toString()
+            : '';
+        if (conversationId.isNotEmpty &&
+            rowConversation.isNotEmpty &&
+            rowConversation != conversationId) {
+          continue;
+        }
+        final id = (row['id'] ?? '').toString();
+        if (id.isNotEmpty) ids.add(id);
+      }
+      for (final id in ids) {
+        await _pushPost(client, access, tenant, '/notifications/$id/read');
+      }
+    } finally {
+      client.close(force: true);
+    }
+  } catch (_) {}
+}
+
+Future<dynamic> _pushGet(
+  HttpClient client,
+  String access,
+  String tenant,
+  String path,
+) async {
+  final request = await client.getUrl(Uri.parse('${AppEnv.apiBaseUrl}$path'));
+  request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $access');
+  request.headers.set('X-Tenant-Subdomain', tenant);
+  request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+  final response = await request.close();
+  final text = await response.transform(utf8.decoder).join();
+  if (response.statusCode < 200 || response.statusCode >= 300) return null;
+  return jsonDecode(text);
+}
+
+Future<void> _pushPost(
+  HttpClient client,
+  String access,
+  String tenant,
+  String path,
+) async {
+  final request = await client.postUrl(Uri.parse('${AppEnv.apiBaseUrl}$path'));
+  request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $access');
+  request.headers.set('X-Tenant-Subdomain', tenant);
+  request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+  request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+  request.add(utf8.encode('{}'));
+  final response = await request.close();
+  await response.drain<void>();
+}
+
+List<Map<String, dynamic>> _notificationRows(dynamic body) {
+  if (body is! Map) return const [];
+  final data = body['data'];
+  if (data is! List) return const [];
+  return data.whereType<Map>().map(Map<String, dynamic>.from).toList();
 }
 
 bool get firebasePushSupported =>

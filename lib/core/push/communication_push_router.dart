@@ -47,6 +47,9 @@ class CommunicationPushRouter {
     try {
       await showMessageNotification(message.data);
       await dismissCollapsedFirebaseNotifications();
+      await acknowledgeMessagePush(message.data);
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      await dismissCollapsedFirebaseNotifications();
     } catch (_) {}
     if (!isCommunicationPush(message.data)) return;
     await _refreshOpenThread(conversationIdOf(message.data));
