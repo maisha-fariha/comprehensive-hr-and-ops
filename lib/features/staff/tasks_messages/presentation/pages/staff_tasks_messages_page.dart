@@ -66,7 +66,6 @@ class StaffTasksMessagesPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       body: SafeArea(
-        bottom: false,
         child: Obx(() {
           final response = controller.state.value;
           final overview = response.data;
