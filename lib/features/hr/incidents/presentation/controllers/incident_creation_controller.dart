@@ -448,6 +448,13 @@ class IncidentCreationController extends GetxController {
         }
       },
       failure: (error) {
+        // Compliance can open an incident without residences:read. The web
+        // keeps the residence already on the report and does not toast.
+        final code = (error.code ?? '').toUpperCase();
+        final missingPermission = code == '403' ||
+            code == 'FORBIDDEN' ||
+            error.message.toLowerCase().contains('missing permission');
+        if (missingPermission) return;
         AppSnackbar.show('Could not load residences', error.message);
       },
     );

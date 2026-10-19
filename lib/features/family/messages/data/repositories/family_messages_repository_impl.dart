@@ -151,6 +151,40 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
   }
 
   @override
+  Future<Result<void>> setHidden(
+    String conversationId, {
+    required bool hidden,
+  }) async {
+    final result = await _api.post(
+      hidden
+          ? ApiEndpoints.familyConversationHide(conversationId)
+          : ApiEndpoints.familyConversationUnhide(conversationId),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> leaveConversation(
+    String conversationId, {
+    bool confirm = false,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.familyConversationLeave(conversationId),
+      data: confirm ? const {'confirm': true} : const <String, dynamic>{},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<String?>> startConversation({
     required String clientId,
     required String body,

@@ -106,6 +106,18 @@ class _FakeMessagesRepository implements FamilyMessagesRepository {
   }
 
   @override
+  Future<Result<void>> setHidden(
+    String conversationId, {
+    required bool hidden,
+  }) async => Result.success(null);
+
+  @override
+  Future<Result<void>> leaveConversation(
+    String conversationId, {
+    bool confirm = false,
+  }) async => Result.success(null);
+
+  @override
   Future<Result<MessageAttachment>> uploadAttachment({
     required String localPath,
     required String fileName,

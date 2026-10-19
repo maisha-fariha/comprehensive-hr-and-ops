@@ -59,42 +59,66 @@ class WizardBottomBar extends StatelessWidget {
                 ),
               ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-              Row(
-                children: [
-                  Expanded(
-                    child: _BottomButton(
-                      label: 'Cancel',
-                      icon: Icons.close_rounded,
-                      background: AppColors.surfaceWhite,
-                      foreground: AppColors.textBody,
-                      outlined: true,
-                      onTap: onCancel,
-                    ),
-                  ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                  Expanded(
-                    child: _BottomButton(
-                      label: 'Save Draft',
-                      svgAsset: 'assets/icons/incidents/save.svg',
-                      background: AppColors.filterButtonBackground,
-                      foreground: AppColors.textBody,
-                      onTap: onSaveDraft,
-                    ),
-                  ),
-                  SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                  Expanded(
-                    flex: 2,
-                    child: _BottomButton(
-                      label: primaryLabel,
-                      svgAsset: primaryIsSubmit ? 'assets/icons/incidents/submit.svg' : null,
-                      icon: primaryIsSubmit ? null : Icons.arrow_forward_rounded,
-                      iconTrailing: !primaryIsSubmit,
-                      background: AppColors.primaryNavy,
-                      foreground: Colors.white,
-                      onTap: onPrimary,
-                    ),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final gap = ResponsiveHelper.getResponsiveWidth(context, 8);
+                  final cancel = _BottomButton(
+                    label: 'Cancel',
+                    icon: Icons.close_rounded,
+                    background: AppColors.surfaceWhite,
+                    foreground: AppColors.textBody,
+                    outlined: true,
+                    onTap: onCancel,
+                  );
+                  final draft = _BottomButton(
+                    label: 'Save Draft',
+                    svgAsset: 'assets/icons/incidents/save.svg',
+                    background: AppColors.filterButtonBackground,
+                    foreground: AppColors.textBody,
+                    onTap: onSaveDraft,
+                  );
+                  final primary = _BottomButton(
+                    label: primaryLabel,
+                    svgAsset: primaryIsSubmit
+                        ? 'assets/icons/incidents/submit.svg'
+                        : null,
+                    icon: primaryIsSubmit ? null : Icons.arrow_forward_rounded,
+                    iconTrailing: !primaryIsSubmit,
+                    background: AppColors.primaryNavy,
+                    foreground: Colors.white,
+                    onTap: onPrimary,
+                  );
+                  // "Next: Evidence & Submission" does not fit beside
+                  // Cancel and Save Draft on a phone, so the primary
+                  // action takes the full width and keeps its label.
+                  final stackPrimary = constraints.maxWidth < 520;
+                  if (stackPrimary) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: cancel),
+                            SizedBox(width: gap),
+                            Expanded(child: draft),
+                          ],
+                        ),
+                        SizedBox(height: gap),
+                        primary,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: cancel),
+                      SizedBox(width: gap),
+                      Expanded(child: draft),
+                      SizedBox(width: gap),
+                      Expanded(flex: 2, child: primary),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -141,8 +165,8 @@ class _BottomButton extends StatelessWidget {
       Flexible(
         child: Text(
           label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          softWrap: true,
           style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w700,
@@ -169,7 +193,11 @@ class _BottomButton extends StatelessWidget {
           ResponsiveHelper.getResponsiveRadius(context, 13),
         ),
         child: Padding(
-          padding: ResponsiveHelper.getResponsivePadding(context, vertical: 14),
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 12,
+            vertical: 14,
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: iconTrailing ? children.reversed.toList() : children,

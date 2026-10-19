@@ -193,6 +193,13 @@ class TeamReportsPage extends StatelessWidget {
       residences: List<CommunicationResidenceOption>.from(residences),
       clients: List<CommunicationClientOption>.from(clients),
       initialResidenceId: initialResidenceId,
+      loadFamilyContacts: (clientId) async {
+        final result = await _messaging.getContacts(clientId: clientId);
+        return result.when(
+          success: (items) => items,
+          failure: (_) => const <HrMessageContact>[],
+        );
+      },
     );
     if (draft == null) return;
 

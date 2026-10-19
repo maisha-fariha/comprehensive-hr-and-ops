@@ -25,6 +25,9 @@ class ConversationPreview {
   /// Number shown in the small teal unread-count badge; `0` hides the badge.
   final int unreadCount;
 
+  /// The guardian already left this thread. The web still lists it as read-only.
+  final bool left;
+
   const ConversationPreview({
     required this.id,
     required this.name,
@@ -35,5 +38,6 @@ class ConversationPreview {
     required this.timeLabel,
     required this.previewText,
     this.unreadCount = 0,
+    this.left = false,
   });
 }

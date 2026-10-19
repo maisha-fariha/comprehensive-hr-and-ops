@@ -23,6 +23,7 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
   @override
   Future<Result<List<HrConversation>>> getConversations({
     bool monitor = false,
+    bool archived = false,
   }) async {
     final result = await _api.get(
       ApiEndpoints.conversations,
@@ -30,6 +31,7 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
         'page': 1,
         'limit': 100,
         if (monitor) 'monitor': true,
+        if (archived) 'archived': true,
       },
     );
     return result.when(
@@ -44,9 +46,15 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
   }
 
   @override
-  Future<Result<List<HrMessageContact>>> getContacts() async {
+  Future<Result<List<HrMessageContact>>> getContacts({
+    String? clientId,
+  }) async {
+    final id = clientId?.trim();
     final result = await _api.get(
       ApiEndpoints.conversationContacts,
+      query: {
+        if (id != null && id.isNotEmpty) 'clientId': id,
+      },
       silent: true,
     );
     return result.when(

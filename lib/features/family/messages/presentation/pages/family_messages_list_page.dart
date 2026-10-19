@@ -128,6 +128,7 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
                             onTap: () => Get.to(
                               () => FamilyConversationPage(
                                 conversationId: conversations[index].id,
+                                initiallyLeft: conversations[index].left,
                               ),
                             ),
                           ),

@@ -23,6 +23,7 @@ class CommunicationController extends BaseController<List<HrConversation>> {
 
   final selectedTab = CommunicationTab.messages.obs;
   final monitoring = false.obs;
+  final showingArchived = false.obs;
   final selectedFilter = ConversationFilter.all.obs;
   final searchQuery = ''.obs;
   final selectedConversationId = RxnString();
@@ -88,17 +89,28 @@ class CommunicationController extends BaseController<List<HrConversation>> {
     selectedTab.value = tab;
     if (tab == CommunicationTab.messages || tab == CommunicationTab.monitoring) {
       monitoring.value = tab == CommunicationTab.monitoring;
-      loadConversations(monitor: monitoring.value);
+      showingArchived.value = false;
+      loadConversations();
     }
+  }
+
+  void toggleArchived() {
+    showingArchived.value = !showingArchived.value;
+    selectedConversationId.value = null;
+    activeMessages.clear();
+    loadConversations();
   }
 
   void selectFilter(ConversationFilter filter) => selectedFilter.value = filter;
 
   void onSearchChanged(String value) => searchQuery.value = value;
 
-  Future<void> loadConversations({bool monitor = false}) async {
+  Future<void> loadConversations() async {
     setLoading(true);
-    final result = await repository.getConversations(monitor: monitor);
+    final result = await repository.getConversations(
+      monitor: monitoring.value,
+      archived: showingArchived.value,
+    );
     result.when(
       success: (items) {
         setSuccess(items);
@@ -271,6 +283,81 @@ class CommunicationController extends BaseController<List<HrConversation>> {
       },
     );
     isStarting.value = false;
+  }
+
+  /// Family contacts for one resident (`GET /conversations/contacts?clientId=`).
+  Future<List<HrMessageContact>> familyContactsFor(String clientId) async {
+    final result = await repository.getContacts(clientId: clientId);
+    return result.when(
+      success: (contacts) => contacts,
+      failure: (_) => const [],
+    );
+  }
+
+  /// Puts an archived thread back in the inbox (`archived: false`).
+  Future<void> unarchiveConversation() async {
+    final id = selectedConversationId.value;
+    if (id == null) return;
+    final result = await repository.updateConversation(
+      conversationId: id,
+      archived: false,
+    );
+    result.when(
+      success: (_) {
+        setSuccess(conversations.where((item) => item.id != id).toList());
+        selectedConversationId.value = null;
+        activeMessages.clear();
+        AppSnackbar.show('Conversation restored', '');
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not restore conversation',
+      ),
+    );
+  }
+
+  /// Web header action: archive the open thread so it leaves the list.
+  Future<void> hideConversation() async {
+    final id = selectedConversationId.value;
+    if (id == null) return;
+    final result = await repository.updateConversation(
+      conversationId: id,
+      archived: true,
+    );
+    result.when(
+      success: (_) {
+        setSuccess(conversations.where((item) => item.id != id).toList());
+        selectedConversationId.value = null;
+        activeMessages.clear();
+        AppSnackbar.show('Conversation hidden', '');
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not hide conversation',
+      ),
+    );
+  }
+
+  Future<bool> addParticipants(List<String> memberUserIds) async {
+    final id = selectedConversationId.value;
+    if (id == null || memberUserIds.isEmpty) return false;
+    final result = await repository.addMembers(
+      conversationId: id,
+      memberUserIds: memberUserIds,
+    );
+    var added = false;
+    result.when(
+      success: (_) {
+        added = true;
+        AppSnackbar.show('Participant added', '');
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not add participant',
+      ),
+    );
+    if (added) await loadConversations();
+    return added;
   }
 
   Future<void> markAllRead() async {

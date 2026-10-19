@@ -8,7 +8,9 @@ abstract final class FamilyMessagesMapper {
   static List<ConversationPreview> listFrom(dynamic body) {
     return JsonCodec.unwrapList(body)
         .whereType<Map>()
-        .map((item) => fromJson(JsonCodec.asMap(item)))
+        .map(JsonCodec.asMap)
+        .where((json) => JsonCodec.boolean(json['hidden']) != true)
+        .map(fromJson)
         .toList();
   }
 
@@ -38,6 +40,7 @@ abstract final class FamilyMessagesMapper {
         '',
       ),
       unreadCount: JsonCodec.integerOr(json['unreadCount'], 0),
+      left: JsonCodec.boolean(json['left']) ?? false,
     );
   }
 

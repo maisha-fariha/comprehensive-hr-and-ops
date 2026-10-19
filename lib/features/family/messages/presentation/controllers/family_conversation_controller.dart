@@ -1,10 +1,12 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/entities/family_messages_enums.dart';
@@ -17,12 +19,77 @@ class FamilyConversationController
     extends BaseController<FamilyConversationThread> {
   final String conversationId;
   final FamilyMessagesRepository repository;
+  final RxBool hasLeft = false.obs;
 
   FamilyConversationController({
     required this.conversationId,
+    bool initiallyLeft = false,
     FamilyMessagesRepository? repository,
   }) : repository = repository ?? GetIt.instance<FamilyMessagesRepository>() {
+    hasLeft.value = initiallyLeft;
     load();
+  }
+
+  /// Web hide: `POST /family/messages/:id/hide`, then the thread leaves the list.
+  Future<bool> hideConversation() async {
+    final result = await repository.setHidden(conversationId, hidden: true);
+    var hidden = false;
+    result.when(
+      success: (_) {
+        hidden = true;
+        AppSnackbar.show(
+          'Conversation hidden from your list.',
+          '',
+          force: true,
+        );
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not hide conversation',
+      ),
+    );
+    return hidden;
+  }
+
+  /// First call omits confirm. `LAST_RELATIVE` means the web asks again.
+  Future<String> leaveConversation({bool confirm = false}) async {
+    final result = await repository.leaveConversation(
+      conversationId,
+      confirm: confirm,
+    );
+    var outcome = 'failed';
+    result.when(
+      success: (_) {
+        hasLeft.value = true;
+        outcome = 'left';
+        AppSnackbar.show(
+          'You left the conversation.',
+          'What was said stays here.',
+          force: true,
+        );
+      },
+      failure: (error) {
+        if (_isLastRelative(error)) {
+          outcome = 'last_relative';
+          return;
+        }
+        outcome = 'failed';
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not leave conversation',
+        );
+      },
+    );
+    return outcome;
+  }
+
+  bool _isLastRelative(AppError error) {
+    if (error.code == 'LAST_RELATIVE') return true;
+    final data = error is ApiError ? error.responseData : null;
+    if (data == null) return false;
+    final nested = data['code'] ??
+        (data['error'] is Map ? (data['error'] as Map)['code'] : null);
+    return nested == 'LAST_RELATIVE';
   }
 
   final TextEditingController textController = TextEditingController();
@@ -231,7 +298,8 @@ class FamilyConversationController
 
   @override
   void onClose() {
-    textController.dispose();
+    final field = textController;
+    WidgetsBinding.instance.addPostFrameCallback((_) => field.dispose());
     super.onClose();
   }
 }

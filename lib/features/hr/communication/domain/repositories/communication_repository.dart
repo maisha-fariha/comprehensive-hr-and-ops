@@ -73,7 +73,11 @@ class CommunicationClientOption {
 }
 
 abstract class CommunicationRepository {
-  Future<Result<List<HrConversation>>> getConversations({bool monitor = false});
+  /// Inbox omits archived threads. `archived: true` is the web Archived list.
+  Future<Result<List<HrConversation>>> getConversations({
+    bool monitor = false,
+    bool archived = false,
+  });
 
   Future<Result<AnnouncementFeed>> getAnnouncements({String view = 'feed'});
 
@@ -81,7 +85,8 @@ abstract class CommunicationRepository {
 
   Future<Result<List<CommunicationLogEntry>>> getCommunicationLogs();
 
-  Future<Result<List<HrMessageContact>>> getContacts();
+  /// `GET /conversations/contacts`. A [clientId] returns that resident's family.
+  Future<Result<List<HrMessageContact>>> getContacts({String? clientId});
 
   Future<Result<List<CommunicationResidenceOption>>> getResidences();
 

@@ -29,6 +29,16 @@ abstract class FamilyMessagesRepository {
   /// A new conversation needs one of them as `clientId`.
   Future<Result<List<String>>> getLinkedClientIds();
 
+  /// `POST /family/messages/:id/hide` or `/unhide`.
+  Future<Result<void>> setHidden(String conversationId, {required bool hidden});
+
+  /// `POST /family/messages/:id/leave`. [confirm] is sent only after
+  /// `LAST_RELATIVE`.
+  Future<Result<void>> leaveConversation(
+    String conversationId, {
+    bool confirm = false,
+  });
+
   /// `POST /family/messages` → id of the new conversation (`null` when the
   /// response has none, e.g. queued offline).
   Future<Result<String?>> startConversation({

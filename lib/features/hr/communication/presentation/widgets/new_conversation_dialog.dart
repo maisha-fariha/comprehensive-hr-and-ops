@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/communication_enums.dart';
@@ -31,6 +30,7 @@ Future<NewConversationResult?> showNewConversationDialog(
   required List<CommunicationResidenceOption> residences,
   required List<CommunicationClientOption> clients,
   String? initialResidenceId,
+  Future<List<HrMessageContact>> Function(String clientId)? loadFamilyContacts,
 }) {
   return showAppPopup<NewConversationResult>(
     context: context,
@@ -40,6 +40,7 @@ Future<NewConversationResult?> showNewConversationDialog(
       residences: residences,
       clients: clients,
       initialResidenceId: initialResidenceId,
+      loadFamilyContacts: loadFamilyContacts,
     ),
   );
 }
@@ -51,12 +52,17 @@ class NewConversationDialog extends StatefulWidget {
   final List<CommunicationClientOption> clients;
   final String? initialResidenceId;
 
+  /// `GET /conversations/contacts?clientId=` — that resident's family.
+  final Future<List<HrMessageContact>> Function(String clientId)?
+      loadFamilyContacts;
+
   const NewConversationDialog({
     super.key,
     required this.contacts,
     required this.residences,
     required this.clients,
     this.initialResidenceId,
+    this.loadFamilyContacts,
   });
 
   @override
@@ -77,6 +83,10 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
   String? _residenceId;
   final Set<String> _groupMemberIds = {};
   String? _familyClientId;
+  final Set<String> _familyMemberIds = {};
+  List<HrMessageContact> _familyContacts = const [];
+  bool _loadingFamily = false;
+  bool _residentListOpen = false;
   String? _banner;
 
   @override
@@ -137,15 +147,6 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
     }).toList();
   }
 
-  List<CommunicationClientOption> _filterClients(String query) {
-    final q = query.trim().toLowerCase();
-    return widget.clients.where((c) {
-      if (q.isEmpty) return true;
-      return c.name.toLowerCase().contains(q) ||
-          (c.residenceName?.toLowerCase().contains(q) ?? false);
-    }).toList();
-  }
-
   void _setType(ConversationCreateType type) {
     setState(() {
       _type = type;
@@ -153,11 +154,61 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
       _directStaffId = null;
       _groupMemberIds.clear();
       _familyClientId = null;
+      _familyMemberIds.clear();
+      _familyContacts = const [];
+      _loadingFamily = false;
+      _residentListOpen = false;
       _staffSearch.clear();
       _groupName.clear();
       _membersSearch.clear();
       _familySearch.clear();
       _subject.clear();
+    });
+  }
+
+  String? get _residentLabel {
+    for (final client in widget.clients) {
+      if (client.id != _familyClientId) continue;
+      final home = client.residenceName;
+      if (home == null || home.isEmpty) return client.name;
+      return '${client.name} · $home';
+    }
+    return null;
+  }
+
+  String _familyContactName(String id) {
+    for (final contact in _familyContacts) {
+      if (contact.id == id) return contact.name;
+    }
+    return 'Family';
+  }
+
+  void _close() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _selectResident(String? id) async {
+    _familySearch.removeListener(_refresh);
+    _familySearch.clear();
+    _familySearch.addListener(_refresh);
+    setState(() {
+      _familyClientId = id;
+      _residentListOpen = false;
+      _familyMemberIds.clear();
+      _familyContacts = const [];
+      _loadingFamily = id != null && id.isNotEmpty;
+    });
+    final loader = widget.loadFamilyContacts;
+    if (id == null || id.isEmpty || loader == null) {
+      if (mounted) setState(() => _loadingFamily = false);
+      return;
+    }
+    final contacts = await loader(id);
+    if (!mounted || _familyClientId != id) return;
+    setState(() {
+      _familyContacts = contacts;
+      _loadingFamily = false;
     });
   }
 
@@ -168,8 +219,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
           ConversationCreateType.direct => 'Select a staff member.',
           ConversationCreateType.residenceGroup =>
             'Group name and residence are required.',
-          ConversationCreateType.familySupport =>
-            'Select a family contact.',
+          ConversationCreateType.familySupport => 'Select a resident.',
         };
       });
       return;
@@ -187,7 +237,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
         memberUserIds: switch (_type) {
           ConversationCreateType.direct => [_directStaffId!],
           ConversationCreateType.residenceGroup => _groupMemberIds.toList(),
-          ConversationCreateType.familySupport => const [],
+          ConversationCreateType.familySupport => _familyMemberIds.toList(),
         },
         residenceId: _residenceId,
         clientId: _familyClientId,
@@ -198,18 +248,20 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
-
-    return AppSheetPanel(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      backgroundColor: AppColors.surfaceWhite,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight, maxWidth: 520),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _Header(onClose: () => Navigator.of(context).pop()),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : MediaQuery.sizeOf(context).height * 0.92;
+        return Material(
+          color: AppColors.surfaceWhite,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            height: maxHeight,
+            child: Column(
+              children: [
+            _Header(onClose: _close),
             if (_banner != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -230,7 +282,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
                   ),
                 ),
               ),
-            Flexible(
+            Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
                 child: Column(
@@ -265,7 +317,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: _close,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.textHeading,
                         side: const BorderSide(color: AppColors.searchBorder),
@@ -313,8 +365,10 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
               ),
             ),
           ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -335,7 +389,6 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
             selectedIds: {
               ?_directStaffId,
             },
-            singleSelect: true,
             onToggle: (contact) {
               setState(() {
                 _directStaffId = contact.id;
@@ -411,7 +464,6 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
           _ContactList(
             contacts: _filterContacts(_membersSearch.text),
             selectedIds: _groupMemberIds,
-            singleSelect: false,
             onToggle: (contact) {
               setState(() {
                 if (_groupMemberIds.contains(contact.id)) {
@@ -424,24 +476,135 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
           ),
         ];
       case ConversationCreateType.familySupport:
+        final familyMatches = _familyContacts.where((contact) {
+          final query = _familySearch.text.trim().toLowerCase();
+          if (query.isEmpty) return true;
+          return contact.name.toLowerCase().contains(query) ||
+              contact.roleLabel.toLowerCase().contains(query);
+        }).toList();
         return [
+          const _FieldLabel('Resident', required: true),
+          const SizedBox(height: 8),
+          _PickerField(
+            label: _residentLabel ?? 'Select a resident',
+            isHint: _residentLabel == null,
+            open: _residentListOpen,
+            onTap: widget.clients.isEmpty
+                ? null
+                : () => setState(() => _residentListOpen = !_residentListOpen),
+          ),
+          if (widget.clients.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                'No residents found.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12.5,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            )
+          else if (_residentListOpen) ...[
+            const SizedBox(height: 8),
+            for (final client in widget.clients)
+              _PersonTile(
+                name: client.name,
+                subtitle: client.residenceName,
+                selected: client.id == _familyClientId,
+                onTap: () => _selectResident(client.id),
+              ),
+          ],
+          const SizedBox(height: 14),
           const _FieldLabel('Family contact'),
+          if (_familyMemberIds.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final id in _familyMemberIds)
+                  InputChip(
+                    avatar: CircleAvatar(
+                      backgroundColor: AppColors.secondaryTeal,
+                      child: Text(
+                        _initials(_familyContactName(id)),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    label: Text(_familyContactName(id)),
+                    onDeleted: () =>
+                        setState(() => _familyMemberIds.remove(id)),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           _OutlinedField(
             controller: _familySearch,
-            hint: 'Search family contacts...',
+            hint: 'Search this resident\'s family...',
             prefixIcon: Icons.search_rounded,
+            enabled: _familyClientId != null,
           ),
           const SizedBox(height: 8),
-          _ClientList(
-            clients: _filterClients(_familySearch.text),
-            selectedId: _familyClientId,
-            onSelected: (client) {
-              setState(() {
-                _familyClientId = client.id;
-                _familySearch.text = client.name;
-              });
-            },
+          if (_loadingFamily)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (_familyClientId == null)
+            const Text(
+              'Select a resident to see their family.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 12.5,
+                color: AppColors.textMuted,
+              ),
+            )
+          else if (familyMatches.isEmpty)
+            const Text(
+              'No family contacts found.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 12.5,
+                color: AppColors.textMuted,
+              ),
+            )
+          else
+            for (final contact in familyMatches)
+              _PersonTile(
+                name: contact.name,
+                subtitle: contact.roleLabel,
+                selected: _familyMemberIds.contains(contact.id),
+                onTap: () {
+                  setState(() {
+                    if (_familyMemberIds.contains(contact.id)) {
+                      _familyMemberIds.remove(contact.id);
+                    } else {
+                      _familyMemberIds.add(contact.id);
+                    }
+                  });
+                },
+              ),
+          const SizedBox(height: 8),
+          const Text(
+            'Family threads are answered by the tenant admin and the resident\'s residence manager.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              height: 1.35,
+              color: AppColors.textMuted,
+            ),
           ),
           const SizedBox(height: 14),
           const _FieldLabel('Subject', optional: true),
@@ -452,6 +615,157 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
           ),
         ];
     }
+  }
+}
+
+String _initials(String name) {
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return '?';
+  String letter(String word) => word.isEmpty ? '' : word[0].toUpperCase();
+  if (parts.length == 1) return letter(parts.first);
+  return '${letter(parts.first)}${letter(parts.last)}';
+}
+
+class _PickerField extends StatelessWidget {
+  final String label;
+  final bool isHint;
+  final bool open;
+  final VoidCallback? onTap;
+
+  const _PickerField({
+    required this.label,
+    required this.isHint,
+    required this.open,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceWhite,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.searchBorder),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 14,
+                    fontWeight: isHint ? FontWeight.w400 : FontWeight.w600,
+                    color: isHint ? AppColors.textMuted : AppColors.textHeading,
+                  ),
+                ),
+              ),
+              Icon(
+                open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                color: AppColors.textMuted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PersonTile extends StatelessWidget {
+  final String name;
+  final String? subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PersonTile({
+    required this.name,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = subtitle?.trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected ? const Color(0xFFE8F4F3) : AppColors.filterButtonBackground,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppColors.secondaryTeal,
+                  child: Text(
+                    _initials(name),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      if (detail != null && detail.isNotEmpty)
+                        Text(
+                          detail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  const Icon(
+                    Icons.check_circle,
+                    size: 18,
+                    color: AppColors.secondaryTeal,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -732,6 +1046,7 @@ class _OutlinedField extends StatelessWidget {
   final IconData? prefixIcon;
   final int minLines;
   final int maxLines;
+  final bool enabled;
 
   const _OutlinedField({
     required this.controller,
@@ -739,12 +1054,14 @@ class _OutlinedField extends StatelessWidget {
     this.prefixIcon,
     this.minLines = 1,
     this.maxLines = 1,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      enabled: enabled,
       minLines: minLines,
       maxLines: maxLines,
       style: const TextStyle(
@@ -761,13 +1078,11 @@ class _OutlinedField extends StatelessWidget {
 class _ContactList extends StatelessWidget {
   final List<HrMessageContact> contacts;
   final Set<String> selectedIds;
-  final bool singleSelect;
   final ValueChanged<HrMessageContact> onToggle;
 
   const _ContactList({
     required this.contacts,
     required this.selectedIds,
-    required this.singleSelect,
     required this.onToggle,
   });
 
@@ -783,18 +1098,20 @@ class _ContactList extends StatelessWidget {
         ),
       );
     }
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: ResponsiveHelper.getResponsiveHeight(context, 160),
-      ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: contacts.length.clamp(0, 12),
-        separatorBuilder: (_, _) => const SizedBox(height: 6),
-        itemBuilder: (context, index) {
-          final contact = contacts[index];
-          final selected = selectedIds.contains(contact.id);
-          return Material(
+    final shown = contacts.take(12).toList();
+    return Column(
+      children: [
+        for (final contact in shown)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: _contactTile(contact, selectedIds.contains(contact.id)),
+          ),
+      ],
+    );
+  }
+
+  Widget _contactTile(HrMessageContact contact, bool selected) {
+    return Material(
             color: selected
                 ? const Color(0xFFE8F4F3)
                 : AppColors.filterButtonBackground,
@@ -843,100 +1160,6 @@ class _ContactList extends StatelessWidget {
                 ),
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ClientList extends StatelessWidget {
-  final List<CommunicationClientOption> clients;
-  final String? selectedId;
-  final ValueChanged<CommunicationClientOption> onSelected;
-
-  const _ClientList({
-    required this.clients,
-    required this.selectedId,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (clients.isEmpty) {
-      return const Text(
-        'No family contacts found.',
-        style: TextStyle(
-          fontFamily: 'Outfit',
-          fontSize: 12.5,
-          color: AppColors.textMuted,
-        ),
-      );
-    }
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: ResponsiveHelper.getResponsiveHeight(context, 160),
-      ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: clients.length.clamp(0, 12),
-        separatorBuilder: (_, _) => const SizedBox(height: 6),
-        itemBuilder: (context, index) {
-          final client = clients[index];
-          final selected = selectedId == client.id;
-          return Material(
-            color: selected
-                ? const Color(0xFFE8F4F3)
-                : AppColors.filterButtonBackground,
-            borderRadius: BorderRadius.circular(10),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => onSelected(client),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            client.name,
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: AppColors.textHeading,
-                            ),
-                          ),
-                          if (client.residenceName != null)
-                            Text(
-                              client.residenceName!,
-                              style: const TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 11.5,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (selected)
-                      const Icon(
-                        Icons.check_circle,
-                        size: 18,
-                        color: AppColors.secondaryTeal,
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 }
