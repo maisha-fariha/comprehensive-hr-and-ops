@@ -322,7 +322,9 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       if (earlyDepartureNotes != null && earlyDepartureNotes.isNotEmpty)
         'earlyDepartureNotes': earlyDepartureNotes,
     };
-    final result = await _api.post(path, data: body);
+    // The clock sheet shows its own error, including the handover "Write it"
+    // action. A generic dialog would cover that and leave only OK.
+    final result = await _api.post(path, data: body, silent: true);
     return result.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),

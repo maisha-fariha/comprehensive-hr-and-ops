@@ -49,7 +49,15 @@ class _HrIncidentDetailsPageState extends State<HrIncidentDetailsPage> {
     _controller.loadDetail(widget.incidentId);
   }
 
-  void _close() => Get.back(result: _changed);
+  bool _closing = false;
+
+  /// [PopScope] sets `canPop: false` so the list can refresh after an edit.
+  /// `Get.back` then sees that and does nothing. Pop the route directly.
+  void _close() {
+    if (_closing || !mounted) return;
+    _closing = true;
+    Navigator.of(context).pop(_changed);
+  }
 
   Future<void> _acknowledge() async {
     await _controller.acknowledge();
@@ -168,7 +176,7 @@ class _HrIncidentDetailsPageState extends State<HrIncidentDetailsPage> {
         gap,
         IncidentEvidenceSection(
           items: detail.evidence,
-          isBusy: _controller.isOpeningEvidence.value,
+          busyUrl: _controller.openingEvidenceUrl.value,
           onDownload: _controller.openEvidence,
         ),
         gap,

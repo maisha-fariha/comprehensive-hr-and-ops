@@ -22,6 +22,7 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
   String? _loadedIncidentId;
   final RxBool isOpeningCirPdf = false.obs;
   final RxBool isOpeningEvidence = false.obs;
+  final RxnString openingEvidenceUrl = RxnString();
 
   Future<void> loadDetail(String incidentId, {bool force = false}) async {
     if (!force &&
@@ -142,6 +143,7 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
     }
 
     isOpeningEvidence.value = true;
+    openingEvidenceUrl.value = url;
     try {
       final result = await repository.downloadFileBytes(url);
       if (result.isFailure) {
@@ -200,6 +202,7 @@ class IncidentDetailsController extends BaseController<IncidentDetail> {
       _confirmDownloaded(saveResult.displayLocation);
     } finally {
       isOpeningEvidence.value = false;
+      openingEvidenceUrl.value = null;
     }
   }
 

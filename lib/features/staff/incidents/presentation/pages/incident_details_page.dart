@@ -87,7 +87,7 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
             StaffIncidentsHeader(
               title: 'Incident Details',
               subtitle: 'View full incident report and details',
-              onBack: Get.back,
+              onBack: () => Navigator.of(context).maybePop(),
               trailing: StaffIncidentsHeader.iconButton(
                 context: context,
                 onTap: _controller.shareCirPdf,
@@ -193,7 +193,7 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                     SizedBox(height: gap),
                     IncidentEvidenceSection(
                       items: detail.evidence,
-                      isBusy: _controller.isOpeningEvidence.value,
+                      busyUrl: _controller.openingEvidenceUrl.value,
                       onDownload: _controller.openEvidence,
                     ),
                     SizedBox(height: gap),
@@ -203,7 +203,7 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                           ResponsiveHelper.getResponsiveHeight(context, 20),
                     ),
                     IncidentDetailsActions(
-                      onClose: Get.back,
+                      onClose: () => Navigator.of(context).maybePop(),
                       onEdit: _onEdit,
                       onAcknowledge: _controller.acknowledge,
                       showAcknowledge: !detail.acknowledged,

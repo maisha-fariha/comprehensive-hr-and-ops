@@ -153,6 +153,7 @@ abstract final class PortalNotificationNavigator {
       'daily_logs' => 'daily_log',
       'shift_handover' || 'handovers' => 'handover',
       'emergency' => 'emergency_alert',
+      'training_course' || 'training_assignment' || 'course' => 'training',
       _ => value,
     };
   }
