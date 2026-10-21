@@ -165,6 +165,14 @@ class CommunicationController extends BaseController<List<HrConversation>> {
   Future<void> selectConversation(String id) async {
     final alreadyOpen = selectedConversationId.value == id;
     selectedConversationId.value = id;
+    // Drop the previous thread before the next screen builds, so chat B
+    // never paints chat A's messages while its own request is in flight.
+    if (!alreadyOpen) {
+      activeMessages.clear();
+      messageController.clear();
+      draftText.value = '';
+      isLoadingMessages.value = true;
+    }
     // Drop the badge as soon as the thread is open. The web does the same
     // with POST /conversations/:id/read, including when the row is tapped
     // again after the list reloads.
@@ -192,7 +200,9 @@ class CommunicationController extends BaseController<List<HrConversation>> {
         }
       },
     );
-    isLoadingMessages.value = false;
+    if (selectedConversationId.value == conversationId) {
+      isLoadingMessages.value = false;
+    }
   }
 
   bool get canWriteMessages {
