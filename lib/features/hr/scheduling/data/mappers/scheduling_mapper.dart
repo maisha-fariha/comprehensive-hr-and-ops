@@ -195,6 +195,7 @@ abstract final class SchedulingMapper {
     required dynamic declinedSwapsBody,
     DateTime? weekOf,
     DateTime? selectedDay,
+    dynamic coverageBody,
   }) {
     final weekStart = IsoDateRange.startOfWeek(weekOf);
     final today = DateTime.now();
@@ -243,6 +244,14 @@ abstract final class SchedulingMapper {
         CalendarShift(
           id: dayShifts[i].id,
           occursOn: dayShifts[i].occursOn,
+          startsAt: dayShifts[i].startsAt,
+          endsAt: dayShifts[i].endsAt,
+          staffIds: dayShifts[i].staffIds,
+          staffNames: dayShifts[i].staffNames,
+          requiredStaffCount: dayShifts[i].requiredStaffCount,
+          title: dayShifts[i].title,
+          apiStatus: dayShifts[i].apiStatus,
+          residenceName: dayShifts[i].residenceName,
           startTime: dayShifts[i].startTime,
           startPeriod: dayShifts[i].startPeriod,
           name: dayShifts[i].name,
@@ -258,6 +267,9 @@ abstract final class SchedulingMapper {
     ];
 
     return SchedulingOverview(
+      weekCoverage: _weekCoverage(
+        coverageBody == null ? weekShiftsRaw : _shifts(coverageBody),
+      ),
       calendar: CalendarSchedule(
         monthLabel: IsoDateRange.formatMonthYear(selected),
         days: days,
@@ -306,6 +318,14 @@ abstract final class SchedulingMapper {
         CalendarShift(
           id: dayShifts[i].id,
           occursOn: dayShifts[i].occursOn,
+          startsAt: dayShifts[i].startsAt,
+          endsAt: dayShifts[i].endsAt,
+          staffIds: dayShifts[i].staffIds,
+          staffNames: dayShifts[i].staffNames,
+          requiredStaffCount: dayShifts[i].requiredStaffCount,
+          title: dayShifts[i].title,
+          apiStatus: dayShifts[i].apiStatus,
+          residenceName: dayShifts[i].residenceName,
           startTime: dayShifts[i].startTime,
           startPeriod: dayShifts[i].startPeriod,
           name: dayShifts[i].name,
@@ -390,6 +410,29 @@ abstract final class SchedulingMapper {
       occursOn: start == null
           ? null
           : DateTime(start.year, start.month, start.day),
+      startsAt: start,
+      endsAt: end,
+      staffIds: [
+        for (final person in _assignedPeople(json))
+          if (person is Map)
+            ?JsonCodec.string(
+              JsonCodec.asMap(person)['id'] ??
+                  JsonCodec.asMap(person)['staffId'],
+            ),
+      ],
+      staffNames: [
+        for (final person in _assignedPeople(json))
+          if (_fullName(person).isNotEmpty) _fullName(person),
+      ],
+      requiredStaffCount: json.containsKey('requiredStaffCount')
+          ? JsonCodec.integer(json['requiredStaffCount'])
+          : null,
+      title: JsonCodec.string(json['title']),
+      apiStatus: JsonCodec.stringOr(json['status'], ''),
+      residenceName: JsonCodec.string(
+        json['residenceName'] ??
+            JsonCodec.mapAt(json, 'residence')?['name'],
+      ),
       startTime: start == null ? '--' : '$hour12:$minute',
       startPeriod: period,
       name: JsonCodec.stringOr(
@@ -579,6 +622,63 @@ abstract final class SchedulingMapper {
     final staff = JsonCodec.listAt(json, 'staff');
     if (staff.isNotEmpty) return staff;
     return JsonCodec.listAt(json, 'assignees');
+  }
+
+  static String _fullName(dynamic person) {
+    if (person is Map) {
+      final full = IsoDateRange.personName(person);
+      return full == 'Unknown' ? '' : full;
+    }
+    final raw = IsoDateRange.stringOr(person, '');
+    return raw == 'Unknown' ? '' : raw;
+  }
+
+  static WeekShiftCoverage _weekCoverage(List<Map<String, dynamic>> rows) {
+    if (rows.isEmpty) return WeekShiftCoverage.empty;
+    final unstaffed = rows.where((row) {
+      final assigned = JsonCodec.integer(row['assignedCount']);
+      if (assigned != null) return assigned <= 0;
+      return _assignedPeople(row).isEmpty;
+    }).toList();
+    final openRows = rows
+        .where((row) => JsonCodec.stringOr(row['status'], '') == 'open')
+        .toList();
+    final percent =
+        ((rows.length - unstaffed.length) / rows.length * 100).round();
+    var unstaffedDescription = 'Every shift this week has someone assigned';
+    if (unstaffed.isNotEmpty) {
+      final counts = <String, int>{};
+      for (final row in unstaffed) {
+        final name = JsonCodec.string(
+              row['residenceName'] ??
+                  JsonCodec.mapAt(row, 'residence')?['name'],
+            ) ??
+            'Unknown home';
+        counts[name] = (counts[name] ?? 0) + 1;
+      }
+      final top = counts.entries.reduce(
+        (best, next) => next.value > best.value ? next : best,
+      );
+      unstaffedDescription = 'Most in ${top.key} — ${top.value} of them';
+    }
+    final bids = openRows.fold<int>(0, (sum, row) {
+      return sum + JsonCodec.listAt(row, 'bids').length;
+    });
+    final openDescription = openRows.isEmpty
+        ? 'No shifts are open for staff to bid on'
+        : bids == 0
+            ? 'No bids yet'
+            : '$bids bid${bids == 1 ? '' : 's'} received';
+    return WeekShiftCoverage(
+      unstaffed: unstaffed.length,
+      unstaffedDescription: unstaffedDescription,
+      coveredValue: '$percent%',
+      coveredDescription:
+          'Shifts this week with at least one person working them',
+      coveredCaption: 'of shifts',
+      openShifts: openRows.length,
+      openDescription: openDescription,
+    );
   }
 
   static String _firstName(dynamic person) {

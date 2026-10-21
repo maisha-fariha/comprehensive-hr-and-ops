@@ -40,6 +40,14 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   /// Web "My shifts" toggle: only the signed-in user's shifts.
   final RxBool mineOnly = false.obs;
 
+  /// Web Week / Month / All shifts switch. Week is the default.
+  final Rx<ScheduleSpan> span = ScheduleSpan.week.obs;
+  final Rx<DateTime> monthOf = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    1,
+  ).obs;
+
   final UserSession? session;
 
   SchedulingController({required this.repository, this.session}) {
@@ -48,6 +56,15 @@ class SchedulingController extends BaseController<SchedulingOverview> {
 
   /// `scheduling:write` gates "My shifts" and "Create Shift", as on the web.
   bool get canWrite => session?.can('scheduling:write') ?? true;
+
+  /// Web shows Request swap when the user can bid and is not a tenant admin.
+  bool get canBid {
+    final raw = (session?.roleRaw ?? '').toLowerCase();
+    if (raw.contains('tenant_admin') || raw.contains('tenant admin')) {
+      return false;
+    }
+    return session?.can('scheduling:bid') ?? false;
+  }
 
   Future<void> toggleMine() {
     mineOnly.toggle();
@@ -153,6 +170,8 @@ class SchedulingController extends BaseController<SchedulingOverview> {
       residenceId: residenceFilter.value,
       status: statusFilter.value,
       mine: mineOnly.value,
+      span: span.value,
+      monthOf: monthOf.value,
     );
     if (generation != _loadGeneration) return;
 
@@ -193,6 +212,77 @@ class SchedulingController extends BaseController<SchedulingOverview> {
     weekOf.value = weekOf.value.add(const Duration(days: 7));
     _syncSelectionAfterWeekChange();
     return loadOverview();
+  }
+
+  void selectSpan(ScheduleSpan next) {
+    if (span.value == next) return;
+    span.value = next;
+    loadOverview();
+  }
+
+  Future<void> goToPreviousMonth() {
+    final current = monthOf.value;
+    monthOf.value = DateTime(current.year, current.month - 1, 1);
+    return loadOverview();
+  }
+
+  Future<void> goToNextMonth() {
+    final current = monthOf.value;
+    monthOf.value = DateTime(current.year, current.month + 1, 1);
+    return loadOverview();
+  }
+
+  /// Opens the week that contains [day]. Web month cells do the same.
+  Future<void> openWeekOf(DateTime day) {
+    span.value = ScheduleSpan.week;
+    return jumpToDate(day);
+  }
+
+  Future<void> openShift(String shiftId) async {
+    final result = await repository.openShift(shiftId);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Shift opened for bids', '');
+        loadOverview();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
+  }
+
+  Future<void> cancelShift(String shiftId) async {
+    final result = await repository.cancelShift(shiftId);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Shift cancelled', '');
+        loadOverview();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
+  }
+
+  Future<void> deleteShift(String shiftId) async {
+    final result = await repository.deleteShift(shiftId);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Shift deleted', '');
+        loadOverview();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
+  }
+
+  Future<void> requestSwap(String shiftId, {String? note}) async {
+    final result = await repository.requestSwap(shiftId: shiftId, note: note);
+    result.when(
+      success: (_) {
+        AppSnackbar.show(
+          'Cover requested — a manager will decide',
+          '',
+        );
+        loadOverview();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
   }
 
   void _syncSelectionAfterWeekChange() {

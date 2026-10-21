@@ -37,6 +37,8 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     String? residenceId,
     ShiftStatusFilter? status,
     bool mine = false,
+    ScheduleSpan span = ScheduleSpan.week,
+    DateTime? monthOf,
   }) async {
     mineCalls.add(mine);
     return Result.success(
@@ -51,6 +53,24 @@ class _FakeSchedulingRepo implements SchedulingRepository {
       ),
     );
   }
+
+  @override
+  Future<Result<void>> openShift(String shiftId) async => Result.success(null);
+
+  @override
+  Future<Result<void>> cancelShift(String shiftId) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> deleteShift(String shiftId) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> requestSwap({
+    required String shiftId,
+    String? note,
+  }) async =>
+      Result.success(null);
 
   @override
   Future<Result<List<ShiftResidenceOption>>> getResidences() async =>

@@ -24,6 +24,23 @@ abstract class SchedulingRepository {
     String? residenceId,
     ShiftStatusFilter? status,
     bool mine = false,
+    ScheduleSpan span = ScheduleSpan.week,
+    DateTime? monthOf,
+  });
+
+  /// `POST /shifts/{id}/open`.
+  Future<Result<void>> openShift(String shiftId);
+
+  /// `POST /shifts/{id}/cancel`.
+  Future<Result<void>> cancelShift(String shiftId);
+
+  /// `DELETE /shifts/{id}`. The shift is kept and can be restored.
+  Future<Result<void>> deleteShift(String shiftId);
+
+  /// `POST /shifts/{shiftId}/swap-requests`. An empty colleague means cover.
+  Future<Result<void>> requestSwap({
+    required String shiftId,
+    String? note,
   });
 
   /// Residences for the Create Shift "Residence" dropdown (`GET /residences`).

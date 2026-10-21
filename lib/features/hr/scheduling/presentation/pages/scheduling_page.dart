@@ -12,6 +12,7 @@ import '../widgets/requests_tab_view.dart';
 import '../widgets/scheduling_filter_bar.dart';
 import '../widgets/scheduling_segmented_tabs.dart';
 import '../../../presentation/open_manager_menu.dart';
+import '../widgets/schedule_span_panel.dart';
 import '../widgets/scheduling_top_bar.dart';
 import 'create_shift_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
@@ -152,16 +153,43 @@ class SchedulingPage extends StatelessWidget {
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: switch (controller.selectedTab.value) {
-                    SchedulingTab.calendar => CalendarTabView(
-                      data: overview.calendar,
-                      onPreviousWeek: controller.goToPreviousWeek,
-                      onNextWeek: controller.goToNextWeek,
-                      onDaySelected: (day) =>
-                          controller.selectCalendarDay(day.date),
-                      onShiftTap: controller.canWrite
-                          ? (shift) => _openEditShift(controller, shift.id)
-                          : null,
-                    ),
+                    SchedulingTab.calendar => switch (controller.span.value) {
+                      ScheduleSpan.month => ScheduleMonthView(
+                        controller: controller,
+                        shifts: overview.calendar.weekShifts,
+                      ),
+                      ScheduleSpan.list => ScheduleAllShiftsView(
+                        controller: controller,
+                        shifts: overview.calendar.weekShifts,
+                        coverage: overview.weekCoverage,
+                        onOpenShift: controller.canWrite
+                            ? (shiftId) => _openEditShift(controller, shiftId)
+                            : null,
+                      ),
+                      ScheduleSpan.week => CalendarTabView(
+                        data: overview.calendar,
+                        onPreviousWeek: controller.goToPreviousWeek,
+                        onNextWeek: controller.goToNextWeek,
+                        onDaySelected: (day) =>
+                            controller.selectCalendarDay(day.date),
+                        onShiftTap: controller.canWrite
+                            ? (shift) => _openEditShift(controller, shift.id)
+                            : null,
+                        leading: [
+                          ScheduleSpanSwitch(
+                            selected: ScheduleSpan.week,
+                            onSelected: controller.selectSpan,
+                          ),
+                        ],
+                        trailing: [
+                          WeekSwapRail(
+                            controller: controller,
+                            shifts: overview.calendar.weekShifts,
+                            pending: overview.requests.pendingRequests,
+                          ),
+                        ],
+                      ),
+                    },
                     SchedulingTab.board => BoardTabView(
                       data: overview.board,
                       onShiftTap: controller.canWrite

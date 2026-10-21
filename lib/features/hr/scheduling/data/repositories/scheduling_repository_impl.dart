@@ -33,21 +33,43 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     String? residenceId,
     ShiftStatusFilter? status,
     bool mine = false,
+    ScheduleSpan span = ScheduleSpan.week,
+    DateTime? monthOf,
   }) async {
     final scopedResidenceId = residenceId ?? _session.residenceId;
     final anchor = weekOf ?? DateTime.now();
     final from = IsoDateRange.startOfWeek(anchor).toUtc().toIso8601String();
     final to = IsoDateRange.endOfWeek(anchor).toUtc().toIso8601String();
+    final month = monthOf ?? DateTime(anchor.year, anchor.month, 1);
+    final monthStart = DateTime(month.year, month.month, 1);
+    final monthEnd = DateTime(month.year, month.month + 1, 0);
 
-    final weekResult = await _fetchAllPages(
-      path: ApiEndpoints.shifts,
-      baseQuery: {
-        'from': from,
-        'to': to,
-        'residenceId': ?scopedResidenceId,
-        if (mine) 'mine': true,
-      },
-    );
+    final weekResult = span == ScheduleSpan.list
+        ? await _api.get(
+            ApiEndpoints.shifts,
+            query: {
+              'page': 1,
+              'limit': 50,
+              'residenceId': ?scopedResidenceId,
+              if (mine) 'mine': true,
+            },
+          ).then(
+            (result) => result.when(
+              success: (body) => Result<List<dynamic>>.success(
+                JsonCodec.unwrapList(body),
+              ),
+              failure: (error) => Result<List<dynamic>>.failure(error),
+            ),
+          )
+        : await _fetchAllPages(
+            path: ApiEndpoints.shifts,
+            baseQuery: {
+              'from': span == ScheduleSpan.month ? _ymd(monthStart) : from,
+              'to': span == ScheduleSpan.month ? _ymd(monthEnd) : to,
+              'residenceId': ?scopedResidenceId,
+              if (mine) 'mine': true,
+            },
+          );
     if (weekResult.isFailure) {
       return Result.failure(
         weekResult.error ??
@@ -61,8 +83,6 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     );
 
     final swapBase = <String, dynamic>{
-      'from': from,
-      'to': to,
       'residenceId': ?scopedResidenceId,
     };
 
@@ -115,9 +135,30 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       }
     }
 
+    var coverageRows = week;
+    if (span != ScheduleSpan.week) {
+      final coverageResult = await _fetchAllPages(
+        path: ApiEndpoints.shifts,
+        baseQuery: {
+          'from': from,
+          'to': to,
+          'residenceId': ?scopedResidenceId,
+          if (mine) 'mine': true,
+        },
+      );
+      if (coverageResult.isSuccess) {
+        coverageRows = _applyShiftFilters(
+          coverageResult.value ?? const [],
+          residenceId: residenceId,
+          status: status,
+        );
+      }
+    }
+
     return Result.success(
       SchedulingMapper.compose(
         weekBody: week,
+        coverageBody: coverageRows,
         openBody: _applyShiftFilters(
           results[0].value as List<dynamic>? ?? const [],
           residenceId: residenceId,
@@ -273,6 +314,66 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  @override
+  Future<Result<void>> openShift(String shiftId) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftOpen(shiftId),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> cancelShift(String shiftId) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftCancel(shiftId),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> deleteShift(String shiftId) async {
+    final result = await _api.delete(
+      ApiEndpoints.shiftById(shiftId),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> requestSwap({
+    required String shiftId,
+    String? note,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftSwapRequests(shiftId),
+      data: {
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  static String _ymd(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 
   /// `POST /shifts` answers with one shift, or a list for a recurring series.

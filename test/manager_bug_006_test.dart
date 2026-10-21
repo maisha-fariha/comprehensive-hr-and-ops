@@ -33,6 +33,27 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     String? residenceId,
     ShiftStatusFilter? status,
     bool mine = false,
+    ScheduleSpan span = ScheduleSpan.week,
+    DateTime? monthOf,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> openShift(String shiftId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> cancelShift(String shiftId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> deleteShift(String shiftId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> requestSwap({
+    required String shiftId,
+    String? note,
   }) =>
       throw UnimplementedError();
 

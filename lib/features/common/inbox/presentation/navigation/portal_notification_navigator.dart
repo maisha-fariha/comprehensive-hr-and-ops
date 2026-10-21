@@ -47,6 +47,7 @@ abstract final class PortalNotificationNavigator {
     final staff = role == UserRole.staff;
     switch (type) {
       case 'shift':
+      case 'shift_swap':
         Get.offAll(
           () => staff
               ? const StaffShell(initialIndex: 1)
@@ -151,6 +152,7 @@ abstract final class PortalNotificationNavigator {
       'medication_chart' || 'mar' => 'medication',
       'message' => 'conversation',
       'daily_logs' => 'daily_log',
+      'shift_swap' || 'shiftswap' => 'shift_swap',
       'shift_handover' || 'handovers' => 'handover',
       'emergency' => 'emergency_alert',
       'training_course' || 'training_assignment' || 'course' => 'training',

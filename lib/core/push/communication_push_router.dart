@@ -9,6 +9,8 @@ import '../../features/family/messages/presentation/controllers/family_conversat
 import '../../features/family/messages/presentation/pages/family_conversation_page.dart';
 import '../../features/family/messages/presentation/pages/family_messages_list_page.dart';
 import '../../features/hr/communication/presentation/controllers/communication_controller.dart';
+import '../../features/common/inbox/domain/entities/portal_notification.dart';
+import '../../features/common/inbox/presentation/navigation/portal_notification_navigator.dart';
 import '../../features/hr/communication/presentation/pages/communication_page.dart';
 import '../roles/user_role.dart';
 import '../roles/user_session.dart';
@@ -38,7 +40,7 @@ class CommunicationPushRouter {
       unawaited(_onForeground(message.copyWith(data: data)));
       return;
     }
-    if (!isCommunicationPush(data)) return;
+    if (!isCommunicationPush(data) && !isShiftSwapPush(data)) return;
     _pending = data;
     _flush();
   }
@@ -80,12 +82,28 @@ class CommunicationPushRouter {
     });
   }
 
-  Future<void> _open(Map<String, dynamic> data) async {
+  Future<void> _open(Map<String, dynamic> raw) async {
+    final data = normalizePushData(raw);
     if (!Get.isRegistered<UserSession>() ||
         !Get.find<UserSession>().isSignedIn) {
       return;
     }
     final session = Get.find<UserSession>();
+    if (isShiftSwapPush(data)) {
+      PortalNotificationNavigator.open(
+        PortalNotification(
+          id: _raw(data['entityId']) ?? 'shift-swap',
+          title: _raw(data['title']) ?? 'Shift swap',
+          body: _raw(data['body']) ?? '',
+          timeLabel: '',
+          entityType: _raw(data['entityType']) ?? 'shift_swap',
+          entityId: _raw(data['entityId']),
+          eventKey: _raw(data['eventKey']),
+          meta: data,
+        ),
+      );
+      return;
+    }
     final id = conversationIdOf(data);
     if (session.role == UserRole.family) {
       await _openFamily(id);
@@ -186,6 +204,14 @@ Map<String, dynamic> normalizePushData(Map<String, dynamic> data) {
     copy.addAll(Map<String, dynamic>.from(meta));
   }
   return copy;
+}
+
+/// Swap alerts (`shift_swap`, `scheduling.swap_*`) open Scheduling.
+bool isShiftSwapPush(Map<String, dynamic> data) {
+  final type = _token(data['entityType'] ?? data['type']).replaceAll('-', '_');
+  if (type == 'shift_swap' || type == 'shiftswap') return true;
+  final key = _token(data['eventKey'] ?? data['event']);
+  return key.startsWith('scheduling.swap');
 }
 
 /// True when the push is a Communication / family message.

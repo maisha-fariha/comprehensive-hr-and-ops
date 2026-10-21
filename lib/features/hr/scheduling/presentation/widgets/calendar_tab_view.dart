@@ -23,6 +23,8 @@ class CalendarTabView extends StatelessWidget {
 
   /// Opens a shift for editing (web `onOpenShift`); `null` when read-only.
   final ValueChanged<CalendarShift>? onShiftTap;
+  final List<Widget> leading;
+  final List<Widget> trailing;
 
   const CalendarTabView({
     super.key,
@@ -31,6 +33,8 @@ class CalendarTabView extends StatelessWidget {
     this.onNextWeek,
     this.onDaySelected,
     this.onShiftTap,
+    this.leading = const [],
+    this.trailing = const [],
   });
 
   @override
@@ -48,6 +52,7 @@ class CalendarTabView extends StatelessWidget {
           bottom: ResponsiveHelper.getResponsiveHeight(context, 24),
         ),
         children: [
+          ...leading,
           ColoredBox(
             color: AppColors.surfaceWhite,
             child: Container(
@@ -110,6 +115,7 @@ class CalendarTabView extends StatelessWidget {
               ],
             ),
           ),
+          ...trailing,
         ],
       ),
     );

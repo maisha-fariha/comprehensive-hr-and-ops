@@ -11,6 +11,16 @@ class CalendarShift {
 
   /// Local start instant when known — used to filter the week strip selection.
   final DateTime? occursOn;
+
+  /// Full local start, used to decide whether a shift can still be swapped.
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+  final List<String> staffIds;
+  final List<String> staffNames;
+  final int? requiredStaffCount;
+  final String? title;
+  final String apiStatus;
+  final String? residenceName;
   final String startTime;
   final String startPeriod;
   final String name;
@@ -32,6 +42,14 @@ class CalendarShift {
   const CalendarShift({
     required this.id,
     this.occursOn,
+    this.startsAt,
+    this.endsAt,
+    this.staffIds = const [],
+    this.staffNames = const [],
+    this.requiredStaffCount,
+    this.title,
+    this.apiStatus = '',
+    this.residenceName,
     required this.startTime,
     required this.startPeriod,
     required this.name,
