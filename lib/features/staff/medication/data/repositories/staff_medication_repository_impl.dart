@@ -332,6 +332,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       'startsAt': _day(input.startsAt),
       'endsAt': _endOfDay(input.endsAt),
       'stockUnitsPerDose': input.stockUnitsPerDose,
+      'costPerDose': input.costPerDose,
       'requiresCheckScheduleId': checkId,
       'requiresCheckWithinMinutes': checkId == null
           ? null
@@ -355,6 +356,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       'isControlled': input.isControlled,
       'minIntervalMinutes': input.minIntervalMinutes,
       'stockUnitsPerDose': input.stockUnitsPerDose,
+      'costPerDose': input.costPerDose,
       'route': ?_route(input.route, update: update),
       'startsAt': _day(input.startsAt),
       'endsAt': _endOfDay(input.endsAt),

@@ -607,6 +607,7 @@ void main() {
         'startsAt': '2026-10-01T00:00:00.000Z',
         'endsAt': null,
         'stockUnitsPerDose': 1,
+        'costPerDose': null,
         'requiresCheckScheduleId': 'chk1',
         'requiresCheckWithinMinutes': 60,
       });
@@ -628,6 +629,7 @@ void main() {
         'isControlled': false,
         'minIntervalMinutes': 240,
         'stockUnitsPerDose': null,
+        'costPerDose': null,
         'startsAt': null,
         'endsAt': null,
         'requiresCheckScheduleId': null,

@@ -62,11 +62,18 @@ class StaffAddMedicineSheet extends StatefulWidget {
   State<StaffAddMedicineSheet> createState() => _StaffAddMedicineSheetState();
 }
 
+String _costText(num? value) {
+  if (value == null) return '';
+  if (value == value.roundToDouble()) return value.round().toString();
+  return value.toString();
+}
+
 class _MedicineDraft {
   final name = TextEditingController();
   final dose = TextEditingController();
   final route = TextEditingController();
   final stock = TextEditingController();
+  final cost = TextEditingController();
   final whenToGive = TextEditingController();
   final timeInput = TextEditingController();
   final minGap = TextEditingController();
@@ -83,6 +90,7 @@ class _MedicineDraft {
     dose.dispose();
     route.dispose();
     stock.dispose();
+    cost.dispose();
     whenToGive.dispose();
     timeInput.dispose();
     minGap.dispose();
@@ -200,6 +208,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     draft.route.text = m.route;
     draft.whenToGive.text = m.instructions ?? '';
     draft.stock.text = m.stockUnitsPerDose?.toString() ?? '';
+    draft.cost.text = _costText(m.costPerDose);
     draft.minGap.text = m.minIntervalMinutes?.toString() ?? '';
     draft.controlled = m.isControlled;
     // Kept from the record so a correction does not wipe the round times.
@@ -354,6 +363,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     final editing = widget.editing;
     for (final m in _medicines) {
       final stock = int.tryParse(m.stock.text.trim());
+      final cost = num.tryParse(m.cost.text.trim());
       final gap = int.tryParse(m.minGap.text.trim());
       final prnInput = StaffCreatePrnMedicationInput(
         residenceId: _residence!.id,
@@ -365,6 +375,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
             ? null
             : m.whenToGive.text.trim(),
         stockUnitsPerDose: stock,
+        costPerDose: m.cost.text.trim().isEmpty ? null : cost,
         startsAt: m.startsAt,
         endsAt: m.endsAt,
         isControlled: m.controlled,
@@ -381,6 +392,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
               dose: m.dose.text.trim().isEmpty ? null : m.dose.text.trim(),
               route: m.route.text.trim().isEmpty ? null : m.route.text.trim(),
               stockUnitsPerDose: stock,
+              costPerDose: m.cost.text.trim().isEmpty ? null : cost,
               scheduleFrequency: m.frequency,
               scheduleTimes: List<String>.from(m.times)..sort(),
               scheduleWeekdays: m.frequency == 'weekly'
@@ -1260,6 +1272,24 @@ class _MedicineCard extends StatelessWidget {
                   decoration: _medFieldDecoration(
                     hint: 'Leave blank to count stock by hand',
                   ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _Labeled(
+              label: 'Cost per dose',
+              hint:
+                  "Counts toward the resident's cost of care each time a dose is given.",
+              child: TextField(
+                controller: draft.cost,
+                style: _fieldTextStyle,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
+                decoration: _medFieldDecoration(
+                  hint: 'Leave blank if not tracked',
                 ),
               ),
             ),

@@ -58,6 +58,12 @@ class MarMedicineForm extends StatefulWidget {
   State<MarMedicineForm> createState() => _MarMedicineFormState();
 }
 
+String _costText(num? value) {
+  if (value == null) return '';
+  if (value == value.roundToDouble()) return value.round().toString();
+  return value.toString();
+}
+
 class _MarMedicineFormState extends State<MarMedicineForm> {
   late bool _prn = widget.editing?.isPrn ?? widget.prn;
   final List<MarMedicineDraft> _list = [];
@@ -69,6 +75,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   final _timeInput = TextEditingController();
   final _route = TextEditingController();
   final _stock = TextEditingController();
+  final _cost = TextEditingController();
   final _gap = TextEditingController();
   final _instructions = TextEditingController();
   final _within = TextEditingController(text: '60');
@@ -99,6 +106,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       _starts = m.startsAt;
       _ends = m.endsAt;
       _stock.text = m.stockUnitsPerDose?.toString() ?? '';
+      _cost.text = _costText(m.costPerDose);
       _gap.text = m.minIntervalMinutes?.toString() ?? '';
       _check = m.requiresCheckScheduleId ?? '';
       _within.text = '${m.requiresCheckWithinMinutes ?? 60}';
@@ -113,7 +121,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _dose, _timeInput, _route, _stock, _gap, _instructions, _within]) {
+    for (final c in [_name, _dose, _timeInput, _route, _stock, _cost, _gap, _instructions, _within]) {
       c.dispose();
     }
     super.dispose();
@@ -140,6 +148,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       startsAt: _starts,
       endsAt: _ends,
       stockUnitsPerDose: _stock.text,
+      costPerDose: _cost.text,
       minIntervalMinutes: _gap.text,
       instructions: _instructions.text.trim(),
       isControlled: _controlled,
@@ -149,7 +158,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   }
 
   void _resetMedicine() {
-    for (final c in [_name, _dose, _route, _stock, _gap, _instructions, _timeInput]) {
+    for (final c in [_name, _dose, _route, _stock, _cost, _gap, _instructions, _timeInput]) {
       c.clear();
     }
     _within.text = '60';
@@ -527,6 +536,15 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
         numeric: true,
         placeholder: 'Leave blank to count stock by hand',
         helper: 'Only set this where a dose maps cleanly onto the stock unit.',
+      ),
+      gap,
+      MarTextField(
+        key: const ValueKey('mar-form-cost'),
+        label: 'Cost per dose',
+        controller: _cost,
+        decimal: true,
+        placeholder: 'Leave blank if not tracked',
+        helper: "Counts toward the resident's cost of care each time a dose is given.",
       ),
       gap,
       _dateField(

@@ -89,6 +89,7 @@ abstract final class MedicationMapper {
       startsAt: _isoDay(json['startsAt']),
       endsAt: _isoDay(json['endsAt']),
       stockUnitsPerDose: JsonCodec.integer(json['stockUnitsPerDose']),
+      costPerDose: JsonCodec.number(json['costPerDose']),
       isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
       requiresCheckScheduleId: JsonCodec.string(json['requiresCheckScheduleId']),
       requiresCheckWithinMinutes: JsonCodec.integer(json['requiresCheckWithinMinutes']),
@@ -105,6 +106,7 @@ abstract final class MedicationMapper {
         dose: JsonCodec.string(json['dose']),
         instructions: JsonCodec.stringOr(json['instructions'], ''),
         stockUnitsPerDose: JsonCodec.integer(json['stockUnitsPerDose']),
+        costPerDose: JsonCodec.number(json['costPerDose']),
         minIntervalMinutes: JsonCodec.integer(json['minIntervalMinutes']),
         isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
         isActive: JsonCodec.boolean(json['isActive']) ?? true,
@@ -228,6 +230,13 @@ abstract final class MedicationMapper {
     return int.tryParse(t) ?? double.tryParse(t);
   }
 
+  /// Blank means not tracked. `0` is kept, matching the web `Number` field.
+  static num? _cost(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return null;
+    return num.tryParse(t);
+  }
+
   static String? _blank(String text) {
     final t = text.trim();
     return t.isEmpty ? null : t;
@@ -254,6 +263,7 @@ abstract final class MedicationMapper {
       'startsAt': _isoMidnight(d.startsAt),
       'endsAt': _isoEndOfDay(d.endsAt),
       'stockUnitsPerDose': _number(d.stockUnitsPerDose),
+      'costPerDose': _cost(d.costPerDose),
       'requiresCheckScheduleId': checkId,
       'requiresCheckWithinMinutes':
           checkId == null ? null : (within == null || within == 0 ? 60 : within),
@@ -284,6 +294,7 @@ abstract final class MedicationMapper {
         'isControlled': d.isControlled,
         'minIntervalMinutes': _number(d.minIntervalMinutes),
         'stockUnitsPerDose': _number(d.stockUnitsPerDose),
+        'costPerDose': _cost(d.costPerDose),
         'route': ?_route(d.route, update),
         'startsAt': _isoMidnight(d.startsAt),
         'endsAt': _isoEndOfDay(d.endsAt),

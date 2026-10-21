@@ -182,6 +182,7 @@ abstract final class StaffMedicationMapper {
         startsAt: JsonCodec.dateTime(json['startsAt']),
         endsAt: JsonCodec.dateTime(json['endsAt']),
         stockUnitsPerDose: JsonCodec.integer(json['stockUnitsPerDose']),
+        costPerDose: JsonCodec.number(json['costPerDose']),
         minIntervalMinutes: JsonCodec.integer(json['minIntervalMinutes']),
         isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
         requiresCheckScheduleId: JsonCodec.string(

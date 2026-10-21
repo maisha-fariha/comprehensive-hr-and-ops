@@ -23,6 +23,7 @@ class StaffClientMedicationItem {
   final DateTime? startsAt;
   final DateTime? endsAt;
   final int? stockUnitsPerDose;
+  final num? costPerDose;
   final int? minIntervalMinutes;
   final bool isControlled;
   final String? requiresCheckScheduleId;
@@ -47,6 +48,7 @@ class StaffClientMedicationItem {
     this.startsAt,
     this.endsAt,
     this.stockUnitsPerDose,
+    this.costPerDose,
     this.minIntervalMinutes,
     this.isControlled = false,
     this.requiresCheckScheduleId,
@@ -76,6 +78,7 @@ class StaffClientMedicationItem {
       startsAt: startsAt,
       endsAt: endsAt,
       stockUnitsPerDose: stockUnitsPerDose,
+      costPerDose: costPerDose,
       minIntervalMinutes: minIntervalMinutes,
       isControlled: isControlled,
       requiresCheckScheduleId: requiresCheckScheduleId,

@@ -234,6 +234,7 @@ class MarTextField extends StatelessWidget {
   final String? error;
   final bool required;
   final bool numeric;
+  final bool decimal;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
 
@@ -246,6 +247,7 @@ class MarTextField extends StatelessWidget {
     this.error,
     this.required = false,
     this.numeric = false,
+    this.decimal = false,
     this.onChanged,
     this.onSubmitted,
   });
@@ -265,8 +267,16 @@ class MarTextField extends StatelessWidget {
           controller: controller,
           onChanged: onChanged,
           onSubmitted: onSubmitted,
-          keyboardType: numeric ? TextInputType.number : null,
-          inputFormatters: numeric ? [FilteringTextInputFormatter.digitsOnly] : null,
+          keyboardType: decimal
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : numeric
+                  ? TextInputType.number
+                  : null,
+          inputFormatters: decimal
+              ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))]
+              : numeric
+                  ? [FilteringTextInputFormatter.digitsOnly]
+                  : null,
           style: handoverText(context, 13.5),
           decoration: InputDecoration(
             isDense: true,
