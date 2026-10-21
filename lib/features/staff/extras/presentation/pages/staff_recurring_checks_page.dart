@@ -6,11 +6,13 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_residence.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
+import '../../../../hr/recurring_checks/presentation/recurring_checks_labels.dart';
 import '../../../tasks_messages/domain/entities/recurring_check_instance.dart';
 import '../../../tasks_messages/domain/entities/recurring_check_schedule.dart';
 import '../../../tasks_messages/domain/repositories/staff_tasks_messages_repository.dart';
@@ -238,13 +240,24 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
       context: context,
       builder: (_) => _RecordProgressDialog(
         residents: residents,
-        onSubmit: (clientId, residenceId, note, outcome) =>
-            _repository.recordRecurringCheckProgress(
+        schedules: _schedules,
+        onSubmit:
+            (
+              clientId,
+              residenceId,
+              note,
+              outcome,
+              scheduleId,
+              checkName,
+              result,
+            ) => _repository.recordRecurringCheckProgress(
               clientId: clientId,
               residenceId: residenceId,
               note: note,
-              checkName: 'Welfare observation',
+              checkName: checkName,
               outcome: outcome,
+              scheduleId: scheduleId,
+              result: result,
             ),
       ),
     );
@@ -1112,8 +1125,11 @@ class _NewScheduleDialogState extends State<_NewScheduleDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 440,
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 440,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.62,
+        ),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -1436,16 +1452,21 @@ class _NewScheduleDialogState extends State<_NewScheduleDialog> {
 
 class _RecordProgressDialog extends StatefulWidget {
   final List<Map<String, String>> residents;
+  final List<RecurringCheckSchedule> schedules;
   final Future<Result<void>> Function(
     String clientId,
     String residenceId,
     String note,
     String outcome,
+    String? scheduleId,
+    String checkName,
+    Map<String, Object> result,
   )
   onSubmit;
 
   const _RecordProgressDialog({
     required this.residents,
+    required this.schedules,
     required this.onSubmit,
   });
 
@@ -1456,7 +1477,11 @@ class _RecordProgressDialog extends StatefulWidget {
 class _RecordProgressDialogState extends State<_RecordProgressDialog> {
   final _formKey = GlobalKey<FormState>();
   final _noteController = TextEditingController();
+  final Map<String, TextEditingController> _numbers = {};
+  final Map<String, String> _selects = {};
   String? _clientId;
+  String? _scheduleId;
+  String? _submitError;
   String _outcome = 'normal';
   bool _saving = false;
 
@@ -1469,7 +1494,45 @@ class _RecordProgressDialogState extends State<_RecordProgressDialog> {
   @override
   void dispose() {
     _noteController.dispose();
+    for (final controller in _numbers.values) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  List<RecurringCheckSchedule> get _clientSchedules {
+    final clientId = _clientId;
+    if (clientId == null || clientId.isEmpty) return const [];
+    return widget.schedules
+        .where((schedule) => schedule.isActive && schedule.clientId == clientId)
+        .toList(growable: false);
+  }
+
+  String? get _effectiveScheduleId => _scheduleId ??
+      (_clientSchedules.length == 1 ? _clientSchedules.first.id : null);
+
+  RecurringCheckSchedule? get _selectedSchedule {
+    final id = _effectiveScheduleId;
+    if (id == null) return null;
+    for (final schedule in _clientSchedules) {
+      if (schedule.id == id) return schedule;
+    }
+    return null;
+  }
+
+  void _clearReadings() {
+    for (final controller in _numbers.values) {
+      controller.clear();
+    }
+    _selects.clear();
+  }
+
+  String _scheduleLabel(RecurringCheckSchedule schedule) {
+    final type = schedule.checkType.trim();
+    if (schedule.name.trim().isEmpty) {
+      return type.isEmpty ? 'Routine check' : type;
+    }
+    return type.isEmpty ? schedule.name : '${schedule.name} ($type)';
   }
 
   String? get _selectedResidenceId {
@@ -1483,6 +1546,7 @@ class _RecordProgressDialogState extends State<_RecordProgressDialog> {
   }
 
   Future<void> _submit() async {
+    setState(() => _submitError = null);
     if (!_formKey.currentState!.validate()) return;
     final residenceId = _selectedResidenceId;
     if (residenceId == null) {
@@ -1495,21 +1559,39 @@ class _RecordProgressDialogState extends State<_RecordProgressDialog> {
       );
       return;
     }
+    final schedule = _selectedSchedule;
+    if (schedule == null) return;
+    final readings = <String, Object>{};
+    for (final field in CheckLabels.readingsFor(schedule.checkType)) {
+      final raw = field.isSelect
+          ? _selects[field.key]
+          : _numbers[field.key]?.text.trim();
+      if (raw == null || raw.isEmpty) continue;
+      final Object? value = field.isSelect ? raw : num.tryParse(raw);
+      if (value == null) continue;
+      readings[field.key] = value;
+      if (field.unit != null) readings['${field.key}Unit'] = field.unit!;
+    }
     setState(() => _saving = true);
     final result = await widget.onSubmit(
       _clientId!,
       residenceId,
       _noteController.text.trim(),
       _outcome,
+      schedule.id,
+      schedule.name.trim().isEmpty ? 'Welfare observation' : schedule.name.trim(),
+      readings,
     );
     if (!mounted) return;
     setState(() => _saving = false);
     result.when(
       success: (_) => Navigator.of(context).pop(true),
-      failure: (error) => AppErrorDialog.showResultError(
-        error,
-        fallbackTitle: 'Could not record progress',
-      ),
+      failure: (error) => setState(() {
+        _submitError = AppErrorMapper.from(
+          error,
+          fallbackTitle: 'Could not record progress',
+        ).message;
+      }),
     );
   }
 
@@ -1558,9 +1640,38 @@ class _RecordProgressDialogState extends State<_RecordProgressDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 420,
-        child: Form(
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_submitError != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.criticalRed.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                _submitError!,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  height: 1.35,
+                  color: AppColors.criticalRed,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 420,
+          maxHeight: MediaQuery.sizeOf(context).height *
+              (_submitError == null ? 0.55 : 0.42),
+        ),
+        child: SingleChildScrollView(
+          child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1585,8 +1696,117 @@ class _RecordProgressDialogState extends State<_RecordProgressDialog> {
                     )
                     .toList(),
                 validator: (value) => value == null ? 'Required' : null,
-                onChanged: (value) => setState(() => _clientId = value),
+                onChanged: (value) => setState(() {
+                  _clientId = value;
+                  _scheduleId = null;
+                  _clearReadings();
+                }),
               ),
+              if (_clientId != null) ...[
+                const SizedBox(height: 10),
+                if (_clientSchedules.isEmpty)
+                  const _NoScheduleNotice()
+                else ...[
+                  DropdownButtonFormField<String>(
+                    key: ValueKey(
+                      'staff-recurring-progress-schedule-$_clientId',
+                    ),
+                    initialValue: _effectiveScheduleId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Check / Schedule *',
+                    ),
+                    items: [
+                      for (final schedule in _clientSchedules)
+                        DropdownMenuItem(
+                          value: schedule.id,
+                          child: Text(
+                            _scheduleLabel(schedule),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) => setState(() {
+                      _scheduleId = value;
+                      _clearReadings();
+                    }),
+                  ),
+                  if (_selectedSchedule != null &&
+                      _selectedSchedule!.instructions.trim().isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.filterButtonBackground,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'INSTRUCTIONS',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11.5,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _selectedSchedule!.instructions.trim(),
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 13,
+                              color: AppColors.textHeading,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  for (final field
+                      in CheckLabels.readingsFor(_selectedSchedule?.checkType)) ...[
+                    const SizedBox(height: 10),
+                    if (field.isSelect)
+                      DropdownButtonFormField<String>(
+                        key: ValueKey('staff-recurring-reading-${field.key}'),
+                        initialValue: _selects[field.key],
+                        isExpanded: true,
+                        decoration: InputDecoration(labelText: field.label),
+                        items: [
+                          for (final option in field.options!)
+                            DropdownMenuItem(
+                              value: option.$1,
+                              child: Text(option.$2),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _selects[field.key] = value);
+                        },
+                      )
+                    else
+                      TextFormField(
+                        key: ValueKey('staff-recurring-reading-${field.key}'),
+                        controller: _numbers.putIfAbsent(
+                          field.key,
+                          TextEditingController.new,
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: field.labelWithUnit,
+                        ),
+                      ),
+                  ],
+                ],
+              ],
               const SizedBox(height: 10),
               TextFormField(
                 key: const Key('staff-recurring-progress-note'),
@@ -1619,6 +1839,9 @@ class _RecordProgressDialogState extends State<_RecordProgressDialog> {
             ],
           ),
         ),
+        ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
@@ -1630,6 +1853,61 @@ class _RecordProgressDialogState extends State<_RecordProgressDialog> {
           child: const Text('Record progress'),
         ),
       ],
+    );
+  }
+}
+
+class _NoScheduleNotice extends StatelessWidget {
+  const _NoScheduleNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.urgentAmber),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                size: 16,
+                color: AppColors.urgentAmber,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'No active recurring check schedule for this resident',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                    color: AppColors.urgentAmber,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 4),
+          Text(
+            'The server currently requires an existing recurring check schedule '
+            'to file a check entry. Please create a schedule first or select a '
+            'resident with standing instructions.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

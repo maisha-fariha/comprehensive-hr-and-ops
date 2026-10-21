@@ -446,6 +446,7 @@ class _FakeTasksRepo implements StaffTasksMessagesRepository {
     String checkName = 'Welfare observation',
     String outcome = 'normal',
     String? scheduleId,
+    Map<String, Object>? result,
   }) async => Result.success(null);
 
   @override
@@ -516,7 +517,11 @@ class _FakeTasksRepo implements StaffTasksMessagesRepository {
 
 class _FakeAttendanceRepo implements StaffAttendanceRepository {
   @override
-  Future<Result<StaffAttendanceOverview>> getOverview() async => Result.success(
+  Future<Result<StaffAttendanceOverview>> getOverview({
+    String? from,
+    String? to,
+    String? residenceId,
+  }) async => Result.success(
     const StaffAttendanceOverview(
       isOnShift: false,
       shiftStartedLabel: 'Not clocked in',

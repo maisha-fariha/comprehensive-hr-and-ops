@@ -657,8 +657,9 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     String checkName = 'Welfare observation',
     String outcome = 'normal',
     String? scheduleId,
+    Map<String, Object>? result,
   }) async {
-    final result = await _api.post(
+    final posted = await _api.post(
       ApiEndpoints.recurringCheckEntries,
       data: {
         'clientId': clientId,
@@ -670,10 +671,12 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
         'outcome': outcome,
         if (scheduleId != null && scheduleId.trim().isNotEmpty)
           'scheduleId': scheduleId.trim(),
+        if (result != null && result.isNotEmpty) 'result': result,
       },
+      silent: true,
       allowQueue: false,
     );
-    return result.when(
+    return posted.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );

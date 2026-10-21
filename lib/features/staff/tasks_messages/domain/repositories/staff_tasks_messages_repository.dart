@@ -126,6 +126,7 @@ abstract class StaffTasksMessagesRepository {
     String checkName = 'Welfare observation',
     String outcome = 'normal',
     String? scheduleId,
+    Map<String, Object>? result,
   });
 
   /// `GET /recurring-checks/entries`
