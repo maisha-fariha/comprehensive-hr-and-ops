@@ -296,11 +296,12 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     result.when(
       success: (_) async {
         AppSnackbar.show(
-          decision == 'approve' ? 'Review approved' : 'Sent back',
+          decision == 'approve' ? 'Task approved' : 'Sent back for correction',
           widget.task.title,
           force: true,
         );
-        await _load.fetch(widget.task.id);
+        widget.onChanged?.call();
+        if (mounted) Navigator.of(context).pop();
       },
       failure: (error) {
         AppSnackbar.show('Could not review', error.message, force: true);
@@ -431,7 +432,10 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                           title: 'Task details',
                           child: Column(
                             children: [
-                              _MetaRow(label: 'Status', value: _statusLabel(statusRaw)),
+                              _MetaRow(
+                                label: 'Status',
+                                value: _statusLabel(statusRaw, detail),
+                              ),
                               _MetaRow(
                                 label: 'Type',
                                 value: () {
@@ -450,9 +454,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                               _MetaRow(label: 'Due', value: _due(detail)),
                               _MetaRow(
                                 label: 'Review',
-                                value: detail['requiresReview'] == true
-                                    ? 'Required'
-                                    : 'Not required',
+                                value: _reviewValue(detail),
                               ),
                               _MetaRow(
                                 label: 'Sign-off',
@@ -710,7 +712,8 @@ String _residence(Map<String, dynamic> detail) {
   );
 }
 
-String _statusLabel(String raw) {
+String _statusLabel(String raw, Map<String, dynamic> detail) {
+  if (_awaitingReview(detail, raw)) return 'Awaiting review';
   switch (raw.toLowerCase()) {
     case '':
     case 'open':
@@ -752,12 +755,31 @@ String _due(Map<String, dynamic> detail) {
       '${two(local.hour)}:${two(local.minute)}';
 }
 
+/// Web review box: status is completed or done, a review is required, and
+/// nobody has reviewed it yet. That is the “Awaiting review” state.
+bool _awaitingReview(Map<String, dynamic> detail, String status) {
+  final raw = status.toLowerCase();
+  final finished = raw == 'completed' || raw == 'done';
+  if (!finished || detail['requiresReview'] != true) return false;
+  final reviewed = detail['reviewedAt'];
+  if (reviewed == null) return true;
+  return reviewed is String && reviewed.trim().isEmpty;
+}
+
+String _reviewValue(Map<String, dynamic> detail) {
+  if (detail['requiresReview'] != true) return 'Not required';
+  final reviewed = detail['reviewedAt'];
+  if (reviewed == null || (reviewed is String && reviewed.trim().isEmpty)) {
+    return 'Waiting on a reviewer';
+  }
+  return 'Reviewed';
+}
+
 bool _canReview(Map<String, dynamic> detail, String status) {
   final allowed = Get.isRegistered<UserSession>() &&
       Get.find<UserSession>().can('tasks:review');
   if (!allowed) return false;
-  final raw = status.toLowerCase();
-  return detail['requiresReview'] == true || raw.contains('review');
+  return _awaitingReview(detail, status);
 }
 
 extension on _TaskDetailSheetState {

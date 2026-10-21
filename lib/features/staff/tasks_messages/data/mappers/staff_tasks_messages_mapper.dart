@@ -355,6 +355,7 @@ abstract final class StaffTasksMessagesMapper {
       for (final item in JsonCodec.unwrapList(raw))
         if (item is Map)
           StaffTaskCheckItem(
+            id: JsonCodec.string(JsonCodec.asMap(item)['id']),
             label: JsonCodec.stringOr(
               JsonCodec.asMap(item)['label'] ??
                   JsonCodec.asMap(item)['title'] ??
@@ -365,6 +366,7 @@ abstract final class StaffTasksMessagesMapper {
             done: JsonCodec.asMap(item)['done'] == true ||
                 JsonCodec.asMap(item)['completed'] == true ||
                 JsonCodec.asMap(item)['checked'] == true,
+            required: JsonCodec.asMap(item)['required'] == true,
           ),
     ];
   }
@@ -380,6 +382,9 @@ abstract final class StaffTasksMessagesMapper {
                   JsonCodec.asMap(item)['fileName'] ??
                   JsonCodec.asMap(item)['url'],
               'File',
+            ),
+            url: JsonCodec.string(
+              JsonCodec.asMap(item)['url'] ?? JsonCodec.asMap(item)['fileUrl'],
             ),
           ),
     ];

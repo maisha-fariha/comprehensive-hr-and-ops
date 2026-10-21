@@ -17,6 +17,13 @@ class TodayShiftSummary {
   final String? shiftId;
   final String? residenceId;
 
+  /// True once clock-in has opened (15 minutes before the shift) through
+  /// the shift end, or the person is already clocked in.
+  final bool clockOpen;
+
+  /// Start of the shift shown on the card. Used when clock-in is not open yet.
+  final DateTime? startsAt;
+
   /// Scheduled end of today's shift. Clock-out uses this for the web
   /// "Your shift runs until …" early-leave box.
   final DateTime? endsAt;
@@ -30,6 +37,8 @@ class TodayShiftSummary {
     this.onBreak = false,
     this.shiftId,
     this.residenceId,
+    this.clockOpen = false,
+    this.startsAt,
     this.endsAt,
   });
 }

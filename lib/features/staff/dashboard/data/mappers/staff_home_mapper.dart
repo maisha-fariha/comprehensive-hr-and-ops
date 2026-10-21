@@ -71,7 +71,9 @@ abstract final class StaffHomeMapper {
     final reportedOnShift = JsonCodec.boolean(attendance['onShift']) ?? false;
     final clockedIn = (checkIn != null && !clockedOut) ||
         (reportedOnShift && !neverClockedIn && !clockedOut);
-    final inShift = clockedIn || _coversNow(shift, clock);
+    final clockOpen =
+        JsonCodec.boolean(shift['clockOpen']) ?? _coversNow(shift, clock);
+    final inShift = clockedIn || clockOpen;
     final onBreak =
         clockedIn && (JsonCodec.boolean(attendance['onBreak']) ?? false);
     final clients = _tileInt(tiles, 'clients');
@@ -102,6 +104,10 @@ abstract final class StaffHomeMapper {
         onBreak: onBreak,
         shiftId: JsonCodec.string(shift['id'] ?? shift['shiftId']),
         residenceId: session.residenceId,
+        clockOpen: clockOpen || clockedIn,
+        startsAt: JsonCodec.dateTime(
+          shift['startAt'] ?? shift['startsAt'] ?? shift['startTime'] ?? shift['from'],
+        ),
         endsAt: JsonCodec.dateTime(
           shift['endAt'] ?? shift['endsAt'] ?? shift['endTime'] ?? shift['to'],
         ),

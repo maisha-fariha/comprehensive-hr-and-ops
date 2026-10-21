@@ -202,20 +202,35 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     );
   }
 
-  Future<void> completeTask(String taskId, {bool signOff = false}) async {
-    final result = await repository.completeTask(taskId, signOff: signOff);
+  Future<bool> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+    bool requiresReview = false,
+  }) async {
+    final result = await repository.completeTask(
+      taskId,
+      signOff: signOff,
+      checklist: checklist,
+    );
     if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not complete task',
+      AppSnackbar.show(
+        'Could not complete task',
+        result.error?.message ?? 'Could not complete task.',
+        force: true,
       );
-      return;
+      return false;
     }
+    final title = requiresReview
+        ? (signOff ? 'Signed off and sent for review' : 'Sent for review')
+        : (signOff ? 'Signed off and completed' : 'Task completed');
     AppSnackbar.show(
-      'Task completed',
-      signOff ? 'Signed off and completed.' : 'Marked as completed.',
+      title,
+      signOff && !requiresReview ? 'Signed off and completed.' : '',
+      force: true,
     );
     await loadOverview();
+    return true;
   }
 
   /// Opens New Task wizard (BUG_Report009).

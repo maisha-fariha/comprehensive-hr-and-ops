@@ -25,6 +25,10 @@ class StaffAttendanceOverview {
 
   /// Scheduled end of the shift being clocked out. Null when none is rostered.
   final DateTime? shiftEndsAt;
+
+  /// Start of the current or next rostered shift. Null when none is in the
+  /// web clock-in window.
+  final DateTime? shiftStartsAt;
   final bool hasRosteredShiftNow;
   final StaffAttendanceMetrics metrics;
   final List<StaffAttendanceHistoryItem> history;
@@ -47,6 +51,7 @@ class StaffAttendanceOverview {
     this.shiftId,
     this.residenceId,
     this.shiftEndsAt,
+    this.shiftStartsAt,
     this.hasRosteredShiftNow = false,
     this.metrics = StaffAttendanceMetrics.empty,
     this.history = const [],
@@ -75,6 +80,7 @@ class StaffAttendanceOverview {
       shiftId: shiftId,
       residenceId: residenceId,
       shiftEndsAt: shiftEndsAt,
+      shiftStartsAt: shiftStartsAt,
       hasRosteredShiftNow: hasRosteredShiftNow,
       metrics: metrics,
       history: history,

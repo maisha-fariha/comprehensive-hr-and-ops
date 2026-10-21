@@ -102,6 +102,9 @@ class StaffAttendanceController
       shiftEndsAt: current?.shiftEndsAt,
       showNotRosteredWarning:
           isCheckIn && !(current?.hasRosteredShiftNow ?? false),
+      nextShiftStartsAt: (current?.hasRosteredShiftNow ?? false)
+          ? null
+          : current?.shiftStartsAt,
     );
     if (saved == true) {
       Get.snackbar(

@@ -199,8 +199,9 @@ class StaffDashboardPage extends StatelessWidget {
       initialResidenceId: shift.residenceId,
       shiftId: shift.shiftId,
       shiftEndsAt: shift.endsAt,
-      showNotRosteredWarning:
-          !shift.clockedIn && (shift.shiftId == null || shift.shiftId!.isEmpty),
+      showNotRosteredWarning: !shift.clockedIn && !shift.clockOpen,
+      nextShiftStartsAt:
+          shift.clockedIn || shift.clockOpen ? null : shift.startsAt,
     );
     if (saved == true) {
       await controller.refresh();

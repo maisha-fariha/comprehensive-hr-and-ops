@@ -264,7 +264,18 @@ class _FakeTasksRepo implements StaffTasksMessagesRepository {
       Result.failure(const ApiError(message: 'unused'));
 
   @override
-  Future<Result<void>> completeTask(String taskId, {bool signOff = false}) async =>
+  Future<Result<void>> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> saveTaskProgress({
+    required String taskId,
+    required List<Map<String, dynamic>> checklist,
+  }) async =>
       Result.success(null);
 
   @override

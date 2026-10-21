@@ -19,10 +19,36 @@ class StaffTaskNote {
 /// One checklist row on `GET /tasks/{id}`.
 @immutable
 class StaffTaskCheckItem {
+  final String? id;
   final String label;
   final bool done;
 
-  const StaffTaskCheckItem({required this.label, this.done = false});
+  /// Web “Must be done”: the task cannot be closed without this step.
+  final bool required;
+
+  const StaffTaskCheckItem({
+    this.id,
+    required this.label,
+    this.done = false,
+    this.required = false,
+  });
+
+  StaffTaskCheckItem copyWith({bool? done}) {
+    return StaffTaskCheckItem(
+      id: id,
+      label: label,
+      done: done ?? this.done,
+      required: required,
+    );
+  }
+
+  /// Body the web sends on Save progress and Submit for review.
+  Map<String, dynamic> toJson() => {
+        if (id != null && id!.isNotEmpty) 'id': id,
+        'label': label,
+        'done': done,
+        'required': required,
+      };
 }
 
 /// A file already attached to the task.
@@ -30,7 +56,10 @@ class StaffTaskCheckItem {
 class StaffTaskDocument {
   final String label;
 
-  const StaffTaskDocument({required this.label});
+  /// Stored file path, e.g. `/api/v1/files/{tenant}/tasks/{file}.pdf`.
+  final String? url;
+
+  const StaffTaskDocument({required this.label, this.url});
 }
 
 /// Detail from `GET /tasks/{id}` plus notes.

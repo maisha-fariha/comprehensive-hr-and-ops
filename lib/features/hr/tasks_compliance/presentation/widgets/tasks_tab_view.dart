@@ -233,7 +233,7 @@ class _ReviewActionsRow extends StatelessWidget {
       children: [
         Expanded(
           child: _ActionChip(
-            label: 'Reject',
+            label: 'Send back',
             filled: false,
             onTap: onReject,
           ),

@@ -62,13 +62,7 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       ),
       _api.get(
         ApiEndpoints.shifts,
-        query: {
-          'mine': true,
-          'from': IsoDateRange.daysAgoStartIso(7),
-          'to': IsoDateRange.weekEndIso,
-          'page': 1,
-          'limit': _pageLimit,
-        },
+        query: _clockShiftQuery(),
       ),
     ];
 
@@ -202,6 +196,21 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
           Result.success(AttendanceMapper.residencesFrom(body)),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  /// Web `useMyCurrentShift`: this staff member, from 14 hours ago to
+  /// 14 hours ahead, not cancelled. Clock-in opens 15 minutes early.
+  Map<String, dynamic> _clockShiftQuery() {
+    final now = DateTime.now().toUtc();
+    final staffId = _session.staffId;
+    return {
+      if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
+      if (staffId == null || staffId.isEmpty) 'mine': true,
+      'from': now.subtract(const Duration(hours: 14)).toIso8601String(),
+      'to': now.add(const Duration(hours: 14)).toIso8601String(),
+      'page': 1,
+      'limit': 20,
+    };
   }
 
   @override

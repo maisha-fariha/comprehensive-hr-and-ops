@@ -1,5 +1,6 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../hr/attendance/data/mappers/attendance_mapper.dart';
 import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_metrics.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
@@ -19,37 +20,22 @@ abstract final class StaffAttendanceMapper {
     final open =
         _findOpenRecord(todayRecords) ?? _findOpenRecord(historyRecords);
 
-    final shifts = JsonCodec.unwrapList(shiftsBody);
     final now = DateTime.now();
+    // Web clock-in: the shift is current from 15 minutes before it starts
+    // until it ends. Otherwise the next shift in the window is shown.
+    final window = AttendanceMapper.shiftWindowFrom(shiftsBody, now);
     Map<String, dynamic> shift = const {};
-    var hasRosteredShiftNow = false;
-    for (final raw in shifts) {
-      if (raw is! Map) continue;
-      final candidate = JsonCodec.asMap(raw);
-      final start = JsonCodec.dateTime(
-        candidate['startAt'] ??
-            candidate['startsAt'] ??
-            candidate['startTime'],
-      );
-      final end = JsonCodec.dateTime(
-        candidate['endAt'] ?? candidate['endsAt'] ?? candidate['endTime'],
-      );
-      if (start != null && end != null) {
-        if (!now.isBefore(start) && !now.isAfter(end)) {
+    if (window != null) {
+      for (final raw in JsonCodec.unwrapList(shiftsBody)) {
+        if (raw is! Map) continue;
+        final candidate = JsonCodec.asMap(raw);
+        if (JsonCodec.string(candidate['id']) == window.shiftId) {
           shift = candidate;
-          hasRosteredShiftNow = true;
           break;
         }
-        if (shift.isEmpty && end.isAfter(now)) {
-          shift = candidate;
-        }
-      } else if (shift.isEmpty) {
-        shift = candidate;
       }
     }
-    if (shift.isEmpty && shifts.isNotEmpty && shifts.first is Map) {
-      shift = JsonCodec.asMap(shifts.first as Map);
-    }
+    final hasRosteredShiftNow = window?.isCurrent ?? false;
 
     final residence = JsonCodec.unwrapMap(residenceBody);
 
@@ -188,6 +174,7 @@ abstract final class StaffAttendanceMapper {
       ),
       residenceId: residenceId,
       shiftEndsAt: end,
+      shiftStartsAt: start,
       hasRosteredShiftNow: hasRosteredShiftNow,
       metrics: metricsFrom(summaryBody, historySource),
       history: [

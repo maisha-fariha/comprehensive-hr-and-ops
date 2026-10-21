@@ -50,7 +50,11 @@ class _TasksRepo implements StaffTasksMessagesRepository {
       ));
 
   @override
-  Future<Result<void>> completeTask(String taskId, {bool signOff = false}) async {
+  Future<Result<void>> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+  }) async {
     completions.add(signOff);
     return Result.success(null);
   }

@@ -54,7 +54,6 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       ),
       _api.get(
         ApiEndpoints.tasksReview,
-        query: residenceQuery,
         silent: true,
       ),
       _api.get(

@@ -1,10 +1,16 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/network/authorized_file.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/storage/media_store_download.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/connectivity_monitor.dart';
@@ -63,6 +69,8 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
   /// True when [_detail] was built from the list row while offline.
   bool _summaryOnly = false;
   bool _busy = false;
+  bool _checksReady = false;
+  List<StaffTaskCheckItem> _checks = const [];
   final _noteController = TextEditingController();
 
   @override
@@ -94,6 +102,10 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
       success: (detail) {
         setState(() {
           _detail = detail;
+          if (!_checksReady) {
+            _checks = List<StaffTaskCheckItem>.of(detail.checklist);
+            _checksReady = true;
+          }
           _summaryOnly = false;
           _loading = false;
         });
@@ -142,13 +154,126 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
     return session.can('tasks:write') || session.can('tasks:manage');
   }
 
+  List<Map<String, dynamic>> get _checklistBody =>
+      [for (final item in _checks) item.toJson()];
+
+  int get _checkDone => _checks.where((item) => item.done).length;
+
+  int get _checkPercent => _checks.isEmpty
+      ? 0
+      : ((_checkDone / _checks.length) * 100).round();
+
+  Future<void> _saveProgress() async {
+    if (_busy || !_canMutateTasks) return;
+    setState(() => _busy = true);
+    final result = await _repository.saveTaskProgress(
+      taskId: widget.taskId,
+      checklist: _checklistBody,
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Checklist saved', '', force: true);
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not save progress', error.message, force: true);
+      },
+    );
+  }
+
   Future<void> _complete({bool signOff = false}) async {
     if (_busy || !_canMutateTasks) return;
     setState(() => _busy = true);
-    await widget.controller.completeTask(widget.taskId, signOff: signOff);
+    final saved = await widget.controller.completeTask(
+      widget.taskId,
+      signOff: signOff,
+      checklist: _checks.isEmpty ? null : _checklistBody,
+      requiresReview: _detail?.requiresReview ?? false,
+    );
     if (!mounted) return;
     setState(() => _busy = false);
-    Navigator.of(context).pop();
+    if (saved) Navigator.of(context).pop();
+  }
+
+  Future<void> _openDocument(StaffTaskDocument file) async {
+    final url = file.url?.trim() ?? '';
+    if (_busy || url.isEmpty) {
+      AppSnackbar.show('Unavailable', 'This file has no download link.', force: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final resolved = AuthorizedFile.resolveUrl(url);
+      final response = await Dio().get<List<int>>(
+        resolved,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: AuthorizedFile.headers(),
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+      final data = response.data;
+      if (!mounted) return;
+      if (response.statusCode != 200 || data == null || data.isEmpty) {
+        AppSnackbar.show(
+          'Could not download file',
+          'This file is no longer available.',
+          force: true,
+        );
+        return;
+      }
+      final name = _downloadName(file.label, resolved);
+      final lower = name.toLowerCase();
+      final mime = lower.endsWith('.pdf')
+          ? 'application/pdf'
+          : lower.endsWith('.png')
+              ? 'image/png'
+              : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
+                  ? 'image/jpeg'
+                  : 'application/octet-stream';
+      final saved = await MediaStoreDownload.saveFileAndOpen(
+        fileName: name,
+        bytes: Uint8List.fromList(data),
+        mimeType: mime,
+        chooserTitle: 'Open attachment',
+      );
+      if (!mounted) return;
+      if (!saved.success) {
+        AppSnackbar.show(
+          'Could not open file',
+          saved.error ?? 'Could not save the file.',
+          force: true,
+        );
+        return;
+      }
+      AppSnackbar.show(
+        'Document downloaded successfully.',
+        name,
+        force: true,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      AppSnackbar.show(
+        'Could not download file',
+        'This file is no longer available.',
+        force: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _downloadName(String label, String resolvedUrl) {
+    final segments = Uri.tryParse(resolvedUrl)?.pathSegments.where((part) => part.isNotEmpty).toList() ??
+        const <String>[];
+    final urlName = segments.isEmpty ? 'attachment' : segments.last;
+    final ext = urlName.contains('.') ? urlName.split('.').last : '';
+    var base = label.trim();
+    if (base.isEmpty) base = urlName;
+    final hasExt = base.contains('.') && base.split('.').last.length <= 5;
+    if (!hasExt && ext.isNotEmpty) base = '$base.$ext';
+    return base.replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
   }
 
   Future<void> _addNote() async {
@@ -374,9 +499,9 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         _DetailCard(
           title: 'Checklist Progress',
-          trailing: '${detail.checklistPercent}%',
+          trailing: '$_checkPercent%',
           child: Text(
-            '${detail.checklistDone} of ${detail.checklist.length} items complete',
+            '$_checkDone of ${_checks.length} items complete',
             style: const TextStyle(
               fontFamily: 'Outfit',
               fontSize: 13,
@@ -387,7 +512,7 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         _DetailCard(
           title: 'Checklist',
-          child: detail.checklist.isEmpty
+          child: _checks.isEmpty
               ? const Text(
                   'This task has no checklist.',
                   style: TextStyle(
@@ -398,21 +523,13 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                 )
               : Column(
                   children: [
-                    for (final item in detail.checklist)
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        value: item.done,
-                        onChanged: null,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        activeColor: AppColors.secondaryTeal,
-                        title: Text(
-                          item.label,
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13.5,
-                            color: AppColors.textHeading,
-                          ),
+                    for (var i = 0; i < _checks.length; i++)
+                      _CheckRow(
+                        item: _checks[i],
+                        enabled: _canMutateTasks && !isCompleted,
+                        onTap: () => setState(
+                          () => _checks[i] =
+                              _checks[i].copyWith(done: !_checks[i].done),
                         ),
                       ),
                   ],
@@ -434,16 +551,13 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (final file in detail.documents)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          file.label,
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            color: AppColors.textHeading,
-                          ),
-                        ),
+                      _DocumentRow(
+                        label: file.label,
+                        onTap: file.url == null ||
+                                file.url!.trim().isEmpty ||
+                                _busy
+                            ? null
+                            : () => _openDocument(file),
                       ),
                   ],
                 ),
@@ -553,21 +667,47 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_checks.isNotEmpty && !isCompleted)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _SheetButton(
+                    label: 'Save progress',
+                    onPressed: _busy ? null : _saveProgress,
+                  ),
+                ),
               TextField(
                 controller: _noteController,
                 maxLines: 2,
-                decoration: const InputDecoration(
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13.5,
+                  color: AppColors.textHeading,
+                ),
+                decoration: InputDecoration(
                   hintText: 'Add a note',
-                  border: OutlineInputBorder(),
+                  hintStyle: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13.5,
+                    color: AppColors.textMuted,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surfaceWhite,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: _noteBorder(AppColors.cardBorder),
+                  enabledBorder: _noteBorder(AppColors.cardBorder),
+                  focusedBorder: _noteBorder(AppColors.secondaryTeal),
                 ),
               ),
               const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: _SheetButton(
+                      label: 'Add note',
                       onPressed: _busy ? null : _addNote,
-                      child: const Text('Add note'),
                     ),
                   ),
                   if (!detail.requiresSignOff || isCompleted) ...[
@@ -575,13 +715,14 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                       width: ResponsiveHelper.getResponsiveWidth(context, 10),
                     ),
                     Expanded(
-                      child: ElevatedButton(
+                      child: _SheetButton(
+                        label: isCompleted
+                            ? 'Completed'
+                            : detail.requiresReview
+                                ? 'Submit for review'
+                                : 'Complete',
+                        filled: true,
                         onPressed: (_busy || isCompleted) ? null : _complete,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.secondaryTeal,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text(isCompleted ? 'Completed' : 'Complete'),
                       ),
                     ),
                   ],
@@ -602,12 +743,219 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
   }
 }
 
+OutlineInputBorder _noteBorder(Color color) {
+  return OutlineInputBorder(
+    borderRadius: BorderRadius.circular(10),
+    borderSide: BorderSide(color: color),
+  );
+}
+
 const _valueStyle = TextStyle(
   fontFamily: 'Outfit',
   fontWeight: FontWeight.w600,
   fontSize: 13.5,
   color: AppColors.textHeading,
 );
+
+class _CheckRow extends StatelessWidget {
+  final StaffTaskCheckItem item;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _CheckRow({
+    required this.item,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: enabled ? onTap : null,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceWhite,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Row(
+            children: [
+              _ThemeCheck(checked: item.done, enabled: enabled),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: item.done
+                        ? AppColors.textMuted
+                        : AppColors.textHeading,
+                    decoration:
+                        item.done ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ),
+              if (item.required) ...[
+                const SizedBox(width: 8),
+                const Text(
+                  'Must be done',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.criticalRed,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeCheck extends StatelessWidget {
+  final bool checked;
+  final bool enabled;
+
+  const _ThemeCheck({required this.checked, required this.enabled});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled ? AppColors.secondaryTeal : AppColors.textMuted;
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: checked ? color : AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: checked
+          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+          : null,
+    );
+  }
+}
+
+class _DocumentRow extends StatelessWidget {
+  final String label;
+  final VoidCallback? onTap;
+
+  const _DocumentRow({required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceWhite,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.secondaryTeal.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.description_outlined,
+                  size: 18,
+                  color: AppColors.secondaryTeal,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetButton extends StatelessWidget {
+  final String label;
+  final bool filled;
+  final VoidCallback? onPressed;
+
+  const _SheetButton({
+    super.key,
+    required this.label,
+    this.filled = false,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final background = !enabled
+        ? AppColors.cardBorder
+        : filled
+            ? AppColors.secondaryTeal
+            : AppColors.surfaceWhite;
+    final foreground = !enabled
+        ? AppColors.textMuted
+        : filled
+            ? Colors.white
+            : AppColors.secondaryTeal;
+    return GestureDetector(
+      onTap: onPressed ?? () {},
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 44,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: enabled ? AppColors.secondaryTeal : AppColors.cardBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w700,
+            fontSize: 13.5,
+            color: foreground,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _StatusPill extends StatelessWidget {
   final String label;
@@ -852,15 +1200,11 @@ class _SignOffBoxState extends State<_SignOffBox> {
             ),
           ),
           const SizedBox(height: 4),
-          ElevatedButton.icon(
+          _SheetButton(
             key: const Key('task-sign-off-submit'),
+            label: widget.busy ? 'Signing…' : 'Sign and complete',
+            filled: true,
             onPressed: !_confirmed || widget.busy ? null : widget.onConfirm,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.secondaryTeal,
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.edit_outlined, size: 15),
-            label: Text(widget.busy ? 'Signing…' : 'Sign and complete'),
           ),
         ],
       ),

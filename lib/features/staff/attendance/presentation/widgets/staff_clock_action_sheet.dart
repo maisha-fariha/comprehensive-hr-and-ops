@@ -80,6 +80,9 @@ class StaffClockActionSheet extends StatefulWidget {
   final String? shiftId;
   final DateTime? shiftEndsAt;
   final bool showNotRosteredWarning;
+
+  /// Set when a shift is rostered but clock-in has not opened yet.
+  final DateTime? nextShiftStartsAt;
   final List<ManualEntryResidenceOption> residences;
   final Future<StaffClockFix> Function()? locate;
 
@@ -91,6 +94,7 @@ class StaffClockActionSheet extends StatefulWidget {
     this.shiftId,
     this.shiftEndsAt,
     this.showNotRosteredWarning = false,
+    this.nextShiftStartsAt,
     this.locate,
   });
 
@@ -102,6 +106,7 @@ class StaffClockActionSheet extends StatefulWidget {
     String? shiftId,
     DateTime? shiftEndsAt,
     bool showNotRosteredWarning = false,
+    DateTime? nextShiftStartsAt,
     Future<StaffClockFix> Function()? locate,
   }) {
     return showAppBottomSheet<bool>(
@@ -119,6 +124,7 @@ class StaffClockActionSheet extends StatefulWidget {
         shiftId: shiftId,
         shiftEndsAt: shiftEndsAt,
         showNotRosteredWarning: showNotRosteredWarning,
+        nextShiftStartsAt: nextShiftStartsAt,
         locate: locate,
       ),
     );
@@ -145,6 +151,19 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   final _earlyNotes = TextEditingController();
   Timer? _locationGiveUp;
   late final Future<void> _locationTask;
+
+  String _rosterWarning() {
+    final starts = widget.nextShiftStartsAt;
+    if (starts == null) {
+      return 'You are not rostered on a shift right now. Clocking in '
+          'follows the rota. If you worked hours nobody rostered, '
+          'ask a manager to add them.';
+    }
+    final opens = starts.subtract(const Duration(minutes: 15));
+    return 'Your next shift starts ${AttendanceFormat.date(starts)} at '
+        '${AttendanceFormat.time(starts)}. Clocking in opens at '
+        '${AttendanceFormat.time(opens)}.';
+  }
 
   @override
   void initState() {
@@ -431,9 +450,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                           ),
                         ),
                         child: Text(
-                          'You are not rostered on a shift right now. Clocking in '
-                          'follows the rota. If you worked hours nobody rostered, '
-                          'ask a manager to add them.',
+                          _rosterWarning(),
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w500,

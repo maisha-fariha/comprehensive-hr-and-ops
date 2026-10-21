@@ -128,12 +128,39 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   }
 
   @override
-  Future<Result<void>> completeTask(String taskId, {bool signOff = false}) async {
+  Future<Result<void>> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+  }) async {
     final result = await _api.patch(
       ApiEndpoints.taskById(taskId),
-      data: signOff
-          ? const {'status': 'completed', 'signOff': true}
-          : const {'status': 'completed'},
+      data: {
+        'status': 'completed',
+        if (signOff) 'signOff': true,
+        if (checklist != null) 'checklist': checklist,
+      },
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> saveTaskProgress({
+    required String taskId,
+    required List<Map<String, dynamic>> checklist,
+  }) async {
+    final id = taskId.trim();
+    if (id.isEmpty) {
+      return Result.failure(const ValidationError(message: 'Missing task id.'));
+    }
+    final result = await _api.patch(
+      ApiEndpoints.taskById(id),
+      data: {'checklist': checklist},
+      silent: true,
+      allowQueue: false,
     );
     return result.when(
       success: (_) async => Result.success(null),

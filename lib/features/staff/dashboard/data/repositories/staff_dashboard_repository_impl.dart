@@ -5,6 +5,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../auth/data/mappers/auth_mapper.dart';
+import '../../../../hr/attendance/data/mappers/attendance_mapper.dart';
 import '../../../../common/inbox/data/mappers/portal_inbox_mapper.dart';
 import '../../domain/entities/staff_dashboard_overview.dart';
 import '../../domain/repositories/staff_dashboard_repository.dart';
@@ -65,6 +66,7 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
     }
     homeBody['tiles'] = tiles;
     StaffHomeMapper.applyOpenPunch(homeBody, await _openPunch());
+    _applyRosteredShift(homeBody, await _rosteredShift());
 
     var unread = 0;
     final notifications = await _api.get(
@@ -85,6 +87,53 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
         unreadNotificationCount: unread,
       ),
     );
+  }
+
+  /// `/mobile/home` can keep a shift from an earlier day. Today's Shift and
+  /// clock-in follow the web window: this person, 14 hours either side of now.
+  Future<Map<String, dynamic>?> _rosteredShift() async {
+    final now = DateTime.now().toUtc();
+    final staffId = _session.staffId;
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
+        if (staffId == null || staffId.isEmpty) 'mine': true,
+        'from': now.subtract(const Duration(hours: 14)).toIso8601String(),
+        'to': now.add(const Duration(hours: 14)).toIso8601String(),
+        'page': 1,
+        'limit': 20,
+      },
+      silent: true,
+    );
+    if (result.isFailure) return null;
+    final window = AttendanceMapper.shiftWindowFrom(result.value, DateTime.now());
+    if (window == null) return const {};
+    return {
+      'id': window.shiftId,
+      'startsAt': window.startsAt.toUtc().toIso8601String(),
+      'endsAt': window.endsAt.toUtc().toIso8601String(),
+      'clockOpen': window.isCurrent,
+      if (window.residenceId != null) 'residenceId': window.residenceId,
+      if (window.residenceName != null) 'residenceName': window.residenceName,
+    };
+  }
+
+  void _applyRosteredShift(
+    Map<String, dynamic> home,
+    Map<String, dynamic>? shift,
+  ) {
+    // A failed lookup leaves the home payload alone.
+    if (shift == null) return;
+    if (shift.isEmpty) {
+      home['shift'] = <String, dynamic>{};
+      return;
+    }
+    final current = Map<String, dynamic>.from(
+      JsonCodec.mapAt(home, 'shift') ?? const {},
+    );
+    current.addAll(shift);
+    home['shift'] = current;
   }
 
   /// Same window as the web `useMyOpenAttendance` and the Attendance screen.

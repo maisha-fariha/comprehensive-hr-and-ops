@@ -27,7 +27,19 @@ abstract class StaffTasksMessagesRepository {
 
   /// `PATCH /tasks/{id}` with `{ "status": "completed" }`, plus
   /// `"signOff": true` when the task requires sign-off.
-  Future<Result<void>> completeTask(String taskId, {bool signOff = false});
+  ///
+  /// [checklist] is the same list the web sends with Submit for review.
+  Future<Result<void>> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+  });
+
+  /// `PATCH /tasks/{id}` with `{ "checklist": [...] }`. Web “Save progress”.
+  Future<Result<void>> saveTaskProgress({
+    required String taskId,
+    required List<Map<String, dynamic>> checklist,
+  });
 
   /// API-backed options for the staff task creation form.
   Future<Result<TaskCreationOptions>> getTaskCreationOptions();
