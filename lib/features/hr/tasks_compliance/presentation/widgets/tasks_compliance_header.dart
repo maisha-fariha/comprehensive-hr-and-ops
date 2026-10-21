@@ -8,12 +8,14 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 /// White header for Tasks & Compliance: menu, centered title/subtitle,
 /// and a bordered search button — matched to the reference chrome.
 class TasksComplianceHeader extends StatelessWidget {
+  final String title;
   final String subtitle;
   final VoidCallback? onMenuTap;
   final VoidCallback? onSearchTap;
 
   const TasksComplianceHeader({
     super.key,
+    this.title = 'Tasks & Compliance',
     required this.subtitle,
     this.onMenuTap,
     this.onSearchTap,
@@ -51,7 +53,7 @@ class TasksComplianceHeader extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Tasks & Compliance',
+                      title,
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

@@ -7,6 +7,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../documents/presentation/pages/family_documents_page.dart';
+import '../../outings/presentation/pages/family_outings_page.dart';
 import '../../profile_settings/presentation/pages/family_profile_settings_page.dart';
 import '../../visit_requests/presentation/pages/family_visit_requests_list_page.dart';
 import '../widgets/family_menu_entry.dart';
@@ -20,6 +21,14 @@ class FamilyMoreMenuPage extends StatelessWidget {
     iconColor: AppColors.activeGreen,
     title: 'Visit Requests',
     subtitle: 'Your pending visits and history',
+  );
+
+  static const _outings = FamilyMenuEntry(
+    icon: Icons.explore_outlined,
+    iconBackground: AppColors.infoBackground,
+    iconColor: AppColors.infoBlue,
+    title: 'Outings',
+    subtitle: 'Community outings and leave requests',
   );
 
   static const _documents = FamilyMenuEntry(
@@ -64,6 +73,10 @@ class FamilyMoreMenuPage extends StatelessWidget {
                 entry: _visitRequests,
                 onTap: () => Get.to(() => const FamilyVisitRequestsListPage()),
               ),
+            (
+              entry: _outings,
+              onTap: () => Get.to(() => const FamilyOutingsPage()),
+            ),
             if (visibility.documents)
               (
                 entry: _documents,

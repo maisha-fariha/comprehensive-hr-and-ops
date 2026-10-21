@@ -80,6 +80,8 @@ abstract final class ApiEndpoints {
   static const String familyAppointments = '/family/appointments';
   static const String familyMessages = '/family/messages';
   static const String familyDocuments = '/family/documents';
+  static const String familyOutings = '/family/outings';
+  static String familyOutingCancel(String id) => '$familyOutings/$id/cancel';
   static String familyDocumentSign(String id) => '$familyDocuments/$id/sign';
   static const String familyClients = '/family/clients';
   static const String familyTickets = '/family/tickets';

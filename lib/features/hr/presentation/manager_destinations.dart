@@ -58,6 +58,17 @@ class ManagerDestination {
   }
 }
 
+/// Web sidebar uses "Task Management" and "Compliance & Audit" as separate
+/// items. This app opens both from one screen, titled for what the user can see.
+String tasksComplianceMenuTitle(UserSession? session) {
+  if (session == null || !session.permissionsReady) return 'Tasks & Compliance';
+  final tasks = session.can('tasks:read');
+  final compliance = session.can('compliance:read');
+  if (tasks && compliance) return 'Tasks & Compliance';
+  if (compliance) return 'Compliance & Audit';
+  return 'Task Management';
+}
+
 UserSession? _session() {
   try {
     return Get.find<UserSession>();
@@ -302,7 +313,7 @@ List<ManagerDestination> managerDestinations() {
       ),
     if (can('tasks:read') || can('compliance:read'))
       ManagerDestination(
-        title: 'Tasks & Compliance',
+        title: tasksComplianceMenuTitle(session),
         subtitle: 'Due tasks, compliance checks & corrective actions',
         icon: Icons.fact_check_outlined,
         iconBackground: AppColors.urgentBackground,
@@ -327,7 +338,6 @@ List<ManagerDestination> managerDestinations() {
           builder: () => const CommunicationPage(),
         ),
         keywords: const ['messages', 'chat', 'announcements'],
-        inMoreMenu: false,
       ),
     ManagerDestination(
       title: 'Profile & Settings',

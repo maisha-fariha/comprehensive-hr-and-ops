@@ -105,6 +105,17 @@ class TasksCompliancePage extends StatelessWidget {
     return Get.find<UserSession>().can('tasks:review');
   }
 
+  String _screenTitle() {
+    if (!Get.isRegistered<UserSession>()) return 'Tasks & Compliance';
+    final session = Get.find<UserSession>();
+    if (!session.permissionsReady) return 'Tasks & Compliance';
+    final tasks = session.can('tasks:read');
+    final compliance = session.can('compliance:read');
+    if (tasks && compliance) return 'Tasks & Compliance';
+    if (compliance) return 'Compliance & Audit';
+    return 'Task Management';
+  }
+
   List<TasksComplianceTab> _visibleTabs() {
     if (!Get.isRegistered<UserSession>()) return TasksComplianceTab.values;
     final session = Get.find<UserSession>();
@@ -193,6 +204,7 @@ class TasksCompliancePage extends StatelessWidget {
               child: Column(
                 children: [
                   TasksComplianceHeader(
+                    title: _screenTitle(),
                     subtitle: overview.headerSubtitle,
                     onMenuTap: openManagerMenu,
                     onSearchTap: openManagerPortalSearch,
