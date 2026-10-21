@@ -169,6 +169,7 @@ class FamilyConversationController
         success: (thread) {
           _serverThread = thread;
           _publish();
+          _markRead();
         },
         failure: (error) {
           if (thread == null) setError(error.message);
@@ -176,6 +177,15 @@ class FamilyConversationController
       );
     }
     if (!silent) setLoading(false);
+  }
+
+  void _markRead() {
+    repository.markConversationRead(conversationId);
+    if (Get.isRegistered<FamilyMessagesController>()) {
+      Get.find<FamilyMessagesController>().markConversationReadLocally(
+        conversationId,
+      );
+    }
   }
 
   /// Mirrors the web reply flow: the input clears as soon as Send is tapped,

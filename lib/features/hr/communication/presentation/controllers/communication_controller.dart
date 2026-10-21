@@ -120,6 +120,8 @@ class CommunicationController extends BaseController<List<HrConversation>> {
           selectedConversationId.value = null;
           activeMessages.clear();
         } else if (selected != null) {
+          _clearUnreadLocally(selected);
+          repository.markThreadRead(selected);
           loadMessages(selected);
         }
       },
@@ -161,11 +163,14 @@ class CommunicationController extends BaseController<List<HrConversation>> {
   }
 
   Future<void> selectConversation(String id) async {
-    if (selectedConversationId.value == id) return;
+    final alreadyOpen = selectedConversationId.value == id;
     selectedConversationId.value = id;
-    await loadMessages(id);
-    await repository.markThreadRead(id);
+    // Drop the badge as soon as the thread is open. The web does the same
+    // with POST /conversations/:id/read, including when the row is tapped
+    // again after the list reloads.
     _clearUnreadLocally(id);
+    if (!alreadyOpen) await loadMessages(id);
+    await repository.markThreadRead(id);
   }
 
   Future<void> loadMessages(String conversationId) async {

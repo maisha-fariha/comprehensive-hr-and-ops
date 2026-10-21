@@ -14,6 +14,7 @@ class StaffTrainingController extends GetxController {
 
   final summary = const StaffTrainingSummary().obs;
   final courses = <StaffTrainingCourse>[].obs;
+  final certificates = <StaffTrainingCertificate>[].obs;
   final includeArchived = false.obs;
 
   final page = 1.obs;
@@ -30,14 +31,14 @@ class StaffTrainingController extends GetxController {
   Future<void> refreshAll() async {
     isLoading.value = true;
     errorMessage.value = '';
-    await Future.wait([_loadSummary(), _loadCourses()]);
+    await Future.wait([_loadSummary(), _loadCourses(), _loadCertificates()]);
     isLoading.value = false;
   }
 
   Future<void> reload() async {
     isRefreshing.value = true;
     errorMessage.value = '';
-    await Future.wait([_loadSummary(), _loadCourses()]);
+    await Future.wait([_loadSummary(), _loadCourses(), _loadCertificates()]);
     isRefreshing.value = false;
   }
 
@@ -63,6 +64,14 @@ class StaffTrainingController extends GetxController {
         page.value = data.page;
       },
       failure: (error) => errorMessage.value = error.message,
+    );
+  }
+
+  Future<void> _loadCertificates() async {
+    final result = await repository.listCertificates(page: 1, limit: 50);
+    result.when(
+      success: (data) => certificates.assignAll(data.items),
+      failure: (_) {},
     );
   }
 

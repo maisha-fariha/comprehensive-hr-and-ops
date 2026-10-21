@@ -29,6 +29,9 @@ abstract class FamilyMessagesRepository {
   /// A new conversation needs one of them as `clientId`.
   Future<Result<List<String>>> getLinkedClientIds();
 
+  /// `POST /family/messages/:id/read`. Opening a thread clears its badge.
+  Future<Result<void>> markConversationRead(String conversationId);
+
   /// `POST /family/messages/:id/hide` or `/unhide`.
   Future<Result<void>> setHidden(String conversationId, {required bool hidden});
 

@@ -268,6 +268,9 @@ class StaffTrainingCertificate {
   final String courseName;
   final String staffName;
   final String status;
+  final String certificateNumber;
+  final String expiryStatus;
+  final String fileUrl;
   final DateTime? issuedAt;
   final DateTime? expiresAt;
 
@@ -277,9 +280,27 @@ class StaffTrainingCertificate {
     this.courseName = '',
     this.staffName = '',
     this.status = '',
+    this.certificateNumber = '',
+    this.expiryStatus = '',
+    this.fileUrl = '',
     this.issuedAt,
     this.expiresAt,
   });
+
+  /// Web status column: Valid, Expiring Soon, Expired.
+  String get statusLabel {
+    final raw = (expiryStatus.isNotEmpty ? expiryStatus : status).trim();
+    if (raw.isEmpty) return '—';
+    return raw
+        .replaceAll('_', ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) =>
+              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
 
   String get issuedLabel {
     final at = issuedAt;

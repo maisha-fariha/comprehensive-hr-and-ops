@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../family_shell.dart';
 import '../controllers/family_messages_controller.dart';
 import '../widgets/conversation_row_tile.dart';
 import '../widgets/family_messages_header.dart';
@@ -87,7 +88,19 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
                 color: AppColors.surfaceWhite,
                 child: Column(
                   children: [
-                    const FamilyMessagesHeader(title: 'Messages'),
+                    FamilyMessagesHeader(
+                      title: 'Messages',
+                      onBack: () {
+                        final navigator = Navigator.of(context);
+                        if (navigator.canPop()) {
+                          navigator.pop();
+                          return;
+                        }
+                        // This list is a FamilyShell tab, so there is no
+                        // route to pop. Return to Home, like the other tabs.
+                        Get.offAll(() => const FamilyShell(initialIndex: 0));
+                      },
+                    ),
                     Padding(
                       padding: ResponsiveHelper.getResponsivePadding(
                         context,

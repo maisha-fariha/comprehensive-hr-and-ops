@@ -25,6 +25,15 @@ class HrBottomNavItemData {
 /// Live open-incident count for the Alerts tab badge (null hides the badge).
 int? hrAlertsBadgeCount() {
   try {
+    if (Get.isRegistered<UserSession>()) {
+      final session = Get.find<UserSession>();
+      // Inventory Manager and other roles without incidents access must
+      // not boot the incidents board. That GET is 403 and the client
+      // shows "Access denied" as soon as the shell opens.
+      if (session.permissionsReady && !session.can('incidents:read')) {
+        return null;
+      }
+    }
     if (!Get.isRegistered<IncidentsController>()) {
       Get.put(GetIt.instance<IncidentsController>(), permanent: true);
     }

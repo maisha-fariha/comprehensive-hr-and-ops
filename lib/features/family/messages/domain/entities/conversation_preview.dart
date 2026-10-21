@@ -40,4 +40,19 @@ class ConversationPreview {
     this.unreadCount = 0,
     this.left = false,
   });
+
+  ConversationPreview copyWith({int? unreadCount}) {
+    return ConversationPreview(
+      id: id,
+      name: name,
+      subtitle: subtitle,
+      avatarType: avatarType,
+      initials: initials,
+      accent: accent,
+      timeLabel: timeLabel,
+      previewText: previewText,
+      unreadCount: unreadCount ?? this.unreadCount,
+      left: left,
+    );
+  }
 }

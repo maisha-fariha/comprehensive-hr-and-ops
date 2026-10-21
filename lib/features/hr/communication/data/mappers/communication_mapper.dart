@@ -65,7 +65,7 @@ abstract final class CommunicationMapper {
       title: title,
       preview: JsonCodec.stringOr(
         lastMessage?['body'] ?? json['preview'],
-        monitored ? 'Monitored conversation' : 'No messages yet',
+        'No messages yet',
       ),
       dateLabel: lastAt == null ? '' : IsoDateRange.formatShortDate(lastAt.toLocal()),
       subtitle: _subtitle(kind, peopleCount),
@@ -104,23 +104,37 @@ abstract final class CommunicationMapper {
     required List<dynamic> members,
     String? currentUserId,
   }) {
-    if (kind == ConversationFilter.direct) {
-      for (final raw in members.whereType<Map>()) {
-        final row = JsonCodec.asMap(raw);
-        final user = JsonCodec.mapAt(row, 'user') ?? row;
-        final userId = JsonCodec.string(row['userId'] ?? user['id']);
-        if (currentUserId != null &&
-            userId != null &&
-            userId == currentUserId) {
-          continue;
-        }
-        final name = IsoDateRange.personName(user);
-        if (name != 'Unknown' && name.isNotEmpty) return name;
-      }
-      return 'Direct message';
+    if (kind == ConversationFilter.direct ||
+        kind == ConversationFilter.family) {
+      final other = _otherMemberName(members, currentUserId);
+      if (other != null) return other;
+      // Web uses "Conversation" when a family thread has no title and no
+      // other person still in it (they left, or only you remain).
+      return kind == ConversationFilter.family
+          ? 'Conversation'
+          : 'Direct message';
     }
-    if (kind == ConversationFilter.family) return 'Family thread';
     return 'Group conversation';
+  }
+
+  /// Untitled direct and family threads use the other person's name,
+  /// the same way the web titles a guardian chat "Gurdian One".
+  static String? _otherMemberName(
+    List<dynamic> members,
+    String? currentUserId,
+  ) {
+    for (final raw in members.whereType<Map>()) {
+      final row = JsonCodec.asMap(raw);
+      if (row['leftAt'] != null) continue;
+      final user = JsonCodec.mapAt(row, 'user') ?? row;
+      final userId = JsonCodec.string(row['userId'] ?? user['id']);
+      if (currentUserId != null && userId != null && userId == currentUserId) {
+        continue;
+      }
+      final name = IsoDateRange.personName(user);
+      if (name != 'Unknown' && name.isNotEmpty) return name;
+    }
+    return null;
   }
 
   static List<HrMessageContact> contactsFrom(dynamic body) {
@@ -221,7 +235,8 @@ abstract final class CommunicationMapper {
   static String _subtitle(ConversationFilter kind, int memberCount) {
     return switch (kind) {
       ConversationFilter.direct => 'Direct message',
-      ConversationFilter.family => 'Family channel · $memberCount people',
+      ConversationFilter.family =>
+        memberCount == 1 ? '1 person' : '$memberCount people',
       ConversationFilter.group ||
       ConversationFilter.all =>
         'Residence group · $memberCount people',

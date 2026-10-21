@@ -93,6 +93,7 @@ abstract final class ApiEndpoints {
   static String familyAppointmentCancel(String id) =>
       '$familyAppointments/$id/cancel';
   static String familyConversation(String id) => '$familyMessages/$id';
+  static String familyConversationRead(String id) => '$familyMessages/$id/read';
   static String familyConversationMessages(String id) =>
       '$familyMessages/$id/messages';
   static String familyConversationHide(String id) => '$familyMessages/$id/hide';

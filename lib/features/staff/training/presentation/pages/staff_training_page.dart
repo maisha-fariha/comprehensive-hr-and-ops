@@ -4,7 +4,9 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../hr/training/presentation/widgets/training_course_widgets.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
+import '../../domain/entities/staff_training.dart';
 import '../../../staff_shell.dart';
 import '../controllers/staff_training_controller.dart';
 import '../widgets/staff_training_course_cards.dart';
@@ -142,6 +144,10 @@ class _StaffTrainingPageState extends State<StaffTrainingPage> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 20),
+                      _MyCertificatesSection(
+                        certificates: _controller.certificates.toList(),
+                      ),
                       const SizedBox(height: 16),
                       StaffTrainingCoursesTable(
                         courses: courses,
@@ -161,6 +167,149 @@ class _StaffTrainingPageState extends State<StaffTrainingPage> {
               }),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MyCertificatesSection extends StatelessWidget {
+  final List<StaffTrainingCertificate> certificates;
+
+  const _MyCertificatesSection({required this.certificates});
+
+  @override
+  Widget build(BuildContext context) {
+    final count = certificates.length;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'My Certificates',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$count ${count == 1 ? 'certificate' : 'certificates'} on record.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (certificates.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'No certificates on record.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            )
+          else
+            for (final certificate in certificates) ...[
+              _CertificateCard(certificate: certificate),
+              const SizedBox(height: 10),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CertificateCard extends StatelessWidget {
+  final StaffTrainingCertificate certificate;
+
+  const _CertificateCard({required this.certificate});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = certificate.statusLabel;
+    final expiring = status.toLowerCase().contains('expir');
+    final expired = status.toLowerCase().contains('expired');
+    final statusColor = expired
+        ? AppColors.criticalRed
+        : expiring
+            ? const Color(0xFFB45309)
+            : AppColors.successGreen;
+    final number = certificate.certificateNumber.trim().isEmpty
+        ? '—'
+        : certificate.certificateNumber.trim();
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            certificate.courseName,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _line('Certificate no.', number),
+          _line('Issued', certificate.issuedLabel),
+          _line('Expires', certificate.expiresLabel),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text(
+                status,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                  color: statusColor,
+                ),
+              ),
+              const Spacer(),
+              if (certificate.fileUrl.trim().isNotEmpty)
+                TextButton(
+                  onPressed: () => openTrainingMaterial(
+                    certificate.fileUrl,
+                    fileName: '${certificate.courseName}.pdf',
+                  ),
+                  child: const Text('Download'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Text(
+        '$label  $value',
+        style: const TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 12.5,
+          color: AppColors.textSecondary,
         ),
       ),
     );

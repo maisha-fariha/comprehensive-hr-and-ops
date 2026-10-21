@@ -147,6 +147,9 @@ abstract final class StaffTrainingMapper {
       ),
       staffName: staffName,
       status: JsonCodec.stringOr(json['status'], ''),
+      certificateNumber: JsonCodec.stringOr(json['certificateNumber'], ''),
+      expiryStatus: JsonCodec.stringOr(json['expiryStatus'], ''),
+      fileUrl: JsonCodec.stringOr(json['fileUrl'], ''),
       issuedAt: JsonCodec.dateTime(json['issuedAt'] ?? json['createdAt']),
       expiresAt: JsonCodec.dateTime(json['expiresAt']),
     );

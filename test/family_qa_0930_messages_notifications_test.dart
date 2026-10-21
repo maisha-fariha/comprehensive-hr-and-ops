@@ -106,6 +106,10 @@ class _FakeMessagesRepository implements FamilyMessagesRepository {
   }
 
   @override
+  Future<Result<void>> markConversationRead(String conversationId) async =>
+      Result.success(null);
+
+  @override
   Future<Result<void>> setHidden(
     String conversationId, {
     required bool hidden,

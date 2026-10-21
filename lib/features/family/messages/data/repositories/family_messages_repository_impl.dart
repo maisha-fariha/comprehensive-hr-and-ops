@@ -151,6 +151,26 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
   }
 
   @override
+  Future<Result<void>> markConversationRead(String conversationId) async {
+    final id = conversationId.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ApiError(message: 'Missing conversation id.'),
+      );
+    }
+    final result = await _api.post(
+      ApiEndpoints.familyConversationRead(id),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+      silent: true,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<void>> setHidden(
     String conversationId, {
     required bool hidden,
