@@ -117,6 +117,12 @@ abstract final class StaffTrainingMapper {
       courseTitle: JsonCodec.string(
         course['title'] ?? json['courseName'] ?? json['courseTitle'],
       ),
+      courseDescription: JsonCodec.stringOr(course['description'], ''),
+      courseCategory: JsonCodec.string(course['category']),
+      passingScore: JsonCodec.integer(course['passingScore']),
+      validityMonths: JsonCodec.integer(course['validityMonths']),
+      certificateRequired:
+          JsonCodec.boolean(course['certificateRequired']) ?? false,
     );
   }
 

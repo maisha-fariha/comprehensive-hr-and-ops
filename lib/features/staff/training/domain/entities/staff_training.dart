@@ -185,6 +185,11 @@ class StaffTrainingAssignment {
   final DateTime? completedAt;
   final DateTime? startedAt;
   final String? courseTitle;
+  final String courseDescription;
+  final String? courseCategory;
+  final int? passingScore;
+  final int? validityMonths;
+  final bool certificateRequired;
 
   const StaffTrainingAssignment({
     required this.id,
@@ -197,6 +202,11 @@ class StaffTrainingAssignment {
     this.completedAt,
     this.startedAt,
     this.courseTitle,
+    this.courseDescription = '',
+    this.courseCategory,
+    this.passingScore,
+    this.validityMonths,
+    this.certificateRequired = false,
   });
 
   String get statusNormalized => status.trim().toLowerCase().replaceAll(' ', '_');

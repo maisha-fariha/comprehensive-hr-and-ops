@@ -127,13 +127,19 @@ class HrTrainingRepositoryImpl implements HrTrainingRepository {
   @override
   Future<Result<TrainingPage<TrainingAssignment>>> assignments({
     String? courseId,
+    String? staffId,
     int? page,
     required int limit,
   }) =>
       _get(
         HrTrainingEndpoints.assignments,
         HrTrainingMapper.assignmentsFrom,
-        query: {'courseId': ?courseId, 'page': ?page, 'limit': limit},
+        query: {
+          'courseId': ?courseId,
+          'staffId': ?staffId,
+          'page': ?page,
+          'limit': limit,
+        },
       );
 
   @override
@@ -226,14 +232,20 @@ class HrTrainingRepositoryImpl implements HrTrainingRepository {
 
   @override
   Future<Result<TrainingPage<TrainingCertificate>>> certificates({
-    required String courseId,
+    String? courseId,
+    String? staffId,
     required int page,
     required int limit,
   }) =>
       _get(
         HrTrainingEndpoints.certificates,
         HrTrainingMapper.certificatesFrom,
-        query: {'courseId': courseId, 'page': page, 'limit': limit},
+        query: {
+          'courseId': ?courseId,
+          'staffId': ?staffId,
+          'page': page,
+          'limit': limit,
+        },
       );
 
   @override

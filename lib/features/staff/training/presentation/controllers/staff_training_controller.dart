@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_training.dart';
 import '../../domain/repositories/staff_training_repository.dart';
 
@@ -15,6 +16,7 @@ class StaffTrainingController extends GetxController {
   final summary = const StaffTrainingSummary().obs;
   final courses = <StaffTrainingCourse>[].obs;
   final certificates = <StaffTrainingCertificate>[].obs;
+  final mine = <StaffTrainingAssignment>[].obs;
   final includeArchived = false.obs;
 
   final page = 1.obs;
@@ -31,16 +33,29 @@ class StaffTrainingController extends GetxController {
   Future<void> refreshAll() async {
     isLoading.value = true;
     errorMessage.value = '';
-    await Future.wait([_loadSummary(), _loadCourses(), _loadCertificates()]);
+    await Future.wait([
+      _loadSummary(),
+      _loadCourses(),
+      _loadMine(),
+      _loadCertificates(),
+    ]);
     isLoading.value = false;
   }
 
   Future<void> reload() async {
     isRefreshing.value = true;
     errorMessage.value = '';
-    await Future.wait([_loadSummary(), _loadCourses(), _loadCertificates()]);
+    await Future.wait([
+      _loadSummary(),
+      _loadCourses(),
+      _loadMine(),
+      _loadCertificates(),
+    ]);
     isRefreshing.value = false;
   }
+
+  String? get _staffId =>
+      Get.isRegistered<UserSession>() ? Get.find<UserSession>().staffId : null;
 
   Future<void> _loadSummary() async {
     final result = await repository.listAssignments(page: 1, limit: 1);
@@ -67,8 +82,24 @@ class StaffTrainingController extends GetxController {
     );
   }
 
+  Future<void> _loadMine() async {
+    final result = await repository.listAssignments(
+      page: 1,
+      limit: 100,
+      staffId: _staffId,
+    );
+    result.when(
+      success: (data) => mine.assignAll(data.items),
+      failure: (error) => errorMessage.value = error.message,
+    );
+  }
+
   Future<void> _loadCertificates() async {
-    final result = await repository.listCertificates(page: 1, limit: 50);
+    final result = await repository.listCertificates(
+      page: 1,
+      limit: 100,
+      staffId: _staffId,
+    );
     result.when(
       success: (data) => certificates.assignAll(data.items),
       failure: (_) {},

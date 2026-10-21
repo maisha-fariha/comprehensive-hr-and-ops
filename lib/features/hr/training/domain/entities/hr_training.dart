@@ -34,6 +34,12 @@ class TrainingAssignment {
   final DateTime? dueAt;
   final bool mandatory;
   final DateTime? createdAt;
+  final String? courseTitle;
+  final String? courseDescription;
+  final String? courseCategory;
+  final int? passingScore;
+  final int? validityMonths;
+  final bool certificateRequired;
 
   const TrainingAssignment({
     required this.id,
@@ -45,6 +51,12 @@ class TrainingAssignment {
     this.dueAt,
     this.mandatory = false,
     this.createdAt,
+    this.courseTitle,
+    this.courseDescription,
+    this.courseCategory,
+    this.passingScore,
+    this.validityMonths,
+    this.certificateRequired = false,
   });
 
   bool get isCompleted => status == 'completed';
@@ -243,6 +255,7 @@ class TrainingCertificate {
   final String? provider;
   final String? fileUrl;
   final String? reviewNotes;
+  final String? courseTitle;
 
   const TrainingCertificate({
     required this.id,
@@ -258,6 +271,7 @@ class TrainingCertificate {
     this.provider,
     this.fileUrl,
     this.reviewNotes,
+    this.courseTitle,
   });
 
   String get staffName => [staffFirstName, staffLastName]

@@ -9,6 +9,7 @@ import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/hr_training.dart';
 import '../../domain/entities/training_form.dart';
 import '../controllers/hr_training_controller.dart';
+import '../widgets/my_training_panel.dart';
 import '../widgets/training_common.dart';
 import '../widgets/training_course_widgets.dart';
 import 'hr_training_course_page.dart';
@@ -27,6 +28,7 @@ class HrTrainingPage extends StatefulWidget {
 
 class _HrTrainingPageState extends State<HrTrainingPage> {
   late final HrTrainingController _c;
+  bool? _libraryPick;
 
   @override
   void initState() {
@@ -40,10 +42,14 @@ class _HrTrainingPageState extends State<HrTrainingPage> {
     super.dispose();
   }
 
-  Future<void> _open(String courseId) async {
+  Future<void> _open(String courseId, {String tab = 'overview'}) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => HrTrainingCoursePage(courseId: courseId, pickFile: widget.pickFile),
+        builder: (_) => HrTrainingCoursePage(
+          courseId: courseId,
+          initialTab: tab,
+          pickFile: widget.pickFile,
+        ),
       ),
     );
     if (mounted) await _c.refreshAll();
@@ -88,16 +94,62 @@ class _HrTrainingPageState extends State<HrTrainingPage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
                   children: [
-                    _actions(),
-                    const SizedBox(height: 15),
-                    _kpis(),
-                    const SizedBox(height: 15),
-                    TrainingCourseCards(
-                      courses: _c.courseViews,
-                      onView: (course) => _open(course.id),
+                    TrainingModeSwitch(
+                      library: _library,
+                      onChanged: (value) => setState(() => _libraryPick = value),
                     ),
-                    const SizedBox(height: 15),
-                    ..._list(context),
+                    const SizedBox(height: 12),
+                    if (_library) ...[
+                      _actions(),
+                      const SizedBox(height: 15),
+                      _kpis(),
+                      const SizedBox(height: 15),
+                      TrainingCourseCards(
+                        courses: _c.courseViews,
+                        onView: (course) => _open(course.id),
+                      ),
+                      const SizedBox(height: 15),
+                      ..._list(context),
+                    ] else
+                      MyTrainingPanel(
+                        courses: [
+                          for (final item in _c.mine)
+                            MyTrainingCourse(
+                              id: item.id,
+                              courseId: item.courseId,
+                              title: item.courseTitle ?? '',
+                              description: item.courseDescription ?? '',
+                              category: item.courseCategory,
+                              status: item.status,
+                              mandatory: item.mandatory,
+                              dueAt: item.dueAt,
+                              completedAt: item.completedAt,
+                              passingScore: item.passingScore,
+                              validityMonths: item.validityMonths,
+                              certificateRequired: item.certificateRequired,
+                            ),
+                        ],
+                        certificates: [
+                          for (final item in _c.myCertificates)
+                            MyTrainingCredential(
+                              courseName: (item.courseTitle ?? '').trim().isEmpty
+                                  ? 'Course Certificate'
+                                  : item.courseTitle!,
+                              number: (item.certificateNumber ?? '').trim().isEmpty
+                                  ? '—'
+                                  : item.certificateNumber!.trim(),
+                              issued: _day(item.issuedAt),
+                              expires: _day(item.expiresAt),
+                              statusLabel: _certLabel(item.expiryStatus),
+                              statusColor: _certColor(item.expiryStatus),
+                              fileUrl: item.fileUrl ?? '',
+                            ),
+                        ],
+                        onOpen: (course) => _open(course.courseId),
+                        onQuiz: (course) => _open(course.courseId, tab: 'sittings'),
+                        onDownload: (url, name) =>
+                            openTrainingMaterial(url, fileName: name),
+                      ),
                   ],
                 ),
               ),
@@ -106,6 +158,32 @@ class _HrTrainingPageState extends State<HrTrainingPage> {
         ],
       ),
     );
+  }
+
+  bool get _library => _libraryPick ?? _c.canManage;
+
+  String _day(DateTime? value) => trainingDayLabel(value);
+
+  String _certLabel(String? expiry) {
+    switch (expiry) {
+      case 'expired':
+        return 'Expired';
+      case 'expiring':
+        return 'Expiring Soon';
+      default:
+        return 'Valid';
+    }
+  }
+
+  Color _certColor(String? expiry) {
+    switch (expiry) {
+      case 'expired':
+        return AppColors.criticalRed;
+      case 'expiring':
+        return const Color(0xFFB45309);
+      default:
+        return AppColors.successGreen;
+    }
   }
 
   Widget _actions() {

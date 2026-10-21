@@ -29,6 +29,8 @@ class HrTrainingController extends GetxController {
   final RxInt limit = defaultLimit.obs;
   final Rx<TrainingSummary> summary = const TrainingSummary().obs;
   final RxList<TrainingAssignment> cardAssignments = <TrainingAssignment>[].obs;
+  final RxList<TrainingAssignment> mine = <TrainingAssignment>[].obs;
+  final RxList<TrainingCertificate> myCertificates = <TrainingCertificate>[].obs;
   final RxnString busyId = RxnString();
 
   int _serial = 0;
@@ -53,7 +55,8 @@ class HrTrainingController extends GetxController {
     refreshAll();
   }
 
-  Future<void> refreshAll() => Future.wait([load(), loadSummary(), loadCardAssignments()]);
+  Future<void> refreshAll() =>
+      Future.wait([load(), loadSummary(), loadCardAssignments(), loadMine()]);
 
   Future<void> load() async {
     final serial = ++_serial;
@@ -93,6 +96,25 @@ class HrTrainingController extends GetxController {
     final result = await repository.assignments(limit: 100);
     result.when(
       success: (data) => cardAssignments.assignAll(data.items),
+      failure: (_) {},
+    );
+  }
+
+  /// Web My Training: this person's assignments and certificates.
+  Future<void> loadMine() async {
+    final staffId = session.staffId;
+    final assigned = await repository.assignments(staffId: staffId, limit: 100);
+    assigned.when(
+      success: (data) => mine.assignAll(data.items),
+      failure: (_) {},
+    );
+    final certified = await repository.certificates(
+      staffId: staffId,
+      page: 1,
+      limit: 100,
+    );
+    certified.when(
+      success: (data) => myCertificates.assignAll(data.items),
       failure: (_) {},
     );
   }

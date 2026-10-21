@@ -22,5 +22,6 @@ abstract class StaffTrainingRepository {
     int page = 1,
     int limit = 50,
     String? courseId,
+    String? staffId,
   });
 }

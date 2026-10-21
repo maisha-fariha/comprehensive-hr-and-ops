@@ -111,6 +111,7 @@ class HrTrainingMapper {
     final courseId = JsonCodec.string(json['courseId']);
     final staffId = JsonCodec.string(json['staffId']);
     if (id == null || courseId == null || staffId == null) return null;
+    final course = JsonCodec.mapAt(json, 'course') ?? const {};
     return TrainingAssignment(
       id: id,
       courseId: courseId,
@@ -121,6 +122,13 @@ class HrTrainingMapper {
       dueAt: JsonCodec.dateTime(json['dueAt']),
       mandatory: JsonCodec.boolean(json['mandatory']) ?? false,
       createdAt: JsonCodec.dateTime(json['createdAt']),
+      courseTitle: JsonCodec.string(course['title']),
+      courseDescription: JsonCodec.string(course['description']),
+      courseCategory: JsonCodec.string(course['category']),
+      passingScore: JsonCodec.integer(course['passingScore']),
+      validityMonths: JsonCodec.integer(course['validityMonths']),
+      certificateRequired:
+          JsonCodec.boolean(course['certificateRequired']) ?? false,
     );
   }
 
@@ -193,6 +201,7 @@ class HrTrainingMapper {
     final staffId = JsonCodec.string(json['staffId']);
     if (id == null || courseId == null || staffId == null) return null;
     final staff = JsonCodec.mapAt(json, 'staff');
+    final course = JsonCodec.mapAt(json, 'course');
     return TrainingCertificate(
       id: id,
       courseId: courseId,
@@ -207,6 +216,7 @@ class HrTrainingMapper {
       provider: JsonCodec.string(json['provider']),
       fileUrl: JsonCodec.string(json['fileUrl']),
       reviewNotes: JsonCodec.string(json['reviewNotes']),
+      courseTitle: JsonCodec.string(course?['title']),
     );
   }
 
