@@ -14,9 +14,13 @@ class ChatPanel extends StatelessWidget {
   final bool isLoading;
   final bool isSending;
   final bool readOnly;
+  final VoidCallback? onBack;
   final VoidCallback? onHide;
   final VoidCallback? onShowParticipants;
   final VoidCallback? onUnarchive;
+
+  /// Card chrome for the side-by-side layout. A full-screen thread turns this off.
+  final bool framed;
 
   const ChatPanel({
     super.key,
@@ -27,9 +31,11 @@ class ChatPanel extends StatelessWidget {
     this.isLoading = false,
     this.isSending = false,
     this.readOnly = false,
+    this.onBack,
     this.onHide,
     this.onShowParticipants,
     this.onUnarchive,
+    this.framed = true,
   });
 
   @override
@@ -61,15 +67,18 @@ class ChatPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 16),
-        ),
-        border: Border.all(color: AppColors.cardBorder),
+        borderRadius: framed
+            ? BorderRadius.circular(
+                ResponsiveHelper.getResponsiveRadius(context, 16),
+              )
+            : null,
+        border: framed ? Border.all(color: AppColors.cardBorder) : null,
       ),
       child: Column(
         children: [
           _ChatHeader(
             conversation: conversation!,
+            onBack: onBack,
             onHide: onHide,
             onShowParticipants: onShowParticipants,
           ),
@@ -131,11 +140,13 @@ class ChatPanel extends StatelessWidget {
 
 class _ChatHeader extends StatelessWidget {
   final HrConversation conversation;
+  final VoidCallback? onBack;
   final VoidCallback? onHide;
   final VoidCallback? onShowParticipants;
 
   const _ChatHeader({
     required this.conversation,
+    this.onBack,
     this.onHide,
     this.onShowParticipants,
   });
@@ -150,6 +161,19 @@ class _ChatHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
+          if (onBack != null)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              onPressed: onBack,
+              icon: Icon(
+                Icons.arrow_back,
+                semanticLabel: 'Back',
+                size: ResponsiveHelper.getResponsiveSize(context, 22),
+                color: AppColors.textHeading,
+              ),
+            ),
           Container(
             width: ResponsiveHelper.getResponsiveSize(context, 40),
             height: ResponsiveHelper.getResponsiveSize(context, 40),

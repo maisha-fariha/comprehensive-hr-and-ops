@@ -228,7 +228,8 @@ class CommunicationController extends BaseController<List<HrConversation>> {
     isSending.value = false;
   }
 
-  Future<void> startConversation({
+  /// Returns the new thread id, or null when the server rejected it.
+  Future<String?> startConversation({
     required ConversationCreateType type,
     List<String> memberUserIds = const [],
     String? title,
@@ -236,7 +237,7 @@ class CommunicationController extends BaseController<List<HrConversation>> {
     String? clientId,
     String firstMessage = '',
   }) async {
-    if (isStarting.value) return;
+    if (isStarting.value) return null;
 
     isStarting.value = true;
     final result = await repository.startConversation(
@@ -247,7 +248,7 @@ class CommunicationController extends BaseController<List<HrConversation>> {
       clientId: clientId,
     );
 
-    await result.when(
+    final createdId = await result.when<Future<String?>>(
       success: (conversation) async {
         final existing = List<HrConversation>.from(conversations);
         existing.removeWhere((item) => item.id == conversation.id);
@@ -279,15 +280,18 @@ class CommunicationController extends BaseController<List<HrConversation>> {
         }
 
         AppSnackbar.show('Conversation started', conversation.title);
+        return conversation.id;
       },
       failure: (error) async {
         AppErrorDialog.showResultError(
           error,
           fallbackTitle: 'Could not start conversation',
         );
+        return null;
       },
     );
     isStarting.value = false;
+    return createdId;
   }
 
   /// Family contacts for one resident (`GET /conversations/contacts?clientId=`).

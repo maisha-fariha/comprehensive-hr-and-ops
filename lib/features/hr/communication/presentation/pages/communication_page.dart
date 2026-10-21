@@ -41,6 +41,9 @@ class CommunicationPage extends StatefulWidget {
 
 class _CommunicationPageState extends State<CommunicationPage> {
   var _didSeedConversation = false;
+  var _threadOpen = false;
+
+  bool _wide(BuildContext context) => MediaQuery.sizeOf(context).width >= 900;
 
   CommunicationController _resolve() {
     if (Get.isRegistered<CommunicationController>()) {
@@ -73,7 +76,7 @@ class _CommunicationPageState extends State<CommunicationPage> {
     );
     if (result == null) return;
 
-    await controller.startConversation(
+    final id = await controller.startConversation(
       type: result.type,
       title: result.title,
       memberUserIds: result.memberUserIds,
@@ -81,6 +84,45 @@ class _CommunicationPageState extends State<CommunicationPage> {
       clientId: result.clientId,
       firstMessage: result.firstMessage,
     );
+    if (!context.mounted || id == null) return;
+    await _pushThread(context, controller);
+  }
+
+  Future<void> _openThread(
+    BuildContext context,
+    CommunicationController controller,
+    String id,
+  ) async {
+    final opening = controller.selectConversation(id);
+    if (!context.mounted) return;
+    if (_wide(context)) {
+      await opening;
+      return;
+    }
+    await Future.wait([
+      opening,
+      _pushThread(context, controller),
+    ]);
+  }
+
+  /// Phone opens the thread on its own screen. Wide layout keeps it beside the list.
+  Future<void> _pushThread(
+    BuildContext context,
+    CommunicationController controller,
+  ) async {
+    if (_wide(context) || _threadOpen) return;
+    if (controller.selectedConversation == null) return;
+    _threadOpen = true;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => _ConversationScreen(
+          controller: controller,
+          showParticipants: (sheetContext) =>
+              _showParticipants(sheetContext, controller),
+        ),
+      ),
+    );
+    if (mounted) _threadOpen = false;
   }
 
   Future<void> _addParticipant(
@@ -145,7 +187,8 @@ class _CommunicationPageState extends State<CommunicationPage> {
     if (controller.conversations.isEmpty) {
       await controller.loadConversations();
     }
-    await controller.selectConversation(seedId);
+    if (!mounted) return;
+    await _openThread(context, controller, seedId);
   }
 
   @override
@@ -206,9 +249,11 @@ class _CommunicationPageState extends State<CommunicationPage> {
                     CommunicationTab.communicationLog) {
                   return CommunicationLogPanel(
                     repository: controller.repository,
-                    onOpenConversation: (id) {
-                      controller.selectConversation(id);
+                    onOpenConversation: (id) async {
+                      await controller.selectConversation(id);
                       controller.selectTab(CommunicationTab.monitoring);
+                      if (!context.mounted) return;
+                      await _pushThread(context, controller);
                     },
                   );
                 }
@@ -226,7 +271,7 @@ class _CommunicationPageState extends State<CommunicationPage> {
                   );
                 }
 
-                final wide = MediaQuery.sizeOf(context).width >= 900;
+                final wide = _wide(context);
                 final conversations = ConversationsPanel(
                   conversations: controller.filteredConversations,
                   selectedId: controller.selectedConversationId.value,
@@ -236,7 +281,8 @@ class _CommunicationPageState extends State<CommunicationPage> {
                   searchController: controller.searchController,
                   onSearchChanged: controller.onSearchChanged,
                   onFilterSelected: controller.selectFilter,
-                  onConversationTap: controller.selectConversation,
+                  onConversationTap: (id) =>
+                      _openThread(context, controller, id),
                   onComposeTap: controller.monitoring.value ||
                           !controller.canWriteMessages
                       ? null
@@ -312,14 +358,6 @@ class _CommunicationPageState extends State<CommunicationPage> {
                     ),
                     children: [
                       conversations,
-                      SizedBox(
-                        height:
-                            ResponsiveHelper.getResponsiveHeight(context, 16),
-                      ),
-                      SizedBox(
-                        height: MediaQuery.sizeOf(context).height * 0.58,
-                        child: chat,
-                      ),
                     ],
                   ),
                 );
@@ -327,6 +365,78 @@ class _CommunicationPageState extends State<CommunicationPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ConversationScreen extends StatefulWidget {
+  final CommunicationController controller;
+  final Future<void> Function(BuildContext context) showParticipants;
+
+  const _ConversationScreen({
+    required this.controller,
+    required this.showParticipants,
+  });
+
+  @override
+  State<_ConversationScreen> createState() => _ConversationScreenState();
+}
+
+class _ConversationScreenState extends State<_ConversationScreen> {
+  var _closing = false;
+
+  void _closeIfGone() {
+    if (_closing) return;
+    _closing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      if (navigator.canPop()) navigator.pop();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final controller = widget.controller;
+    return Scaffold(
+      backgroundColor: AppColors.surfaceWhite,
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        bottom: keyboard == 0,
+        child: Obx(() {
+          final selected = controller.selectedConversation;
+          if (selected == null) {
+            _closeIfGone();
+            return const SizedBox.shrink();
+          }
+          final archived = selected.isArchived;
+          final readOnly = controller.monitoring.value ||
+              !controller.canWriteMessages ||
+              archived;
+          return ChatPanel(
+            framed: false,
+            conversation: selected,
+            messages: controller.activeMessages.toList(),
+            messageController: controller.messageController,
+            onSend: controller.sendMessage,
+            isLoading: controller.isLoadingMessages.value,
+            isSending: controller.isSending.value,
+            readOnly: readOnly,
+            onBack: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              Navigator.of(context).pop();
+            },
+            onHide: readOnly ? null : controller.hideConversation,
+            onShowParticipants: () => widget.showParticipants(context),
+            onUnarchive: archived &&
+                    controller.canWriteMessages &&
+                    !controller.monitoring.value
+                ? controller.unarchiveConversation
+                : null,
+          );
+        }),
       ),
     );
   }
