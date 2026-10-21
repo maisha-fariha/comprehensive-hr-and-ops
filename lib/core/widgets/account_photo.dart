@@ -77,19 +77,28 @@ Future<bool> _isBlank(ui.Image image) async {
 }
 
 /// True when a picked photo file decodes as a blank frame.
+///
+/// The file buffer has to stay alive until the frame is decoded. Releasing it
+/// earlier faults the Flutter image thread and closes the app. Other photo
+/// screens keep the image until loading finishes.
 Future<bool> photoFileIsBlank(String path) async {
+  ui.ImmutableBuffer? bytes;
+  ui.ImageDescriptor? descriptor;
+  ui.Codec? codec;
+  ui.Image? image;
   try {
-    final bytes = await ui.ImmutableBuffer.fromFilePath(path);
-    final descriptor = await ui.ImageDescriptor.encoded(bytes);
-    final codec = await descriptor.instantiateCodec(targetWidth: 24);
-    descriptor.dispose();
-    bytes.dispose();
+    bytes = await ui.ImmutableBuffer.fromFilePath(path);
+    descriptor = await ui.ImageDescriptor.encoded(bytes);
+    codec = await descriptor.instantiateCodec(targetWidth: 24);
     final frame = await codec.getNextFrame();
-    codec.dispose();
-    final blank = await _isBlank(frame.image);
-    frame.image.dispose();
-    return blank;
+    image = frame.image;
+    return await _isBlank(image);
   } catch (_) {
     return false;
+  } finally {
+    image?.dispose();
+    codec?.dispose();
+    descriptor?.dispose();
+    bytes?.dispose();
   }
 }
