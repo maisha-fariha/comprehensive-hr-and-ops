@@ -21,6 +21,8 @@ class StaffShift {
   final String statusLabel;
   final StaffingLevel staffingLevel;
   final DateTime? startAt;
+  final String? residenceId;
+  final List<String> staffIds;
 
   const StaffShift({
     required this.id,
@@ -37,5 +39,7 @@ class StaffShift {
     required this.statusLabel,
     required this.staffingLevel,
     this.startAt,
+    this.residenceId,
+    this.staffIds = const [],
   });
 }

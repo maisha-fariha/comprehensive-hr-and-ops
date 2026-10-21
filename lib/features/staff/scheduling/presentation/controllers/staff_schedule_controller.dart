@@ -169,28 +169,24 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
     await loadOverview();
   }
 
-  Future<void> requestCoverSwap(StaffShift shift) async {
-    final note = await _promptNote(
-      title: 'Request cover',
-      hint: 'Why do you need cover for this shift?',
-    );
-    if (note == null) return;
-
-    setLoading(true);
+  /// Posts the web swap body. Returns the server message when it fails.
+  Future<String?> submitSwapRequest({
+    required String shiftId,
+    String? targetStaffId,
+    String? toShiftId,
+    String? note,
+  }) async {
     final result = await repository.requestSwap(
-      fromShiftId: shift.id,
-      note: note.isEmpty ? null : note,
+      fromShiftId: shiftId,
+      note: note,
+      targetStaffId: targetStaffId,
+      toShiftId: toShiftId,
     );
-    setLoading(false);
     if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not request swap',
-      );
-      return;
+      return result.error?.message ?? 'Could not request swap';
     }
-    AppSnackbar.show('Swap requested', 'Waiting for manager approval.');
     await loadOverview();
+    return null;
   }
 
   Future<void> respondToSwap({
@@ -304,37 +300,6 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
       ),
     );
     if (created == true) await loadOverview();
-  }
-
-  Future<String?> _promptNote({
-    required String title,
-    required String hint,
-  }) async {
-    final field = TextEditingController();
-    final submitted = await showAppPopupWidget<bool>(
-      AppSheetDialog(
-        title: Text(title),
-        content: TextField(
-          controller: field,
-          maxLines: 3,
-          decoration: InputDecoration(hintText: hint),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
-    );
-    final text = field.text.trim();
-    field.dispose();
-    if (submitted != true) return null;
-    return text;
   }
 
   @override

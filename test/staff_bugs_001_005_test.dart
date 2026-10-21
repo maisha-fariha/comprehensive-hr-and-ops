@@ -365,6 +365,18 @@ class _FakeScheduleRepo implements StaffScheduleRepository {
       ]);
 
   @override
+  Future<Result<List<StaffShiftStaffOption>>> listColleagues({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<StaffColleagueShift>>> listColleagueShifts(
+    String staffId,
+  ) async =>
+      Result.success(const []);
+
+  @override
   Future<Result<List<StaffShiftStaffOption>>> searchStaff({
     String? search,
     String? residenceId,

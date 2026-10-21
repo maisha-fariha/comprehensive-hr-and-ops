@@ -22,3 +22,12 @@ class StaffShiftStaffOption {
     required this.initials,
   });
 }
+
+/// A colleague's future shift offered as an optional exchange.
+@immutable
+class StaffColleagueShift {
+  final String id;
+  final String label;
+
+  const StaffColleagueShift({required this.id, required this.label});
+}

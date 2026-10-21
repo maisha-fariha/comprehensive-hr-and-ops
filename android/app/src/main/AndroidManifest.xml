@@ -89,5 +89,10 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:mimeType="application/pdf"/>
         </intent>
+        <!-- Android 11+ hides the camera app unless this is declared, so
+             Take photo cannot grant the camera a place to save the picture. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE"/>
+        </intent>
     </queries>
 </manifest>

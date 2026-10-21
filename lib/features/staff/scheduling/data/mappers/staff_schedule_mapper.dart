@@ -307,6 +307,17 @@ abstract final class StaffScheduleMapper {
           ? StaffingLevel.medium
           : StaffingLevel.low,
       startAt: localStart,
+      residenceId: JsonCodec.string(
+        json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
+      ),
+      staffIds: [
+        for (final person in avatarSource)
+          if (person is Map)
+            ?JsonCodec.string(
+              JsonCodec.asMap(person)['id'] ??
+                  JsonCodec.asMap(person)['staffId'],
+            ),
+      ],
     );
   }
 

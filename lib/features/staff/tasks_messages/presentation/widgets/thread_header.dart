@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
@@ -52,7 +51,11 @@ class ThreadHeader extends StatelessWidget {
             child: Row(
               children: [
                 _SquareIconButton(
-                  onTap: onBack ?? Get.back,
+                  onTap: onBack ??
+                      () {
+                        final navigator = Navigator.of(context);
+                        if (navigator.canPop()) navigator.pop();
+                      },
                   child: Transform.rotate(
                     angle: 3.14159,
                     child: const AppSvgIcon(

@@ -9,6 +9,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../../staff_shell.dart';
 import '../controllers/staff_schedule_controller.dart';
 import '../widgets/my_shifts_section.dart';
+import '../widgets/staff_swap_request_sheet.dart';
 import '../widgets/open_shift_requests_section.dart';
 import '../widgets/staff_schedule_header.dart';
 import '../widgets/swap_requests_section.dart';
@@ -118,7 +119,13 @@ class StaffSchedulePage extends StatelessWidget {
                         shiftsThisWeekLabel: dayLabel,
                         shifts: selectedShifts,
                         onShiftTap: controller.openShiftDetail,
-                        onRequestSwap: canBid ? controller.requestCoverSwap : null,
+                        onRequestSwap: canBid
+                            ? (shift) => showStaffSwapRequestSheet(
+                                  context,
+                                  controller,
+                                  shift,
+                                )
+                            : null,
                       ),
                       if (selectedShifts.isEmpty) ...[
                         SizedBox(

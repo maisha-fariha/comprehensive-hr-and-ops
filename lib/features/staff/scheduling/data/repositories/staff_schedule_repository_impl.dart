@@ -245,6 +245,99 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
     );
   }
 
+  @override
+  Future<Result<List<StaffShiftStaffOption>>> listColleagues({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: {
+        'page': 1,
+        'limit': 100,
+        'residenceId': ?residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async => Result.success(_colleaguesFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  List<StaffShiftStaffOption> _colleaguesFrom(dynamic body) {
+    final people = <StaffShiftStaffOption>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id'] ?? json['staffId']);
+      final joined = [
+        JsonCodec.string(json['firstName']),
+        JsonCodec.string(json['lastName']),
+      ].whereType<String>().join(' ').trim();
+      final display = joined.isEmpty
+          ? (JsonCodec.string(json['name']) ?? '')
+          : joined;
+      if (id == null || display.isEmpty) continue;
+      people.add(
+        StaffShiftStaffOption(
+          id: id,
+          name: display,
+          detail: JsonCodec.string(JsonCodec.mapAt(json, 'category')?['name']) ??
+              '',
+          initials: '',
+        ),
+      );
+    }
+    return people;
+  }
+
+  @override
+  Future<Result<List<StaffColleagueShift>>> listColleagueShifts(
+    String staffId,
+  ) async {
+    final today = DateTime.now();
+    final from =
+        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'page': 1,
+        'limit': 50,
+        'from': from,
+        'staffId': staffId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final shifts = <StaffColleagueShift>[];
+        for (final item in JsonCodec.unwrapList(body)) {
+          if (item is! Map) continue;
+          final json = JsonCodec.asMap(item);
+          final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
+          if (status == 'cancelled' || status == 'canceled') continue;
+          final id = JsonCodec.string(json['id']);
+          final start = JsonCodec.dateTime(
+            json['startsAt'] ?? json['startAt'],
+          )?.toLocal();
+          if (id == null || start == null) continue;
+          shifts.add(StaffColleagueShift(id: id, label: _swapShiftLabel(start)));
+        }
+        return Result.success(shifts);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  static String _swapShiftLabel(DateTime start) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final day = start.day.toString().padLeft(2, '0');
+    final month = start.month.toString().padLeft(2, '0');
+    final hour = start.hour.toString().padLeft(2, '0');
+    final minute = start.minute.toString().padLeft(2, '0');
+    return '${days[start.weekday - 1]} $day/$month/${start.year} $hour:$minute';
+  }
+
   String? _extractId(dynamic body) {
     if (body is Map) {
       final map = Map<String, dynamic>.from(body);
