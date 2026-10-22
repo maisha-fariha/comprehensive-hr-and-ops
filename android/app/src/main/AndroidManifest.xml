@@ -29,7 +29,7 @@
         android:name="android.permission.READ_MEDIA_AUDIO"
         tools:node="remove" />
     <application
-        android:label="comprehensive_hr_and_ops"
+        android:label="Care House"
         android:name=".CarehouseApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
