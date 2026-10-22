@@ -20,7 +20,7 @@ class ComprehensiveHrAndOpsApp extends StatelessWidget {
       minTextAdapt: true,
       builder: (context, child) {
         return GetMaterialApp(
-          title: 'Comprehensive HR & Operations Platform',
+          title: 'Care House',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           initialRoute: Get.find<UserSession>().portalRoute,
