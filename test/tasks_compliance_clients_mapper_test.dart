@@ -31,4 +31,31 @@ void main() {
     expect(clients[0].subtitle, '101 · Cozzy Cottege');
     expect(clients[1].name, 'Already Named');
   });
+
+  test('a signed task that still needs review is Awaiting review, not Completed', () {
+    final tasks = TasksComplianceMapper.tasksFrom({
+      'data': [
+        {
+          'id': 't1',
+          'title': 'HK Task',
+          'status': 'completed',
+          'requiresReview': true,
+          'requiresSignOff': true,
+          'reviewedAt': null,
+          'taskType': 'housekeeping',
+        },
+        {
+          'id': 't2',
+          'title': 'Already reviewed',
+          'status': 'completed',
+          'requiresReview': true,
+          'reviewedAt': '2026-10-23T10:11:49.145Z',
+        },
+      ],
+    });
+
+    expect(tasks, hasLength(2));
+    expect(tasks[0].awaitingReview, isTrue);
+    expect(tasks[1].awaitingReview, isFalse);
+  });
 }

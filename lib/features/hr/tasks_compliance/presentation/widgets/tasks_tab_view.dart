@@ -18,8 +18,8 @@ class TasksTabView extends StatefulWidget {
   final void Function(TaskItem task)? onTaskTap;
   final void Function(TaskItem task)? onPauseRecurring;
   final void Function(TaskItem task)? onResumeRecurring;
-  final void Function(TaskItem task)? onApproveReview;
-  final void Function(TaskItem task)? onRejectReview;
+  final Future<void> Function(TaskItem task)? onApproveReview;
+  final Future<void> Function(TaskItem task)? onRejectReview;
 
   const TasksTabView({
     super.key,
@@ -221,11 +221,28 @@ class _TasksTabViewState extends State<TasksTabView> {
   }
 }
 
-class _ReviewActionsRow extends StatelessWidget {
-  final VoidCallback? onApprove;
-  final VoidCallback? onReject;
+class _ReviewActionsRow extends StatefulWidget {
+  final Future<void> Function()? onApprove;
+  final Future<void> Function()? onReject;
 
   const _ReviewActionsRow({this.onApprove, this.onReject});
+
+  @override
+  State<_ReviewActionsRow> createState() => _ReviewActionsRowState();
+}
+
+class _ReviewActionsRowState extends State<_ReviewActionsRow> {
+  final Set<String> _busy = {};
+
+  Future<void> _run(String which, Future<void> Function()? action) async {
+    if (_busy.contains(which) || action == null) return;
+    setState(() => _busy.add(which));
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _busy.remove(which));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -233,17 +250,21 @@ class _ReviewActionsRow extends StatelessWidget {
       children: [
         Expanded(
           child: _ActionChip(
-            label: 'Send back',
+            label: _busy.contains('reject') ? 'Sending…' : 'Send back',
             filled: false,
-            onTap: onReject,
+            onTap: _busy.contains('reject')
+                ? null
+                : () => _run('reject', widget.onReject),
           ),
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
         Expanded(
           child: _ActionChip(
-            label: 'Approve',
+            label: _busy.contains('approve') ? 'Approving…' : 'Approve',
             filled: true,
-            onTap: onApprove,
+            onTap: _busy.contains('approve')
+                ? null
+                : () => _run('approve', widget.onApprove),
           ),
         ),
       ],

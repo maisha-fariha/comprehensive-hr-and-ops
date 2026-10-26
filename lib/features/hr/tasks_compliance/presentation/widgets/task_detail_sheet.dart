@@ -68,7 +68,8 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   final _reviewNotes = TextEditingController();
   final _note = TextEditingController();
   final _completion = TextEditingController();
-  bool _reviewing = false;
+  /// Review buttons currently in flight. Each one only disables itself.
+  final Set<String> _reviewDecisions = {};
   bool _busy = false;
   bool _formReady = false;
   List<_CheckDraft> _checks = const [];
@@ -281,18 +282,19 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   }
 
   Future<void> _review(String decision) async {
+    if (_reviewDecisions.contains(decision)) return;
     if (decision == 'reject' && _reviewNotes.text.trim().isEmpty) {
       AppSnackbar.show('Review notes', 'Required when sending it back, so the person redoing it knows what to fix', force: true);
       return;
     }
-    setState(() => _reviewing = true);
+    setState(() => _reviewDecisions.add(decision));
     final result = await GetIt.instance<TasksComplianceRepository>().reviewTask(
       taskId: widget.task.id,
       decision: decision,
       reviewNotes: _reviewNotes.text,
     );
     if (!mounted) return;
-    setState(() => _reviewing = false);
+    setState(() => _reviewDecisions.remove(decision));
     result.when(
       success: (_) async {
         AppSnackbar.show(
@@ -755,15 +757,22 @@ String _due(Map<String, dynamic> detail) {
       '${two(local.hour)}:${two(local.minute)}';
 }
 
-/// Web review box: status is completed or done, a review is required, and
-/// nobody has reviewed it yet. That is the “Awaiting review” state.
+/// Web review box: finished (or already in a review status), a review is
+/// required, and nobody has reviewed it yet. That is “Awaiting review”.
 bool _awaitingReview(Map<String, dynamic> detail, String status) {
   final raw = status.toLowerCase();
-  final finished = raw == 'completed' || raw == 'done';
-  if (!finished || detail['requiresReview'] != true) return false;
   final reviewed = detail['reviewedAt'];
-  if (reviewed == null) return true;
-  return reviewed is String && reviewed.trim().isEmpty;
+  final notReviewed = reviewed == null ||
+      (reviewed is String && reviewed.trim().isEmpty);
+  if (!notReviewed) return false;
+  if (raw == 'pending_review' ||
+      raw == 'awaiting_review' ||
+      raw == 'in_review' ||
+      raw == 'review') {
+    return true;
+  }
+  final finished = raw == 'completed' || raw == 'done' || raw == 'complete';
+  return finished && detail['requiresReview'] == true;
 }
 
 String _reviewValue(Map<String, dynamic> detail) {
@@ -815,12 +824,20 @@ extension on _TaskDetailSheetState {
         spacing: 8,
         children: [
           FilledButton(
-            onPressed: _reviewing ? null : () => _review('approve'),
-            child: const Text('Approve'),
+            onPressed: _reviewDecisions.contains('approve')
+                ? null
+                : () => _review('approve'),
+            child: Text(
+              _reviewDecisions.contains('approve') ? 'Approving…' : 'Approve',
+            ),
           ),
           OutlinedButton(
-            onPressed: _reviewing ? null : () => _review('reject'),
-            child: const Text('Send back'),
+            onPressed: _reviewDecisions.contains('reject')
+                ? null
+                : () => _review('reject'),
+            child: Text(
+              _reviewDecisions.contains('reject') ? 'Sending…' : 'Send back',
+            ),
           ),
         ],
       ),

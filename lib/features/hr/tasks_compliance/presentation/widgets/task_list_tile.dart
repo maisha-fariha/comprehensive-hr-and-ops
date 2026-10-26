@@ -94,7 +94,13 @@ class TaskListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categoryStyle = _categoryStyles[task.category]!;
-    final statusStyle = _statusStyles[task.status]!;
+    final statusStyle = task.awaitingReview
+        ? const _StatusStyle(
+            color: Color(0xFFB36B21),
+            background: Color(0xFFFCF5ED),
+            label: 'Awaiting review',
+          )
+        : _statusStyles[task.status]!;
     final isOverdue = task.status == TaskStatus.overdue;
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 42);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 14);

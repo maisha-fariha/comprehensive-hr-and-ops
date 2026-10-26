@@ -16,6 +16,10 @@ class TaskItem {
   final bool isToday;
   final TaskStatus status;
 
+  /// Finished, review required, and not reviewed yet. The list pill says
+  /// “Awaiting review” instead of “Completed”.
+  final bool awaitingReview;
+
   const TaskItem({
     required this.id,
     required this.title,
@@ -23,5 +27,6 @@ class TaskItem {
     required this.timeLabel,
     required this.isToday,
     required this.status,
+    this.awaitingReview = false,
   });
 }

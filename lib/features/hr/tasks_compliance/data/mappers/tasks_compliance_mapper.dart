@@ -514,12 +514,14 @@ abstract final class TasksComplianceMapper {
         due.toLocal().day == now.day;
     final statusRaw = (JsonCodec.string(json['status'] ?? json['state']) ?? '')
         .toLowerCase();
+    final awaitingReview = _awaitingReview(json, statusRaw);
     final status = switch (statusRaw) {
       'overdue' || 'late' => TaskStatus.overdue,
       'upcoming' || 'scheduled' => TaskStatus.upcoming,
       'completed' || 'done' || 'complete' || 'closed' || 'approved' =>
         TaskStatus.completed,
-      'pending_review' || 'awaiting_review' || 'review' => TaskStatus.due,
+      'pending_review' || 'awaiting_review' || 'in_review' || 'review' =>
+        TaskStatus.due,
       'due' || 'in_progress' || 'pending' || 'open' =>
         isToday ? TaskStatus.due : TaskStatus.upcoming,
       _ => isToday ? TaskStatus.due : TaskStatus.upcoming,
@@ -537,7 +539,27 @@ abstract final class TasksComplianceMapper {
               : IsoDateRange.formatShortDate(due.toLocal()),
       isToday: isToday,
       status: status,
+      awaitingReview: awaitingReview,
     );
+  }
+
+  /// Web list: a finished task that still needs a reviewer is “Awaiting review”,
+  /// not “Completed”. `reviewedAt` empty means nobody has reviewed it yet.
+  static bool _awaitingReview(Map<String, dynamic> json, String statusRaw) {
+    final reviewed = json['reviewedAt'];
+    final notReviewed = reviewed == null ||
+        (reviewed is String && reviewed.trim().isEmpty);
+    if (!notReviewed) return false;
+    if (statusRaw == 'pending_review' ||
+        statusRaw == 'awaiting_review' ||
+        statusRaw == 'in_review' ||
+        statusRaw == 'review') {
+      return true;
+    }
+    final finished = statusRaw == 'completed' ||
+        statusRaw == 'done' ||
+        statusRaw == 'complete';
+    return finished && json['requiresReview'] == true;
   }
 
   static TaskItem _recurring(Map<String, dynamic> json) {
