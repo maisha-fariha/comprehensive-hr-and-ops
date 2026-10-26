@@ -18,6 +18,7 @@ import '../../../../../core/offline/offline_outbox.dart';
 import '../../../../../core/offline/outbox_context.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_sync_chip.dart';
+import '../../../dashboard/presentation/controllers/staff_dashboard_controller.dart';
 import '../../domain/entities/staff_task.dart';
 import '../../domain/entities/staff_task_detail.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
@@ -68,22 +69,60 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
 
   /// True when [_detail] was built from the list row while offline.
   bool _summaryOnly = false;
-  bool _busy = false;
+  bool _savingProgress = false;
+  bool _addingNote = false;
+  bool _completing = false;
+  /// URL of the document currently downloading (others stay tappable).
+  String? _busyDocumentUrl;
   bool _checksReady = false;
   List<StaffTaskCheckItem> _checks = const [];
   final _noteController = TextEditingController();
+  final _detailScroll = ScrollController();
+  final _noticeKey = GlobalKey();
+  bool _moreAbove = false;
+  bool _moreBelow = false;
+  String? _notice;
+  bool _noticeError = false;
 
   @override
   void initState() {
     super.initState();
     _repository = GetIt.instance<StaffTasksMessagesRepository>();
+    _detailScroll.addListener(_syncScrollHints);
     _load();
   }
 
   @override
   void dispose() {
+    _detailScroll.removeListener(_syncScrollHints);
+    _detailScroll.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  void _syncScrollHints() {
+    if (!_detailScroll.hasClients) return;
+    final position = _detailScroll.position;
+    final above = position.pixels > 8;
+    final below = position.maxScrollExtent > 8 &&
+        position.pixels < position.maxScrollExtent - 8;
+    if (above == _moreAbove && below == _moreBelow) return;
+    setState(() {
+      _moreAbove = above;
+      _moreBelow = below;
+    });
+  }
+
+  void _showNotice(String message, {required bool error}) {
+    setState(() {
+      _notice = message;
+      _noticeError = error;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _noticeKey.currentContext;
+      if (target == null) return;
+      Scrollable.ensureVisible(target, alignment: 0.3);
+    });
   }
 
   Future<void> _load() async {
@@ -163,46 +202,83 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
       ? 0
       : ((_checkDone / _checks.length) * 100).round();
 
+  /// Live `CLOCK_IN_REQUIRED` copy from `PATCH /tasks/{id}`.
+  static const _clockInRequiredMessage =
+      'Clock in before working on this task — it is recorded as done on a shift';
+
+  /// True when Home reports a real open punch (`checkInAt`), not merely a
+  /// rostered shift window with `onShift: true` and null check-in.
+  bool? get _dashboardClockedIn {
+    if (!Get.isRegistered<StaffDashboardController>()) return null;
+    final shift = Get.find<StaffDashboardController>().overview?.todayShift;
+    return shift?.clockedIn;
+  }
+
+  bool get _needsClockIn => _dashboardClockedIn == false;
+
+  bool get _requiredChecksOpen =>
+      _checks.any((item) => item.required && !item.done);
+
   Future<void> _saveProgress() async {
-    if (_busy || !_canMutateTasks) return;
-    setState(() => _busy = true);
+    if (_savingProgress || !_canMutateTasks) return;
+    if (_needsClockIn) {
+      _showNotice(_clockInRequiredMessage, error: true);
+      return;
+    }
+    setState(() => _savingProgress = true);
     final result = await _repository.saveTaskProgress(
       taskId: widget.taskId,
       checklist: _checklistBody,
     );
     if (!mounted) return;
-    setState(() => _busy = false);
+    setState(() => _savingProgress = false);
     result.when(
       success: (_) {
-        AppSnackbar.show('Checklist saved', '', force: true);
+        _showNotice('Checklist saved.', error: false);
       },
       failure: (error) {
-        AppSnackbar.show('Could not save progress', error.message, force: true);
+        _showNotice(error.message, error: true);
       },
     );
   }
 
   Future<void> _complete({bool signOff = false}) async {
-    if (_busy || !_canMutateTasks) return;
-    setState(() => _busy = true);
-    final saved = await widget.controller.completeTask(
+    if (_completing || !_canMutateTasks) return;
+    if (_requiredChecksOpen) {
+      _showNotice(
+        'Finish every step marked Must be done before completing this task.',
+        error: true,
+      );
+      return;
+    }
+    if (_needsClockIn) {
+      _showNotice(_clockInRequiredMessage, error: true);
+      return;
+    }
+    setState(() => _completing = true);
+    final error = await widget.controller.completeTask(
       widget.taskId,
       signOff: signOff,
       checklist: _checks.isEmpty ? null : _checklistBody,
       requiresReview: _detail?.requiresReview ?? false,
     );
     if (!mounted) return;
-    setState(() => _busy = false);
-    if (saved) Navigator.of(context).pop();
+    setState(() => _completing = false);
+    if (error != null) {
+      _showNotice(error, error: true);
+      return;
+    }
+    Navigator.of(context).pop();
   }
 
   Future<void> _openDocument(StaffTaskDocument file) async {
     final url = file.url?.trim() ?? '';
-    if (_busy || url.isEmpty) {
+    if (url.isEmpty) {
       AppSnackbar.show('Unavailable', 'This file has no download link.', force: true);
       return;
     }
-    setState(() => _busy = true);
+    if (_busyDocumentUrl != null) return;
+    setState(() => _busyDocumentUrl = url);
     try {
       final resolved = AuthorizedFile.resolveUrl(url);
       final response = await Dio().get<List<int>>(
@@ -260,7 +336,7 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
         force: true,
       );
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busyDocumentUrl = null);
     }
   }
 
@@ -278,13 +354,31 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
 
   Future<void> _addNote() async {
     final text = _noteController.text.trim();
-    if (text.isEmpty || _busy || !_canMutateTasks) return;
-    setState(() => _busy = true);
-    await widget.controller.addTaskNote(taskId: widget.taskId, body: text);
+    if (_addingNote || !_canMutateTasks) return;
+    if (text.isEmpty) {
+      _showNotice('Add a note or reminder for this task.', error: true);
+      return;
+    }
+    if (_needsClockIn) {
+      _showNotice(_clockInRequiredMessage, error: true);
+      return;
+    }
+    setState(() => _addingNote = true);
+    final error = await widget.controller.addTaskNote(
+      taskId: widget.taskId,
+      body: text,
+    );
+    if (!mounted) return;
+    if (error != null) {
+      setState(() => _addingNote = false);
+      _showNotice(error, error: true);
+      return;
+    }
     _noteController.clear();
+    _showNotice('Note added.', error: false);
     await _load();
     if (!mounted) return;
-    setState(() => _busy = false);
+    setState(() => _addingNote = false);
   }
 
   @override
@@ -361,14 +455,32 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
       context,
       horizontal: 20,
       top: 16,
-      bottom: 24,
+      bottom: 16,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncScrollHints();
+    });
     return Column(
       children: [
+        if (_notice != null)
+          Padding(
+            key: _noticeKey,
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: _SheetNotice(
+              message: _notice!,
+              error: _noticeError,
+            ),
+          ),
         Expanded(
-          child: ListView(
-      padding: pad,
-      children: [
+          child: Stack(
+            children: [
+              Scrollbar(
+                controller: _detailScroll,
+                thumbVisibility: true,
+                child: ListView(
+                  controller: _detailScroll,
+                  padding: pad,
+                  children: [
         if (_summaryOnly)
           Container(
             key: const Key('task-detail-offline-summary'),
@@ -553,9 +665,12 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                     for (final file in detail.documents)
                       _DocumentRow(
                         label: file.label,
+                        busy: _busyDocumentUrl != null &&
+                            _busyDocumentUrl == file.url?.trim(),
                         onTap: file.url == null ||
                                 file.url!.trim().isEmpty ||
-                                _busy
+                                (_busyDocumentUrl != null &&
+                                    _busyDocumentUrl != file.url?.trim())
                             ? null
                             : () => _openDocument(file),
                       ),
@@ -653,92 +768,194 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
               ),
             ),
           ],
-      ],
-          ),
-        ),
-        if (_canMutateTasks)
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            8,
-            20,
-            12 + MediaQuery.paddingOf(context).bottom,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_checks.isNotEmpty && !isCompleted)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _SheetButton(
-                    label: 'Save progress',
-                    onPressed: _busy ? null : _saveProgress,
-                  ),
-                ),
-              TextField(
-                controller: _noteController,
-                maxLines: 2,
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 13.5,
-                  color: AppColors.textHeading,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Add a note',
-                  hintStyle: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 13.5,
-                    color: AppColors.textMuted,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.surfaceWhite,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  border: _noteBorder(AppColors.cardBorder),
-                  enabledBorder: _noteBorder(AppColors.cardBorder),
-                  focusedBorder: _noteBorder(AppColors.secondaryTeal),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _SheetButton(
-                      label: 'Add note',
-                      onPressed: _busy ? null : _addNote,
-                    ),
-                  ),
-                  if (!detail.requiresSignOff || isCompleted) ...[
-                    SizedBox(
-                      width: ResponsiveHelper.getResponsiveWidth(context, 10),
-                    ),
-                    Expanded(
-                      child: _SheetButton(
-                        label: isCompleted
-                            ? 'Completed'
-                            : detail.requiresReview
-                                ? 'Submit for review'
-                                : 'Complete',
-                        filled: true,
-                        onPressed: (_busy || isCompleted) ? null : _complete,
-                      ),
-                    ),
                   ],
-                ],
-              ),
-              if (detail.requiresSignOff && !isCompleted) ...[
-                const SizedBox(height: 12),
-                _SignOffBox(
-                  busy: _busy,
-                  onConfirm: () => _complete(signOff: true),
                 ),
-              ],
+              ),
+              if (_moreAbove)
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: _ScrollHint(up: true),
+                ),
+              if (_moreBelow)
+                const Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _ScrollHint(up: false),
+                ),
             ],
           ),
         ),
+        if (_canMutateTasks)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              8,
+              20,
+              12 + MediaQuery.paddingOf(context).bottom,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_checks.isNotEmpty && !isCompleted)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _SheetButton(
+                      label: _savingProgress ? 'Saving…' : 'Save progress',
+                      onPressed: _savingProgress ? null : _saveProgress,
+                    ),
+                  ),
+                TextField(
+                  controller: _noteController,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13.5,
+                    color: AppColors.textHeading,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Add a note',
+                    hintStyle: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 13.5,
+                      color: AppColors.textMuted,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.surfaceWhite,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: _noteBorder(AppColors.cardBorder),
+                    enabledBorder: _noteBorder(AppColors.cardBorder),
+                    focusedBorder: _noteBorder(AppColors.secondaryTeal),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SheetButton(
+                        label: _addingNote ? 'Adding…' : 'Add note',
+                        onPressed: _addingNote ? null : _addNote,
+                      ),
+                    ),
+                    if (!detail.requiresSignOff || isCompleted) ...[
+                      SizedBox(
+                        width: ResponsiveHelper.getResponsiveWidth(context, 10),
+                      ),
+                      Expanded(
+                        child: _SheetButton(
+                          label: isCompleted
+                              ? 'Completed'
+                              : _completing
+                                  ? (detail.requiresReview
+                                      ? 'Submitting…'
+                                      : 'Completing…')
+                                  : detail.requiresReview
+                                      ? 'Submit for review'
+                                      : 'Complete',
+                          filled: true,
+                          onPressed:
+                              (_completing || isCompleted) ? null : _complete,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (detail.requiresSignOff && !isCompleted) ...[
+                  const SizedBox(height: 12),
+                  _SignOffBox(
+                    busy: _completing,
+                    onConfirm: () => _complete(signOff: true),
+                    onNeedConfirm: () => _showNotice(
+                      'Confirm this task was completed as described.',
+                      error: true,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
       ],
+    );
+  }
+}
+
+class _SheetNotice extends StatelessWidget {
+  final String message;
+  final bool error;
+
+  const _SheetNotice({required this.message, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = error ? AppColors.criticalRed : AppColors.successGreen;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 13,
+          height: 1.35,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _ScrollHint extends StatelessWidget {
+  final bool up;
+
+  const _ScrollHint({required this.up});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        height: 28,
+        alignment: up ? Alignment.topCenter : Alignment.bottomCenter,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: up ? Alignment.bottomCenter : Alignment.topCenter,
+            end: up ? Alignment.topCenter : Alignment.bottomCenter,
+            colors: [
+              AppColors.surfaceWhite.withValues(alpha: 0),
+              AppColors.surfaceWhite,
+            ],
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              up ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              size: 18,
+              color: AppColors.secondaryTeal,
+            ),
+            Text(
+              up ? 'Scroll up' : 'Scroll for more',
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.secondaryTeal,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -848,16 +1065,21 @@ class _ThemeCheck extends StatelessWidget {
 
 class _DocumentRow extends StatelessWidget {
   final String label;
+  final bool busy;
   final VoidCallback? onTap;
 
-  const _DocumentRow({required this.label, this.onTap});
+  const _DocumentRow({
+    required this.label,
+    this.busy = false,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: busy ? null : onTap,
         behavior: HitTestBehavior.opaque,
         child: Container(
           padding: const EdgeInsets.all(10),
@@ -876,11 +1098,20 @@ class _DocumentRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(9),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(
-                  Icons.description_outlined,
-                  size: 18,
-                  color: AppColors.secondaryTeal,
-                ),
+                child: busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.secondaryTeal,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.description_outlined,
+                        size: 18,
+                        color: AppColors.secondaryTeal,
+                      ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -905,18 +1136,22 @@ class _DocumentRow extends StatelessWidget {
 class _SheetButton extends StatelessWidget {
   final String label;
   final bool filled;
+
+  /// Looks inactive but still receives the tap, so a validation message can show.
+  final bool dimmed;
   final VoidCallback? onPressed;
 
   const _SheetButton({
     super.key,
     required this.label,
     this.filled = false,
+    this.dimmed = false,
     required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
-    final enabled = onPressed != null;
+    final enabled = onPressed != null && !dimmed;
     final background = !enabled
         ? AppColors.cardBorder
         : filled
@@ -1137,8 +1372,13 @@ class _AssigneeLine extends StatelessWidget {
 class _SignOffBox extends StatefulWidget {
   final bool busy;
   final VoidCallback onConfirm;
+  final VoidCallback onNeedConfirm;
 
-  const _SignOffBox({required this.busy, required this.onConfirm});
+  const _SignOffBox({
+    required this.busy,
+    required this.onConfirm,
+    required this.onNeedConfirm,
+  });
 
   @override
   State<_SignOffBox> createState() => _SignOffBoxState();
@@ -1204,7 +1444,16 @@ class _SignOffBoxState extends State<_SignOffBox> {
             key: const Key('task-sign-off-submit'),
             label: widget.busy ? 'Signing…' : 'Sign and complete',
             filled: true,
-            onPressed: !_confirmed || widget.busy ? null : widget.onConfirm,
+            dimmed: !_confirmed,
+            onPressed: widget.busy
+                ? null
+                : () {
+                    if (!_confirmed) {
+                      widget.onNeedConfirm();
+                      return;
+                    }
+                    widget.onConfirm();
+                  },
           ),
         ],
       ),

@@ -426,16 +426,9 @@ abstract final class TasksComplianceMapper {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
       final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
-      final name = JsonCodec.string(
-            json['preferredName'] ??
-                json['fullName'] ??
-                json['name'] ??
-                json['displayName'] ??
-                json['clientName'] ??
-                json['residentName'],
-          ) ??
-          '';
-      if (name.isEmpty) continue;
+      // Live `/clients` returns firstName/lastName with name null — same as web.
+      final name = IsoDateRange.personName(json);
+      if (name.isEmpty || name == 'Unknown') continue;
 
       final room = JsonCodec.string(
         json['room'] ?? json['roomNumber'] ?? json['location'],

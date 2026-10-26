@@ -1,0 +1,326 @@
+"","Bug Report 01 Bug ID","BUG_Report001","Dev Status ","QA Status ","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/20/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","Review Button Not Working During Quiz in the Training Module on
+the Mobile App","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","When attempting to take a quiz in the Training module using the 
+mobile app, the Review button is available but does not work 
+when clicked.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Training Management","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Quiz – Review Button","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The Staff member has access to an assigned training course 
+containing a quiz in the mobile app.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the mobile app as a Staff member. 
+2. Navigate to the Training module. 
+3. Open an assigned training course containing a quiz. 
+4. Start the quiz and answer the questions. 
+5. Click the Review button.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","The Review button should work as intended and allow the Staff 
+member to review their quiz answers before proceeding.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","The Review button does not work when clicked in the mobile app.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://prnt.sc/13QvJa1KgNwh","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Report 02","","Dev Status","QA Status","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug ID","BUG_Report002","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/20/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","Task Checklist Buttons Conflict with Each Other During 
+Submission in the Mobile App","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","In the mobile app, when checking task checklist items and 
+submitting the task, three buttons conflict with each other, causing
+ unexpected behavior during the submission process.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Task Management","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Task Checklist – Submission","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The user is logged in to the mobile app and has an assigned 
+task with checklist items.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the mobile app. 
+2. Navigate to the Task module. 
+3. Open an assigned task. 
+4. Click the checklist items to mark them as completed. 
+5. Proceed to submit the task. 
+6. Observe the behavior of the three buttons during submission.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","The three buttons should function independently without conflicting
+ with one another, and the task should be submitted successfully.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","The three buttons conflict with each other during task submission 
+after the checklist items are checked.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://streamable.com/eg91o9","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Report 03","","Dev Status","QA Status","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug ID","BUG_Report003","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/20/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","Missing Error Message When Submitting a Task Without Clocking
+In to a Shift in the Mobile App","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","When a staff member attempts to submit a task without clocking 
+in to their assigned shift, the mobile app should display an error 
+message indicating that clock-in is required. However, the 
+expected error message is not displayed.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Task Management","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Task Submission – Shift Clock-In Validation","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The user is logged in to the mobile app, has an assigned shift, 
+and has not clocked in to that shift.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the mobile app as a staff member. 
+2. Navigate to the Task module. 
+3. Open an assigned task. 
+4. Complete the required task information. 
+5. Attempt to submit the task without clocking in to the assigned 
+shift. 
+6. Observe the system response.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","The app should display a clear error message indicating that the 
+user must clock in to the assigned shift before submitting the task.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","The expected error message indicating that the user has not 
+clocked in to the shift is not displayed when attempting to submit 
+the task.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://prnt.sc/f-oyKYrf-NN2
+https://prnt.sc/_J-a38_599Ce
+https://prnt.sc/u1xRialdqxFl","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Report 04","","Dev Status","QA Status","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug ID","BUG_Report004","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/20/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","All Attachment Action Buttons Blink Simultaneously Instead of 
+Showing Feedback on the download image section.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","In the mobile app, when a task contains an attachment, clicking 
+an attachment action button causes all the buttons to blink 
+simultaneously. This creates a confusing user experience. 
+Loading or downloading feedback should appear only on the 
+button that the user clicks.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Task management","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Task Attachments – Button Interaction and Loading Feedback","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The user is logged in to the mobile app and has access to a task 
+containing an attachment.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the mobile app. 
+2. Navigate to the Task module. 
+3. Open a task containing an attachment. 
+4. Click any available attachment action button, such as View or 
+Download. 5. Observe the visual behavior of the 
+attachment action buttons.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","Only the clicked button should display the appropriate visual 
+feedback, such as a loading indicator or downloading message, 
+while the action is in progress. Other buttons should remain 
+unaffected.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","All attachment action buttons blink simultaneously when one of 
+them is clicked, instead of providing feedback only on the selected
+button.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","MEDIUM","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","MEDIUM","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://streamable.com/199zrh","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Report 05","","Dev Status","QA Status","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug ID","BUG_Report005","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/23/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","Resident Names Are Not Displayed in the Resident Section 
+During Task Creation","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","When creating a task in the mobile app, the Resident section does
+not display the resident's name, preventing the user from properly 
+identifying or selecting the relevant resident.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Task Management","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Task Creation","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The user is logged in to the mobile app and has access to the task
+ creation feature. Residents are available in the system.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the mobile app. 
+2. Navigate to the Task module. 
+3. Open the task creation form. 
+4. Locate the Resident section. 
+5. Check whether the resident's name is displayed.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","The Resident section should display the available resident names
+ so the user can identify and select the appropriate resident.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","The resident's name is not displayed in the Resident section during
+task creation.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","MEDIUM","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","MEDIUM","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://prnt.sc/axYCURgKt3pN
+https://prnt.sc/ae4YLDoa3fV5","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Report 06","","Dev Status","QA Status","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug ID","BUG_Report006","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/23/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","Task with Required Staff Signature Is Marked as Completed 
+Instead of Awaiting Review","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","When a task is created with the Sign In Required option enabled, 
+the staff member completes the task, provides the required 
+signature, and submits it. However, the task is displayed as 
+Completed instead of Awaiting Review on the Manager's end.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Task Management","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Task Completion – Signature Requirement and Review Workflow","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The user has permission to create tasks, and the Sign In Required
+ option is enabled when creating a task.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the application as a Manager. 
+2. Navigate to the Task module. 
+3. Create a task with the Sign In Required option enabled and 
+assign it to a staff member. 
+4. Log in to the mobile app as the assigned staff member. 
+5. Open the assigned task and complete the required information. 
+6. Provide the required signature. 7. Submit the task as completed.
+8. Log in as the Manager and check the task status.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","The Resident section should display the available resident names
+ so the user can identify and select the appropriate resident.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","The task status is displayed as Completed on the Manager's end
+ instead of Awaiting Review.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://prnt.sc/vY8BezHvcY7s
+https://prnt.sc/v1y790ClrvmC","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Report 07","","Dev Status","QA Status","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug ID","BUG_Report007","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/23/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","Clicking the Check Back Button Also Affects the Approve Button","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","In the task review section, when the Manager clicks the Check 
+Back button, the same action is also reflected in the Approve 
+button. These two actions should work independently without 
+affecting each other.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Task Management","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Task Review – Check Back and Approve Actions","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The Manager is logged in and has a submitted task awaiting review.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the application as a Manager. 
+2. Navigate to the Task module. 
+3. Open a task awaiting review. 
+4. Click the Check Back button. 
+5. Observe the behavior of the Approve button.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","Clicking the Check Back button should trigger only the check-back 
+action. The Approve button should remain unaffected.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","Clicking the Check Back button also affects the Approve button.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","MEDIUM","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","MEDIUM","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://streamable.com/328u3w","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Report 08","","Dev Status","QA Status","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug ID","BUG_Report008","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/23/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","Housekeeping Staff Do Not Receive Task Assignment Notifications
+in the Mobile App","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","When a task is created and assigned to Housekeeping staff, the 
+assigned staff member does not receive a notification in the mobile
+ app.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Task Assignment ","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Task Assignment – Push Notifications","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The user is logged in to the web application with permission to 
+create tasks, and a Housekeeping staff member is available for 
+task assignment.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the web application. 
+2. Navigate to the Task module. 
+3. Create a new task for the Housekeeping department. 
+4. Assign the task to a Housekeeping staff member. 
+5. Save the task. 6. Check the assigned staff member's mobile 
+app for a notification.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","The assigned Housekeeping staff member should receive a 
+notification in the mobile app when a task is created and assigned
+ to them.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","The assigned Housekeeping staff member does not receive any 
+notification in the mobile app after the task is created.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","HIGH","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://prnt.sc/AHnpCluNRiO_
+https://prnt.sc/sGGflX-4naa3","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Report 09","","Dev Status","QA Status","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug ID","BUG_Report009","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Date Reported","10/23/2026","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reported By","Mohaiminul Islam","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Title","All Three Document Action Buttons Are Triggered Simultaneously
+on the Housekeeping Side","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Bug Details","On the Housekeeping side of the mobile app, when a user clicks 
+an action button for an uploaded document, all three buttons 
+respond or reflect the action simultaneously instead of responding
+independently.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Module","Housekeeping","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Feature","Uploaded Documents – Button Interaction","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Build/Version","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Environment: (Development / Staging / Production)","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","OS","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Browser/Device","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Description","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Preconditions","The user is logged in to the mobile app as Housekeeping staff and
+has access to a task containing an uploaded document.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Steps to Reproduce","1. Log in to the mobile app as Housekeeping staff. 
+2. Navigate to the Task module. 
+3. Open a task containing an uploaded document. 
+4. Click any one of the three document action buttons. 
+5. Observe the behavior of all three buttons.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Expected Result","Only the clicked button should respond and display the relevant 
+action feedback. The other two buttons should remain unaffected.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Actual Result","All three document action buttons respond or reflect the action 
+simultaneously when only one button is clicked.","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Priority","MEDIUM","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Severity","MEDIUM","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Reproducibility","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Assignee","","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Attachments","https://streamable.com/o2izum","","","","","","","","","","","","","","","","","","","","","","","",""
+"","Remarks","","","","","","","","","","","","","","","","","","","","","","","","",""

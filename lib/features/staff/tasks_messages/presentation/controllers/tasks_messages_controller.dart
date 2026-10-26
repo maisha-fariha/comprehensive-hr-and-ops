@@ -202,7 +202,10 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     );
   }
 
-  Future<bool> completeTask(
+  /// Returns `null` on success. On failure returns the API message so the
+  /// task sheet can show it above the open bottom sheet (root snackbars /
+  /// [AppErrorDialog] are suppressed while a sheet is open).
+  Future<String?> completeTask(
     String taskId, {
     bool signOff = false,
     List<Map<String, dynamic>>? checklist,
@@ -214,12 +217,7 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
       checklist: checklist,
     );
     if (result.isFailure) {
-      AppSnackbar.show(
-        'Could not complete task',
-        result.error?.message ?? 'Could not complete task.',
-        force: true,
-      );
-      return false;
+      return result.error?.message ?? 'Could not complete task.';
     }
     final title = requiresReview
         ? (signOff ? 'Signed off and sent for review' : 'Sent for review')
@@ -230,7 +228,7 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
       force: true,
     );
     await loadOverview();
-    return true;
+    return null;
   }
 
   /// Opens New Task wizard (BUG_Report009).
@@ -256,21 +254,21 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     if (created == true) await loadOverview();
   }
 
-  Future<void> addTaskNote({
+  /// `null` when the note was saved. The task sheet shows the message itself:
+  /// root snackbars and error dialogs stay behind the open sheet.
+  Future<String?> addTaskNote({
     required String taskId,
     required String body,
   }) async {
     final text = body.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty) {
+      return 'Add a note or reminder for this task.';
+    }
     final result = await repository.addTaskNote(taskId: taskId, body: text);
     if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not add note',
-      );
-      return;
+      return result.error?.message ?? 'Could not add note.';
     }
-    AppSnackbar.show('Note added', 'Your note was saved.');
+    return null;
   }
 
   Future<void> completeRecurringCheck(RecurringCheckInstance check) async {
