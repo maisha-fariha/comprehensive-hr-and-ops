@@ -11,6 +11,7 @@ import '../../domain/entities/residence_form.dart';
 import '../../domain/entities/residence_summary.dart';
 import '../residences_labels.dart';
 import 'residence_form_inputs.dart';
+import 'residence_geofence_map.dart';
 
 /// State shared by the wizard steps.
 class ResidenceFormBinding {
@@ -111,6 +112,9 @@ class ResidenceBasicStep extends StatelessWidget {
             b.input('emergencyContact', 'Emergency Contact Number', v.emergencyContact,
                 (x) => v.emergencyContact = x,
                 keyboardType: TextInputType.phone),
+            b.input('email', 'Email', v.email, (x) => v.email = x,
+                placeholder: 'residence@example.com',
+                keyboardType: TextInputType.emailAddress),
           ],
         ),
         const SizedBox(height: 12),
@@ -308,6 +312,21 @@ class _ResidenceAddressStepState extends State<ResidenceAddressStep> {
           title: 'GPS Coordinates & Geofence',
           description: 'Used for staff geofenced attendance and location checks.',
           children: [
+            ResidenceGeofenceMap(
+              latitude: v.latitude,
+              longitude: v.longitude,
+              geofenceRadiusMeters: v.geofenceRadius,
+              onPinChanged: (hit) {
+                _manualCoords = true;
+                b.update(() {
+                  v.latitude = hit.lat;
+                  v.longitude = hit.lng;
+                  b.text('latitude', hit.lat).text = hit.lat;
+                  b.text('longitude', hit.lng).text = hit.lng;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
             b.input(
               'latitude',
               'Latitude',
@@ -318,7 +337,7 @@ class _ResidenceAddressStepState extends State<ResidenceAddressStep> {
                   _manualCoords = true;
                 });
               },
-              placeholder: 'Filled from address',
+              placeholder: 'Filled from address or map',
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true, signed: true),
             ),
@@ -332,7 +351,7 @@ class _ResidenceAddressStepState extends State<ResidenceAddressStep> {
                   _manualCoords = true;
                 });
               },
-              placeholder: 'Filled from address',
+              placeholder: 'Filled from address or map',
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true, signed: true),
             ),
@@ -353,7 +372,9 @@ class _ResidenceAddressStepState extends State<ResidenceAddressStep> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.my_location_outlined, size: 16),
-                label: Text(_locating ? 'Locating…' : 'Locate from address'),
+                label: Text(
+                  _locating ? 'Locating…' : 'Find from address',
+                ),
               ),
             ),
             ResidenceSelectInput(
@@ -367,7 +388,7 @@ class _ResidenceAddressStepState extends State<ResidenceAddressStep> {
               'geofenceRadius',
               'Geofence Radius (meters)',
               v.geofenceRadius,
-              (x) => v.geofenceRadius = x,
+              (x) => b.update(() => v.geofenceRadius = x),
               numeric: true,
               helper: 'Radius used to validate staff clock-in proximity.',
             ),
@@ -617,6 +638,8 @@ class ResidenceReviewStep extends StatelessWidget {
           ('Residence Name', v.name),
           ('Type', v.type),
           ('Status', v.lifecycleStatus),
+          ('Phone', v.phone),
+          ('Email', v.email),
           ('Emergency Contact', v.emergencyContact),
         ]),
         _section(context, Icons.place_outlined, 'Address', ResidenceFormStep.address, [
