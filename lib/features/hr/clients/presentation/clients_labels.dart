@@ -15,6 +15,21 @@ abstract final class ClientsLabels {
     'Children Services',
     'Other',
   ];
+
+  /// API `rateFrequency` enum with web "Charged" labels.
+  static const rateFrequencies = <(String, String)>[
+    ('daily', 'Per day'),
+    ('weekly', 'Per week'),
+    ('monthly', 'Per month'),
+  ];
+
+  static String rateFrequencyLabel(String? value) {
+    final v = (value ?? '').trim().toLowerCase();
+    for (final (id, label) in rateFrequencies) {
+      if (id == v) return label;
+    }
+    return value?.trim().isEmpty ?? true ? '' : value!.trim();
+  }
   static const relationships = [
     'Parent',
     'Child',

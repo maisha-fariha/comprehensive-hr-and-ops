@@ -25,6 +25,12 @@ class ClientSummary {
   final DateTime? admissionDate;
   final String? gender;
   final String? fundingSource;
+
+  /// Placement charge amount (`rateAmount`); earned night-by-night in P&L.
+  final double? rateAmount;
+
+  /// API enum: `daily` | `weekly` | `monthly`.
+  final String? rateFrequency;
   final Map<String, bool> portalVisibility;
   final List<String> allergies;
   final List<String> conditions;
@@ -60,6 +66,8 @@ class ClientSummary {
     this.admissionDate,
     this.gender,
     this.fundingSource,
+    this.rateAmount,
+    this.rateFrequency,
     this.portalVisibility = const {},
     this.allergies = const [],
     this.conditions = const [],

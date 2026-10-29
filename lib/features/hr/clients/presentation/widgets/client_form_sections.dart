@@ -320,6 +320,40 @@ class _ClientResidenceSectionState extends State<ClientResidenceSection> {
           onChanged: (v) => _set(() => form.fundingSource = v),
         ),
         _gap,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: ClientInput(
+                key: const ValueKey('client-rate-amount'),
+                label: 'Placement Rate',
+                placeholder: 'e.g. 1200.00',
+                helper:
+                    'What the home charges for this placement, per night, week or month. '
+                    'The residence P&L earns it night by night while the resident is here.',
+                controller: form.rateAmount,
+                enabled: widget.enabled,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => widget.onChanged(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: ClientSelect(
+                key: const ValueKey('client-rate-frequency'),
+                label: 'Charged',
+                placeholder: 'Select',
+                value: form.rateFrequency,
+                options: ClientsLabels.rateFrequencies,
+                enabled: widget.enabled,
+                onChanged: (v) => _set(() => form.rateFrequency = v),
+              ),
+            ),
+          ],
+        ),
+        _gap,
         ClientInput(
           label: 'Assignment Notes',
           placeholder: 'Add any residence assignment notes…',

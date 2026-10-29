@@ -160,6 +160,7 @@ class ClientForm {
   final middleName = TextEditingController();
   final lastName = TextEditingController();
   final roomNumber = TextEditingController();
+  final rateAmount = TextEditingController();
   final assignmentNotes = TextEditingController();
   final guardianName = TextEditingController();
   final guardianMiddleName = TextEditingController();
@@ -184,6 +185,9 @@ class ClientForm {
   String admissionDate = '';
   String roomId = '';
   String fundingSource = '';
+
+  /// API `rateFrequency`: `daily` | `weekly` | `monthly`.
+  String rateFrequency = 'daily';
   String relationship = '';
   String secondaryRelationship = '';
   bool emergencyContact = true;
@@ -229,6 +233,7 @@ class ClientForm {
       ..admissionDate = ClientsLabels.dateInput(c.admissionDate)
       ..roomId = c.roomId ?? ''
       ..fundingSource = c.fundingSource ?? ''
+      ..rateFrequency = _normalizeRateFrequency(c.rateFrequency)
       ..portalVisibility = {..._defaultPortalVisibility, ...c.portalVisibility}
       ..allergies = List.of(c.allergies)
       ..diagnoses = List.of(c.diagnoses)
@@ -237,6 +242,9 @@ class ClientForm {
     form.middleName.text = c.middleName ?? '';
     form.lastName.text = c.lastName;
     form.roomNumber.text = c.roomNumber ?? '';
+    form.rateAmount.text = c.rateAmount == null
+        ? ''
+        : _formatRateAmount(c.rateAmount!);
     form.assignmentNotes.text = c.assignmentNotes;
     form.contactNotes.text = c.contactNotes;
     form.doctorName.text = c.doctorName;
@@ -414,6 +422,25 @@ class ClientForm {
     return t.isEmpty ? null : t;
   }
 
+  static String _normalizeRateFrequency(String? raw) {
+    final v = (raw ?? '').trim().toLowerCase();
+    for (final (id, _) in ClientsLabels.rateFrequencies) {
+      if (id == v) return id;
+    }
+    return 'daily';
+  }
+
+  static String _formatRateAmount(double value) {
+    if (value == value.roundToDouble()) return value.round().toString();
+    return value.toStringAsFixed(2);
+  }
+
+  static num? _rateNumber(String raw) {
+    final t = raw.trim().replaceAll(',', '');
+    if (t.isEmpty) return null;
+    return num.tryParse(t);
+  }
+
   static List<String> _lines(List<TextEditingController> list) => list
       .map((c) => c.text.trim())
       .where((t) => t.isNotEmpty)
@@ -437,6 +464,9 @@ class ClientForm {
       'roomId': ?_opt(roomId),
       'roomNumber': ?_opt(roomNumber.text),
       'fundingSource': ?_opt(fundingSource),
+      'rateAmount': ?_rateNumber(rateAmount.text),
+      if (_rateNumber(rateAmount.text) != null)
+        'rateFrequency': _normalizeRateFrequency(rateFrequency),
       'portalVisibility': Map.of(portalVisibility),
       'carePlan': {
         'servicePlan': servicePlan.text,
@@ -517,6 +547,7 @@ class ClientForm {
       middleName,
       lastName,
       roomNumber,
+      rateAmount,
       assignmentNotes,
       guardianName,
       guardianMiddleName,
