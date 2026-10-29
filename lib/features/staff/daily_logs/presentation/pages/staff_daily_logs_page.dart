@@ -7,9 +7,10 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_outbox_section.dart';
+import '../../../../hr/daily_logs/domain/repositories/daily_logs_repository.dart';
+import '../../../../hr/daily_logs/presentation/controllers/daily_logs_controller.dart';
+import '../../../../hr/daily_logs/presentation/widgets/new_log_entry_sheet.dart';
 import '../../../staff_shell.dart';
-import '../../domain/entities/daily_note_client_info.dart';
-import '../../domain/entities/staff_client_log_entry.dart';
 import '../../domain/entities/staff_daily_logs_enums.dart';
 import '../../domain/entities/staff_daily_logs_overview.dart';
 import '../controllers/staff_daily_logs_controller.dart';
@@ -19,7 +20,6 @@ import '../widgets/staff_daily_logs_queue_tab_view.dart';
 import '../widgets/staff_daily_logs_tab_bar.dart';
 import '../widgets/staff_house_activity_tab_view.dart';
 import '../widgets/staff_resident_day_tab_view.dart';
-import 'daily_note_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Daily Logs — web-parity filters + tabs.
@@ -37,52 +37,45 @@ class StaffDailyLogsPage extends StatelessWidget {
     }
   }
 
-  void _openDailyNote(StaffClientLogEntry entry) {
-    Get.to(
-      () => DailyNotePage(
-        client: DailyNoteClientInfo(
-          initials: entry.initials,
-          name: entry.clientName,
-          dobLabel: entry.dobLabel,
-          roomLabel: entry.roomLabel,
-          clientId: entry.clientId,
-          residenceId: entry.residenceId,
-          entryId: entry.entryId,
-        ),
-      ),
-    );
-  }
+  /// Web "+ Add Care Note" → New Log Entry modal (not the mobile-only Daily Note).
+  Future<void> _openAddCareNote(
+    BuildContext context,
+    StaffDailyLogsController staff,
+  ) async {
+    final clientId = staff.selectedClientId.value;
+    final residenceId = staff.selectedResidenceId.value;
+    if (clientId == null ||
+        clientId.isEmpty ||
+        residenceId == null ||
+        residenceId.isEmpty) {
+      return;
+    }
 
-  void _openNoteForSelected(StaffDailyLogsController controller) {
-    final clientId = controller.selectedClientId.value;
-    final residenceId = controller.selectedResidenceId.value;
-    if (clientId == null || residenceId == null) return;
-    var name = controller.overview?.dayClientName;
+    var name = staff.overview?.dayClientName;
     if (name == null || name.isEmpty) {
-      for (final r in controller.residentOptions) {
+      for (final r in staff.residentOptions) {
         if (r.id == clientId) {
           name = r.name;
           break;
         }
       }
     }
-    name ??= 'Resident';
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
-    final initials = parts.isEmpty
-        ? 'R'
-        : parts.take(2).map((p) => p[0].toUpperCase()).join();
-    Get.to(
-      () => DailyNotePage(
-        client: DailyNoteClientInfo(
-          initials: initials,
-          name: name!,
-          dobLabel: '',
-          roomLabel: '',
-          clientId: clientId,
-          residenceId: residenceId,
-        ),
-      ),
+
+    final logDate = DailyLogsController.dayKey(staff.toDate.value);
+    final entryController = DailyLogsController(
+      repository: GetIt.instance<DailyLogsRepository>(),
+      session: Get.find<UserSession>(),
     );
+    entryController.openDay(
+      clientId,
+      logDate,
+      name: name,
+      residence: residenceId,
+    );
+    entryController.residenceId.value = residenceId;
+
+    await showNewLogEntrySheet(context, controller: entryController);
+    await staff.refresh();
   }
 
   void _onBack() {
@@ -185,7 +178,7 @@ class StaffDailyLogsPage extends StatelessWidget {
                               sectionTitle: 'To review',
                               emptyMessage:
                                   'No logs awaiting review for these filters.',
-                              onItemTap: _openDailyNote,
+                              onItemTap: controller.openDay,
                             ),
                           StaffDailyLogsTab.missing =>
                             StaffDailyLogsQueueTabView(
@@ -195,7 +188,7 @@ class StaffDailyLogsPage extends StatelessWidget {
                               sectionTitle: 'Missing',
                               emptyMessage:
                                   'No missing logs for these filters.',
-                              onItemTap: _openDailyNote,
+                              onItemTap: controller.openDay,
                             ),
                           StaffDailyLogsTab.residentDay =>
                             StaffResidentDayTabView(
@@ -206,8 +199,8 @@ class StaffDailyLogsPage extends StatelessWidget {
                               clientName: safeOverview.dayClientName,
                               dateLabel: safeOverview.dayLogDateLabel,
                               entries: safeOverview.dayEntries,
-                              onWriteNote: canWriteLog
-                                  ? () => _openNoteForSelected(controller)
+                              onAddCareNote: canWriteLog
+                                  ? () => _openAddCareNote(context, controller)
                                   : null,
                             ),
                           StaffDailyLogsTab.houseActivity =>

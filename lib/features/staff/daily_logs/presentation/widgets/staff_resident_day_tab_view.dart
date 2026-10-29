@@ -12,7 +12,7 @@ class StaffResidentDayTabView extends StatelessWidget {
   final String? clientName;
   final String? dateLabel;
   final List<StaffDayLogEntry> entries;
-  final VoidCallback? onWriteNote;
+  final VoidCallback? onAddCareNote;
 
   const StaffResidentDayTabView({
     super.key,
@@ -21,7 +21,7 @@ class StaffResidentDayTabView extends StatelessWidget {
     required this.entries,
     this.clientName,
     this.dateLabel,
-    this.onWriteNote,
+    this.onAddCareNote,
   });
 
   @override
@@ -83,10 +83,10 @@ class StaffResidentDayTabView extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onWriteNote != null)
+              if (onAddCareNote != null)
                 TextButton(
-                  onPressed: onWriteNote,
-                  child: const Text('Write note'),
+                  onPressed: onAddCareNote,
+                  child: const Text('Add Care Note'),
                 ),
             ],
           ),
