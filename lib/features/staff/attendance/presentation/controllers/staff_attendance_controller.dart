@@ -6,11 +6,13 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/attendance/domain/entities/attendance_week.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
+import '../../../../hr/attendance/domain/entities/time_off_request.dart';
 import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
@@ -29,6 +31,11 @@ class StaffAttendanceController
   final RxList<ManualEntryResidenceOption> residenceOptions =
       <ManualEntryResidenceOption>[].obs;
 
+  final RxList<TimeOffRequest> timeOffRequests = <TimeOffRequest>[].obs;
+  final RxBool timeOffLoading = false.obs;
+  final RxnString timeOffError = RxnString();
+  final Rx<TimeOffStatusTab> timeOffTab = TimeOffStatusTab.all.obs;
+
   Timer? _ticker;
 
   StaffAttendanceController({required this.repository});
@@ -40,6 +47,7 @@ class StaffAttendanceController
     super.onInit();
     loadOverview();
     _loadResidences();
+    loadTimeOffRequests();
   }
 
   @override
@@ -194,6 +202,7 @@ class StaffAttendanceController
   void setHistoryWeek(DateTime day) {
     historyWeek.value = AttendanceWeek.containing(day);
     loadOverview();
+    loadTimeOffRequests();
   }
 
   void setHistoryResidenceFilter(String residenceId) {
@@ -227,8 +236,70 @@ class StaffAttendanceController
     if (saved == true) await loadOverview();
   }
 
+  void setTimeOffTab(TimeOffStatusTab tab) {
+    if (timeOffTab.value == tab) return;
+    timeOffTab.value = tab;
+    loadTimeOffRequests();
+  }
+
+  Future<void> loadTimeOffRequests() async {
+    timeOffLoading.value = true;
+    timeOffError.value = null;
+    final status = switch (timeOffTab.value) {
+      TimeOffStatusTab.pending => 'pending',
+      TimeOffStatusTab.approved => 'approved',
+      TimeOffStatusTab.rejected => 'rejected',
+      TimeOffStatusTab.all => null,
+    };
+    final week = historyWeek.value;
+    final result = await repository.getMyTimeOffRequests(
+      from: week.from,
+      to: week.to,
+      status: status,
+    );
+    result.when(
+      success: (rows) {
+        timeOffRequests.assignAll(rows);
+        timeOffError.value = null;
+      },
+      failure: (error) {
+        timeOffError.value = error.message;
+        timeOffRequests.clear();
+      },
+    );
+    timeOffLoading.value = false;
+  }
+
+  Future<bool> submitTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? reason,
+  }) async {
+    final result = await repository.createTimeOffRequest(
+      type: type,
+      startDate: startDate,
+      endDate: endDate,
+      reason: reason,
+    );
+    var ok = false;
+    result.when(
+      success: (_) {
+        ok = true;
+        AppSnackbar.show('Time off', 'Request submitted.');
+      },
+      failure: (error) => AppSnackbar.show('Time off', error.message),
+    );
+    if (ok) await loadTimeOffRequests();
+    return ok;
+  }
+
   @override
   Future<void> refresh() async {
-    await Future.wait([loadOverview(), _loadResidences()]);
+    await Future.wait([
+      loadOverview(),
+      _loadResidences(),
+      loadTimeOffRequests(),
+    ]);
   }
 }

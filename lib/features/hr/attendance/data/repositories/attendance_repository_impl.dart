@@ -7,6 +7,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
+import '../../domain/entities/time_off_request.dart';
 import '../../domain/repositories/attendance_repository.dart';
 import '../mappers/attendance_mapper.dart';
 
@@ -311,5 +312,70 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       return JsonCodec.string(data['id'] ?? map['id']);
     }
     return null;
+  }
+
+  @override
+  Future<Result<List<TimeOffRequest>>> getTimeOffRequests({
+    String? from,
+    String? to,
+    String? status,
+    String? residenceId,
+    bool mine = false,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.attendanceTimeOffRequests,
+      query: {
+        'from': ?from,
+        'to': ?to,
+        'status': ?status,
+        'residenceId': ?residenceId,
+        if (mine) 'mine': true,
+        'page': 1,
+        'limit': _pageSize,
+      },
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AttendanceMapper.timeOffListFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<TimeOffRequest>> createTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? staffId,
+    String? reason,
+  }) async {
+    final note = reason?.trim();
+    final result = await _api.post(
+      ApiEndpoints.attendanceTimeOffRequests,
+      data: {
+        'type': type.apiValue,
+        'startDate': startDate,
+        'endDate': endDate,
+        if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
+        if (note != null && note.isNotEmpty) 'reason': note,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        final row = AttendanceMapper.timeOffFrom(json);
+        if (row == null) {
+          return Result.failure(
+            const ApiError(
+              message:
+                  'Time-off request was saved but could not be read back.',
+            ),
+          );
+        }
+        return Result.success(row);
+      },
+      failure: (error) async => Result.failure(error),
+    );
   }
 }

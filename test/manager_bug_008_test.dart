@@ -3,6 +3,7 @@ import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/attendance_record.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/attendance_week.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/manual_entry_options.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/time_off_request.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/repositories/attendance_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/attendance/presentation/controllers/attendance_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/attendance/presentation/pages/attendance_clock_page.dart';
@@ -226,6 +227,38 @@ class _FakeAttendanceRepo implements AttendanceRepository {
     created.add(payload);
     return Result.success('new-id');
   }
+
+  @override
+  Future<Result<List<TimeOffRequest>>> getTimeOffRequests({
+    String? from,
+    String? to,
+    String? status,
+    String? residenceId,
+    bool mine = false,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<TimeOffRequest>> createTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? staffId,
+    String? reason,
+  }) async =>
+      Result.success(
+        TimeOffRequest(
+          id: 'tor-1',
+          staffId: staffId ?? 'staff-1',
+          staffName: 'Staff',
+          type: type,
+          startDate: DateTime.parse(startDate),
+          endDate: DateTime.parse(endDate),
+          days: 1,
+          status: TimeOffStatus.pending,
+          reason: reason,
+        ),
+      );
 }
 
 late _FakeAttendanceRepo _repo;

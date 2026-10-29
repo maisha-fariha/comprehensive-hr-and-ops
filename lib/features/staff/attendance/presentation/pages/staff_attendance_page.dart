@@ -20,6 +20,7 @@ import '../widgets/shift_details_card.dart';
 import '../widgets/staff_attendance_filters_bar.dart';
 import '../widgets/staff_attendance_header.dart';
 import '../widgets/staff_attendance_metrics_strip.dart';
+import '../widgets/staff_time_off_section.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Attendance — web-parity metrics, filters, list, and clock in/out.
@@ -194,6 +195,10 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
                     AttendanceHistorySection(
                       items: controller.filteredHistory,
                     ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 20),
+                    ),
+                    StaffTimeOffSection(controller: controller),
                   ],
                 ),
               ),

@@ -7,13 +7,16 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
+import '../../domain/entities/time_off_request.dart';
 import '../../../presentation/open_manager_menu.dart';
 import '../controllers/attendance_controller.dart';
 import '../widgets/attendance_filters.dart';
 import '../widgets/attendance_header.dart';
 import '../widgets/attendance_kpi_grid.dart';
+import '../widgets/attendance_main_tabs.dart';
 import '../widgets/attendance_pagination.dart';
 import '../widgets/attendance_record_card.dart';
+import '../widgets/time_off_section.dart';
 import 'attendance_clock_page.dart';
 import 'manual_attendance_entry_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
@@ -72,22 +75,41 @@ class AttendancePage extends StatelessWidget {
                     ResponsiveHelper.getResponsiveHeight(context, 24),
                   ),
                   children: [
-                    ..._filters(context, controller),
-                    if (!controller.appliesWeek) ...[
-                      _gap(context, 12),
-                      const _PendingBanner(),
-                    ],
-                    if (controller.canManage) ...[
+                    AttendanceMainTabs(
+                      selected: controller.mainTab.value,
+                      onSelected: controller.setMainTab,
+                    ),
+                    if (controller.mainTab.value ==
+                        AttendanceMainTab.timeOff) ...[
                       _gap(context, 14),
-                      AttendanceKpiGrid(
-                        summary:
-                            controller.summary.value ?? const AttendanceSummary(),
-                        activeStatus: controller.status.value,
-                        onSelect: controller.toggleKpi,
+                      AttendanceWeekButton(
+                        label: controller.week.value.label,
+                        onTap: () => _pickWeek(context, controller),
                       ),
+                      _gap(context, 12),
+                      TimeOffSection(
+                        controller: controller,
+                        managerMode: controller.canManage,
+                      ),
+                    ] else ...[
+                      _gap(context, 14),
+                      ..._filters(context, controller),
+                      if (!controller.appliesWeek) ...[
+                        _gap(context, 12),
+                        const _PendingBanner(),
+                      ],
+                      if (controller.canManage) ...[
+                        _gap(context, 14),
+                        AttendanceKpiGrid(
+                          summary: controller.summary.value ??
+                              const AttendanceSummary(),
+                          activeStatus: controller.status.value,
+                          onSelect: controller.toggleKpi,
+                        ),
+                      ],
+                      _gap(context, 16),
+                      ..._records(context, controller),
                     ],
-                    _gap(context, 16),
-                    ..._records(context, controller),
                   ],
                 ),
               ),

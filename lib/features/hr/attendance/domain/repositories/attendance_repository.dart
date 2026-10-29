@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../entities/attendance_record.dart';
 import '../entities/manual_entry_options.dart';
+import '../entities/time_off_request.dart';
 
 /// Contract for the manager "Attendance" screen and its nested flows.
 abstract class AttendanceRepository {
@@ -76,4 +77,22 @@ abstract class AttendanceRepository {
 
   /// `POST /attendance/manual`. Returns the new attendance id when present.
   Future<Result<String>> recordManualAttendance(Map<String, dynamic> payload);
+
+  /// `GET /attendance/time-off-requests`.
+  Future<Result<List<TimeOffRequest>>> getTimeOffRequests({
+    String? from,
+    String? to,
+    String? status,
+    String? residenceId,
+    bool mine = false,
+  });
+
+  /// `POST /attendance/time-off-requests`.
+  Future<Result<TimeOffRequest>> createTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? staffId,
+    String? reason,
+  });
 }

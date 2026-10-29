@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
+import '../../../../hr/attendance/domain/entities/time_off_request.dart';
 import '../entities/staff_attendance_overview.dart';
 
 /// Contract for the staff member's live attendance/clock status.
@@ -72,5 +73,20 @@ abstract class StaffAttendanceRepository {
     String status = 'pending_approval',
     String? notes,
     List<Map<String, dynamic>> evidence = const [],
+  });
+
+  /// Own leave requests (`GET /attendance/time-off-requests?mine=true`).
+  Future<Result<List<TimeOffRequest>>> getMyTimeOffRequests({
+    String? from,
+    String? to,
+    String? status,
+  });
+
+  /// `POST /attendance/time-off-requests` as the signed-in staff member.
+  Future<Result<TimeOffRequest>> createTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? reason,
   });
 }

@@ -49,6 +49,9 @@ abstract final class ApiEndpoints {
   static const String attendanceCheckOut = '/attendance/check-out';
   static const String attendanceBreakStart = '/attendance/break/start';
   static const String attendanceBreakEnd = '/attendance/break/end';
+  /// Web Attendance → Time-Off Requests (`GET`/`POST`).
+  static const String attendanceTimeOffRequests =
+      '/attendance/time-off-requests';
   static const String appointments = '/appointments';
   static const String appointmentsSummary = '/appointments/summary';
   static const String recurringCheckSchedules = '/recurring-checks/schedules';
