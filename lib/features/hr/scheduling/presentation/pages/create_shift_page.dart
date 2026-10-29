@@ -93,9 +93,22 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     _messageController =
         TextEditingController(text: _draft.notificationMessage);
     _initialSnapshot = _draft.snapshot();
-    if (_isEdit) _loadShift();
+    if (_isEdit) {
+      _loadShift();
+    } else {
+      _loadDefaultBreak();
+    }
     _loadResidences();
     _loadStaff();
+  }
+
+  Future<void> _loadDefaultBreak() async {
+    final result = await _repository.getDefaultBreakMinutes();
+    if (!mounted || _isEdit) return;
+    result.when(
+      success: (minutes) => _update(() => _draft.breakMinutes = minutes),
+      failure: (_) {},
+    );
   }
 
   Future<void> _loadShift() async {
@@ -232,7 +245,27 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     });
   }
 
+  /// Surface start/end overlap as soon as both times are set (web-parity UX).
+  void _surfaceTimeOverlapError() {
+    final current = _draft.validate();
+    setState(() {
+      final next = Map<String, String>.from(_errors);
+      next.remove(CreateShiftField.startTime);
+      next.remove(CreateShiftField.endTime);
+      if (current.containsKey(CreateShiftField.endTime)) {
+        next[CreateShiftField.endTime] = current[CreateShiftField.endTime]!;
+      }
+      if (current.containsKey(CreateShiftField.startTime)) {
+        next[CreateShiftField.startTime] = current[CreateShiftField.startTime]!;
+      }
+      _errors = next;
+    });
+  }
+
   void _goTo(CreateShiftStep step) {
+    if (step == CreateShiftStep.openShift) {
+      step = CreateShiftStep.staffAssignment;
+    }
     FocusScope.of(context).unfocus();
     setState(() => _step = step);
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
@@ -244,15 +277,23 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       setState(() => _errors = {..._errors, ...stepErrors});
       return;
     }
-    final index = _step.index;
-    if (index < CreateShiftStep.values.length - 1) {
-      _goTo(CreateShiftStep.values[index + 1]);
+    // Web combines Assign Staff + Open Shift on one step; skip the legacy
+    // dedicated Open Shift page when staffing method was already chosen.
+    var index = _step.index + 1;
+    if (index == CreateShiftStep.openShift.index) {
+      index += 1;
+    }
+    if (index < CreateShiftStep.values.length) {
+      _goTo(CreateShiftStep.values[index]);
     }
   }
 
   void _back() {
-    final index = _step.index;
-    if (index > 0) _goTo(CreateShiftStep.values[index - 1]);
+    var index = _step.index - 1;
+    if (index == CreateShiftStep.openShift.index) {
+      index -= 1;
+    }
+    if (index >= 0) _goTo(CreateShiftStep.values[index]);
   }
 
   Future<void> _submit() async {
@@ -616,9 +657,18 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                   onSelected: _isSubmitting ? null : _goTo,
                 ),
                 CreateShiftCompletionBar(
-                  currentStep: _draft.completedSteps,
-                  totalSteps: CreateShiftStep.values.length,
-                  percent: _draft.completionPercent.toDouble(),
+                  currentStep: CreateShiftStepX.visibleSteps
+                      .where(_draft.isStepComplete)
+                      .length,
+                  totalSteps: CreateShiftStepX.visibleSteps.length,
+                  percent: (() {
+                    final total = CreateShiftStepX.visibleSteps.length;
+                    if (total == 0) return 0.0;
+                    final done = CreateShiftStepX.visibleSteps
+                        .where(_draft.isStepComplete)
+                        .length;
+                    return (done / total * 100).roundToDouble();
+                  })(),
                 ),
                 Expanded(
                   child: SingleChildScrollView(
@@ -700,12 +750,18 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           startTimeValue: _formatTime(_draft.startMinutes),
           onStartTimeTap: () async {
             final time = await _pickTime(_draft.startMinutes);
-            if (time != null) _update(() => _draft.startMinutes = time);
+            if (time != null) {
+              _update(() => _draft.startMinutes = time);
+              _surfaceTimeOverlapError();
+            }
           },
           endTimeValue: _formatTime(_draft.endMinutes),
           onEndTimeTap: () async {
             final time = await _pickTime(_draft.endMinutes);
-            if (time != null) _update(() => _draft.endMinutes = time);
+            if (time != null) {
+              _update(() => _draft.endMinutes = time);
+              _surfaceTimeOverlapError();
+            }
           },
           breakDurationValue: CreateShiftChoices.labelOf(
             [
@@ -723,6 +779,60 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           assignedStaff: _draft.assignedStaff,
           expandedStaffId: _expandedStaffId,
           isLoadingStaff: _isLoadingStaff,
+          isOpenShift: _draft.isOpenShift,
+          onOpenShiftChanged: (value) => _update(() {
+            _draft.isOpenShift = value;
+            if (value) _draft.assignedStaff.clear();
+          }),
+          openShiftFields: CreateShiftOpenShiftForm(
+            embedded: true,
+            isOpenShift: true,
+            onChanged: (_) {},
+            requiredStaffCountController: _requiredStaffCountController,
+            maxBidsController: _maxBidsController,
+            noteToBiddersController: _noteToBiddersController,
+            deadlineDateValue: _formatDate(_draft.biddingDeadlineDate),
+            onDeadlineDateTap: () async {
+              final date = await _pickDate(_draft.biddingDeadlineDate);
+              if (date != null) {
+                _update(() => _draft.biddingDeadlineDate = date);
+              }
+            },
+            deadlineTimeValue: _formatTime(_draft.biddingDeadlineMinutes),
+            onDeadlineTimeTap: () async {
+              final time = await _pickTime(_draft.biddingDeadlineMinutes);
+              if (time != null) {
+                _update(() => _draft.biddingDeadlineMinutes = time);
+              }
+            },
+            priorityValue: CreateShiftChoices.labelOf(
+              CreateShiftChoices.priorities,
+              _draft.priority,
+            ),
+            onPriorityTap: () async {
+              final value = await _pickOption<String>(
+                title: 'Priority',
+                options: CreateShiftChoices.priorities,
+                selected: _draft.priority,
+                hasSelection: true,
+              );
+              if (value != null) _update(() => _draft.priority = value);
+            },
+            awardMethodValue: CreateShiftChoices.labelOf(
+              CreateShiftChoices.awardMethods,
+              _draft.awardMethod,
+            ),
+            onAwardMethodTap: () async {
+              final value = await _pickOption<String>(
+                title: 'Award Method',
+                options: CreateShiftChoices.awardMethods,
+                selected: _draft.awardMethod,
+                hasSelection: true,
+              );
+              if (value != null) _update(() => _draft.awardMethod = value);
+            },
+            onTextChanged: _onTextChanged,
+          ),
           onAddStaff: _openStaffPicker,
           onRemoveStaff: _removeStaff,
           onToggleExpand: (id) => setState(
@@ -731,52 +841,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           onChanged: () => setState(() {}),
         );
       case CreateShiftStep.openShift:
-        return CreateShiftOpenShiftForm(
-          isOpenShift: _draft.isOpenShift,
-          onChanged: (value) => _update(() => _draft.isOpenShift = value),
-          requiredStaffCountController: _requiredStaffCountController,
-          maxBidsController: _maxBidsController,
-          noteToBiddersController: _noteToBiddersController,
-          deadlineDateValue: _formatDate(_draft.biddingDeadlineDate),
-          onDeadlineDateTap: () async {
-            final date = await _pickDate(_draft.biddingDeadlineDate);
-            if (date != null) _update(() => _draft.biddingDeadlineDate = date);
-          },
-          deadlineTimeValue: _formatTime(_draft.biddingDeadlineMinutes),
-          onDeadlineTimeTap: () async {
-            final time = await _pickTime(_draft.biddingDeadlineMinutes);
-            if (time != null) {
-              _update(() => _draft.biddingDeadlineMinutes = time);
-            }
-          },
-          priorityValue: CreateShiftChoices.labelOf(
-            CreateShiftChoices.priorities,
-            _draft.priority,
-          ),
-          onPriorityTap: () async {
-            final value = await _pickOption<String>(
-              title: 'Priority',
-              options: CreateShiftChoices.priorities,
-              selected: _draft.priority,
-              hasSelection: true,
-            );
-            if (value != null) _update(() => _draft.priority = value);
-          },
-          awardMethodValue: CreateShiftChoices.labelOf(
-            CreateShiftChoices.awardMethods,
-            _draft.awardMethod,
-          ),
-          onAwardMethodTap: () async {
-            final value = await _pickOption<String>(
-              title: 'Award Method',
-              options: CreateShiftChoices.awardMethods,
-              selected: _draft.awardMethod,
-              hasSelection: true,
-            );
-            if (value != null) _update(() => _draft.awardMethod = value);
-          },
-          onTextChanged: _onTextChanged,
-        );
+        // Legacy step — navigation skips this; kept for enum/progress parity.
+        return const SizedBox.shrink();
       case CreateShiftStep.recurring:
         return CreateShiftRecurringForm(
           isRecurring: _draft.isRecurring,

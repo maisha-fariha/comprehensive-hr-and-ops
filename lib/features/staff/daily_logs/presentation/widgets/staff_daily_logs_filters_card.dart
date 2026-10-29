@@ -5,7 +5,7 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 
-/// Web filter card: Residence *, Resident, From, To.
+/// Web filter card: Residence *, Resident, From/To (or single Date on day tab).
 class StaffDailyLogsFiltersCard extends StatelessWidget {
   final String? residenceId;
   final String? clientId;
@@ -18,6 +18,9 @@ class StaffDailyLogsFiltersCard extends StatelessWidget {
   final ValueChanged<DateTime> onFromChanged;
   final ValueChanged<DateTime> onToChanged;
   final String Function(DateTime) formatDate;
+
+  /// When true (Resident Day tab), show a single Date picker like web.
+  final bool singleDateMode;
 
   const StaffDailyLogsFiltersCard({
     super.key,
@@ -32,6 +35,7 @@ class StaffDailyLogsFiltersCard extends StatelessWidget {
     required this.onFromChanged,
     required this.onToChanged,
     required this.formatDate,
+    this.singleDateMode = false,
   });
 
   @override
@@ -103,45 +107,69 @@ class StaffDailyLogsFiltersCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          Row(
-            children: [
-              Expanded(
-                child: _LabeledField(
-                  label: 'From',
-                  child: _DateField(
-                    label: formatDate(fromDate),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: fromDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (picked != null) onFromChanged(picked);
-                    },
+          if (singleDateMode)
+            _LabeledField(
+              label: 'Date',
+              child: _DateField(
+                label: formatDate(fromDate),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: fromDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (picked != null) {
+                    onFromChanged(picked);
+                    onToChanged(picked);
+                  }
+                },
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _LabeledField(
+                    label: 'From',
+                    child: _DateField(
+                      label: formatDate(fromDate),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: fromDate,
+                          firstDate: DateTime(2020),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (picked != null) onFromChanged(picked);
+                      },
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-              Expanded(
-                child: _LabeledField(
-                  label: 'To',
-                  child: _DateField(
-                    label: formatDate(toDate),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: toDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (picked != null) onToChanged(picked);
-                    },
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 10),
+                ),
+                Expanded(
+                  child: _LabeledField(
+                    label: 'To',
+                    child: _DateField(
+                      label: formatDate(toDate),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: toDate,
+                          firstDate: DateTime(2020),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (picked != null) onToChanged(picked);
+                      },
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );

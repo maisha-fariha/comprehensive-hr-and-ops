@@ -29,6 +29,9 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
   /// BUG_Report004 — optional status filter (`null` = all).
   final RxnString statusFilter = RxnString();
 
+  /// Last notification-focus token so rebuilds do not re-fetch forever.
+  String? _lastFocusToken;
+
   StaffScheduleController({required this.repository});
 
   StaffScheduleOverview? get overview => state.value.data;
@@ -129,6 +132,42 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
         ],
       ),
     );
+  }
+
+  /// BUG_Report001 — open Schedule on the shift's day from a notification tap.
+  ///
+  /// Uses [date] when the payload includes `shiftStartsAt`; otherwise loads
+  /// `GET /shifts/{shiftId}` for the start day.
+  Future<void> applyNotificationFocus({
+    DateTime? date,
+    String? shiftId,
+  }) async {
+    final id = shiftId?.trim();
+    final hasId = id != null && id.isNotEmpty;
+    if (date == null && !hasId) return;
+
+    final token =
+        '${id ?? ''}|${date == null ? '' : date.toIso8601String()}';
+    if (token == _lastFocusToken) return;
+    _lastFocusToken = token;
+
+    var target = date == null
+        ? null
+        : DateTime(date.year, date.month, date.day);
+
+    if (target == null && hasId) {
+      final result = await repository.getShiftDetail(id);
+      final start = result.value?.startAt;
+      if (start != null) {
+        final local = start.toLocal();
+        target = DateTime(local.year, local.month, local.day);
+      }
+    }
+    if (target == null) return;
+
+    weekStart.value = IsoDateRange.startOfWeek(target);
+    selectedDate.value = target;
+    await loadOverview();
   }
 
   /// Refresh one card from `GET /shifts/{id}` (avatars / filled counts).

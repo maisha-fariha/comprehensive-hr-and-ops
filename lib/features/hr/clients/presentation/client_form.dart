@@ -43,9 +43,9 @@ const portalVisibilityGroups = [
   PortalVisibilityGroup('Health Information', [
     PortalVisibilityItem(
       'medications',
-      'Medication Information',
-      'Share current medication information and medication updates.',
-      'Medication administration details are only visible based on organization policy.',
+      'Current Medications',
+      'What is prescribed and when it is given.',
+      'Individual dose administration status (given/refused) is hidden from family.',
     ),
     PortalVisibilityItem(
       'medicalConditions',

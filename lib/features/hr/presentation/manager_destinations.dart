@@ -286,7 +286,8 @@ List<ManagerDestination> managerDestinations() {
     if (can('documents:read'))
       ManagerDestination(
         title: 'Documents',
-        subtitle: 'Certificates, care plans & policies on file',
+        subtitle:
+            'Certificates, care plans, policies & compliance filings',
         icon: Icons.folder_copy_outlined,
         iconBackground: AppColors.infoBackground,
         iconColor: AppColors.infoBlue,
@@ -295,7 +296,16 @@ List<ManagerDestination> managerDestinations() {
           anyOf: const ['documents:read'],
           builder: () => const HrDocumentsPage(),
         ),
-        keywords: const ['documents', 'documentation', 'certificates', 'files', 'compliance', 'expiry', 'registry'],
+        keywords: const [
+          'documents',
+          'documentation',
+          'certificates',
+          'files',
+          'compliance',
+          'statutory',
+          'expiry',
+          'registry',
+        ],
       ),
     if (can('training:read'))
       ManagerDestination(

@@ -40,7 +40,11 @@ class CommunicationPushRouter {
       unawaited(_onForeground(message.copyWith(data: data)));
       return;
     }
-    if (!isCommunicationPush(data) && !isShiftSwapPush(data)) return;
+    if (!isCommunicationPush(data) &&
+        !isShiftSwapPush(data) &&
+        !isShiftSchedulePush(data)) {
+      return;
+    }
     _pending = data;
     _flush();
   }
@@ -89,15 +93,16 @@ class CommunicationPushRouter {
       return;
     }
     final session = Get.find<UserSession>();
-    if (isShiftSwapPush(data)) {
+    if (isShiftSwapPush(data) || isShiftSchedulePush(data)) {
+      final swap = isShiftSwapPush(data);
       PortalNotificationNavigator.open(
         PortalNotification(
-          id: _raw(data['entityId']) ?? 'shift-swap',
-          title: _raw(data['title']) ?? 'Shift swap',
+          id: _raw(data['entityId']) ?? (swap ? 'shift-swap' : 'shift'),
+          title: _raw(data['title']) ?? (swap ? 'Shift swap' : 'Shift'),
           body: _raw(data['body']) ?? '',
           timeLabel: '',
-          entityType: _raw(data['entityType']) ?? 'shift_swap',
-          entityId: _raw(data['entityId']),
+          entityType: _raw(data['entityType']) ?? (swap ? 'shift_swap' : 'shift'),
+          entityId: _raw(data['entityId']) ?? _raw(data['shiftId']),
           eventKey: _raw(data['eventKey']),
           meta: data,
         ),
@@ -212,6 +217,16 @@ bool isShiftSwapPush(Map<String, dynamic> data) {
   if (type == 'shift_swap' || type == 'shiftswap') return true;
   final key = _token(data['eventKey'] ?? data['event']);
   return key.startsWith('scheduling.swap');
+}
+
+/// Assigned / open / published shift alerts open Schedule on that day.
+bool isShiftSchedulePush(Map<String, dynamic> data) {
+  if (isShiftSwapPush(data)) return false;
+  final type = _token(data['entityType'] ?? data['type']).replaceAll('-', '_');
+  if (type == 'shift') return true;
+  final key = _token(data['eventKey'] ?? data['event']);
+  if (key.startsWith('scheduling.') || key.startsWith('shifts.')) return true;
+  return _raw(data['shiftId']) != null || _raw(data['shiftStartsAt']) != null;
 }
 
 /// True when the push is a Communication / family message.

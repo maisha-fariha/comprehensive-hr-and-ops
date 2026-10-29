@@ -21,6 +21,9 @@ class CreateShiftOpenShiftForm extends StatelessWidget {
   final VoidCallback? onAwardMethodTap;
   final ValueChanged<String>? onTextChanged;
 
+  /// When true, only bidding fields are shown (used inside Assign|Open toggle).
+  final bool embedded;
+
   const CreateShiftOpenShiftForm({
     super.key,
     required this.isOpenShift,
@@ -37,11 +40,103 @@ class CreateShiftOpenShiftForm extends StatelessWidget {
     this.awardMethodValue,
     this.onAwardMethodTap,
     this.onTextChanged,
+    this.embedded = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16));
+    final fields = <Widget>[
+      const CreateShiftFieldLabel('People needed'),
+      CreateShiftTextField(
+        key: const ValueKey('create-shift-people-needed'),
+        controller: requiredStaffCountController,
+        hint: '1',
+        keyboardType: TextInputType.number,
+        onChanged: onTextChanged,
+      ),
+      const CreateShiftHelperText(
+        'How many staff should end up on this shift.',
+      ),
+      gap,
+      CreateShiftFieldRow(
+        left: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CreateShiftFieldLabel('Bidding Deadline'),
+            CreateShiftDateField(
+              key: const ValueKey('create-shift-bid-deadline'),
+              value: deadlineDateValue,
+              onTap: onDeadlineDateTap,
+            ),
+          ],
+        ),
+        right: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CreateShiftFieldLabel('Deadline Time'),
+            CreateShiftTimeField(
+              key: const ValueKey('create-shift-bid-deadline-time'),
+              value: deadlineTimeValue,
+              onTap: onDeadlineTimeTap,
+            ),
+          ],
+        ),
+      ),
+      gap,
+      CreateShiftFieldRow(
+        left: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CreateShiftFieldLabel('Maximum Bids'),
+            CreateShiftTextField(
+              key: const ValueKey('create-shift-max-bids'),
+              controller: maxBidsController,
+              hint: '10',
+              keyboardType: TextInputType.number,
+              onChanged: onTextChanged,
+            ),
+          ],
+        ),
+        right: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CreateShiftFieldLabel('Priority'),
+            CreateShiftDropdownField(
+              key: const ValueKey('create-shift-priority'),
+              value: priorityValue,
+              placeholder: 'Select an option',
+              onTap: onPriorityTap,
+            ),
+          ],
+        ),
+      ),
+      gap,
+      const CreateShiftFieldLabel('Award Method'),
+      CreateShiftDropdownField(
+        key: const ValueKey('create-shift-award-method'),
+        value: awardMethodValue,
+        placeholder: 'Select an option',
+        onTap: onAwardMethodTap,
+      ),
+      gap,
+      const CreateShiftFieldLabel('Note to Bidders'),
+      CreateShiftTextField(
+        key: const ValueKey('create-shift-note-to-bidders'),
+        controller: noteToBiddersController,
+        hint: 'Describe requirements or context to help staff decide…',
+        maxLines: 3,
+        keyboardType: TextInputType.multiline,
+        onChanged: onTextChanged,
+      ),
+    ];
+
+    if (embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: fields,
+      );
+    }
 
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
@@ -65,91 +160,7 @@ class CreateShiftOpenShiftForm extends StatelessWidget {
             value: isOpenShift,
             onChanged: onChanged,
           ),
-          if (isOpenShift) ...[
-            gap,
-            const CreateShiftFieldLabel('People needed'),
-            CreateShiftTextField(
-              key: const ValueKey('create-shift-people-needed'),
-              controller: requiredStaffCountController,
-              hint: '1',
-              keyboardType: TextInputType.number,
-              onChanged: onTextChanged,
-            ),
-            const CreateShiftHelperText(
-              'How many staff should end up on this shift.',
-            ),
-            gap,
-            CreateShiftFieldRow(
-              left: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const CreateShiftFieldLabel('Bidding Deadline'),
-                  CreateShiftDateField(
-                    key: const ValueKey('create-shift-bid-deadline'),
-                    value: deadlineDateValue,
-                    onTap: onDeadlineDateTap,
-                  ),
-                ],
-              ),
-              right: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const CreateShiftFieldLabel('Deadline Time'),
-                  CreateShiftTimeField(
-                    key: const ValueKey('create-shift-bid-deadline-time'),
-                    value: deadlineTimeValue,
-                    onTap: onDeadlineTimeTap,
-                  ),
-                ],
-              ),
-            ),
-            gap,
-            CreateShiftFieldRow(
-              left: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const CreateShiftFieldLabel('Maximum Bids'),
-                  CreateShiftTextField(
-                    key: const ValueKey('create-shift-max-bids'),
-                    controller: maxBidsController,
-                    hint: '10',
-                    keyboardType: TextInputType.number,
-                    onChanged: onTextChanged,
-                  ),
-                ],
-              ),
-              right: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const CreateShiftFieldLabel('Priority'),
-                  CreateShiftDropdownField(
-                    key: const ValueKey('create-shift-priority'),
-                    value: priorityValue,
-                    placeholder: 'Select an option',
-                    onTap: onPriorityTap,
-                  ),
-                ],
-              ),
-            ),
-            gap,
-            const CreateShiftFieldLabel('Award Method'),
-            CreateShiftDropdownField(
-              key: const ValueKey('create-shift-award-method'),
-              value: awardMethodValue,
-              placeholder: 'Select an option',
-              onTap: onAwardMethodTap,
-            ),
-            gap,
-            const CreateShiftFieldLabel('Note to Bidders'),
-            CreateShiftTextField(
-              key: const ValueKey('create-shift-note-to-bidders'),
-              controller: noteToBiddersController,
-              hint: 'Describe requirements or context to help staff decide…',
-              maxLines: 3,
-              keyboardType: TextInputType.multiline,
-              onChanged: onTextChanged,
-            ),
-          ],
+          if (isOpenShift) ...[gap, ...fields],
         ],
       ),
     );

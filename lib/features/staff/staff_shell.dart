@@ -20,7 +20,18 @@ import 'scheduling/presentation/pages/staff_schedule_page.dart';
 class StaffShell extends StatefulWidget {
   final int initialIndex;
 
-  const StaffShell({super.key, this.initialIndex = 0});
+  /// BUG_Report001 — optional day to select on the Schedule tab (notification).
+  final DateTime? scheduleFocusDate;
+
+  /// Optional shift id when the notification has no `shiftStartsAt`.
+  final String? scheduleFocusShiftId;
+
+  const StaffShell({
+    super.key,
+    this.initialIndex = 0,
+    this.scheduleFocusDate,
+    this.scheduleFocusShiftId,
+  });
 
   @override
   State<StaffShell> createState() => _StaffShellState();
@@ -54,7 +65,10 @@ class _StaffShellState extends State<StaffShell> {
       final tabs = <Widget>[
         const StaffDashboardPage(),
         allowed(1)
-            ? const StaffSchedulePage()
+            ? StaffSchedulePage(
+                focusDate: widget.scheduleFocusDate,
+                focusShiftId: widget.scheduleFocusShiftId,
+              )
             : const SizedBox.shrink(),
         allowed(2)
             ? const StaffDailyLogsPage()

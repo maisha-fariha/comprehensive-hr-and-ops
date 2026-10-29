@@ -110,6 +110,9 @@ class _FakeSchedulingRepo implements SchedulingRepository {
       ]);
 
   @override
+  Future<Result<int>> getDefaultBreakMinutes() async => Result.success(30);
+
+  @override
   Future<Result<List<ShiftStaffOption>>> getStaffOptions() async =>
       Result.success(const [
         ShiftStaffOption(

@@ -19,7 +19,17 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart
 
 /// "My Schedule" — the Staff (care-worker) portal's Scheduling screen.
 class StaffSchedulePage extends StatelessWidget {
-  const StaffSchedulePage({super.key});
+  /// When opened from a shift notification, jump the week strip to this day.
+  final DateTime? focusDate;
+
+  /// Fallback when [focusDate] is missing — load `GET /shifts/{id}` for startsAt.
+  final String? focusShiftId;
+
+  const StaffSchedulePage({
+    super.key,
+    this.focusDate,
+    this.focusShiftId,
+  });
 
   StaffScheduleController _resolveController() {
     try {
@@ -36,6 +46,14 @@ class StaffSchedulePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
+    if (focusDate != null || (focusShiftId != null && focusShiftId!.isNotEmpty)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.applyNotificationFocus(
+          date: focusDate,
+          shiftId: focusShiftId,
+        );
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,

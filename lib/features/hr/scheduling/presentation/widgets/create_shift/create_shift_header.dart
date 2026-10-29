@@ -9,7 +9,7 @@ import '../../../domain/entities/create_shift_draft.dart';
 extension CreateShiftStepX on CreateShiftStep {
   String get label => switch (this) {
         CreateShiftStep.shiftInformation => 'Shift Information',
-        CreateShiftStep.staffAssignment => 'Staff Assignment',
+        CreateShiftStep.staffAssignment => 'Staff Assignment & Open Shift',
         CreateShiftStep.openShift => 'Open Shift',
         CreateShiftStep.recurring => 'Recurring',
         CreateShiftStep.notifications => 'Notifications',
@@ -17,11 +17,17 @@ extension CreateShiftStepX on CreateShiftStep {
 
   String get description => switch (this) {
         CreateShiftStep.shiftInformation => 'Timing & residence',
-        CreateShiftStep.staffAssignment => 'Assign or leave open',
+        CreateShiftStep.staffAssignment => 'Assign Staff or Open Shift',
         CreateShiftStep.openShift => 'Bidding & eligibility',
         CreateShiftStep.recurring => 'Repeat pattern',
         CreateShiftStep.notifications => 'Alerts & reminders',
       };
+
+  /// Wizard steps shown in the tab strip (Open Shift is merged into Staff).
+  static List<CreateShiftStep> get visibleSteps => [
+        for (final step in CreateShiftStep.values)
+          if (step != CreateShiftStep.openShift) step,
+      ];
 }
 
 class CreateShiftHeader extends StatelessWidget {
@@ -188,7 +194,7 @@ class CreateShiftStepTabs extends StatefulWidget {
 
 class _CreateShiftStepTabsState extends State<CreateShiftStepTabs> {
   final Map<CreateShiftStep, GlobalKey> _keys = {
-    for (final step in CreateShiftStep.values) step: GlobalKey(),
+    for (final step in CreateShiftStepX.visibleSteps) step: GlobalKey(),
   };
 
   @override
@@ -215,7 +221,7 @@ class _CreateShiftStepTabsState extends State<CreateShiftStepTabs> {
       padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
       child: Row(
         children: [
-          for (final tab in CreateShiftStep.values) ...[
+          for (final tab in CreateShiftStepX.visibleSteps) ...[
             _TabChip(
               key: _keys[tab],
               tab: tab,

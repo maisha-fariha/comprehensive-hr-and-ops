@@ -37,6 +37,8 @@ abstract final class ApiEndpoints {
   // ── Scheduling ──────────────────────────────────────────────────────────
   static const String shifts = '/shifts';
   static const String shiftSwaps = '/shift-swaps';
+  /// Tenant scheduling defaults (`defaultBreakMinutes`, …).
+  static const String settingsScheduling = '/settings/scheduling';
 
   // ── Attendance ──────────────────────────────────────────────────────────
   static const String attendance = '/attendance';

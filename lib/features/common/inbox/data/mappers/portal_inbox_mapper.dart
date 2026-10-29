@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/portal_notification.dart';
@@ -40,9 +42,7 @@ abstract final class PortalInboxMapper {
       json['createdAt'] ?? json['sentAt'] ?? json['updatedAt'],
     );
     final metaRaw = json['metaJson'] ?? json['meta'];
-    final meta = metaRaw is Map
-        ? JsonCodec.asMap(metaRaw)
-        : const <String, dynamic>{};
+    final meta = _metaMap(metaRaw);
     final body = JsonCodec.stringOr(
       json['body'] ?? json['message'] ?? json['text'],
       '',
@@ -143,6 +143,20 @@ abstract final class PortalInboxMapper {
       case PortalSearchHitType.unknown:
         return 'Result';
     }
+  }
+
+  static Map<String, dynamic> _metaMap(dynamic metaRaw) {
+    if (metaRaw is Map) return JsonCodec.asMap(metaRaw);
+    if (metaRaw is String) {
+      final text = metaRaw.trim();
+      if (text.startsWith('{')) {
+        try {
+          final decoded = jsonDecode(text);
+          if (decoded is Map) return JsonCodec.asMap(decoded);
+        } catch (_) {}
+      }
+    }
+    return const <String, dynamic>{};
   }
 
   const PortalInboxMapper._();

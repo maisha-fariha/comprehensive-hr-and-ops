@@ -479,12 +479,21 @@ class ClientGuardianSection extends StatelessWidget {
         ),
         _gap,
         ClientSwitchTile(
+          key: const ValueKey('client-family-portal-access'),
           label: 'Enable Family Portal Access',
-          description: 'Grants a secure family login',
+          description: 'Grants a secure family login to view care updates',
           value: form.familyPortalAccess,
           bordered: true,
           onChanged: (v) => _set(() => form.familyPortalAccess = v),
         ),
+        if (form.familyPortalAccess &&
+            form.guardianEmail.text.trim().isEmpty &&
+            form.guardianName.text.trim().isNotEmpty) ...[
+          _gap,
+          _PortalAccessRequiredBanner(
+            onTurnOff: () => _set(() => form.familyPortalAccess = false),
+          ),
+        ],
         _gap,
         _PortalVisibilityCard(form: form, onChanged: onChanged),
         _gap,
@@ -503,6 +512,49 @@ class ClientGuardianSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Web amber notice when portal is on but guardian email is empty.
+class _PortalAccessRequiredBanner extends StatelessWidget {
+  final VoidCallback onTurnOff;
+
+  const _PortalAccessRequiredBanner({required this.onTurnOff});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('client-turn-off-portal-banner'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE8C96A)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'A guardian email is required for portal login. If there is no email, turn portal access off.',
+              style: handoverText(context, 12, color: const Color(0xFF96631A)),
+            ),
+          ),
+          TextButton(
+            key: const ValueKey('client-turn-off-portal'),
+            onPressed: onTurnOff,
+            child: Text(
+              'Turn Off Portal',
+              style: handoverText(
+                context,
+                12.5,
+                weight: FontWeight.w700,
+                color: const Color(0xFF96631A),
+              ).copyWith(decoration: TextDecoration.underline),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

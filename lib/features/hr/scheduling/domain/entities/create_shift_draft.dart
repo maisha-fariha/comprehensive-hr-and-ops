@@ -239,6 +239,13 @@ class CreateShiftDraft {
       };
 
   bool isStepComplete(CreateShiftStep step) {
+    if (step == CreateShiftStep.openShift) {
+      // Merged into staffAssignment (Assign Staff | Open Shift toggle).
+      return true;
+    }
+    if (step == CreateShiftStep.staffAssignment) {
+      return isOpenShift || assignedStaff.isNotEmpty;
+    }
     final fields = stepFields[step]!;
     return fields.isNotEmpty && fields.every(_hasValue);
   }
@@ -267,6 +274,7 @@ class CreateShiftDraft {
     if (endMinutes == null) {
       errors[CreateShiftField.endTime] = 'End time is required';
     } else if (startMinutes != null && startMinutes == endMinutes) {
+      // Equal times are invalid; end before start is overnight (rolls +1 day).
       errors[CreateShiftField.endTime] =
           'A shift cannot end at the moment it starts';
     }
@@ -285,6 +293,15 @@ class CreateShiftDraft {
 
   /// Errors the "Next" button reports for [step].
   Map<String, String> validateStep(CreateShiftStep step) {
+    if (step == CreateShiftStep.staffAssignment) {
+      if (isOpenShift) return const {};
+      if (assignedStaff.isEmpty) {
+        return {
+          CreateShiftField.assignedStaff: 'Assign at least one staff member',
+        };
+      }
+      return const {};
+    }
     final fields = stepFields[step]!;
     if (fields.isEmpty) return const {};
     final all = validate();
@@ -382,6 +399,7 @@ class CreateShiftDraft {
       'staffIds': [for (final staff in assignedStaff) staff.staffId],
       'shiftType': shiftType,
       'breakMinutes': breakMinutes,
+      'open': isOpenShift,
       if (isOpenShift)
         'requiredStaffCount': staffCount == 0 ? null : _jsonNumber(staffCount),
       'reminderMinutesBefore': reminderMinutes,

@@ -53,7 +53,7 @@ class ResidenceFormValues {
     this.country = 'United States',
     this.latitude = '',
     this.longitude = '',
-    this.timeZone = 'America/Los_Angeles',
+    this.timeZone = 'UTC',
     this.geofenceRadius = '150',
     this.enableGpsTracking = true,
     this.totalBeds = '',

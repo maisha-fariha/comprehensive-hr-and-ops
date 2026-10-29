@@ -32,6 +32,7 @@ import '../../../../staff/medication/presentation/pages/staff_medication_page.da
 import '../../../../staff/staff_shell.dart';
 import '../../../../staff/tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
 import '../../domain/entities/portal_notification.dart';
+import 'shift_notification_focus.dart';
 
 /// Opens the staff or manager screen for a tapped notification.
 ///
@@ -48,10 +49,19 @@ abstract final class PortalNotificationNavigator {
     switch (type) {
       case 'shift':
       case 'shift_swap':
+        final focus = ShiftNotificationFocus.fromNotification(notification);
         Get.offAll(
           () => staff
-              ? const StaffShell(initialIndex: 1)
-              : const HrShell(initialIndex: 1),
+              ? StaffShell(
+                  initialIndex: 1,
+                  scheduleFocusDate: focus.date,
+                  scheduleFocusShiftId: focus.shiftId,
+                )
+              : HrShell(
+                  initialIndex: 1,
+                  scheduleFocusDate: focus.date,
+                  scheduleFocusShiftId: focus.shiftId,
+                ),
         );
       case 'incident':
         if (staff) {

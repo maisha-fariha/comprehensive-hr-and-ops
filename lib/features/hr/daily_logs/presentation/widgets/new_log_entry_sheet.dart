@@ -184,8 +184,9 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
       if (_logType.isNotEmpty) 'logType': _logType,
       if (observations.isNotEmpty || _outing)
         'observations': {...observations, 'communityOuting': _outing},
-      'wellnessCheckCompleted': _wellness,
-      'bedCheckCompleted': _bed,
+      // API requires JSON booleans (strings → VALIDATION_ERROR).
+      'wellnessCheckCompleted': _wellness == true,
+      'bedCheckCompleted': _bed == true,
       if (_remindAt case final r?) 'remindAt': r.toUtc().toIso8601String(),
       if (_attachments.isNotEmpty)
         'attachments': [

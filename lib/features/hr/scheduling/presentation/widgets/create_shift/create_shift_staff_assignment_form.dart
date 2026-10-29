@@ -12,12 +12,15 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 const Color _avatarFill = Color(0xFFEAF0FE);
 const Color _avatarText = Color(0xFF8E88B1);
 
-/// "Staff Assignment" step — multi-select staff picker plus one expandable
-/// task card (title, description, checklist, note) per assignee.
+/// "Staff Assignment" step — web staffing method (Assign Staff | Open Shift)
+/// side-by-side, then either assignees or open-shift bidding fields.
 class CreateShiftStaffAssignmentForm extends StatelessWidget {
   final List<AssignedShiftStaff> assignedStaff;
   final String? expandedStaffId;
   final bool isLoadingStaff;
+  final bool isOpenShift;
+  final ValueChanged<bool> onOpenShiftChanged;
+  final Widget? openShiftFields;
   final VoidCallback onAddStaff;
   final ValueChanged<String> onRemoveStaff;
   final ValueChanged<String> onToggleExpand;
@@ -27,10 +30,13 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
     super.key,
     required this.assignedStaff,
     required this.expandedStaffId,
+    required this.isOpenShift,
+    required this.onOpenShiftChanged,
     required this.onAddStaff,
     required this.onRemoveStaff,
     required this.onToggleExpand,
     required this.onChanged,
+    this.openShiftFields,
     this.isLoadingStaff = false,
   });
 
@@ -47,45 +53,160 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const CreateShiftSectionHeader(
-            title: 'Staff Assignment',
+            title: 'Staff Assignment & Open Shift',
             description:
-                "Assign staff members to this shift and configure each person's tasks, or leave it open for bidding.",
+                'Assign staff members to this shift, or publish as an open shift for staff bidding.',
           ),
-          const CreateShiftFieldLabel('Assigned Staff'),
-          _StaffMultiSelectField(
-            assignedStaff: assignedStaff,
-            isLoading: isLoadingStaff,
-            onTap: onAddStaff,
-            onRemove: onRemoveStaff,
+          const CreateShiftFieldLabel('Staffing Method'),
+          _StaffingMethodToggle(
+            isOpenShift: isOpenShift,
+            onChanged: onOpenShiftChanged,
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-          Text(
-            'Assigned Staff (${assignedStaff.length})',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-              color: AppColors.textHeading,
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+          if (isOpenShift) ...[
+            ?openShiftFields,
+          ] else ...[
+            const CreateShiftFieldLabel('Assigned Staff'),
+            _StaffMultiSelectField(
+              assignedStaff: assignedStaff,
+              isLoading: isLoadingStaff,
+              onTap: onAddStaff,
+              onRemove: onRemoveStaff,
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+            Text(
+              'Assigned Staff (${assignedStaff.length})',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                color: AppColors.textHeading,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+            if (assignedStaff.isEmpty)
+              const _EmptyAssignedStaff()
+            else
+              for (final staff in assignedStaff) ...[
+                _AssignedStaffCard(
+                  key: ValueKey('assigned-staff-${staff.staffId}'),
+                  staff: staff,
+                  expanded: expandedStaffId == staff.staffId,
+                  onToggleExpand: () => onToggleExpand(staff.staffId),
+                  onRemove: () => onRemoveStaff(staff.staffId),
+                  onChanged: onChanged,
+                ),
+                SizedBox(
+                  height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                ),
+              ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StaffingMethodToggle extends StatelessWidget {
+  final bool isOpenShift;
+  final ValueChanged<bool> onChanged;
+
+  const _StaffingMethodToggle({
+    required this.isOpenShift,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('create-shift-staffing-method'),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppColors.filterButtonBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _MethodChip(
+              key: const ValueKey('create-shift-method-assign'),
+              label: 'Assign Staff',
+              icon: Icons.person_outline_rounded,
+              selected: !isOpenShift,
+              onTap: () => onChanged(false),
             ),
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          if (assignedStaff.isEmpty)
-            const _EmptyAssignedStaff()
-          else
-            for (final staff in assignedStaff) ...[
-              _AssignedStaffCard(
-                key: ValueKey('assigned-staff-${staff.staffId}'),
-                staff: staff,
-                expanded: expandedStaffId == staff.staffId,
-                onToggleExpand: () => onToggleExpand(staff.staffId),
-                onRemove: () => onRemoveStaff(staff.staffId),
-                onChanged: onChanged,
+          const SizedBox(width: 6),
+          Expanded(
+            child: _MethodChip(
+              key: const ValueKey('create-shift-method-open'),
+              label: 'Open Shift (Bidding)',
+              icon: Icons.campaign_outlined,
+              selected: isOpenShift,
+              onTap: () => onChanged(true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MethodChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _MethodChip({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.surfaceWhite : Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(9),
+            border: selected
+                ? Border.all(color: AppColors.cardBorder)
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: selected ? AppColors.textHeading : AppColors.textMuted,
               ),
-              SizedBox(
-                height: ResponsiveHelper.getResponsiveHeight(context, 12),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: selected ? AppColors.textHeading : AppColors.textMuted,
+                  ),
+                ),
               ),
             ],
-        ],
+          ),
+        ),
       ),
     );
   }

@@ -142,6 +142,8 @@ class StaffDailyLogsPage extends StatelessWidget {
                         onFromChanged: controller.setFromDate,
                         onToChanged: controller.setToDate,
                         formatDate: controller.formatFilterDate,
+                        singleDateMode: controller.selectedTab.value ==
+                            StaffDailyLogsTab.residentDay,
                       ),
                     ),
                     StaffDailyLogsTabBar(

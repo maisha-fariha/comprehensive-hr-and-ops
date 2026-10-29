@@ -46,6 +46,9 @@ abstract class SchedulingRepository {
   /// Residences for the Create Shift "Residence" dropdown (`GET /residences`).
   Future<Result<List<ShiftResidenceOption>>> getResidences();
 
+  /// `GET /settings/scheduling` — e.g. `defaultBreakMinutes` (web create-shift default).
+  Future<Result<int>> getDefaultBreakMinutes();
+
   /// Tenant staff for the Create Shift "Assigned Staff" picker
   /// (`GET /staff?page=1&limit=100`, searched client-side like the web).
   Future<Result<List<ShiftStaffOption>>> getStaffOptions();

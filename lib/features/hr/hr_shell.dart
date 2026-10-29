@@ -19,7 +19,18 @@ class HrShell extends StatefulWidget {
   /// host their own copy of [HrBottomNavBar] (e.g. Daily Logs).
   final int initialIndex;
 
-  const HrShell({super.key, this.initialIndex = 0});
+  /// When opened from a shift notification, select this day on Schedule.
+  final DateTime? scheduleFocusDate;
+
+  /// Optional shift id when the notification has no `shiftStartsAt`.
+  final String? scheduleFocusShiftId;
+
+  const HrShell({
+    super.key,
+    this.initialIndex = 0,
+    this.scheduleFocusDate,
+    this.scheduleFocusShiftId,
+  });
 
   @override
   State<HrShell> createState() => _HrShellState();
@@ -44,7 +55,7 @@ class _HrShellState extends State<HrShell> {
     _currentIndex = widget.initialIndex.clamp(0, _tabs.length - 1);
     if (_currentIndex == _scheduleTabIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _resetScheduleCalendarToToday();
+        _applyScheduleFocusOrToday();
       });
     }
   }
@@ -52,13 +63,27 @@ class _HrShellState extends State<HrShell> {
   void _onBottomNavTap(int index) {
     setState(() => _currentIndex = index);
     if (index == _scheduleTabIndex) {
-      _resetScheduleCalendarToToday();
+      _applyScheduleFocusOrToday(fromBottomNav: true);
     }
   }
 
-  void _resetScheduleCalendarToToday() {
+  void _applyScheduleFocusOrToday({bool fromBottomNav = false}) {
     if (!Get.isRegistered<SchedulingController>()) return;
-    Get.find<SchedulingController>().resetCalendarToToday();
+    final controller = Get.find<SchedulingController>();
+    final focus = widget.scheduleFocusDate;
+    // Bottom-nav re-taps still reset to today; notification opens keep the day.
+    if (!fromBottomNav && focus != null) {
+      controller.selectCalendarDay(focus);
+      return;
+    }
+    if (!fromBottomNav &&
+        (widget.scheduleFocusShiftId != null &&
+            widget.scheduleFocusShiftId!.isNotEmpty)) {
+      // Manager path: without a date, fall back to today rather than blocking.
+      controller.resetCalendarToToday();
+      return;
+    }
+    controller.resetCalendarToToday();
   }
 
   @override

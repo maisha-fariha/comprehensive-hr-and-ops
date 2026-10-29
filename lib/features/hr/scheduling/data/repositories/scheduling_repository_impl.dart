@@ -239,6 +239,22 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
+  Future<Result<int>> getDefaultBreakMinutes() async {
+    final result = await _api.get(
+      ApiEndpoints.settingsScheduling,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        final minutes = JsonCodec.integer(json['defaultBreakMinutes']) ?? 30;
+        return Result.success(minutes.clamp(0, 240));
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<List<ShiftStaffOption>>> getStaffOptions() async {
     final result = await _api.get(
       ApiEndpoints.staff,

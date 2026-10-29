@@ -160,9 +160,27 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
       );
 
   @override
-  Future<Result<void>> createEntry(Map<String, dynamic> body) => _void(
-        _api.post(ApiEndpoints.dailyLogEntries, data: body, silent: true, allowQueue: false),
-      );
+  Future<Result<void>> createEntry(Map<String, dynamic> body) {
+    final payload = Map<String, dynamic>.from(body);
+    // API rejects stringified booleans ("true") with VALIDATION_ERROR.
+    for (final key in const [
+      'wellnessCheckCompleted',
+      'bedCheckCompleted',
+    ]) {
+      if (payload.containsKey(key)) {
+        final value = payload[key];
+        payload[key] = value == true || value == 'true' || value == 1;
+      }
+    }
+    return _void(
+      _api.post(
+        ApiEndpoints.dailyLogEntries,
+        data: payload,
+        silent: true,
+        allowQueue: false,
+      ),
+    );
+  }
 
   @override
   Future<Result<void>> amendEntry(String id, {required String body, required String reason}) =>

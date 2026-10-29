@@ -65,6 +65,9 @@ class _FakeSchedulingRepo implements SchedulingRepository {
       ]);
 
   @override
+  Future<Result<int>> getDefaultBreakMinutes() async => Result.success(30);
+
+  @override
   Future<Result<List<ShiftStaffOption>>> getStaffOptions() async =>
       Result.success(const [
         ShiftStaffOption(
@@ -645,17 +648,21 @@ void main() {
 
     test('step completion only counts steps with required fields', () {
       final d = CreateShiftDraft(shiftDate: DateTime(2026, 10, 5));
-      expect(d.completionPercent, 0);
-      d.residenceId = 'elm';
+      // Open Shift is merged into Staff Assignment — always counted complete.
+      expect(d.completedSteps, 1);
       expect(d.completionPercent, 20);
+      d.residenceId = 'elm';
+      // residence + preset type/times/date completes Shift Information.
+      expect(d.completedSteps, 2);
+      expect(d.completionPercent, 40);
       d.assignedStaff.add(
         AssignedShiftStaff(staffId: 's1', staffName: 'Shakib Hasan'),
       );
       d
         ..isOpenShift = true
         ..isRecurring = true;
-      expect(d.completedSteps, 2);
-      expect(d.completionPercent, 40);
+      expect(d.completedSteps, 3);
+      expect(d.completionPercent, 60);
     });
   });
 }

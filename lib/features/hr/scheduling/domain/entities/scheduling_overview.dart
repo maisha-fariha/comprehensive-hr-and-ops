@@ -63,7 +63,7 @@ class WeekShiftCoverage {
     unstaffed: 0,
     unstaffedDescription: 'Every shift this week has someone assigned',
     coveredValue: '—',
-    coveredDescription: 'Nothing is rostered this week yet',
+    coveredDescription: 'Nothing on the roster this week yet',
     coveredCaption: 'no shifts',
     openShifts: 0,
     openDescription: 'No shifts are open for staff to bid on',

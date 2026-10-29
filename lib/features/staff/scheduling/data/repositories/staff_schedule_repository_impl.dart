@@ -30,6 +30,9 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
   }) async {
     final start = IsoDateRange.startOfWeek(weekStart ?? DateTime.now());
     final end = start.add(const Duration(days: 7));
+    // Open bidding look-ahead: two weeks so next-week opens aren't missed
+    // when the list is paginated oldest-first without a date window.
+    final openEnd = start.add(const Duration(days: 14));
     // B2: appointments are nurse / caregiver only — never housekeeper / other.
     final includeAppointments = _session.canSeeStaffScheduleAppointments;
 
@@ -45,10 +48,17 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
           'limit': _pageLimit,
         },
       ),
-      // B2: Open Shift Requests
+      // Open Shift Requests — date window so newest opens aren't buried
+      // behind older pages when the API sorts ascending.
       _api.get(
         ApiEndpoints.shifts,
-        query: {'status': 'open', 'page': 1, 'limit': _pageLimit},
+        query: {
+          'status': 'open',
+          'from': start.toUtc().toIso8601String(),
+          'to': openEnd.toUtc().toIso8601String(),
+          'page': 1,
+          'limit': _pageLimit,
+        },
       ),
       // B2: my swap list — active requests only (not settled history)
       _api.get(
