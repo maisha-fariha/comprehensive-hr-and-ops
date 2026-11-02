@@ -523,8 +523,9 @@ void main() {
       expect(body['status'], 'active');
       expect(body['dateOfBirth'], matches(RegExp(r'^\d{4}-\d{2}-01$')));
       expect(body['admissionDate'], matches(RegExp(r'^\d{4}-\d{2}-01$')));
-      expect((body['portalVisibility'] as Map)['dailyLogs'], isTrue);
-      expect((body['portalVisibility'] as Map)['incidents'], isFalse);
+      expect((body['portalVisibility'] as Map)['activities'], isTrue);
+      expect((body['portalVisibility'] as Map)['incidents'], isTrue);
+      expect((body['portalVisibility'] as Map).containsKey('dailyLogs'), isFalse);
       expect(body['medicalInfo'], isA<Map<String, dynamic>>());
       expect(body['carePlan'], isA<Map<String, dynamic>>());
       expect(_repo.createKeys.single, isNotEmpty);
@@ -842,10 +843,12 @@ void main() {
       expect(_repo.familyAdded, isEmpty);
 
       await _type(tester, 'client-contact-email', 'tom@example.com');
+      await _type(tester, 'client-contact-middle-name', 'Lee');
       await _tap(tester, find.byKey(const ValueKey('client-contact-save')));
 
       expect(_repo.familyAdded.single, {
         'name': 'Tom Hardy',
+        'middleName': 'Lee',
         'isPrimaryGuardian': false,
         'isEmergencyContact': false,
         'receiveNotifications': true,

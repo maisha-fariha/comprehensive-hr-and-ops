@@ -10,6 +10,7 @@ import 'clients_common.dart';
 
 class _ContactDraft {
   final name = TextEditingController();
+  final middleName = TextEditingController();
   final relationship = TextEditingController();
   final email = TextEditingController();
   final phone = TextEditingController();
@@ -29,6 +30,7 @@ class _ContactDraft {
       ..emergencyAlerts = m.emergencyAlerts
       ..portalAccess = m.hasPortalAccess;
     d.name.text = m.name;
+    d.middleName.text = m.middleName ?? '';
     d.relationship.text = m.relationship ?? '';
     d.email.text = m.email ?? '';
     d.phone.text = m.phone ?? '';
@@ -37,6 +39,7 @@ class _ContactDraft {
 
   void dispose() {
     name.dispose();
+    middleName.dispose();
     relationship.dispose();
     email.dispose();
     phone.dispose();
@@ -123,9 +126,11 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
     if (d == null) return;
     final errors = <String, String>{};
     final name = requiredNameError(d.name.text, 'Name');
+    final middle = optionalNameError(d.middleName.text.trim(), 'Middle name');
     final phone = optionalPhoneError(d.phone.text);
     final email = optionalEmailError(d.email.text);
     if (name != null) errors['name'] = name;
+    if (middle != null) errors['middleName'] = middle;
     if (phone != null) errors['phone'] = phone;
     if (email != null) {
       errors['email'] = email;
@@ -140,8 +145,10 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
     final relationship = d.relationship.text.trim();
     final emailText = d.email.text.trim();
     final phoneText = d.phone.text.trim();
+    final middleName = d.middleName.text.trim();
     final base = <String, dynamic>{
       'name': d.name.text.trim(),
+      'middleName': middleName.isEmpty ? null : middleName,
       'isPrimaryGuardian': d.isPrimaryGuardian,
       'isEmergencyContact': d.isEmergencyContact,
       'receiveNotifications': d.receiveNotifications,
@@ -259,6 +266,14 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
             required: true,
             controller: d.name,
             error: _errors['name'],
+          ),
+          const SizedBox(height: 12),
+          ClientInput(
+            key: const ValueKey('client-contact-middle-name'),
+            label: 'Middle name',
+            placeholder: 'Optional',
+            controller: d.middleName,
+            error: _errors['middleName'],
           ),
           const SizedBox(height: 12),
           ClientInput(

@@ -48,15 +48,38 @@ void main() {
     expect(body['geofence'], {'radiusMeters': 150});
   });
 
-  test('medications portal visibility copy matches web', () {
-    final med = portalVisibilityGroups
-        .expand((g) => g.items)
-        .firstWhere((i) => i.key == 'medications');
+  test('family portal visibility matches the web edit card', () {
+    final items = [
+      for (final group in portalVisibilityGroups) ...group.items,
+    ];
+    expect(items.map((i) => i.key).toList(), [
+      'activities',
+      'incidents',
+      'medications',
+      'medicalConditions',
+      'messages',
+      'appointments',
+      'documents',
+    ]);
+    expect(portalVisibilityGroups.map((g) => g.label).toList(), [
+      'Daily Care & Activity',
+      'Health Information',
+      'Contact, Visits & Documents',
+    ]);
+    final med = items.firstWhere((i) => i.key == 'medications');
     expect(med.title, 'Current Medications');
     expect(med.description, 'What is prescribed and when it is given.');
     expect(
       med.note,
       'Individual dose administration status (given/refused) is hidden from family.',
+    );
+    expect(
+      items.firstWhere((i) => i.key == 'incidents').title,
+      'Incident Summaries',
+    );
+    expect(
+      items.firstWhere((i) => i.key == 'appointments').title,
+      'Appointments & Outings',
     );
   });
 }

@@ -179,16 +179,27 @@ abstract final class PortalNotificationNavigator {
   }
 
   /// Web bell for time-off opens Attendance → Time-Off Requests.
+  ///
+  /// The attendance screen creates its controller while it builds, which is
+  /// the frame after this tap. Selecting the tab in that same turn misses
+  /// the controller and leaves the manager on attendance records.
   static void _openTimeOff({required bool staff}) {
     if (staff) {
-      Get.to(() => const StaffAttendancePage());
+      Get.to(() => const StaffAttendancePage(focusTimeOff: true));
       return;
     }
     Get.offAll(() => const HrShell(initialIndex: 2));
-    Future.microtask(() {
-      if (Get.isRegistered<AttendanceController>()) {
-        Get.find<AttendanceController>().setMainTab(AttendanceMainTab.timeOff);
-      }
+    _selectManagerTimeOff();
+  }
+
+  static void _selectManagerTimeOff([int attempt = 0]) {
+    if (Get.isRegistered<AttendanceController>()) {
+      Get.find<AttendanceController>().setMainTab(AttendanceMainTab.timeOff);
+      return;
+    }
+    if (attempt >= 10) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _selectManagerTimeOff(attempt + 1);
     });
   }
 

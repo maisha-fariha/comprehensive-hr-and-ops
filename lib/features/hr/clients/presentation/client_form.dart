@@ -24,20 +24,14 @@ class PortalVisibilityGroup {
 const portalVisibilityGroups = [
   PortalVisibilityGroup('Daily Care & Activity', [
     PortalVisibilityItem(
-      'dailyLogs',
-      'Daily Logs',
-      'Allow family members to view daily care notes, observations, and routine updates.',
-    ),
-    PortalVisibilityItem(
       'activities',
       'Activities & Daily Journal',
-      'Share completed activities, engagement updates, and progress tracking.',
+      'Activities shared with the family, their photos, and the day\'s care notes.',
     ),
     PortalVisibilityItem(
-      'shiftUpdates',
-      'Shift Updates',
-      'Show which shifts are covering the home, and when cover changes.',
-      'Shift cover only. Which individual staff are assigned is the separate switch below.',
+      'incidents',
+      'Incident Summaries',
+      'Resolved and closed incidents, as a summary: when, what kind and the outcome.',
     ),
   ]),
   PortalVisibilityGroup('Health Information', [
@@ -50,57 +44,37 @@ const portalVisibilityGroups = [
     PortalVisibilityItem(
       'medicalConditions',
       'Medical Conditions',
-      'Share diagnoses and standing medical conditions.',
-    ),
-    PortalVisibilityItem(
-      'carePlan',
-      'Care Plan',
-      'Share the care plan itself, as opposed to the notes written against it.',
+      'Diagnoses, allergies and dietary requirements.',
+      'Behavioural triggers and the safety plan stay with staff.',
     ),
   ]),
-  PortalVisibilityGroup('Care Team Information', [
+  PortalVisibilityGroup('Contact, Visits & Documents', [
     PortalVisibilityItem(
       'messages',
-      'Staff Messages',
-      'Allow communication between family members and authorized staff.',
+      'Messages',
+      'Conversation with the home\'s manager and administration.',
     ),
-    PortalVisibilityItem(
-      'assignedStaff',
-      'Assigned Staff',
-      'Show which staff are assigned to this resident.',
-    ),
-  ]),
-  PortalVisibilityGroup('Appointments & Documents', [
     PortalVisibilityItem(
       'appointments',
-      'Appointments',
-      'Show upcoming and completed appointments.',
+      'Appointments & Outings',
+      'Visits and outings the family can request and follow.',
     ),
     PortalVisibilityItem(
       'documents',
       'Documents',
-      'Allow access to approved client documents and files.',
-    ),
-    PortalVisibilityItem(
-      'incidents',
-      'Incident Updates',
-      'Share approved incident summaries and important notifications.',
+      'Documents filed as visible to family, and consent forms or photos the family sends in.',
     ),
   ]),
 ];
 
 const _defaultPortalVisibility = {
-  'dailyLogs': true,
   'activities': true,
-  'incidents': false,
-  'medications': false,
-  'documents': true,
+  'incidents': true,
+  'medications': true,
+  'medicalConditions': true,
+  'messages': true,
   'appointments': true,
-  'messages': false,
-  'shiftUpdates': false,
-  'medicalConditions': false,
-  'carePlan': false,
-  'assignedStaff': false,
+  'documents': true,
 };
 
 /// The web client form steps, in order.
@@ -481,7 +455,10 @@ class ClientForm {
       'rateAmount': ?_rateNumber(rateAmount.text),
       if (_rateNumber(rateAmount.text) != null)
         'rateFrequency': _normalizeRateFrequency(rateFrequency),
-      'portalVisibility': Map.of(portalVisibility),
+      'portalVisibility': {
+        for (final item in portalVisibilityGroups.expand((g) => g.items))
+          item.key: portalVisibility[item.key] ?? false,
+      },
       'carePlan': {
         'servicePlan': servicePlan.text,
         'goals': _lines(goals),
