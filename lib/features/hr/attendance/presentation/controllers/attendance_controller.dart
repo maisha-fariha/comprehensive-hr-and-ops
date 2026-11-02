@@ -151,13 +151,21 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
     return ok;
   }
 
+  /// True when this pending row is the signed-in staff member's own request
+  /// (web shows Withdraw instead of Approve / Reject).
+  bool isOwnTimeOff(TimeOffRequest request) {
+    final mine = _session.staffId?.trim();
+    if (mine == null || mine.isEmpty) return false;
+    return request.staffId == mine;
+  }
+
   /// Web `PATCH …/review` — toast success or the API validation message
   /// (e.g. when leave overlaps an existing shift assignment).
   Future<bool> reviewTimeOffRequest({
     required TimeOffRequest request,
     required TimeOffStatus status,
   }) async {
-    if (!canManage) return false;
+    if (!canManage || isOwnTimeOff(request)) return false;
     final result = await _repository.reviewTimeOffRequest(
       id: request.id,
       status: status,
@@ -172,6 +180,24 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
               ? 'Time off approved'
               : 'Time off rejected',
         );
+      },
+      failure: (error) => AppSnackbar.show('Time off', error.message),
+    );
+    if (ok) await loadTimeOffRequests();
+    return ok;
+  }
+
+  /// Web `POST …/cancel` ("Withdraw") for the signed-in staff member's own pending leave.
+  Future<bool> cancelTimeOffRequest(TimeOffRequest request) async {
+    if (!isOwnTimeOff(request) || request.status != TimeOffStatus.pending) {
+      return false;
+    }
+    final result = await _repository.cancelTimeOffRequest(request.id);
+    var ok = false;
+    result.when(
+      success: (_) {
+        ok = true;
+        AppSnackbar.show('Time off', 'Request withdrawn.');
       },
       failure: (error) => AppSnackbar.show('Time off', error.message),
     );

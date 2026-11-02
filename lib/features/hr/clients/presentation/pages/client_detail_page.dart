@@ -194,11 +194,22 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                     key: _keys['family'],
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 14),
-                      child: ClientFamilyContacts(
-                        controller: _controller,
-                        clientId: c.id,
-                        readOnly: readOnly,
-                        onCount: (n) => setState(() => _contacts = n),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ClientFamilyContacts(
+                            controller: _controller,
+                            clientId: c.id,
+                            readOnly: readOnly,
+                            onCount: (n) => setState(() => _contacts = n),
+                          ),
+                          const SizedBox(height: 14),
+                          ClientPortalVisibilityCard(
+                            form: _form,
+                            enabled: !readOnly,
+                            onChanged: _changed,
+                          ),
+                        ],
                       ),
                     ),
                   ),

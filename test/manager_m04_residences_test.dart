@@ -611,7 +611,8 @@ void main() {
       expect(body['status'], 'pending');
       expect(body['addressLine1'], '1 Birch Way');
       expect(body['bedCapacity'], 8);
-      expect(body['timezone'], 'America/Los_Angeles');
+      // Web create form has no Time Zone field; app keeps the UTC default.
+      expect(body['timezone'], 'UTC');
       expect(body['geofence'], {'radiusMeters': 150});
       expect(repo.createdAssignments, [(staffId: 's1', role: 'primary_manager')]);
       expect(find.text('Residence added'), findsOneWidget);

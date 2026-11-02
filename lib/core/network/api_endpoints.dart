@@ -232,6 +232,9 @@ abstract final class ApiEndpoints {
   /// `PATCH /attendance/time-off-requests/{id}/review`.
   static String attendanceTimeOffReview(String id) =>
       '$attendanceTimeOffRequests/$id/review';
+  /// `POST /attendance/time-off-requests/{id}/cancel` (Withdraw on web).
+  static String attendanceTimeOffCancel(String id) =>
+      '$attendanceTimeOffRequests/$id/cancel';
   static String shiftBidAccept(String shiftId, String bidId) =>
       '$shifts/$shiftId/bids/$bidId/accept';
   static String shiftBids(String shiftId) => '$shifts/$shiftId/bids';

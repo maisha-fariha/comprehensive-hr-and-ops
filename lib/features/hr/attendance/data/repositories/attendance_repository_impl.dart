@@ -394,4 +394,17 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       failure: (error) async => Result.failure(error),
     );
   }
+
+  @override
+  Future<Result<void>> cancelTimeOffRequest(String id) async {
+    final result = await _api.post(
+      ApiEndpoints.attendanceTimeOffCancel(id),
+      data: const {},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 }

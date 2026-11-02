@@ -529,7 +529,7 @@ class ClientGuardianSection extends StatelessWidget {
           ),
         ],
         _gap,
-        _PortalVisibilityCard(form: form, onChanged: onChanged),
+        ClientPortalVisibilityCard(form: form, onChanged: onChanged),
         _gap,
         _OutlinedCard(
           icon: Icons.groups_outlined,
@@ -684,11 +684,18 @@ class _OutlinedCard extends StatelessWidget {
   }
 }
 
-class _PortalVisibilityCard extends StatelessWidget {
+/// Web "Family Portal Visibility" card — create wizard and edit record.
+class ClientPortalVisibilityCard extends StatelessWidget {
   final ClientForm form;
   final VoidCallback onChanged;
+  final bool enabled;
 
-  const _PortalVisibilityCard({required this.form, required this.onChanged});
+  const ClientPortalVisibilityCard({
+    super.key,
+    required this.form,
+    required this.onChanged,
+    this.enabled = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -724,10 +731,13 @@ class _PortalVisibilityCard extends StatelessWidget {
               _VisibilityOption(
                 item: item,
                 value: form.portalVisibility[item.key] ?? false,
-                onTap: () {
-                  form.portalVisibility[item.key] = !(form.portalVisibility[item.key] ?? false);
-                  onChanged();
-                },
+                onTap: enabled
+                    ? () {
+                        form.portalVisibility[item.key] =
+                            !(form.portalVisibility[item.key] ?? false);
+                        onChanged();
+                      }
+                    : null,
               ),
               const SizedBox(height: 8),
             ],
@@ -742,7 +752,7 @@ class _PortalVisibilityCard extends StatelessWidget {
 class _VisibilityOption extends StatelessWidget {
   final PortalVisibilityItem item;
   final bool value;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _VisibilityOption({required this.item, required this.value, required this.onTap});
 

@@ -101,4 +101,7 @@ abstract class AttendanceRepository {
     required String id,
     required TimeOffStatus status,
   });
+
+  /// `POST /attendance/time-off-requests/{id}/cancel` — web "Withdraw".
+  Future<Result<void>> cancelTimeOffRequest(String id);
 }

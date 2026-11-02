@@ -148,11 +148,13 @@ class TimeOffSection extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, i) {
                 final request = rows[i];
+                final pending = request.status == TimeOffStatus.pending;
+                final own = controller.isOwnTimeOff(request);
                 return _TimeOffTile(
                   request: request,
                   showStaff: managerMode,
-                  canReview: managerMode &&
-                      request.status == TimeOffStatus.pending,
+                  canReview: managerMode && pending && !own,
+                  canWithdraw: pending && own,
                   rangeLabel: request.startDate == request.endDate
                       ? _fmt(request.startDate)
                       : '${_fmt(request.startDate)} → ${_fmt(request.endDate)}',
@@ -164,6 +166,7 @@ class TimeOffSection extends StatelessWidget {
                     request: request,
                     status: TimeOffStatus.rejected,
                   ),
+                  onWithdraw: () => controller.cancelTimeOffRequest(request),
                 );
               },
             ),
@@ -184,17 +187,21 @@ class _TimeOffTile extends StatelessWidget {
   final TimeOffRequest request;
   final bool showStaff;
   final bool canReview;
+  final bool canWithdraw;
   final String rangeLabel;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
+  final VoidCallback? onWithdraw;
 
   const _TimeOffTile({
     required this.request,
     required this.showStaff,
     required this.rangeLabel,
     this.canReview = false,
+    this.canWithdraw = false,
     this.onApprove,
     this.onReject,
+    this.onWithdraw,
   });
 
   Color _statusColor(TimeOffStatus s) {
@@ -297,6 +304,16 @@ class _TimeOffTile extends StatelessWidget {
                   child: const Text('Approve'),
                 ),
               ],
+            ),
+          ] else if (canWithdraw) ...[
+            const SizedBox(height: 10),
+            OutlinedButton(
+              key: ValueKey('time-off-withdraw-${request.id}'),
+              onPressed: onWithdraw,
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('Withdraw'),
             ),
           ],
         ],

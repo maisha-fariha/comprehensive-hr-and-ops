@@ -377,13 +377,8 @@ class _ResidenceAddressStepState extends State<ResidenceAddressStep> {
                 ),
               ),
             ),
-            ResidenceSelectInput(
-              field: 'timeZone',
-              label: 'Time Zone',
-              value: v.timeZone,
-              options: ResidencesLabels.timeZones,
-              onChanged: (x) => b.update(() => v.timeZone = x),
-            ),
+            // Web Address & Location has no Time Zone control; payload still
+            // sends the form default (`UTC`) / existing value on edit.
             b.input(
               'geofenceRadius',
               'Geofence Radius (meters)',

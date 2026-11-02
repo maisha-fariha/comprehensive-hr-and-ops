@@ -290,7 +290,9 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
             description: hasUser
                 ? 'Already has a login. Remove it from the People directory.'
                 : 'Sends an invitation so they can sign in and follow this resident.',
-            value: d.portalAccess,
+            // Web shows this off (and locked) when a login already exists —
+            // portal users are removed from People, not toggled here.
+            value: hasUser ? false : d.portalAccess,
             bordered: true,
             onChanged: hasUser ? null : (v) => set(() => d.portalAccess = v),
           ),

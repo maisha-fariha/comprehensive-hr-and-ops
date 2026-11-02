@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import '../../../../../core/roles/user_role.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/appointments/presentation/pages/hr_appointments_page.dart';
+import '../../../../hr/attendance/domain/entities/time_off_request.dart';
+import '../../../../hr/attendance/presentation/controllers/attendance_controller.dart';
 import '../../../../hr/clients/presentation/pages/clients_page.dart';
 import '../../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../../../hr/daily_logs/presentation/pages/daily_logs_page.dart';
@@ -75,6 +77,8 @@ abstract final class PortalNotificationNavigator {
         } else {
           Get.offAll(() => const HrShell(initialIndex: 2));
         }
+      case 'time_off_request':
+        _openTimeOff(staff: staff);
       case 'daily_log':
         if (staff) {
           Get.offAll(() => const StaffShell(initialIndex: 2));
@@ -139,6 +143,9 @@ abstract final class PortalNotificationNavigator {
     }
     if (key.startsWith('emergency')) return 'emergency_alert';
     if (key.startsWith('incidents.')) return 'incident';
+    if (key.startsWith('attendance.time_off') || key.contains('time_off')) {
+      return 'time_off_request';
+    }
     if (key.startsWith('attendance.')) return 'attendance';
     if (key.startsWith('documents.')) return 'document';
     if (key.startsWith('messaging.')) return 'conversation';
@@ -166,8 +173,23 @@ abstract final class PortalNotificationNavigator {
       'shift_handover' || 'handovers' => 'handover',
       'emergency' => 'emergency_alert',
       'training_course' || 'training_assignment' || 'course' => 'training',
+      'time_off' || 'timeoff' || 'leave_request' => 'time_off_request',
       _ => value,
     };
+  }
+
+  /// Web bell for time-off opens Attendance → Time-Off Requests.
+  static void _openTimeOff({required bool staff}) {
+    if (staff) {
+      Get.to(() => const StaffAttendancePage());
+      return;
+    }
+    Get.offAll(() => const HrShell(initialIndex: 2));
+    Future.microtask(() {
+      if (Get.isRegistered<AttendanceController>()) {
+        Get.find<AttendanceController>().setMainTab(AttendanceMainTab.timeOff);
+      }
+    });
   }
 
   const PortalNotificationNavigator._();

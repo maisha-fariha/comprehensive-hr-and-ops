@@ -261,6 +261,10 @@ class _FakeAttendanceRepo implements AttendanceRepository {
       );
 
   @override
+  Future<Result<void>> cancelTimeOffRequest(String id) async =>
+      Result.success(null);
+
+  @override
   Future<Result<void>> reviewTimeOffRequest({
     required String id,
     required TimeOffStatus status,
