@@ -1,5 +1,6 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/board_overview.dart';
 import '../../domain/entities/board_shift.dart';
 import '../../domain/entities/calendar_day.dart';
@@ -18,16 +19,19 @@ import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/staff_avatar.dart';
 
 abstract final class SchedulingMapper {
+  static DateTime? _wall(DateTime? instant) =>
+      instant == null ? null : TenantClock.wallOf(instant);
+
   /// Parse `GET /shifts/{id}` into the Edit Shift form, field-for-field
   /// with the web `shiftToFormValues`.
   static CreateShiftDraft draftFromShift(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
-    final startsAt = JsonCodec.dateTime(json['startsAt'])?.toLocal();
-    final endsAt = JsonCodec.dateTime(json['endsAt'])?.toLocal();
+    final startsAt = _wall(JsonCodec.dateTime(json['startsAt']));
+    final endsAt = _wall(JsonCodec.dateTime(json['endsAt']));
     final bidding = JsonCodec.mapAt(json, 'biddingConfig');
     final closesAt = bidding == null
         ? null
-        : JsonCodec.dateTime(bidding['biddingClosesAt'])?.toLocal();
+        : _wall(JsonCodec.dateTime(bidding['biddingClosesAt']));
     final requiredCount = JsonCodec.integer(json['requiredStaffCount']);
     final maxBids = bidding == null ? null : JsonCodec.integer(bidding['maxBids']);
     final reminder = JsonCodec.integer(json['reminderMinutesBefore']);

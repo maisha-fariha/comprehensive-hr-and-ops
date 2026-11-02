@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../config/app_env.dart';
+import '../errors/app_error_dialog.dart';
 import '../offline/offline_config.dart';
 import '../roles/user_session.dart';
 import 'app_api_client.dart';
@@ -169,6 +170,7 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
+    AppErrorDialog.holdTransient();
     unawaited(() async {
       if (await refresh()) await _flushQueue(ignoreBackoff: true);
     }());

@@ -29,12 +29,33 @@ abstract final class AppErrorDialog {
 
   static DateTime? _lastOfflineNoticeAt;
   static String? _lastOfflineNoticeKey;
+  static DateTime? _holdTransientUntil;
+
+  /// True for a short window after the app starts or returns to the foreground.
+  static bool get holdingTransient {
+    final until = _holdTransientUntil;
+    return until != null && DateTime.now().isBefore(until);
+  }
+
+  /// Suppress network and server dialogs that fire before the connection is up.
+  static void holdTransient([
+    Duration duration = const Duration(seconds: 12),
+  ]) {
+    final until = DateTime.now().add(duration);
+    final current = _holdTransientUntil;
+    if (current == null || until.isAfter(current)) {
+      _holdTransientUntil = until;
+    }
+  }
 
   static Future<void> showError(
     AppError? error, {
     String? fallbackTitle,
     VoidCallback? onRetry,
   }) {
+    if (holdingTransient && AppErrorMapper.isTransient(error)) {
+      return Future.value();
+    }
     final info = AppErrorMapper.from(error, fallbackTitle: fallbackTitle);
     if (info.isOffline && inlineOfflineNotices) {
       _offlineNotice(info.title, info.message);

@@ -40,6 +40,10 @@ class AppApiClient implements OutboxTransport {
   /// Wired from auth DI after [AuthRepository] is registered.
   Future<bool> Function()? tokenRefresher;
 
+  /// Why the last refresh failed. Set by [tokenRefresher] before it returns
+  /// false. A network or server failure here is not an expired session.
+  AppError? refreshFailure;
+
   /// Shared in-flight refresh so concurrent 401s only refresh once.
   Future<bool>? _refreshInFlight;
 
@@ -537,6 +541,14 @@ class AppApiClient implements OutboxTransport {
               stagingForm: stagingForm,
             );
           }
+          final refreshError = refreshFailure;
+          if (refreshError != null && AppErrorMapper.isTransient(refreshError)) {
+            await _showError(
+              refreshError,
+              silent: silent || AppErrorDialog.holdingTransient,
+            );
+            return Result.failure(refreshError);
+          }
         }
 
         var error = AppErrorMapper.toFriendly(rawError);
@@ -693,9 +705,14 @@ class AppApiClient implements OutboxTransport {
     if (existing != null) return existing;
 
     final future = () async {
+      refreshFailure = null;
       try {
         return await refresher();
       } catch (_) {
+        refreshFailure ??= const NetworkError(
+          message: 'No connection',
+          code: 'offline',
+        );
         return false;
       }
     }();

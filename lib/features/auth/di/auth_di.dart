@@ -98,7 +98,9 @@ Future<void> setupAuthDependencies() async {
 
   // When any API call gets HTTP 401, refresh the access token once and retry.
   getIt<AppApiClient>().tokenRefresher = () async {
+    final client = getIt<AppApiClient>();
     final result = await getIt<AuthRepository>().refreshTokens(silent: true);
+    client.refreshFailure = result.isSuccess ? null : result.error;
     return result.isSuccess;
   };
 

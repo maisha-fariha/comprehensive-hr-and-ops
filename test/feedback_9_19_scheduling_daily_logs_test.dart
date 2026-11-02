@@ -1,5 +1,6 @@
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/create_shift_draft.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_overview.dart';
+import 'package:comprehensive_hr_and_ops/core/time/tenant_clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -82,6 +83,49 @@ void main() {
       expect(body['requiredStaffCount'], 2);
       expect(body['biddingConfig'], isA<Map>());
       expect((body['biddingConfig'] as Map)['maxBids'], 8);
+    });
+
+    test('bidding deadline uses the tenant timezone, not the phone clock', () {
+      TenantClock.use('America/Vancouver');
+      addTearDown(() => TenantClock.use(null));
+
+      final draft = CreateShiftDraft(
+        residenceId: 'r1',
+        shiftDate: DateTime(2026, 12, 15),
+      )
+        ..shiftType = 'custom'
+        ..startMinutes = 60
+        ..endMinutes = 90
+        ..isOpenShift = true
+        ..biddingDeadlineDate = DateTime(2026, 12, 15)
+        ..biddingDeadlineMinutes = 30;
+
+      final body = draft.toCreateBody();
+      final starts = DateTime.parse(body['startsAt'] as String).toUtc();
+      final deadline = DateTime.parse(
+        (body['biddingConfig'] as Map)['biddingClosesAt'] as String,
+      ).toUtc();
+      expect(deadline, DateTime.utc(2026, 12, 15, 7, 30));
+      expect(starts, DateTime.utc(2026, 12, 15, 8));
+      expect(deadline.isBefore(starts), isTrue);
+      expect(
+        draft.validate().containsKey(CreateShiftField.biddingDeadline),
+        isFalse,
+      );
+
+      draft.biddingDeadlineMinutes = 120;
+      expect(
+        draft.validate()[CreateShiftField.biddingDeadline],
+        'Bidding deadline cannot be after the shift begins',
+      );
+
+      draft
+        ..biddingDeadlineDate = DateTime(2026, 10, 30)
+        ..biddingDeadlineMinutes = 30;
+      expect(
+        draft.validate()[CreateShiftField.biddingDeadline],
+        'Bidding deadline cannot be in the past',
+      );
     });
   });
 }
