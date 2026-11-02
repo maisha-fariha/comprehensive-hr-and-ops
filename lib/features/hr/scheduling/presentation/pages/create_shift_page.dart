@@ -255,7 +255,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   static const _staffingBlockedToast =
       'Someone on this shift is already rostered then, or on leave — change who is on it first.';
 
-  /// Web `useShiftConflicts` + overlapping-shift "Has Shift" badge source.
+  /// Web `useShiftConflicts` plus the overlapping-shift "Has Shift" badge.
+  /// The badge query is every residence; conflict banners stay on this home.
   Future<void> _refreshStaffConflicts() async {
     final serial = ++_conflictSerial;
     final window = _draft.shiftWindow;
@@ -277,10 +278,12 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     final excludeId = widget.editShiftId;
     final residenceId = _draft.residenceId.isEmpty ? null : _draft.residenceId;
 
+    // Web `useShifts` for the badge sends from/to/limit only, so a shift at
+    // another residence still marks "(Has Shift)". Conflicts stay scoped
+    // to the residence on this form.
     final shiftsFuture = _repository.listShiftsInRange(
       from: from,
       to: to,
-      residenceId: residenceId,
     );
     final conflictsFuture = staffIds.isEmpty
         ? Future<Result<ShiftConflictsResult>>.value(

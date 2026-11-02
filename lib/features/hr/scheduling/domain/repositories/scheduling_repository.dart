@@ -60,6 +60,9 @@ abstract class SchedulingRepository {
 
   /// Shifts in a day window for the "Has Shift" staff-picker badge
   /// (`GET /shifts?from&to&limit=200`).
+  ///
+  /// Leave [residenceId] unset. The live web badge counts overlapping
+  /// shifts at every residence.
   Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
     required String from,
     required String to,
