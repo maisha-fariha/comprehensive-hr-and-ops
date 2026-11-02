@@ -19,6 +19,9 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Before any request. A phone that just powered on has no radio yet, and
+  // the first calls must not surface as "Sign-in needed".
+  AppErrorDialog.holdTransient();
 
   if (!kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
