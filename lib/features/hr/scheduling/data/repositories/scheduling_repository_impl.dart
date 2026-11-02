@@ -5,6 +5,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
@@ -241,6 +242,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
 
   @override
   Future<Result<int>> getDefaultBreakMinutes() async {
+    await _loadTenantTimeZone();
     final result = await _api.get(
       ApiEndpoints.settingsScheduling,
       silent: true,
@@ -252,6 +254,21 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
         return Result.success(minutes.clamp(0, 240));
       },
       failure: (error) async => Result.failure(error),
+    );
+  }
+
+  /// `GET /settings/general` timezone, so shift times match the web.
+  Future<void> _loadTenantTimeZone() async {
+    final result = await _api.get(
+      ApiEndpoints.settingsGeneral,
+      silent: true,
+    );
+    result.when(
+      success: (body) {
+        final json = JsonCodec.unwrapMap(body);
+        TenantClock.use(JsonCodec.string(json['timezone']));
+      },
+      failure: (_) {},
     );
   }
 

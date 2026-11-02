@@ -12,6 +12,7 @@ class CreateShiftOpenShiftForm extends StatelessWidget {
   final TextEditingController maxBidsController;
   final TextEditingController noteToBiddersController;
   final String? deadlineDateValue;
+  final String? deadlineError;
   final VoidCallback? onDeadlineDateTap;
   final String? deadlineTimeValue;
   final VoidCallback? onDeadlineTimeTap;
@@ -32,6 +33,7 @@ class CreateShiftOpenShiftForm extends StatelessWidget {
     required this.maxBidsController,
     required this.noteToBiddersController,
     this.deadlineDateValue,
+    this.deadlineError,
     this.onDeadlineDateTap,
     this.deadlineTimeValue,
     this.onDeadlineTimeTap,
@@ -83,6 +85,7 @@ class CreateShiftOpenShiftForm extends StatelessWidget {
           ],
         ),
       ),
+      CreateShiftErrorText(deadlineError),
       gap,
       CreateShiftFieldRow(
         left: Column(

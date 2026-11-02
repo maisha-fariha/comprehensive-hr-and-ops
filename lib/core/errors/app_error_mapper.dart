@@ -112,6 +112,33 @@ abstract final class AppErrorMapper {
     );
   }
 
+  /// A failure that is the network or the server, not a rejected session.
+  ///
+  /// Used when the phone has just come back and a refresh cannot complete
+  /// yet: that must not be shown as "Sign-in needed".
+  static bool isTransient(AppError? error) {
+    if (error == null) return false;
+    if (error is AuthError || error is PermissionError || error is ValidationError) {
+      return false;
+    }
+    if (error is ApiError) {
+      final code = error.statusCode;
+      return code == null ||
+          code == 0 ||
+          code == 408 ||
+          code == 504 ||
+          code >= 500;
+    }
+    if (error is NetworkError) {
+      final status = int.tryParse(error.code ?? '');
+      if (status != null && status >= 400 && status < 500 && status != 408) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
   static AppErrorInfo _fromStatus({
     required int? statusCode,
     required String raw,

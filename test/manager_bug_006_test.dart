@@ -218,6 +218,10 @@ Finder _tab(String label) {
     matching: find.text(resolved),
   );
 }
+Finder _tab(String label) => find.descendant(
+      of: find.byType(CreateShiftStepTabs),
+      matching: find.textContaining(label),
+    );
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
@@ -296,7 +300,7 @@ void main() {
       (tester) async {
     await _pumpWizard(tester);
 
-    expect(find.text('STEP 0 OF 4'), findsOneWidget);
+    expect(find.text('STEP 0 OF 5'), findsOneWidget);
     expect(find.text('0% complete'), findsOneWidget);
 
     await _tap(tester, _tab('Recurring'));
@@ -305,8 +309,8 @@ void main() {
 
     await _tap(tester, _tab('Shift Information'));
     await _pickResidence(tester, 'Elm House');
-    expect(find.text('STEP 1 OF 4'), findsOneWidget);
-    expect(find.text('25% complete'), findsOneWidget);
+    expect(find.text('STEP 1 OF 5'), findsOneWidget);
+    expect(find.text('20% complete'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('create-shift-step-done-shiftInformation')),
       findsOneWidget,
@@ -314,8 +318,8 @@ void main() {
 
     await _tap(tester, _tab('Staff Assignment'));
     await _addStaff(tester, 'Shakib Hasan');
-    expect(find.text('STEP 2 OF 4'), findsOneWidget);
-    expect(find.text('50% complete'), findsOneWidget);
+    expect(find.text('STEP 2 OF 5'), findsOneWidget);
+    expect(find.text('40% complete'), findsOneWidget);
   });
 
   testWidgets('BUG06: Next validates step 1 and Back returns', (tester) async {
@@ -368,21 +372,11 @@ void main() {
     expect(find.text('Task Assignment'), findsOneWidget);
     expect(_label('Task Title'), findsOneWidget);
     expect(_label('Task Description'), findsOneWidget);
-    expect(_label('Task Checklist'), findsOneWidget);
+    expect(_label('Note'), findsOneWidget);
+    expect(find.text('Task Checklist'), findsNothing);
+    expect(find.text('Add checklist item'), findsNothing);
     expect(find.text('Leave empty to assign the shift without a task.'),
         findsOneWidget);
-
-    await tester.enterText(
-      find.byKey(const ValueKey('checklist-input-staff-shakib')),
-      'Give 8am meds',
-    );
-    await _tap(tester, find.byKey(const ValueKey('checklist-add-staff-shakib')));
-    expect(find.text('Give 8am meds'), findsOneWidget);
-    expect(find.text('1 step'), findsOneWidget);
-
-    await _tap(tester, find.byTooltip('Remove checklist item'));
-    expect(find.text('Give 8am meds'), findsNothing);
-    expect(find.text('1 step'), findsNothing);
 
     await _tap(
       tester,
@@ -403,7 +397,7 @@ void main() {
       (tester) async {
     await _pumpWizard(tester, residenceId: 'elm');
 
-    await _tap(tester, _tab('Staff Assignment'));
+    await _tap(tester, _tab('Open Shift'));
     expect(_label('People needed'), findsNothing);
     await _tap(tester, find.byKey(const ValueKey('create-shift-open-toggle')));
     for (final field in const [
@@ -514,6 +508,7 @@ void main() {
       find.byKey(const ValueKey('task-title-staff-shakib')),
       'Morning medication round',
     );
+    await _tap(tester, _tab('Open Shift'));
     await _tap(tester, find.byKey(const ValueKey('create-shift-open-toggle')));
     await tester.enterText(
       find.byKey(const ValueKey('create-shift-people-needed')),

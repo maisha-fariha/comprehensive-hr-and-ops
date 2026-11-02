@@ -7,10 +7,12 @@ import 'package:get_it/get_it.dart';
 
 import '../../features/auth/domain/entities/mobile_profile.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../errors/app_error_dialog.dart';
 import '../errors/app_error_mapper.dart';
 import '../widgets/app_bottom_sheet.dart';
 import '../push/device_registration_service.dart';
 import '../routing/app_routes.dart';
+import '../time/tenant_clock.dart';
 import 'session_lifecycle.dart';
 import 'user_role.dart';
 
@@ -369,6 +371,7 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     _staffKind.value = null;
     _permissions.clear();
     _permissionsReady.value = false;
+    TenantClock.use(null);
     _medAdminCertified.value = false;
     _medAdminApproved.value = false;
     _familyVisibility.value = FamilyVisibility.unknown;
@@ -398,6 +401,7 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      AppErrorDialog.holdTransient();
       refreshProfile();
       // POST /devices again. The server drops a token it could not deliver,
       // and the next message would then never arrive.
@@ -422,6 +426,7 @@ class UserSession extends GetxService with WidgetsBindingObserver {
         (error.statusCode == 401 || error.statusCode == 403)) {
       return false;
     }
+    if (AppErrorMapper.isTransient(error)) return true;
     return AppErrorMapper.from(error).isOffline;
   }
 }

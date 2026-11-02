@@ -18,6 +18,7 @@ import '../inventory/presentation/pages/inventory_page.dart';
 import '../medication/presentation/pages/medication_page.dart';
 import '../training/presentation/pages/hr_training_page.dart';
 import '../profile_settings/presentation/pages/hr_profile_settings_page.dart';
+import '../org_settings/presentation/pages/org_settings_page.dart';
 import '../recurring_checks/presentation/pages/recurring_checks_page.dart';
 import '../residences/presentation/pages/residences_page.dart';
 import '../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
@@ -348,6 +349,27 @@ List<ManagerDestination> managerDestinations() {
           builder: () => const CommunicationPage(),
         ),
         keywords: const ['messages', 'chat', 'announcements'],
+      ),
+    if (can('settings:read'))
+      ManagerDestination(
+        title: 'Settings',
+        subtitle: 'Organisation, notifications, payroll & care',
+        icon: Icons.settings_outlined,
+        iconBackground: AppColors.infoBackground,
+        iconColor: AppColors.infoBlue,
+        open: () => openPermittedPage(
+          title: 'Settings',
+          anyOf: const ['settings:read'],
+          builder: () => const OrgSettingsPage(),
+        ),
+        keywords: const [
+          'settings',
+          'timezone',
+          'payroll',
+          'notifications',
+          'security',
+          'family portal',
+        ],
       ),
     ManagerDestination(
       title: 'Profile & Settings',
