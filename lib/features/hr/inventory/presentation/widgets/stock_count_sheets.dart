@@ -144,10 +144,28 @@ class _StockCountSheetState extends State<StockCountSheet> {
         success: (count) {
           _count = count;
           _loadError = null;
+          _seedEntries(count);
         },
         failure: (error) => _loadError = error.message,
       );
     });
+  }
+
+  /// Keep typed digits; otherwise show the saved counted qty (web inputs).
+  void _seedEntries(StockCount count) {
+    for (final line in count.lines) {
+      final existing = _entries[line.id];
+      if (existing != null && existing.text.trim().isNotEmpty) continue;
+      final saved = line.countedQty;
+      final text = saved == null
+          ? ''
+          : (saved == saved.roundToDouble() ? saved.round().toString() : saved.toString());
+      if (existing != null) {
+        existing.text = text;
+      } else {
+        _entries[line.id] = TextEditingController(text: text);
+      }
+    }
   }
 
   TextEditingController _entry(String lineId) =>

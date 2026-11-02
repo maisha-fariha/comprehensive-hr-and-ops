@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/constants/app_colors.dart';
 import '../../../attendance/presentation/widgets/attendance_record_card.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/purchasing.dart';
@@ -284,42 +283,84 @@ class _RejectOrderSheetState extends State<RejectOrderSheet> {
       );
 }
 
-/// Web "Add supplier" modal.
+/// Web "Add supplier" / "Edit supplier" modal.
 Future<void> showAddSupplierSheet(
   BuildContext context, {
   required PurchasingController controller,
+  InventorySupplier? supplier,
 }) =>
-    showInventorySheet<void>(context, (_) => AddSupplierSheet(controller: controller));
+    showInventorySheet<void>(
+      context,
+      (_) => AddSupplierSheet(controller: controller, supplier: supplier),
+    );
 
 class AddSupplierSheet extends StatefulWidget {
   final PurchasingController controller;
+  final InventorySupplier? supplier;
 
-  const AddSupplierSheet({super.key, required this.controller});
+  const AddSupplierSheet({super.key, required this.controller, this.supplier});
 
   @override
   State<AddSupplierSheet> createState() => _AddSupplierSheetState();
 }
 
 class _AddSupplierSheetState extends State<AddSupplierSheet> {
-  final _name = TextEditingController();
-  String _category = 'general';
+  late final TextEditingController _name;
+  late final TextEditingController _email;
+  late final TextEditingController _phone;
+  late final TextEditingController _contact;
+  late final TextEditingController _address;
+  late String _category;
   String? _error;
   bool _saving = false;
+
+  bool get _editing => widget.supplier != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final s = widget.supplier;
+    _name = TextEditingController(text: s?.name ?? '');
+    _email = TextEditingController(text: s?.email ?? '');
+    _phone = TextEditingController(text: s?.phone ?? '');
+    _contact = TextEditingController(text: s?.contactName ?? '');
+    _address = TextEditingController(text: s?.address ?? '');
+    _category = s?.category?.isNotEmpty == true ? s!.category! : 'general';
+  }
 
   @override
   void dispose() {
     _name.dispose();
+    _email.dispose();
+    _phone.dispose();
+    _contact.dispose();
+    _address.dispose();
     super.dispose();
   }
 
-  Future<void> _add() async {
+  Map<String, dynamic> get _body => {
+        'name': _name.text.trim(),
+        'category': _category,
+        'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
+        'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+        'contactName': _contact.text.trim().isEmpty ? null : _contact.text.trim(),
+        'address': _address.text.trim().isEmpty ? null : _address.text.trim(),
+      };
+
+  Future<void> _save() async {
     setState(() => _error = null);
     if (_name.text.trim().isEmpty) {
       setState(() => _error = 'A name is required.');
       return;
     }
+    if (_email.text.trim().isEmpty && _phone.text.trim().isEmpty) {
+      setState(() => _error = 'Give an email or a phone number to reach this supplier by');
+      return;
+    }
     setState(() => _saving = true);
-    final error = await widget.controller.addSupplier(_name.text.trim(), _category);
+    final error = _editing
+        ? await widget.controller.updateSupplier(widget.supplier!.id, _body)
+        : await widget.controller.addSupplier(_body);
     if (!mounted) return;
     if (error == null) {
       Navigator.of(context).pop();
@@ -334,15 +375,18 @@ class _AddSupplierSheetState extends State<AddSupplierSheet> {
   @override
   Widget build(BuildContext context) => InventorySheet(
         icon: Icons.local_shipping_outlined,
-        title: 'Add supplier',
+        title: _editing ? 'Edit supplier' : 'Add supplier',
+        description: 'Orders are emailed to the supplier\'s address, or placed by phone.',
         error: _error,
         actions: [
           HandoverButton(label: 'Cancel', onPressed: () => Navigator.of(context).pop()),
           HandoverButton(
             key: const ValueKey('supplier-add-save'),
-            label: _saving ? 'Adding…' : 'Add supplier',
+            label: _saving
+                ? (_editing ? 'Saving…' : 'Adding…')
+                : (_editing ? 'Save changes' : 'Add supplier'),
             filled: true,
-            onPressed: _saving ? null : _add,
+            onPressed: _saving ? null : _save,
           ),
         ],
         children: [
@@ -354,16 +398,39 @@ class _AddSupplierSheetState extends State<AddSupplierSheet> {
           ),
           const SizedBox(height: 12),
           InventorySelect(
+            key: const ValueKey('supplier-add-category'),
             label: 'Category',
             options: InventoryLabels.supplierCategories,
             value: _category,
             placeholder: '',
             onChanged: (v) => setState(() => _category = v),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Contact details can be filled in once the supplier exists.',
-            style: handoverText(context, 12.5, color: AppColors.textMuted),
+          const SizedBox(height: 12),
+          InventoryField(
+            key: const ValueKey('supplier-add-email'),
+            label: 'Email',
+            controller: _email,
+            placeholder: 'orders@supplier.com',
+            helper: 'Purchase orders are emailed here.',
+          ),
+          const SizedBox(height: 12),
+          InventoryField(
+            key: const ValueKey('supplier-add-phone'),
+            label: 'Phone',
+            controller: _phone,
+            helper: 'An email or a phone is required.',
+          ),
+          const SizedBox(height: 12),
+          InventoryField(
+            key: const ValueKey('supplier-add-contact'),
+            label: 'Contact person',
+            controller: _contact,
+          ),
+          const SizedBox(height: 12),
+          HandoverTextArea(
+            key: const ValueKey('supplier-add-address'),
+            label: 'Address',
+            controller: _address,
           ),
         ],
       );

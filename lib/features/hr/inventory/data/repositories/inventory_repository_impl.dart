@@ -340,8 +340,12 @@ class InventoryRepositoryImpl implements InventoryRepository {
       );
 
   @override
-  Future<Result<void>> createSupplier({required String name, required String category}) =>
-      _post(InventoryEndpoints.suppliers, {'name': name, 'category': category});
+  Future<Result<void>> createSupplier(Map<String, dynamic> body) =>
+      _post(InventoryEndpoints.suppliers, body);
+
+  @override
+  Future<Result<void>> updateSupplier(String id, Map<String, dynamic> body) =>
+      _patch(InventoryEndpoints.supplier(id), body);
 
   @override
   Future<Result<void>> removeSupplier(String id) => _delete(InventoryEndpoints.supplier(id));

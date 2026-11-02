@@ -37,6 +37,7 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
   late final TextEditingController _name;
   late final TextEditingController _sku;
   late final TextEditingController _quantity;
+  late final TextEditingController _cost;
   late final TextEditingController _reorder;
   late final TextEditingController _remark;
   String? _error;
@@ -56,6 +57,9 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
     _name = TextEditingController(text: item?.name ?? '');
     _sku = TextEditingController(text: item?.sku ?? '');
     _quantity = TextEditingController(text: '0');
+    _cost = TextEditingController(
+      text: item?.costPerUnit == null ? '' : _plain(item!.costPerUnit!),
+    );
     _reorder = TextEditingController(
       text: item?.reorderLevel == null ? '' : _plain(item!.reorderLevel!),
     );
@@ -69,6 +73,7 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
     _name.dispose();
     _sku.dispose();
     _quantity.dispose();
+    _cost.dispose();
     _reorder.dispose();
     _remark.dispose();
     super.dispose();
@@ -85,6 +90,7 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
       return;
     }
     setState(() => _saving = true);
+    final cost = _cost.text.trim().isEmpty ? null : num.tryParse(_cost.text.trim());
     final body = <String, dynamic>{
       'name': _name.text.trim(),
       'categoryId': _categoryId,
@@ -93,6 +99,7 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
       if (_supplier.trim().isNotEmpty) 'supplierName': _supplier.trim(),
       'reorderLevel': _reorder.text.trim().isEmpty ? null : num.tryParse(_reorder.text.trim()),
       'tracksBatches': _tracksBatches,
+      if (cost != null) 'costPerUnit': cost,
     };
     final error = _editing
         ? await widget.controller.updateItem(widget.item!.id, body)
@@ -197,6 +204,16 @@ class _InventoryItemFormSheetState extends State<InventoryItemFormSheet> {
                   'change is recorded with a reason and an author.',
                   style: handoverText(context, 13, color: AppColors.textMuted),
                 ),
+              const SizedBox(height: 12),
+              InventoryField(
+                key: const ValueKey('inventory-item-cost'),
+                label: 'Cost per unit',
+                controller: _cost,
+                number: true,
+                placeholder: 'Optional',
+                helper: 'What one unit cost — values the opening stock. Purchase orders keep it '
+                    'current after that.',
+              ),
               const SizedBox(height: 12),
               InventoryField(
                 label: 'Reorder level',

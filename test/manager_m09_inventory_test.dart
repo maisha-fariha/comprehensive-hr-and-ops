@@ -526,8 +526,12 @@ class _FakeRepo implements InventoryRepository {
       Result.success(InventoryListPage(items: _suppliers, total: _suppliers.length));
 
   @override
-  Future<Result<void>> createSupplier({required String name, required String category}) =>
-      _ok('createSupplier', {'name': name, 'category': category});
+  Future<Result<void>> createSupplier(Map<String, dynamic> body) =>
+      _ok('createSupplier', body);
+
+  @override
+  Future<Result<void>> updateSupplier(String id, Map<String, dynamic> body) =>
+      _ok('updateSupplier', {'id': id, ...body});
 
   @override
   Future<Result<void>> removeSupplier(String id) => _ok('removeSupplier', id);
@@ -1138,13 +1142,29 @@ void main() {
       await _tapKey(tester, 'purchasing-tab-suppliers');
       expect(find.text('orders@med.test'), findsOneWidget);
       expect(find.text('Pharmacy'), findsOneWidget);
+      expect(find.byKey(const ValueKey('supplier-edit-s1')), findsOneWidget);
       await _tapKey(tester, 'supplier-remove-s1');
       expect(repo.payloads('removeSupplier').single, 's1');
       await _tapKey(tester, 'supplier-restore-s2');
       expect(repo.payloads('restoreSupplier').single, 's2');
       await _tapKey(tester, 'supplier-new');
+      expect(find.byKey(const ValueKey('supplier-add-email')), findsOneWidget);
+      expect(find.byKey(const ValueKey('supplier-add-phone')), findsOneWidget);
       await _tapKey(tester, 'supplier-add-save');
       expect(find.text('A name is required.'), findsOneWidget);
+      await _type(tester, 'supplier-add-name', 'Acme');
+      await _tapKey(tester, 'supplier-add-save');
+      expect(find.text('Give an email or a phone number to reach this supplier by'), findsOneWidget);
+      await _type(tester, 'supplier-add-email', 'orders@acme.test');
+      await _tapKey(tester, 'supplier-add-save');
+      expect(repo.payloads('createSupplier').single, {
+        'name': 'Acme',
+        'category': 'general',
+        'email': 'orders@acme.test',
+        'phone': null,
+        'contactName': null,
+        'address': null,
+      });
     });
 
     testWidgets('residence manager without suppliers:write cannot change suppliers', (tester) async {

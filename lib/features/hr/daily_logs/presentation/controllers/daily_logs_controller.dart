@@ -74,10 +74,14 @@ class DailyLogsController extends GetxController {
   bool get canReview => session.can('daily-logs:review');
   bool get canResolveFlags => session.can('care-flags:resolve');
   bool get canReadFlags => session.can('care-flags:read');
+  bool get canRecordActivity => session.can('client-activities:write');
   bool get hasResidence => residenceId.value.isNotEmpty;
   /// Reads the observables before the permission so an `Obx` always subscribes.
   bool get showAddEntry =>
       tab.value == DailyLogsTab.day && clientId.value.isNotEmpty && hasResidence && canWrite;
+  /// Web Daily Logs → Resident Activity exposes "Record activity" before a
+  /// resident is chosen (same permission as Daily Activity).
+  bool get showRecordActivity => tab.value == DailyLogsTab.day && canRecordActivity;
 
   String get residenceName => _labelOf(residences, residenceId.value);
   String get staffName => _labelOf(staff, staffId.value);

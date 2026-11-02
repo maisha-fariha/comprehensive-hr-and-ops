@@ -217,9 +217,16 @@ class PurchasingController extends GetxController {
         onSuccess: _afterChange,
       );
 
-  Future<String?> addSupplier(String name, String category) => runInventoryAction(
-        () => repository.createSupplier(name: name, category: category),
+  Future<String?> addSupplier(Map<String, dynamic> body) => runInventoryAction(
+        () => repository.createSupplier(body),
         success: 'Supplier added',
+        toastErrors: false,
+        onSuccess: _afterChange,
+      );
+
+  Future<String?> updateSupplier(String id, Map<String, dynamic> body) => runInventoryAction(
+        () => repository.updateSupplier(id, body),
+        success: 'Supplier updated',
         toastErrors: false,
         onSuccess: _afterChange,
       );
