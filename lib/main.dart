@@ -4,14 +4,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
 import 'app.dart';
 import 'core/config/app_env.dart';
+import 'core/deeplink/app_deep_link_router.dart';
 import 'core/di/service_locator.dart';
 import 'core/network/connectivity_monitor.dart';
 import 'core/offline/offline_bootstrap.dart';
-import 'core/roles/user_session.dart';
 import 'core/push/firebase_push_bridge.dart';
+import 'core/roles/user_session.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -42,6 +44,13 @@ Future<void> main() async {
   final session = Get.put(UserSession(), permanent: true);
   OfflineBootstrap.watchSession(session);
   await session.restore();
+
+  // Cold-start App Link while already signed in (attach ran before restore).
+  if (session.isSignedIn) {
+    try {
+      GetIt.instance<AppDeepLinkRouter>().flushAfterAuth();
+    } catch (_) {}
+  }
 
   runApp(const ComprehensiveHrAndOpsApp());
 }

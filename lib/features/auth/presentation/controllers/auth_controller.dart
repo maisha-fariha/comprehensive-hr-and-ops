@@ -3,6 +3,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../core/deeplink/app_deep_link_router.dart';
 import '../../../../core/network/tenant_store.dart';
 import '../../../../core/push/device_registration_service.dart';
 import '../../../../core/roles/session_lifecycle.dart';
@@ -162,6 +163,9 @@ class AuthController extends GetxController {
       await GetIt.instance<DeviceRegistrationService>().syncAfterAuth();
     } catch (_) {}
     Get.offAllNamed(profile.role.portalRoute);
+    try {
+      GetIt.instance<AppDeepLinkRouter>().flushAfterAuth();
+    } catch (_) {}
     return true;
   }
 

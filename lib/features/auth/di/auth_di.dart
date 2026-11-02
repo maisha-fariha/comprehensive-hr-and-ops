@@ -5,6 +5,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/deeplink/app_deep_link_router.dart';
 import '../../../core/network/app_api_client.dart';
 import '../../../core/push/communication_push_router.dart';
 import '../../../core/push/firebase_push_bridge.dart';
@@ -90,6 +91,10 @@ Future<void> setupAuthDependencies() async {
     lazy: false,
   );
   await getIt<DeviceRegistrationService>().start();
+
+  final deepLinks = AppDeepLinkRouter();
+  getIt.registerSingleton<AppDeepLinkRouter>(deepLinks);
+  await deepLinks.attach();
 
   // When any API call gets HTTP 401, refresh the access token once and retry.
   getIt<AppApiClient>().tokenRefresher = () async {
