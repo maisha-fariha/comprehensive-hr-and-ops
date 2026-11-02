@@ -12,6 +12,7 @@ import '../daily_activity/presentation/pages/daily_activity_page.dart';
 import '../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../documents/presentation/pages/hr_documents_page.dart';
 import '../emergency/presentation/pages/emergency_page.dart';
+import '../finance/presentation/pages/finance_page.dart';
 import '../handovers/presentation/pages/handovers_page.dart';
 import '../hr_shell.dart';
 import '../inventory/presentation/pages/inventory_page.dart';
@@ -321,6 +322,29 @@ List<ManagerDestination> managerDestinations() {
           builder: () => const HrTrainingPage(),
         ),
         keywords: const ['training', 'course', 'courses', 'certificate', 'quiz', 'assignment', 'learning'],
+      ),
+    if (can('payroll:read') || can('finance:read'))
+      ManagerDestination(
+        title: 'Finance & Payroll',
+        subtitle: 'Overview, pay runs, residence P&L & claims',
+        icon: Icons.account_balance_wallet_outlined,
+        iconBackground: AppColors.urgentBackgroundSoft,
+        iconColor: AppColors.urgentAmber,
+        open: () => openPermittedPage(
+          title: 'Finance & Payroll',
+          anyOf: const ['payroll:read', 'finance:read'],
+          builder: () => const FinancePage(),
+        ),
+        keywords: const [
+          'finance',
+          'payroll',
+          'payslip',
+          'claims',
+          'expense',
+          'mileage',
+          'p&l',
+          'profit',
+        ],
       ),
     if (can('tasks:read') || can('compliance:read'))
       ManagerDestination(
