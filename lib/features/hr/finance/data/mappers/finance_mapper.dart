@@ -574,12 +574,28 @@ abstract final class FinanceLabels {
     return '${negative ? '-' : ''}\$$whole.${parts[1]}';
   }
 
+  static String dayLabel(DateTime v) =>
+      '${v.day.toString().padLeft(2, '0')}/'
+      '${v.month.toString().padLeft(2, '0')}/'
+      '${v.year}';
+
   static String periodLabel(DateTime? from, DateTime? to) {
     if (from == null && to == null) return '—';
-    String d(DateTime v) =>
-        '${v.day.toString().padLeft(2, '0')}/${v.month.toString().padLeft(2, '0')}/${v.year}';
-    if (from != null && to != null) return '${d(from)} – ${d(to)}';
-    return d(from ?? to!);
+    if (from != null && to != null) {
+      return '${dayLabel(from)} – ${dayLabel(to)}';
+    }
+    return dayLabel(from ?? to!);
+  }
+
+  /// Web overview headline: `$69,000` (no cents).
+  static String moneyWhole(num? value) {
+    if (value == null) return '—';
+    final negative = value < 0;
+    final whole = value.abs().round().toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return '${negative ? '-' : ''}\$$whole';
   }
 
   static String statusLabel(String raw) {

@@ -88,18 +88,21 @@ class FinanceController extends GetxController {
     ];
   }
 
-  List<({String month, double total})> get payrollTrend {
-    final byMonth = <String, double>{};
-    for (final run in runs) {
-      final start = run.periodStart;
-      if (start == null) continue;
-      final key =
-          '${start.year}-${start.month.toString().padLeft(2, '0')}';
-      byMonth[key] = (byMonth[key] ?? 0) + run.grossTotal;
-    }
-    final keys = byMonth.keys.toList()..sort();
-    final last = keys.length > 6 ? keys.sublist(keys.length - 6) : keys;
-    return [for (final k in last) (month: k, total: byMonth[k]!)];
+  /// Web overview AreaChart: last 6 runs by `periodStart`, value = gross + adj.
+  List<({String label, double value, DateTime? at})> get payrollTrend {
+    final dated = [
+      for (final run in runs)
+        if (run.periodStart != null) run,
+    ]..sort((a, b) => a.periodStart!.compareTo(b.periodStart!));
+    final last = dated.length > 6 ? dated.sublist(dated.length - 6) : dated;
+    return [
+      for (final run in last)
+        (
+          label: FinanceLabels.dayLabel(run.periodStart!),
+          value: run.grossTotal,
+          at: run.periodStart,
+        ),
+    ];
   }
 
   @override
@@ -153,9 +156,14 @@ class FinanceController extends GetxController {
   }
 
   Future<void> _loadRuns() async {
+    // Overview trend needs the newest runs; keep page size for the Runs tab
+    // but always pull enough rows for the last-6 AreaChart when on page 1.
+    final limit = runsPage.value == 1
+        ? (runsLimit.value < 20 ? 20 : runsLimit.value)
+        : runsLimit.value;
     final result = await repository.listRuns(
       page: runsPage.value,
-      limit: runsLimit.value,
+      limit: limit,
     );
     result.when(
       success: (page) {
