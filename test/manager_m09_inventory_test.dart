@@ -1164,6 +1164,8 @@ void main() {
         'phone': null,
         'contactName': null,
         'address': null,
+        'accountRef': null,
+        'notes': null,
       });
     });
 

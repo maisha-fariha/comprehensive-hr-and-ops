@@ -85,6 +85,16 @@ class DailyActivityRepositoryImpl implements DailyActivityRepository {
       );
 
   @override
+  Future<Result<void>> createBatch(DailyActivityBatchDraft draft) async => _done(
+        await _api.post(
+          DailyActivityEndpoints.batch,
+          data: draft.toJson(),
+          silent: true,
+          allowQueue: false,
+        ),
+      );
+
+  @override
   Future<Result<void>> update(String id, DailyActivityDraft draft) async => _done(
         await _api.patch(
           DailyActivityEndpoints.byId(id),
@@ -114,10 +124,14 @@ class DailyActivityRepositoryImpl implements DailyActivityRepository {
       );
 
   @override
-  Future<Result<List<DailyActivityOption>>> clients() async {
+  Future<Result<List<DailyActivityOption>>> clients({String? residenceId}) async {
+    final query = <String, dynamic>{
+      ..._pickerLimit,
+      if (residenceId != null && residenceId.isNotEmpty) 'residenceId': residenceId,
+    };
     final result = await _api.get(
       DailyActivityEndpoints.clients,
-      query: _pickerLimit,
+      query: query,
       silent: true,
     );
     return result.when(

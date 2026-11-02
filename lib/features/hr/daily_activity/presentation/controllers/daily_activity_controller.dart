@@ -87,10 +87,52 @@ class DailyActivityController extends GetxController {
 
   Future<void> refreshAll() => Future.wait([load(), loadHistory()]);
 
-  Future<void> loadOptions() async {
-    final results = await Future.wait([repository.clients(), repository.staff()]);
+  Future<void> loadOptions({String? residenceId}) async {
+    final results = await Future.wait([
+      repository.clients(residenceId: residenceId),
+      repository.staff(),
+    ]);
     results[0].when(success: clients.assignAll, failure: (_) {});
     results[1].when(success: staff.assignAll, failure: (_) {});
+  }
+
+  /// Web "Record a group activity" → `POST /client-activities/batch`.
+  Future<String?> saveBatch(
+    DailyActivityBatchDraft draft, {
+    List<DailyActivityLocalFile> files = const [],
+  }) async {
+    final uploaded = <DailyActivityAttachment>[];
+    for (final file in files) {
+      final result = await repository.upload(file);
+      final error = result.when(
+        success: (url) {
+          uploaded.add(DailyActivityAttachment(fileUrl: url, fileType: file.name));
+          return null;
+        },
+        failure: (e) => _message(e),
+      );
+      if (error != null) return error;
+    }
+    final body = DailyActivityBatchDraft(
+      clientIds: draft.clientIds,
+      activityDate: draft.activityDate,
+      activityType: draft.activityType,
+      status: draft.status,
+      description: draft.description,
+      occurredAt: draft.occurredAt,
+      shareWithFamily: draft.shareWithFamily,
+      individualNotes: draft.individualNotes,
+      attachments: uploaded,
+    );
+    final result = await repository.createBatch(body);
+    return result.when(
+      success: (_) {
+        AppSnackbar.show('Recorded for ${draft.clientIds.length} residents', '');
+        refreshAll();
+        return null;
+      },
+      failure: _message,
+    );
   }
 
   Future<void> load() async {
