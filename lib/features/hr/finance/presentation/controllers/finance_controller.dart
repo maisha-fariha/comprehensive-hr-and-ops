@@ -88,18 +88,21 @@ class FinanceController extends GetxController {
     ];
   }
 
-  List<({String month, double total})> get payrollTrend {
-    final byMonth = <String, double>{};
-    for (final run in runs) {
-      final start = run.periodStart;
-      if (start == null) continue;
-      final key =
-          '${start.year}-${start.month.toString().padLeft(2, '0')}';
-      byMonth[key] = (byMonth[key] ?? 0) + run.grossTotal;
-    }
-    final keys = byMonth.keys.toList()..sort();
-    final last = keys.length > 6 ? keys.sublist(keys.length - 6) : keys;
-    return [for (final k in last) (month: k, total: byMonth[k]!)];
+  /// Web overview AreaChart: last 6 runs by `periodStart`, value = gross + adj.
+  List<({String label, double value, DateTime? at})> get payrollTrend {
+    final dated = [
+      for (final run in runs)
+        if (run.periodStart != null) run,
+    ]..sort((a, b) => a.periodStart!.compareTo(b.periodStart!));
+    final last = dated.length > 6 ? dated.sublist(dated.length - 6) : dated;
+    return [
+      for (final run in last)
+        (
+          label: FinanceLabels.dayLabel(run.periodStart!),
+          value: run.grossTotal,
+          at: run.periodStart,
+        ),
+    ];
   }
 
   @override
@@ -153,9 +156,14 @@ class FinanceController extends GetxController {
   }
 
   Future<void> _loadRuns() async {
+    // Overview trend needs the newest runs; keep page size for the Runs tab
+    // but always pull enough rows for the last-6 AreaChart when on page 1.
+    final limit = runsPage.value == 1
+        ? (runsLimit.value < 20 ? 20 : runsLimit.value)
+        : runsLimit.value;
     final result = await repository.listRuns(
       page: runsPage.value,
-      limit: runsLimit.value,
+      limit: limit,
     );
     result.when(
       success: (page) {
@@ -252,11 +260,28 @@ class FinanceController extends GetxController {
     );
   }
 
-  Future<void> _loadClients() async {
-    final result = await repository.clientOptions();
+  Future<void> _loadClients({String? residenceId}) async {
+    final result = await repository.clientOptions(
+      residenceId: residenceId ??
+          (pnlResidenceId.value.isEmpty ? null : pnlResidenceId.value),
+    );
     result.when(
       success: (items) => clientOptions.assignAll(items),
       failure: (_) {},
+    );
+  }
+
+  Future<List<FinancePersonOption>> clientsForCostAnalysis() async {
+    final result = await repository.clientOptions(
+      residenceId:
+          pnlResidenceId.value.isEmpty ? null : pnlResidenceId.value,
+    );
+    return result.when(
+      success: (items) {
+        clientOptions.assignAll(items);
+        return items;
+      },
+      failure: (_) => clientOptions.toList(),
     );
   }
 
@@ -355,7 +380,11 @@ class FinanceController extends GetxController {
     pnlTo.value = to;
     if (residenceId != null) pnlResidenceId.value = residenceId;
     isLoading.value = true;
-    await Future.wait([_loadReport(), _loadLedger()]);
+    await Future.wait([
+      _loadReport(),
+      _loadLedger(),
+      if (canReadFinance) _loadClients(),
+    ]);
     isLoading.value = false;
   }
 
@@ -710,30 +739,46 @@ class FinanceController extends GetxController {
     return error;
   }
 
+  /// Web `downloadCsv('residence-pnl-…')` column set.
   String pnlCsv() {
     final r = report.value;
-    if (r == null) return '';
+    if (r == null || r.residences.isEmpty) return '';
     final buf = StringBuffer(
-      'Residence,Occupancy %,Bed nights,Revenue,Labor,Inventory,Other,Net,Margin,Per bed-night,Per resident\n',
+      'Residence,Occupancy %,Bed-nights,Accrued fees,Ledger revenue,Revenue,'
+      'Labor,Inventory,Other costs,Total costs,Net,Margin %,'
+      'Cost per day,Cost per bed-night,Cost per resident\n',
     );
     for (final row in r.residences) {
       buf.writeln(
         [
-          '"${row.residenceName}"',
+          _csvCell(row.residenceName),
           row.occupancyPercent.toStringAsFixed(1),
           row.occupiedBedNights,
+          row.accruedFees.toStringAsFixed(2),
+          row.ledgerRevenue.toStringAsFixed(2),
           row.revenueTotal.toStringAsFixed(2),
           row.payrollExpense.toStringAsFixed(2),
           row.inventoryExpense.toStringAsFixed(2),
           row.otherExpense.toStringAsFixed(2),
+          row.expenseTotal.toStringAsFixed(2),
           row.netProfit.toStringAsFixed(2),
           row.margin?.toStringAsFixed(1) ?? '',
+          row.costPerDay?.toStringAsFixed(2) ?? '',
           row.costPerBedNight?.toStringAsFixed(2) ?? '',
           row.costPerResident?.toStringAsFixed(2) ?? '',
         ].join(','),
       );
     }
     return buf.toString();
+  }
+
+  String pnlExportFileName() {
+    return 'residence-pnl-${pnlFrom.value}-to-${pnlTo.value}.csv';
+  }
+
+  static String _csvCell(String value) {
+    final escaped = value.replaceAll('"', '""');
+    return '"$escaped"';
   }
 }
 

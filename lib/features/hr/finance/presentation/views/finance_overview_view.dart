@@ -552,7 +552,7 @@ class _EntryDetailSheetState extends State<_EntryDetailSheet> {
 }
 
 class _TrendCard extends StatelessWidget {
-  final List<({String month, double total})> trend;
+  final List<({String label, double value, DateTime? at})> trend;
   final double thisPeriod;
   final int runsCount;
   final VoidCallback onAnalytics;
@@ -564,52 +564,240 @@ class _TrendCard extends StatelessWidget {
     required this.onAnalytics,
   });
 
+  static const _line = Color(0xFF1E3A5F);
+
   @override
   Widget build(BuildContext context) {
-    final max = trend.fold<double>(0, (s, e) => e.total > s ? e.total : s);
-    return FinanceCard(
+    final values = [for (final p in trend) p.value];
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Payroll Cost Trend', style: handoverText(context, 14, weight: FontWeight.w700)),
-          Text(
-            'Gross payroll - last 6 months',
-            style: handoverText(context, 12, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${FinanceLabels.money(thisPeriod)} this period',
-            style: handoverText(context, 16, weight: FontWeight.w700),
-          ),
-          Text(
-            '▲ $runsCount runs',
-            style: handoverText(context, 12, color: AppColors.activeGreen),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 72,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final point in trend) ...[
-                  Expanded(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      height: max <= 0 ? 4 : (4 + (point.total / max) * 60),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondaryTeal.withValues(alpha: 0.7),
-                        borderRadius: BorderRadius.circular(4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Payroll Cost Trend',
+                        style: handoverText(context, 14, weight: FontWeight.w700),
                       ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Gross payroll · last 6 months',
+                        style: handoverText(context, 12, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.activeGreen.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '▲ $runsCount ${runsCount == 1 ? 'run' : 'runs'}',
+                    style: handoverText(
+                      context,
+                      11,
+                      weight: FontWeight.w600,
+                      color: AppColors.activeGreen,
                     ),
                   ),
-                ],
+                ),
               ],
             ),
           ),
-          TextButton(onPressed: onAnalytics, child: const Text('View full analytics')),
+          const Divider(height: 1, color: AppColors.cardBorder),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      FinanceLabels.moneyWhole(thisPeriod),
+                      style: handoverText(context, 22, weight: FontWeight.w700),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'this period',
+                      style: handoverText(context, 12, color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 90,
+                  width: double.infinity,
+                  child: values.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No payroll runs yet',
+                            style: handoverText(
+                              context,
+                              12.5,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        )
+                      : Column(
+                          children: [
+                            Expanded(
+                              child: CustomPaint(
+                                painter: _PayrollTrendPainter(
+                                  values: values,
+                                  lineColor: _line,
+                                ),
+                                child: const SizedBox.expand(),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              height: 14,
+                              child: Row(
+                                children: [
+                                  for (final point in trend)
+                                    Expanded(
+                                      child: Text(
+                                        point.label,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.clip,
+                                        style: handoverText(
+                                          context,
+                                          10,
+                                          color: AppColors.textMuted,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.cardBorder),
+          TextButton(
+            onPressed: onAnalytics,
+            child: Text(
+              'View full analytics',
+              style: handoverText(
+                context,
+                12.5,
+                weight: FontWeight.w600,
+                color: AppColors.secondaryTeal,
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+}
+
+/// Monotone-style area chart matching web Recharts `Area type="monotone"`.
+class _PayrollTrendPainter extends CustomPainter {
+  final List<double> values;
+  final Color lineColor;
+
+  const _PayrollTrendPainter({
+    required this.values,
+    required this.lineColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty || size.width <= 0 || size.height <= 0) return;
+
+    final minV = values.reduce((a, b) => a < b ? a : b);
+    final maxV = values.reduce((a, b) => a > b ? a : b);
+    final pad = (maxV - minV).abs() < 1 ? 10.0 : (maxV - minV) * 0.08;
+    final lo = minV - pad;
+    final hi = maxV + pad;
+    final span = (hi - lo).abs() < 0.001 ? 1.0 : (hi - lo);
+
+    Offset pointAt(int i) {
+      final x = values.length == 1
+          ? size.width / 2
+          : i * size.width / (values.length - 1);
+      final y = size.height - ((values[i] - lo) / span) * size.height;
+      return Offset(x, y.clamp(0.0, size.height));
+    }
+
+    final pts = [for (var i = 0; i < values.length; i++) pointAt(i)];
+    final line = _monotonePath(pts);
+    final fill = Path.from(line)
+      ..lineTo(pts.last.dx, size.height)
+      ..lineTo(pts.first.dx, size.height)
+      ..close();
+
+    final gradient = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          lineColor.withValues(alpha: 0.2),
+          lineColor.withValues(alpha: 0.0),
+        ],
+      ).createShader(Offset.zero & size)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(fill, gradient);
+
+    final stroke = Paint()
+      ..color = lineColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true;
+    canvas.drawPath(line, stroke);
+  }
+
+  /// Cubic Hermite / monotone-ish curve through [pts] (Recharts `monotone`).
+  Path _monotonePath(List<Offset> pts) {
+    final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+    if (pts.length == 1) return path;
+    if (pts.length == 2) {
+      path.lineTo(pts[1].dx, pts[1].dy);
+      return path;
+    }
+    for (var i = 0; i < pts.length - 1; i++) {
+      final p0 = pts[i];
+      final p1 = pts[i + 1];
+      final dx = (p1.dx - p0.dx) / 3;
+      path.cubicTo(
+        p0.dx + dx,
+        p0.dy,
+        p1.dx - dx,
+        p1.dy,
+        p1.dx,
+        p1.dy,
+      );
+    }
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(covariant _PayrollTrendPainter oldDelegate) {
+    return oldDelegate.values != values || oldDelegate.lineColor != lineColor;
   }
 }
 

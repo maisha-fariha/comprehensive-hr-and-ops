@@ -61,12 +61,18 @@ void main() {
           {
             'residenceId': 'r1',
             'residenceName': 'Cozzy',
-            'revenue': {'total': 10.26, 'accruedFees': 10.26},
+            'revenue': {
+              'total': 10.26,
+              'accruedFees': 10.26,
+              'ledger': 0,
+            },
             'expenses': {
               'total': 400,
               'payroll': 300,
               'inventory': 100,
               'other': 0,
+              'manualPayroll': 0,
+              'manualInventory': 0,
             },
             'netProfit': -389.74,
             'occupancy': {
