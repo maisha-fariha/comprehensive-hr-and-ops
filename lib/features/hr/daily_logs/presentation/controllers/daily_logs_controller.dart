@@ -31,7 +31,8 @@ class DailyLogsController extends GetxController {
   final RxString residenceId = ''.obs;
   final RxString clientId = ''.obs;
   final RxString staffId = ''.obs;
-  final RxString from = dayKey(DateTime.now().subtract(const Duration(days: 6))).obs;
+  /// Web `aw()` → `{from: todayKey(), to: todayKey()}` (daily, not last 7 days).
+  final RxString from = dayKey(DateTime.now()).obs;
   final RxString to = dayKey(DateTime.now()).obs;
   final RxString logDate = dayKey(DateTime.now()).obs;
 

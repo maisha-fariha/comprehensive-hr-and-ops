@@ -3,6 +3,7 @@ import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_enums.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_residence_option.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_staff_conflict.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_staff_option.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_type_option.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/repositories/scheduling_repository.dart';
@@ -86,6 +87,24 @@ class _FakeSchedulingRepo implements SchedulingRepository {
           residenceLabel: 'Dhaka',
         ),
       ]);
+
+  @override
+  Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
+    required String from,
+    required String to,
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<ShiftConflictsResult>> checkStaffConflicts({
+    required List<String> staffIds,
+    required String startsAtIso,
+    required String endsAtIso,
+    String? residenceId,
+    String? excludeShiftId,
+  }) async =>
+      Result.success(const ShiftConflictsResult());
 
   @override
   Future<Result<int>> createShift(Map<String, dynamic> payload) async {
@@ -189,10 +208,16 @@ Future<void> _pumpWizard(WidgetTester tester, {String? residenceId}) async {
 
 Finder _label(String text) => find.textContaining(text, findRichText: true);
 
-Finder _tab(String label) => find.descendant(
-      of: find.byType(CreateShiftStepTabs),
-      matching: find.text(label),
-    );
+Finder _tab(String label) {
+  // Staff step was renamed to include Open Shift after the web merge.
+  final resolved = label == 'Staff Assignment'
+      ? 'Staff Assignment & Open Shift'
+      : label;
+  return find.descendant(
+    of: find.byType(CreateShiftStepTabs),
+    matching: find.text(resolved),
+  );
+}
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
@@ -271,7 +296,7 @@ void main() {
       (tester) async {
     await _pumpWizard(tester);
 
-    expect(find.text('STEP 0 OF 5'), findsOneWidget);
+    expect(find.text('STEP 0 OF 4'), findsOneWidget);
     expect(find.text('0% complete'), findsOneWidget);
 
     await _tap(tester, _tab('Recurring'));
@@ -280,8 +305,8 @@ void main() {
 
     await _tap(tester, _tab('Shift Information'));
     await _pickResidence(tester, 'Elm House');
-    expect(find.text('STEP 1 OF 5'), findsOneWidget);
-    expect(find.text('20% complete'), findsOneWidget);
+    expect(find.text('STEP 1 OF 4'), findsOneWidget);
+    expect(find.text('25% complete'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('create-shift-step-done-shiftInformation')),
       findsOneWidget,
@@ -289,8 +314,8 @@ void main() {
 
     await _tap(tester, _tab('Staff Assignment'));
     await _addStaff(tester, 'Shakib Hasan');
-    expect(find.text('STEP 2 OF 5'), findsOneWidget);
-    expect(find.text('40% complete'), findsOneWidget);
+    expect(find.text('STEP 2 OF 4'), findsOneWidget);
+    expect(find.text('50% complete'), findsOneWidget);
   });
 
   testWidgets('BUG06: Next validates step 1 and Back returns', (tester) async {
@@ -378,7 +403,7 @@ void main() {
       (tester) async {
     await _pumpWizard(tester, residenceId: 'elm');
 
-    await _tap(tester, _tab('Open Shift'));
+    await _tap(tester, _tab('Staff Assignment'));
     expect(_label('People needed'), findsNothing);
     await _tap(tester, find.byKey(const ValueKey('create-shift-open-toggle')));
     for (final field in const [
@@ -489,7 +514,6 @@ void main() {
       find.byKey(const ValueKey('task-title-staff-shakib')),
       'Morning medication round',
     );
-    await _tap(tester, _tab('Open Shift'));
     await _tap(tester, find.byKey(const ValueKey('create-shift-open-toggle')));
     await tester.enterText(
       find.byKey(const ValueKey('create-shift-people-needed')),

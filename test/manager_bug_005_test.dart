@@ -8,6 +8,7 @@ import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_enums.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_residence_option.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_staff_conflict.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_staff_option.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/repositories/scheduling_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/presentation/controllers/scheduling_controller.dart';
@@ -82,6 +83,24 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   @override
   Future<Result<List<ShiftStaffOption>>> getStaffOptions() async =>
       Result.success(const []);
+
+  @override
+  Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
+    required String from,
+    required String to,
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<ShiftConflictsResult>> checkStaffConflicts({
+    required List<String> staffIds,
+    required String startsAtIso,
+    required String endsAtIso,
+    String? residenceId,
+    String? excludeShiftId,
+  }) async =>
+      Result.success(const ShiftConflictsResult());
 
   @override
   Future<Result<int>> createShift(Map<String, dynamic> payload) async =>

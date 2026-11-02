@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gems_core/gems_core.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
@@ -6,6 +7,7 @@ import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/shift_break_duration_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
+import '../../domain/entities/shift_staff_conflict.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/shift_type_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
@@ -71,6 +73,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   bool _isLoadingStaff = false;
   String? _staffError;
   String? _expandedStaffId;
+
+  ShiftConflictsResult _conflicts = const ShiftConflictsResult();
+  Set<String> _staffWithOverlappingShifts = {};
+  int _conflictSerial = 0;
 
   @override
   void initState() {
@@ -230,6 +236,86 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         };
       }
     });
+    _refreshStaffConflicts();
+  }
+
+  static String _dayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  bool get _staffingBlocked =>
+      !_draft.isOpenShift &&
+      (_conflicts.conflicts.isNotEmpty || _conflicts.leave.isNotEmpty);
+
+  static const _staffingBlockedToast =
+      'Someone on this shift is already rostered then, or on leave — change who is on it first.';
+
+  /// Web `useShiftConflicts` + overlapping-shift "Has Shift" badge source.
+  Future<void> _refreshStaffConflicts() async {
+    final serial = ++_conflictSerial;
+    final window = _draft.shiftWindow;
+    final staffIds = [
+      for (final staff in _draft.assignedStaff) staff.staffId,
+    ]..sort();
+
+    if (window == null) {
+      if (!mounted || serial != _conflictSerial) return;
+      setState(() {
+        _conflicts = const ShiftConflictsResult();
+        _staffWithOverlappingShifts = {};
+      });
+      return;
+    }
+
+    final from = _dayKey(window.$1.subtract(const Duration(days: 1)));
+    final to = _dayKey(window.$2.add(const Duration(days: 1)));
+    final excludeId = widget.editShiftId;
+    final residenceId = _draft.residenceId.isEmpty ? null : _draft.residenceId;
+
+    final shiftsFuture = _repository.listShiftsInRange(
+      from: from,
+      to: to,
+      residenceId: residenceId,
+    );
+    final conflictsFuture = staffIds.isEmpty
+        ? Future<Result<ShiftConflictsResult>>.value(
+            Result.success(const ShiftConflictsResult()),
+          )
+        : _repository.checkStaffConflicts(
+            staffIds: staffIds,
+            startsAtIso: window.$1.toUtc().toIso8601String(),
+            endsAtIso: window.$2.toUtc().toIso8601String(),
+            residenceId: residenceId,
+            excludeShiftId: excludeId,
+          );
+
+    final shiftsResult = await shiftsFuture;
+    final conflictsResult = await conflictsFuture;
+    if (!mounted || serial != _conflictSerial) return;
+
+    final hasShift = <String>{};
+    shiftsResult.when(
+      success: (rows) {
+        for (final row in rows) {
+          if (excludeId != null && row.id == excludeId) continue;
+          if (row.status == 'cancelled') continue;
+          if (!row.startsAt.isBefore(window.$2)) continue;
+          if (!row.endsAt.isAfter(window.$1)) continue;
+          hasShift.addAll(row.staffIds);
+        }
+      },
+      failure: (_) {},
+    );
+
+    var nextConflicts = const ShiftConflictsResult();
+    conflictsResult.when(
+      success: (value) => nextConflicts = value,
+      failure: (_) {},
+    );
+
+    setState(() {
+      _staffWithOverlappingShifts = hasShift;
+      _conflicts = nextConflicts;
+    });
   }
 
   void _onTextChanged(String _) {
@@ -277,6 +363,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       setState(() => _errors = {..._errors, ...stepErrors});
       return;
     }
+    if (_step == CreateShiftStep.staffAssignment && _staffingBlocked) {
+      AppSnackbar.show('Staff assignment', _staffingBlockedToast);
+      return;
+    }
     // Web combines Assign Staff + Open Shift on one step; skip the legacy
     // dedicated Open Shift page when staffing method was already chosen.
     var index = _step.index + 1;
@@ -286,6 +376,18 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (index < CreateShiftStep.values.length) {
       _goTo(CreateShiftStep.values[index]);
     }
+  }
+
+  void _goToGuarded(CreateShiftStep step) {
+    // Web blocks leaving Staff Assignment while conflicts/leave are present.
+    final leavingStaff =
+        _step == CreateShiftStep.staffAssignment &&
+        step != CreateShiftStep.staffAssignment;
+    if (leavingStaff && _staffingBlocked) {
+      AppSnackbar.show('Staff assignment', _staffingBlockedToast);
+      return;
+    }
+    _goTo(step);
   }
 
   void _back() {
@@ -302,6 +404,11 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
       _goTo(CreateShiftDraft.stepOf(errors.keys.first));
+      return;
+    }
+    if (_staffingBlocked) {
+      AppSnackbar.show('Staff assignment', _staffingBlockedToast);
+      _goTo(CreateShiftStep.staffAssignment);
       return;
     }
 
@@ -331,10 +438,16 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           _isSubmitting = false;
           _submitError = error.message;
         });
+        if (_isStaffingConflictCode(error.code)) {
+          _goTo(CreateShiftStep.staffAssignment);
+        }
         if (_scrollController.hasClients) _scrollController.jumpTo(0);
       },
     );
   }
+
+  bool _isStaffingConflictCode(String? code) =>
+      code == 'SHIFT_OVERLAP' || code == 'STAFF_ON_LEAVE';
 
   Future<void> _saveEdit() async {
     final result = await _repository.updateShift(
@@ -355,6 +468,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           _isSubmitting = false;
           _submitError = error.message;
         });
+        if (_isStaffingConflictCode(error.code)) {
+          _goTo(CreateShiftStep.staffAssignment);
+        }
         if (_scrollController.hasClients) _scrollController.jumpTo(0);
       },
     );
@@ -564,11 +680,13 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   Future<void> _openStaffPicker() async {
     if (_staffOptions.isEmpty && !_isLoadingStaff) await _loadStaff();
+    await _refreshStaffConflicts();
     if (!mounted) return;
     await showCreateShiftStaffPicker(
       context: context,
       options: _staffOptions,
       selectedIds: {for (final staff in _draft.assignedStaff) staff.staffId},
+      hasShiftIds: _staffWithOverlappingShifts,
       errorMessage: _staffError,
       onRetry: _loadStaff,
       onToggle: _toggleStaff,
@@ -654,7 +772,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                 CreateShiftStepTabs(
                   selected: _step,
                   completed: completed,
-                  onSelected: _isSubmitting ? null : _goTo,
+                  onSelected: _isSubmitting ? null : _goToGuarded,
                 ),
                 CreateShiftCompletionBar(
                   currentStep: CreateShiftStepX.visibleSteps
@@ -780,6 +898,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           expandedStaffId: _expandedStaffId,
           isLoadingStaff: _isLoadingStaff,
           isOpenShift: _draft.isOpenShift,
+          scheduleConflicts: _conflicts.conflicts,
+          leaveConflicts: _conflicts.leave,
           onOpenShiftChanged: (value) => _update(() {
             _draft.isOpenShift = value;
             if (value) _draft.assignedStaff.clear();

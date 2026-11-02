@@ -95,4 +95,10 @@ abstract class AttendanceRepository {
     String? staffId,
     String? reason,
   });
+
+  /// `PATCH /attendance/time-off-requests/{id}/review` with `approved`/`rejected`.
+  Future<Result<void>> reviewTimeOffRequest({
+    required String id,
+    required TimeOffStatus status,
+  });
 }
