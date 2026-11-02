@@ -12,6 +12,7 @@ import '../widgets/daily_activity_common.dart';
 import '../widgets/daily_activity_detail_sheet.dart';
 import '../widgets/daily_activity_filters.dart';
 import '../widgets/daily_activity_form_sheet.dart';
+import '../widgets/daily_activity_group_sheet.dart';
 import '../widgets/daily_activity_history_tab.dart';
 import '../widgets/daily_activity_kpi_grid.dart';
 import '../widgets/daily_activity_registry.dart';
@@ -115,7 +116,18 @@ class _DailyActivityPageState extends State<DailyActivityPage> {
                         style: handoverText(context, 18, weight: FontWeight.w700),
                       ),
                     ),
-                    if (_c.canWrite)
+                    if (_c.canWrite) ...[
+                      HandoverButton(
+                        key: const ValueKey('daily-activity-group'),
+                        label: 'Group activity',
+                        icon: Icons.groups_rounded,
+                        compact: true,
+                        onPressed: () => showDailyActivityGroupSheet(
+                          context,
+                          controller: _c,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       HandoverButton(
                         key: const ValueKey('daily-activity-record'),
                         label: 'Record activity',
@@ -124,6 +136,7 @@ class _DailyActivityPageState extends State<DailyActivityPage> {
                         compact: true,
                         onPressed: _openForm,
                       ),
+                    ],
                   ],
                 ),
               ),

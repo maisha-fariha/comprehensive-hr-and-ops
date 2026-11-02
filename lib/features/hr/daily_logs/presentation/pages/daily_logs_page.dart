@@ -14,6 +14,7 @@ import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../../daily_activity/presentation/controllers/daily_activity_controller.dart';
 import '../../../daily_activity/presentation/widgets/daily_activity_form_sheet.dart';
+import '../../../daily_activity/presentation/widgets/daily_activity_group_sheet.dart';
 import '../controllers/daily_logs_controller.dart';
 import '../widgets/daily_log_common.dart';
 import '../widgets/daily_logs_filters.dart';
@@ -79,17 +80,49 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
   VoidCallback? get _openMedication =>
       managerDestinations().firstWhereOrNull((d) => d.title == 'Medication')?.open;
 
+  Future<(DailyActivityController, bool owned)> _activityController(
+    String tag,
+  ) async {
+    final alreadyRegistered = Get.isRegistered<DailyActivityController>() ||
+        Get.isRegistered<DailyActivityController>(tag: tag);
+    final DailyActivityController controller;
+    var owned = false;
+    if (Get.isRegistered<DailyActivityController>(tag: tag)) {
+      controller = Get.find<DailyActivityController>(tag: tag);
+    } else if (Get.isRegistered<DailyActivityController>()) {
+      controller = Get.find<DailyActivityController>();
+    } else {
+      controller = Get.put(GetIt.instance<DailyActivityController>(), tag: tag);
+      owned = true;
+    }
+    // Ignore alreadyRegistered when we just put with a tag.
+    if (alreadyRegistered) owned = false;
+    final residenceId =
+        _c.residenceId.value.isEmpty ? null : _c.residenceId.value;
+    await controller.loadOptions(residenceId: residenceId);
+    return (controller, owned);
+  }
+
   /// Web "Record activity" on Daily Logs → Resident Activity.
   Future<void> _recordActivity() async {
     const tag = 'dl-record-activity';
-    final reused = Get.isRegistered<DailyActivityController>();
-    final controller = reused
-        ? Get.find<DailyActivityController>()
-        : Get.put(GetIt.instance<DailyActivityController>(), tag: tag);
-    await controller.loadOptions();
+    final (controller, owned) = await _activityController(tag);
     if (!mounted) return;
     await showDailyActivityFormSheet(context, controller: controller);
-    if (!reused) Get.delete<DailyActivityController>(tag: tag);
+    if (owned && Get.isRegistered<DailyActivityController>(tag: tag)) {
+      Get.delete<DailyActivityController>(tag: tag);
+    }
+  }
+
+  /// Web "Group activity" → `POST /client-activities/batch`.
+  Future<void> _groupActivity() async {
+    const tag = 'dl-group-activity';
+    final (controller, owned) = await _activityController(tag);
+    if (!mounted) return;
+    await showDailyActivityGroupSheet(context, controller: controller);
+    if (owned && Get.isRegistered<DailyActivityController>(tag: tag)) {
+      Get.delete<DailyActivityController>(tag: tag);
+    }
   }
 
   @override
@@ -200,13 +233,27 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerRight,
-          child: HandoverButton(
-            key: const ValueKey('dl-record-activity'),
-            label: 'Record activity',
-            icon: Icons.add_rounded,
-            filled: true,
-            compact: true,
-            onPressed: _recordActivity,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              HandoverButton(
+                key: const ValueKey('dl-group-activity'),
+                label: 'Group activity',
+                icon: Icons.groups_rounded,
+                compact: true,
+                onPressed: _groupActivity,
+              ),
+              HandoverButton(
+                key: const ValueKey('dl-record-activity'),
+                label: 'Record activity',
+                icon: Icons.add_rounded,
+                filled: true,
+                compact: true,
+                onPressed: _recordActivity,
+              ),
+            ],
           ),
         ),
       ],
