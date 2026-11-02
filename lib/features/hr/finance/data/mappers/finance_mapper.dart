@@ -52,8 +52,8 @@ abstract final class FinanceMapper {
       final entry = entryFrom(row);
       if (entry != null) entries.add(entry);
     }
-    final mileage = JsonCodec.listAt(json, 'mileageClaims');
-    final expense = JsonCodec.listAt(json, 'expenseClaims');
+    final mileageClaims = mileageClaimsFrom(json['mileageClaims']);
+    final expenseClaims = expenseClaimsFrom(json['expenseClaims']);
     final hoursFromEntries =
         entries.fold<double>(0, (s, e) => s + e.hours + e.overtimeHours);
     return PayrollRun(
@@ -64,7 +64,9 @@ abstract final class FinanceMapper {
       status: JsonCodec.stringOr(json['status'], ''),
       createdAt: JsonCodec.dateTime(json['createdAt']),
       entries: entries,
-      claimsCount: mileage.length + expense.length,
+      mileageClaims: mileageClaims,
+      expenseClaims: expenseClaims,
+      claimsCount: mileageClaims.length + expenseClaims.length,
       hoursTotal: hoursFromEntries,
     );
   }
@@ -79,14 +81,13 @@ abstract final class FinanceMapper {
     final name = '$first $last'.trim();
     final category = JsonCodec.mapAt(staff, 'category') ?? const {};
     final role = JsonCodec.string(category['name'] ?? staff['category']);
+    final allocations = <PayrollAllocation>[
+      for (final row in JsonCodec.listAt(json, 'allocations'))
+        if (_allocationFrom(row) case final a?) a,
+    ];
     String residence = '—';
-    final allocations = JsonCodec.listAt(json, 'allocations');
     if (allocations.isNotEmpty) {
-      final firstAlloc = JsonCodec.asMap(allocations.first);
-      residence = JsonCodec.stringOr(
-        firstAlloc['residenceName'],
-        '—',
-      );
+      residence = allocations.first.residenceName;
     }
     return PayrollEntry(
       id: id,
@@ -107,6 +108,20 @@ abstract final class FinanceMapper {
       allowances: JsonCodec.number(json['allowances'])?.toDouble() ?? 0,
       deductions: JsonCodec.number(json['deductions'])?.toDouble() ?? 0,
       paymentStatus: JsonCodec.stringOr(json['paymentStatus'], 'pending'),
+      allocations: allocations,
+    );
+  }
+
+  static PayrollAllocation? _allocationFrom(dynamic body) {
+    final json = JsonCodec.asMap(body);
+    final name = JsonCodec.string(json['residenceName']);
+    final id = JsonCodec.string(json['residenceId']);
+    if (name == null && id == null) return null;
+    return PayrollAllocation(
+      residenceId: id,
+      residenceName: name ?? '—',
+      percent: JsonCodec.number(json['percent'])?.toDouble() ?? 0,
+      amount: JsonCodec.number(json['amount'])?.toDouble() ?? 0,
     );
   }
 
@@ -501,6 +516,20 @@ abstract final class FinanceMapper {
       status: JsonCodec.stringOr(json['status'], ''),
       createdAt: JsonCodec.dateTime(json['createdAt']),
       fileUrl: JsonCodec.string(json['fileUrl']),
+      downloadUrl: JsonCodec.string(
+        json['downloadUrl'] ?? json['signedUrl'],
+      ),
+    );
+  }
+
+  static QuickBooksRunStatus quickBooksRunStatusFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final latest = JsonCodec.mapAt(json, 'latest') ?? json;
+    return QuickBooksRunStatus(
+      status: JsonCodec.string(latest['status'] ?? json['status']),
+      requestedAt: JsonCodec.dateTime(latest['requestedAt']),
+      finishedAt: JsonCodec.dateTime(latest['finishedAt']),
+      error: JsonCodec.string(latest['error'] ?? latest['lastError']),
     );
   }
 

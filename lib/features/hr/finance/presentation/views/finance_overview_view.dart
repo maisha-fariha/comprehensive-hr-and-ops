@@ -1,8 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/storage/media_store_download.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../data/mappers/finance_mapper.dart';
@@ -310,9 +313,27 @@ class FinanceOverviewView extends StatelessWidget {
                           : () => _export(context),
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      'Last export: ${export == null ? 'Never exported' : FinanceLabels.statusLabel(export.status)}',
-                      style: handoverText(context, 12, color: AppColors.textMuted),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Last export: ${export == null ? 'Never exported' : FinanceLabels.statusLabel(export.status)}',
+                            style: handoverText(
+                              context,
+                              12,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ),
+                        if (export != null && export.isReady)
+                          HandoverButton(
+                            label: 'Download',
+                            compact: true,
+                            onPressed: controller.busy.value
+                                ? null
+                                : () => _downloadExport(context),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -330,6 +351,32 @@ class FinanceOverviewView extends StatelessWidget {
       AppSnackbar.show(error, '', force: true);
     } else {
       AppSnackbar.show('Payroll export queued', '', force: true);
+    }
+  }
+
+  Future<void> _downloadExport(BuildContext context) async {
+    final result = await controller.downloadLastPayrollExport();
+    if (result.error != null) {
+      AppSnackbar.show(result.error!, '', force: true);
+      return;
+    }
+    final bytes = result.value!;
+    final saved = await MediaStoreDownload.saveFileAndOpen(
+      bytes: Uint8List.fromList(bytes),
+      fileName:
+          'payroll-entries-${FinanceLabels.ymd(DateTime.now())}.csv',
+      mimeType: 'text/csv',
+      chooserTitle: 'Open payroll export',
+    );
+    if (!context.mounted) return;
+    if (saved.success) {
+      AppSnackbar.show('Payroll CSV downloaded', '', force: true);
+    } else {
+      AppSnackbar.show(
+        saved.error ?? 'Could not save the export.',
+        '',
+        force: true,
+      );
     }
   }
 
@@ -493,6 +540,23 @@ class _EntryDetailSheetState extends State<_EntryDetailSheet> {
           Text('Adjustment ${FinanceLabels.money(e.manualAdjustment)}'),
           Text('Net ${FinanceLabels.money(e.netAmount)}'),
           Text('Payment ${FinanceLabels.statusLabel(e.paymentStatus)}'),
+          if (e.allocations.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Cost by Residence',
+              style: handoverText(context, 13, weight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            for (final a in e.allocations)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  '${a.residenceName} · ${a.percent.toStringAsFixed(0)}% · '
+                  '${FinanceLabels.money(a.amount)}',
+                  style: handoverText(context, 12.5, color: AppColors.textMuted),
+                ),
+              ),
+          ],
           if (canAdjust) ...[
             const SizedBox(height: 16),
             Text('Add Adjustment', style: handoverText(context, 14, weight: FontWeight.w700)),

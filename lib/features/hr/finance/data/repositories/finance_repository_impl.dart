@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/authorized_file.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/finance.dart';
 import '../../domain/repositories/finance_repository.dart';
@@ -617,6 +619,93 @@ class FinanceRepositoryImpl implements FinanceRepository {
             .toList();
         return Result.success(jobs);
       },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<int>>> downloadPayrollExport(FinanceExportJob job) async {
+    final preferred = job.preferredUrl?.trim().isNotEmpty == true
+        ? job.preferredUrl!.trim()
+        : FinanceEndpoints.reportsExportDownload(job.id);
+    final usesSignedToken = preferred.contains('token=');
+    try {
+      final headers = <String, dynamic>{
+        'Accept': 'text/csv, application/octet-stream, */*',
+      };
+      if (!usesSignedToken) {
+        headers.addAll(AuthorizedFile.headers());
+      }
+      final response = await Dio().get<List<int>>(
+        AuthorizedFile.resolveUrl(preferred),
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers,
+          validateStatus: (code) => code != null && code < 500,
+        ),
+      );
+      final code = response.statusCode ?? 0;
+      final bytes = response.data ?? const <int>[];
+      if (code < 200 || code >= 300 || bytes.isEmpty) {
+        return Result.failure(
+          const ApiError(message: 'Could not download the export file.'),
+        );
+      }
+      return Result.success(bytes);
+    } catch (_) {
+      return Result.failure(
+        const ApiError(message: 'Could not download the export file.'),
+      );
+    }
+  }
+
+  @override
+  Future<Result<PayrollEntry>> setEntryPayment({
+    required String entryId,
+    required String status,
+  }) async {
+    final result = await _api.post(
+      FinanceEndpoints.entryPayment(entryId),
+      data: {'status': status},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final entry = FinanceMapper.entryFrom(JsonCodec.unwrap(body));
+        if (entry == null) {
+          return Result.failure(
+            const ApiError(message: 'Could not update payment status'),
+          );
+        }
+        return Result.success(entry);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<QuickBooksRunStatus>> quickBooksRunStatus(String runId) async {
+    final result = await _api.get(
+      FinanceEndpoints.quickBooksRun(runId),
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(FinanceMapper.quickBooksRunStatusFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<QuickBooksRunStatus>> sendRunToQuickBooks(String runId) async {
+    final result = await _api.post(
+      FinanceEndpoints.quickBooksSendRun(runId),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(FinanceMapper.quickBooksRunStatusFrom(body)),
       failure: (error) async => Result.failure(error),
     );
   }

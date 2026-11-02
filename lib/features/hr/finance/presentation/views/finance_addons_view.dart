@@ -242,9 +242,23 @@ class FinanceAddonsView extends StatelessWidget {
                     if (selected.key == 'adp') ...[
                       const SizedBox(height: 12),
                       Text(
-                        selected.canBuy
-                            ? 'Available to add — checkout stays on web billing.'
-                            : FinanceLabels.addonBadge(selected),
+                        'How ADP works here',
+                        style: handoverText(context, 13.5, weight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '1. Staff clock in and out here; you check and finalize each pay run.\n'
+                        '2. Download the run as an ADP Paydata file and import it in ADP Workforce Now.\n'
+                        '3. ADP works out pay, tax and deductions, pays staff and issues their payslips.',
+                        style: handoverText(context, 12.5, color: AppColors.textMuted),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        selected.state == 'active' || selected.state == 'included'
+                            ? 'Company codes and File # mapping are managed under this add-on once it is active.'
+                            : selected.canBuy
+                                ? 'Available to add — checkout stays on web Billing.'
+                                : FinanceLabels.addonBadge(selected),
                         style: handoverText(context, 12.5, color: AppColors.textMuted),
                       ),
                     ],

@@ -139,4 +139,18 @@ abstract class FinanceRepository {
   Future<Result<FinanceExportJob>> exportPayrollEntries();
 
   Future<Result<List<FinanceExportJob>>> listPayrollExports();
+
+  /// `GET /reports/exports/:id/download` (or preferred URL on the job).
+  Future<Result<List<int>>> downloadPayrollExport(FinanceExportJob job);
+
+  /// `POST /payroll/entries/:id/payment` — `{status: paid|failed|pending}`.
+  Future<Result<PayrollEntry>> setEntryPayment({
+    required String entryId,
+    required String status,
+  });
+
+  Future<Result<QuickBooksRunStatus>> quickBooksRunStatus(String runId);
+
+  /// `POST /integrations/quickbooks/runs/:id/send`.
+  Future<Result<QuickBooksRunStatus>> sendRunToQuickBooks(String runId);
 }

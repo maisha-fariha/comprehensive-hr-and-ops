@@ -138,18 +138,8 @@ class FinanceController extends GetxController {
     }
     futures.addAll([_loadAddons(), _loadQuickBooks()]);
     await Future.wait(futures);
-    if (canReadPii && staffOptions.isNotEmpty) {
-      FinancePersonOption? preferred;
-      for (final s in staffOptions) {
-        if (s.name.toLowerCase().contains('adnan')) {
-          preferred = s;
-          break;
-        }
-      }
-      preferred ??= staffOptions.first;
-      if (sensitiveStaffId.value.isEmpty) {
-        await loadSensitive(preferred.id);
-      }
+    if (canReadPii && staffOptions.isNotEmpty && sensitiveStaffId.value.isEmpty) {
+      await loadSensitive(staffOptions.first.id);
     }
     _rebuildOverview();
     isLoading.value = false;
@@ -732,7 +722,78 @@ class FinanceController extends GetxController {
     await result.when(
       success: (job) async {
         lastPayrollExport.value = job;
+        // Poll briefly so Download becomes available like web.
+        if (!job.isReady) {
+          await _loadExports();
+        }
       },
+      failure: (e) async => error = e.message,
+    );
+    busy.value = false;
+    return error;
+  }
+
+  Future<ResultOrError<List<int>>> downloadLastPayrollExport() async {
+    final job = lastPayrollExport.value;
+    if (job == null) {
+      return const ResultOrError.error('No payroll export yet.');
+    }
+    busy.value = true;
+    final result = await repository.downloadPayrollExport(job);
+    busy.value = false;
+    return result.when(
+      success: (bytes) => ResultOrError.value(bytes),
+      failure: (e) => ResultOrError.error(e.message),
+    );
+  }
+
+  Future<String?> setEntryPayment({
+    required String entryId,
+    required String status,
+  }) async {
+    if (!canWritePayroll) return 'You need payroll write access.';
+    if (!(engine.value?.runHere ?? false)) {
+      final provider = engine.value?.provider ?? 'the payroll provider';
+      return '${FinanceLabels.statusLabel(provider)} runs this organisation\'s '
+          'payroll — pay, deductions, payslips and paying staff happen there. '
+          'This platform sends it the hours.';
+    }
+    busy.value = true;
+    final result = await repository.setEntryPayment(
+      entryId: entryId,
+      status: status,
+    );
+    String? error;
+    await result.when(
+      success: (_) async {
+        final runId = selectedRun.value?.id ?? activeRun?.id;
+        if (runId != null) await openRun(runId);
+        await _loadRuns();
+        _rebuildOverview();
+      },
+      failure: (e) async => error = e.message,
+    );
+    busy.value = false;
+    return error;
+  }
+
+  Future<ResultOrError<QuickBooksRunStatus>> loadQuickBooksRunStatus(
+    String runId,
+  ) async {
+    final result = await repository.quickBooksRunStatus(runId);
+    return result.when(
+      success: (v) => ResultOrError.value(v),
+      failure: (e) => ResultOrError.error(e.message),
+    );
+  }
+
+  Future<String?> sendRunToQuickBooks(String runId) async {
+    if (!canWritePayroll) return 'You need payroll write access.';
+    busy.value = true;
+    final result = await repository.sendRunToQuickBooks(runId);
+    String? error;
+    await result.when(
+      success: (_) async {},
       failure: (e) async => error = e.message,
     );
     busy.value = false;

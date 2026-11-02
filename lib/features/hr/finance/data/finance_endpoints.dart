@@ -19,6 +19,12 @@ abstract final class FinanceEndpoints {
   static const quickbooks = '/integrations/quickbooks';
   static const quickbooksConnect = '/integrations/quickbooks/connect';
   static const reportsExports = '/reports/exports';
+  static String reportsExportDownload(String id) =>
+      '$reportsExports/$id/download';
+  static String entryPayment(String id) => '/payroll/entries/$id/payment';
+  static String quickBooksRun(String id) => '/integrations/quickbooks/runs/$id';
+  static String quickBooksSendRun(String id) =>
+      '/integrations/quickbooks/runs/$id/send';
   static String staffSensitive(String staffId) => '/staff/$staffId/sensitive';
   static const staff = '/staff';
   static const residences = '/residences';

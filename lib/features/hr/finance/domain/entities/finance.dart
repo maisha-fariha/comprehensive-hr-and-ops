@@ -14,6 +14,22 @@ class PayrollEngine {
   });
 }
 
+/// Residence split on a payroll entry (`allocations[]`).
+@immutable
+class PayrollAllocation {
+  final String? residenceId;
+  final String residenceName;
+  final double percent;
+  final double amount;
+
+  const PayrollAllocation({
+    required this.residenceName,
+    this.residenceId,
+    this.percent = 0,
+    this.amount = 0,
+  });
+}
+
 /// One staff line on a payroll run (`entries[]`).
 @immutable
 class PayrollEntry {
@@ -34,6 +50,7 @@ class PayrollEntry {
   final double allowances;
   final double deductions;
   final String paymentStatus;
+  final List<PayrollAllocation> allocations;
 
   const PayrollEntry({
     required this.id,
@@ -53,6 +70,7 @@ class PayrollEntry {
     this.employmentBasis,
     this.residenceName = '—',
     this.hourlyRate,
+    this.allocations = const [],
   });
 
   double get totalPay => grossAmount + manualAdjustment;
@@ -86,6 +104,8 @@ class PayrollRun {
   final String status;
   final DateTime? createdAt;
   final List<PayrollEntry> entries;
+  final List<PayrollClaim> expenseClaims;
+  final List<PayrollClaim> mileageClaims;
   final int claimsCount;
   final double hoursTotal;
 
@@ -97,6 +117,8 @@ class PayrollRun {
     this.periodEnd,
     this.createdAt,
     this.entries = const [],
+    this.expenseClaims = const [],
+    this.mileageClaims = const [],
     this.claimsCount = 0,
     this.hoursTotal = 0,
   });
@@ -108,6 +130,39 @@ class PayrollRun {
       entries.fold(0, (sum, e) => sum + e.manualAdjustment);
 
   int get staffCount => entries.isEmpty ? 0 : entries.length;
+
+  List<PayrollClaim> get attachedClaims => [...mileageClaims, ...expenseClaims];
+
+  /// Web "Cost by Residence" — sum of entry allocation amounts.
+  List<({String name, double laborCost, double hours})> get laborByResidence {
+    final map = <String, ({double labor, double hours})>{};
+    for (final entry in entries) {
+      final allocs = entry.allocations;
+      if (allocs.isEmpty) {
+        final key = entry.residenceName;
+        final prev = map[key] ?? (labor: 0.0, hours: 0.0);
+        map[key] = (
+          labor: prev.labor + entry.totalPay,
+          hours: prev.hours + entry.hours + entry.overtimeHours,
+        );
+        continue;
+      }
+      for (final a in allocs) {
+        final key = a.residenceName.isEmpty ? '—' : a.residenceName;
+        final prev = map[key] ?? (labor: 0.0, hours: 0.0);
+        final labor = a.amount != 0 ? a.amount : entry.totalPay * (a.percent / 100);
+        map[key] = (
+          labor: prev.labor + labor,
+          hours: prev.hours + (entry.hours + entry.overtimeHours) * (a.percent / 100),
+        );
+      }
+    }
+    final rows = [
+      for (final e in map.entries)
+        (name: e.key, laborCost: e.value.labor, hours: e.value.hours),
+    ]..sort((a, b) => b.laborCost.compareTo(a.laborCost));
+    return rows;
+  }
 }
 
 /// Pending claim row shared by expense + mileage lists.
@@ -446,6 +501,7 @@ class FinanceExportJob {
   final String status;
   final DateTime? createdAt;
   final String? fileUrl;
+  final String? downloadUrl;
 
   const FinanceExportJob({
     required this.id,
@@ -453,5 +509,34 @@ class FinanceExportJob {
     required this.status,
     this.createdAt,
     this.fileUrl,
+    this.downloadUrl,
   });
+
+  bool get isReady => status.toLowerCase() == 'ready';
+
+  String? get preferredUrl {
+    final download = downloadUrl?.trim();
+    if (download != null && download.isNotEmpty) return download;
+    final file = fileUrl?.trim();
+    if (file != null && file.isNotEmpty) return file;
+    return null;
+  }
+}
+
+/// `GET /integrations/quickbooks/runs/:id` push status.
+@immutable
+class QuickBooksRunStatus {
+  final String? status;
+  final DateTime? requestedAt;
+  final DateTime? finishedAt;
+  final String? error;
+
+  const QuickBooksRunStatus({
+    this.status,
+    this.requestedAt,
+    this.finishedAt,
+    this.error,
+  });
+
+  bool get sent => (status ?? '').toLowerCase() == 'sent';
 }
