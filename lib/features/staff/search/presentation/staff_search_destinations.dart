@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
+import '../../../hr/compliance/presentation/pages/compliance_page.dart';
 import '../../../hr/finance/presentation/pages/finance_page.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
@@ -192,13 +193,14 @@ List<StaffSearchDestination> staffSearchDestinations() {
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
     ),
-    const StaffSearchDestination(
+    StaffSearchDestination(
       label: 'Compliance & Audit',
-      permissions: ['compliance:read'],
+      permissions: const ['compliance:read'],
       module: 'compliance',
       icon: Icons.verified_user_outlined,
       iconBackground: AppColors.activeBackground,
       iconColor: AppColors.activeGreen,
+      open: () => Get.to(() => const CompliancePage()),
     ),
     StaffSearchDestination(
       label: 'Daily Activity',

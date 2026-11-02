@@ -22,6 +22,7 @@ import '../profile_settings/presentation/pages/hr_profile_settings_page.dart';
 import '../org_settings/presentation/pages/org_settings_page.dart';
 import '../recurring_checks/presentation/pages/recurring_checks_page.dart';
 import '../residences/presentation/pages/residences_page.dart';
+import '../compliance/presentation/pages/compliance_page.dart';
 import '../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
 
 /// A page the Manager can navigate to from the More menu or the
@@ -60,14 +61,9 @@ class ManagerDestination {
   }
 }
 
-/// Web sidebar uses "Task Management" and "Compliance & Audit" as separate
-/// items. This app opens both from one screen, titled for what the user can see.
-String tasksComplianceMenuTitle(UserSession? session) {
-  if (session == null || !session.permissionsReady) return 'Tasks & Compliance';
-  final tasks = session.can('tasks:read');
-  final compliance = session.can('compliance:read');
-  if (tasks && compliance) return 'Tasks & Compliance';
-  if (compliance) return 'Compliance & Audit';
+/// Web sidebar uses "Task Management" and "Compliance & Audit" as separate items.
+String tasksMenuTitle(UserSession? session) {
+  if (session == null || !session.permissionsReady) return 'Task Management';
   return 'Task Management';
 }
 
@@ -346,19 +342,40 @@ List<ManagerDestination> managerDestinations() {
           'profit',
         ],
       ),
-    if (can('tasks:read') || can('compliance:read'))
+    if (can('tasks:read'))
       ManagerDestination(
-        title: tasksComplianceMenuTitle(session),
-        subtitle: 'Due tasks, compliance checks & corrective actions',
+        title: tasksMenuTitle(session),
+        subtitle: 'Due tasks, review queue & recurring work',
         icon: Icons.fact_check_outlined,
         iconBackground: AppColors.urgentBackground,
         iconColor: AppColors.urgentAmber,
         open: () => openPermittedPage(
-          title: 'Tasks & Compliance',
-          anyOf: const ['tasks:read', 'compliance:read'],
+          title: 'Task Management',
+          anyOf: const ['tasks:read'],
           builder: () => const TasksCompliancePage(),
         ),
-        keywords: const ['tasks', 'compliance', 'audit'],
+        keywords: const ['tasks', 'review', 'recurring'],
+      ),
+    if (can('compliance:read'))
+      ManagerDestination(
+        title: 'Compliance & Audit',
+        subtitle: 'Readiness, requirements, findings & audit log',
+        icon: Icons.verified_user_outlined,
+        iconBackground: AppColors.infoBackground,
+        iconColor: AppColors.infoBlue,
+        open: () => openPermittedPage(
+          title: 'Compliance & Audit',
+          anyOf: const ['compliance:read'],
+          builder: () => const CompliancePage(),
+        ),
+        keywords: const [
+          'compliance',
+          'audit',
+          'findings',
+          'requirements',
+          'checks',
+          'corrective',
+        ],
       ),
     if (can('messaging:read'))
       ManagerDestination(
