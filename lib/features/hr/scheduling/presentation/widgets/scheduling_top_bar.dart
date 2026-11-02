@@ -16,8 +16,14 @@ import '../../scheduling_constants.dart';
 class SchedulingTopBar extends StatelessWidget {
   final VoidCallback? onMenuTap;
   final VoidCallback? onCreateShiftTap;
+  final VoidCallback? onReviewRotaTap;
 
-  const SchedulingTopBar({super.key, this.onMenuTap, this.onCreateShiftTap});
+  const SchedulingTopBar({
+    super.key,
+    this.onMenuTap,
+    this.onCreateShiftTap,
+    this.onReviewRotaTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +65,56 @@ class SchedulingTopBar extends StatelessWidget {
               ),
             ),
           ),
+          if (onReviewRotaTap != null) ...[
+            GestureDetector(
+              key: const ValueKey('scheduling-review-rota'),
+              onTap: onReviewRotaTap,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceWhite,
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(
+                      context,
+                      AppDimens.radiusButton,
+                    ),
+                  ),
+                  border: Border.all(color: AppColors.searchBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      size: ResponsiveHelper.getResponsiveSize(context, 14),
+                      color: AppColors.primaryNavy,
+                    ),
+                    SizedBox(
+                      width: ResponsiveHelper.getResponsiveWidth(context, 4),
+                    ),
+                    Text(
+                      'Review rota',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12,
+                        ),
+                        color: AppColors.primaryNavy,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+          ],
           if (onCreateShiftTap == null)
             SizedBox(width: buttonBoxSize)
           else

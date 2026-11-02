@@ -30,7 +30,7 @@ const portalVisibilityGroups = [
     ),
     PortalVisibilityItem(
       'activities',
-      'Activities & Progress',
+      'Activities & Daily Journal',
       'Share completed activities, engagement updates, and progress tracking.',
     ),
     PortalVisibilityItem(
@@ -161,6 +161,8 @@ class ClientForm {
   final lastName = TextEditingController();
   final roomNumber = TextEditingController();
   final rateAmount = TextEditingController();
+  final fundingVendorName = TextEditingController();
+  final fundingVendorId = TextEditingController();
   final assignmentNotes = TextEditingController();
   final guardianName = TextEditingController();
   final guardianMiddleName = TextEditingController();
@@ -245,6 +247,8 @@ class ClientForm {
     form.rateAmount.text = c.rateAmount == null
         ? ''
         : _formatRateAmount(c.rateAmount!);
+    form.fundingVendorName.text = c.fundingVendorName ?? '';
+    form.fundingVendorId.text = c.fundingVendorId ?? '';
     form.assignmentNotes.text = c.assignmentNotes;
     form.contactNotes.text = c.contactNotes;
     form.doctorName.text = c.doctorName;
@@ -260,6 +264,12 @@ class ClientForm {
       form.outcomes.add(TextEditingController(text: o));
     }
     return form;
+  }
+
+  /// Web `em(fundingSource)` — billed agency fields when not Private Pay.
+  bool get _showsFundingVendor {
+    final source = fundingSource.trim();
+    return source.isNotEmpty && source != 'Private Pay';
   }
 
   static bool _filled(String v) => v.trim().isNotEmpty;
@@ -464,6 +474,10 @@ class ClientForm {
       'roomId': ?_opt(roomId),
       'roomNumber': ?_opt(roomNumber.text),
       'fundingSource': ?_opt(fundingSource),
+      if (_showsFundingVendor)
+        'fundingVendorName': ?_opt(fundingVendorName.text),
+      if (_showsFundingVendor)
+        'fundingVendorId': ?_opt(fundingVendorId.text),
       'rateAmount': ?_rateNumber(rateAmount.text),
       if (_rateNumber(rateAmount.text) != null)
         'rateFrequency': _normalizeRateFrequency(rateFrequency),
@@ -548,6 +562,8 @@ class ClientForm {
       lastName,
       roomNumber,
       rateAmount,
+      fundingVendorName,
+      fundingVendorId,
       assignmentNotes,
       guardianName,
       guardianMiddleName,

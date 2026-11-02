@@ -4,14 +4,21 @@ import 'package:uuid/uuid.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
+import '../../domain/entities/client_summary.dart';
 import '../client_form.dart';
 import '../clients_labels.dart';
 import '../controllers/clients_controller.dart';
 import 'client_form_sections.dart';
+import 'client_goals_panel.dart';
 import 'clients_common.dart';
 
-Future<bool?> showAddClientSheet(BuildContext context, ClientsController controller) =>
-    showClientSheet<bool>(context, AddClientSheet(controller: controller));
+/// Returns the created client (so Care Planning AI can open on the saved record),
+/// or `null` when cancelled / failed.
+Future<ClientSummary?> showAddClientSheet(
+  BuildContext context,
+  ClientsController controller,
+) =>
+    showClientSheet<ClientSummary>(context, AddClientSheet(controller: controller));
 
 /// Web "Add New Client" wizard: Basic Information, Residence Assignment,
 /// Family / Guardian, Medical Information and Care Planning.
@@ -32,6 +39,9 @@ class _AddClientSheetState extends State<AddClientSheet> {
   Map<String, String> _errors = {};
   String? _error;
   bool _submitting = false;
+
+  /// Draft/create persisted while staying on Care Planning for web-like AI.
+  ClientSummary? _persisted;
 
   ClientsController get _c => widget.controller;
 
@@ -88,6 +98,10 @@ class _AddClientSheetState extends State<AddClientSheet> {
       _showErrors(errors);
       return;
     }
+    if (_persisted != null) {
+      await _updatePersisted(close: true);
+      return;
+    }
     await _submit();
   }
 
@@ -106,7 +120,81 @@ class _AddClientSheetState extends State<AddClientSheet> {
       _showErrors(errors);
       return;
     }
+    if (_persisted != null) {
+      await _updatePersisted(close: true, draft: true);
+      return;
+    }
     await _submit(draft: true);
+  }
+
+  /// Persist a draft without closing — needed before Care Planning AI (clientId).
+  Future<String?> _ensureDraftForAi() async {
+    if (_persisted != null) return _persisted!.id;
+
+    final errors = _form.validateDraft();
+    if (errors.isNotEmpty) {
+      setState(() => _errors = {..._errors, ...errors});
+      AppSnackbar.show(
+        errors.containsKey('guardianEmail') && errors.length == 1
+            ? 'The family contact needs an email for portal access.'
+            : 'Enter a first and last name before using Care Planning AI.',
+        '',
+        force: true,
+      );
+      _showErrors(errors);
+      return null;
+    }
+
+    if (_submitting) return _persisted?.id;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    final error = await _c.createClient(
+      _form,
+      draft: true,
+      idempotencyKey: _idempotencyKey,
+    );
+    if (!mounted) return null;
+    if (error != null) {
+      setState(() {
+        _submitting = false;
+        _error = error;
+      });
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+      return null;
+    }
+    setState(() {
+      _submitting = false;
+      _persisted = _c.justCreated;
+    });
+    return _persisted?.id;
+  }
+
+  Future<void> _updatePersisted({required bool close, bool draft = false}) async {
+    final existing = _persisted;
+    if (existing == null) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    if (draft) {
+      _form.status = 'Draft';
+    }
+    final error = await _c.updateClient(existing, _form);
+    if (!mounted) return;
+    if (error == null) {
+      if (close) {
+        Navigator.of(context).pop(existing);
+        return;
+      }
+      setState(() => _submitting = false);
+      return;
+    }
+    setState(() {
+      _submitting = false;
+      _error = error;
+    });
   }
 
   Future<void> _submit({bool draft = false}) async {
@@ -122,7 +210,7 @@ class _AddClientSheetState extends State<AddClientSheet> {
     );
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(_c.justCreated);
       return;
     }
     setState(() {
@@ -252,11 +340,18 @@ class _AddClientSheetState extends State<AddClientSheet> {
               enabled: true,
               onChanged: _changed,
             ),
+          // Same Goals & Outcomes + AI chrome as web Client Details Care Planning.
           ClientStep.care => ClientCareSection(
               form: _form,
               enabled: true,
               onChanged: _changed,
-              goalCategories: _c.goalCategories,
+              goalsPanel: ClientGoalsPanel(
+                key: ValueKey('add-client-goals-${_persisted?.id ?? 'new'}'),
+                controller: _c,
+                clientId: _persisted?.id ?? '',
+                firstName: _form.firstName.text.trim(),
+                ensureClientId: _ensureDraftForAi,
+              ),
             ),
         },
       ],

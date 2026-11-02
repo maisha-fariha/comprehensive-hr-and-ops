@@ -45,7 +45,7 @@ class ClientBasicSection extends StatelessWidget {
         _gap,
         ClientFileField(
           label: 'Client Photo',
-          hint: 'Image only • JPG, PNG up to 2MB',
+          hint: 'JPG, PNG, WebP or HEIC · up to 25MB',
           icon: Icons.add_a_photo_outlined,
           fileName: form.photo?.name,
           existingUrl: form.photoUrl,
@@ -319,6 +319,31 @@ class _ClientResidenceSectionState extends State<ClientResidenceSection> {
           enabled: widget.enabled,
           onChanged: (v) => _set(() => form.fundingSource = v),
         ),
+        if (form.fundingSource.trim().isNotEmpty &&
+            form.fundingSource != 'Private Pay') ...[
+          _gap,
+          ClientInput(
+            key: const ValueKey('client-funding-vendor-name'),
+            label: 'Billed Agency',
+            placeholder: 'e.g. Cuyahoga County Board of DD',
+            helper:
+                'Who pays for this placement. Fees are addressed to them, '
+                'with the resident as beneficiary.',
+            controller: form.fundingVendorName,
+            enabled: widget.enabled,
+            onChanged: (_) => widget.onChanged(),
+          ),
+          _gap,
+          ClientInput(
+            key: const ValueKey('client-funding-vendor-id'),
+            label: 'Vendor / Account ID',
+            placeholder: 'e.g. VEND-88219',
+            helper: "The agency's own number for this home.",
+            controller: form.fundingVendorId,
+            enabled: widget.enabled,
+            onChanged: (_) => widget.onChanged(),
+          ),
+        ],
         _gap,
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -959,7 +984,7 @@ class ClientCareSection extends StatelessWidget {
         _gap,
         ClientFileField(
           label: 'Upload Care Plan Document',
-          hint: 'PDF or DOCX up to 10MB',
+          hint: 'PDF or DOCX up to 25MB',
           fileName: form.carePlanDocument?.name,
           onPick: !enabled
               ? null
@@ -1106,6 +1131,190 @@ class _GoalCategoryPickerState extends State<_GoalCategoryPicker> {
             );
           },
         ),
+      ],
+    );
+  }
+}
+
+/// Web Client Details "Daily Logs" tab — read-only recent activity summary.
+class ClientDailyLogsSection extends StatelessWidget {
+  final VoidCallback? onViewAll;
+
+  const ClientDailyLogsSection({super.key, this.onViewAll});
+
+  static const _rows = <(String, String, String, String)>[
+    ('Jun 10, 2024', 'Morning (7A–3P)', '7:42 AM', 'Complete'),
+    ('Jun 10, 2024', 'Evening (3P–11P)', '6:15 PM', 'Complete'),
+    ('Jun 9, 2024', 'Morning (7A–3P)', '8:03 AM', 'In Review'),
+    ('Jun 9, 2024', 'Night (11P–7A)', '11:58 PM', 'Flagged'),
+    ('Jun 8, 2024', 'Morning (7A–3P)', '7:30 AM', 'Complete'),
+    ('Jun 8, 2024', 'Evening (3P–11P)', '5:47 PM', 'Complete'),
+  ];
+
+  Color _statusBg(String status) => switch (status) {
+        'Complete' => AppColors.activeBackground,
+        'In Review' => AppColors.infoBackground,
+        'Flagged' => AppColors.criticalBackgroundSoft,
+        _ => AppColors.filterButtonBackground,
+      };
+
+  Color _statusFg(String status) => switch (status) {
+        'Complete' => AppColors.activeGreen,
+        'In Review' => AppColors.infoBlue,
+        'Flagged' => AppColors.criticalRed,
+        _ => AppColors.textMuted,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = handoverText(context, 13, color: AppColors.textMuted);
+    return Column(
+      key: const ValueKey('client-daily-logs-section'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.filterButtonBackground,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.edit_note_rounded,
+                size: 18,
+                color: AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Daily Logs',
+                    style: handoverText(context, 16, weight: FontWeight.w700),
+                  ),
+                  Text(
+                    "Read-only summary of the client's recent daily activity logs.",
+                    style: muted,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.infoBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Read only',
+                style: handoverText(
+                  context,
+                  11,
+                  weight: FontWeight.w600,
+                  color: AppColors.infoBlue,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              Container(
+                color: AppColors.filterButtonBackground.withValues(alpha: 0.4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    for (final h in ['Date', 'Shift', 'Submitted', 'Status'])
+                      Expanded(
+                        child: Text(
+                          h.toUpperCase(),
+                          style: handoverText(
+                            context,
+                            11,
+                            weight: FontWeight.w600,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              for (final row in _rows)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: AppColors.cardBorder)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          row.$1,
+                          style: handoverText(context, 13, weight: FontWeight.w600),
+                        ),
+                      ),
+                      Expanded(child: Text(row.$2, style: muted)),
+                      Expanded(child: Text(row.$3, style: muted)),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _statusBg(row.$4),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              row.$4,
+                              style: handoverText(
+                                context,
+                                11,
+                                weight: FontWeight.w600,
+                                color: _statusFg(row.$4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (onViewAll != null) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onViewAll,
+              child: Text(
+                'View all daily logs →',
+                style: handoverText(
+                  context,
+                  12.5,
+                  weight: FontWeight.w600,
+                  color: AppColors.secondaryTeal,
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

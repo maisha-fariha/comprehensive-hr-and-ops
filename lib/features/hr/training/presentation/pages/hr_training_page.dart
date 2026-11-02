@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../ai/presentation/widgets/ai_draft_sheet.dart';
+import '../../../ai/presentation/widgets/ai_feature_sheets.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/hr_training.dart';
@@ -29,11 +31,15 @@ class HrTrainingPage extends StatefulWidget {
 class _HrTrainingPageState extends State<HrTrainingPage> {
   late final HrTrainingController _c;
   bool? _libraryPick;
+  bool? _aiEnabled;
 
   @override
   void initState() {
     super.initState();
     _c = Get.put(GetIt.instance<HrTrainingController>());
+    aiDraftingEnabled().then((enabled) {
+      if (mounted) setState(() => _aiEnabled = enabled);
+    });
   }
 
   @override
@@ -188,11 +194,21 @@ class _HrTrainingPageState extends State<HrTrainingPage> {
 
   Widget _actions() {
     final archived = _c.includeArchived.value;
+    final canGaps = _aiEnabled == true &&
+        (_c.canManage ||
+            _c.session.can('training:oversee') ||
+            _c.session.can('training:read'));
     return Wrap(
       alignment: WrapAlignment.end,
       spacing: 8,
       runSpacing: 8,
       children: [
+        if (canGaps)
+          AiAssistButton(
+            buttonKey: const ValueKey('training-gaps'),
+            label: 'Training gaps',
+            onPressed: () => openTrainingGapsSheet(context),
+          ),
         HandoverButton(
           key: const ValueKey('training-show-archived'),
           label: archived ? 'Archived shown' : 'Show archived',

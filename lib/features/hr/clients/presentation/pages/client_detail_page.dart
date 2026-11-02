@@ -3,7 +3,9 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/offline/offline_image.dart';
+import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
 import '../../domain/entities/client_summary.dart';
@@ -33,6 +35,7 @@ const _sections = [
   ('family', 'Family / Guardian', 'Family / contact'),
   ('medical', 'Medical Information', 'Health information'),
   ('care', 'Care Planning', 'Goals & progress'),
+  ('logs', 'Daily Logs', 'Activity summary'),
   ('spend', 'Inventory Spend', 'Purchases & stock'),
 ];
 
@@ -227,8 +230,29 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                         key: ValueKey('client-goals-${c.id}'),
                         controller: _controller,
                         clientId: c.id,
+                        firstName: _form.firstName.text.trim().isEmpty
+                            ? c.firstName
+                            : _form.firstName.text.trim(),
                         readOnly: readOnly,
                       ),
+                    ),
+                  ),
+                  _panel(
+                    'logs',
+                    ClientDailyLogsSection(
+                      onViewAll: () {
+                        if (!_controller.can('daily-logs:read')) {
+                          AppSnackbar.show(
+                            'You need daily logs access to open the full queue.',
+                            '',
+                            force: true,
+                          );
+                          return;
+                        }
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const DailyLogsPage()),
+                        );
+                      },
                     ),
                   ),
                   _panel('spend', ClientSpendSection(controller: _controller, clientId: c.id)),

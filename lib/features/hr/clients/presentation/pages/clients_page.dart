@@ -205,7 +205,14 @@ class _ClientsPageState extends State<ClientsPage> {
       label: limited ? 'Limit Exceeded' : 'Add Client',
       icon: Icons.add_rounded,
       filled: true,
-      onPressed: limited ? null : () => showAddClientSheet(context, c),
+      onPressed: limited
+          ? null
+          : () async {
+              final created = await showAddClientSheet(context, c);
+              if (created != null && context.mounted) {
+                await _open(created, editing: true);
+              }
+            },
     );
     return Wrap(
       spacing: 8,
