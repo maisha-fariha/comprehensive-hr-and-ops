@@ -10,6 +10,7 @@ import 'app.dart';
 import 'core/config/app_env.dart';
 import 'core/deeplink/app_deep_link_router.dart';
 import 'core/di/service_locator.dart';
+import 'core/errors/app_error_dialog.dart';
 import 'core/network/connectivity_monitor.dart';
 import 'core/offline/offline_bootstrap.dart';
 import 'core/push/firebase_push_bridge.dart';
@@ -44,6 +45,7 @@ Future<void> main() async {
   final session = Get.put(UserSession(), permanent: true);
   OfflineBootstrap.watchSession(session);
   await session.restore();
+  AppErrorDialog.holdTransient();
 
   // Cold-start App Link while already signed in (attach ran before restore).
   if (session.isSignedIn) {

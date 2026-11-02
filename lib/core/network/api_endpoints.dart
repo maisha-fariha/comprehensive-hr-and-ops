@@ -37,6 +37,10 @@ abstract final class ApiEndpoints {
   // ── Scheduling ──────────────────────────────────────────────────────────
   static const String shifts = '/shifts';
   static const String shiftSwaps = '/shift-swaps';
+  /// Organisation settings aggregate (`general`, `notifications`, …).
+  static const String settings = '/settings';
+  /// Display timezone, date format and time format.
+  static const String settingsGeneral = '/settings/general';
   /// Tenant scheduling defaults (`defaultBreakMinutes`, …).
   static const String settingsScheduling = '/settings/scheduling';
 

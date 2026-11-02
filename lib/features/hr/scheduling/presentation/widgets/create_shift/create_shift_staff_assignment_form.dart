@@ -405,7 +405,6 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _noteController;
-  late final TextEditingController _checklistController;
 
   AssignedShiftStaff get _staff => widget.staff;
 
@@ -416,7 +415,6 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
     _descriptionController =
         TextEditingController(text: _staff.taskDescription);
     _noteController = TextEditingController(text: _staff.note);
-    _checklistController = TextEditingController();
   }
 
   @override
@@ -424,38 +422,11 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
     _titleController.dispose();
     _descriptionController.dispose();
     _noteController.dispose();
-    _checklistController.dispose();
     super.dispose();
-  }
-
-  void _addChecklistItem() {
-    final label = _checklistController.text.trim();
-    if (label.isEmpty) return;
-    setState(() {
-      _staff.checklist.add(
-        ShiftChecklistItem(
-          id: 'chk-${DateTime.now().microsecondsSinceEpoch}',
-          label: label,
-        ),
-      );
-      _checklistController.clear();
-    });
-    widget.onChanged();
-  }
-
-  void _removeChecklistItem(ShiftChecklistItem item) {
-    setState(() => _staff.checklist.remove(item));
-    widget.onChanged();
-  }
-
-  void _toggleChecklistItem(ShiftChecklistItem item, bool done) {
-    setState(() => item.done = done);
-    widget.onChanged();
   }
 
   @override
   Widget build(BuildContext context) {
-    final steps = _staff.checklist.length;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -547,31 +518,6 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
                             ],
                           ),
                         ),
-                        if (steps > 0)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  AppColors.secondaryTeal.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Text(
-                              '$steps step${steps == 1 ? '' : 's'}',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w600,
-                                fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                  context,
-                                  11,
-                                ),
-                                color: AppColors.secondaryTeal,
-                              ),
-                            ),
-                          ),
                         const SizedBox(width: 6),
                         AnimatedRotation(
                           turns: widget.expanded ? 0.5 : 0,
@@ -658,41 +604,6 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
             },
           ),
           gap,
-          const CreateShiftFieldLabel('Task Checklist'),
-          for (final item in _staff.checklist) ...[
-            _ChecklistRow(
-              item: item,
-              onToggle: (done) => _toggleChecklistItem(item, done),
-              onRemove: () => _removeChecklistItem(item),
-            ),
-            const SizedBox(height: 8),
-          ],
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final input = CreateShiftTextField(
-                key: ValueKey('checklist-input-${_staff.staffId}'),
-                controller: _checklistController,
-                hint: 'Add a checklist item…',
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _addChecklistItem(),
-              );
-              final button = _addChecklistButton(context);
-              if (constraints.maxWidth < 400) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [input, const SizedBox(height: 8), button],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: input),
-                  const SizedBox(width: 8),
-                  button,
-                ],
-              );
-            },
-          ),
-          gap,
           const CreateShiftFieldLabel('Note'),
           CreateShiftTextField(
             key: ValueKey('task-note-${_staff.staffId}'),
@@ -708,85 +619,6 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
     );
   }
 
-  Widget _addChecklistButton(BuildContext context) {
-    return OutlinedButton.icon(
-      key: ValueKey('checklist-add-${_staff.staffId}'),
-      onPressed: _addChecklistItem,
-      icon: const Icon(Icons.add_rounded, size: 16),
-      label: const Text('Add checklist item'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.secondaryTeal,
-        backgroundColor: AppColors.secondaryTeal.withValues(alpha: 0.05),
-        side: BorderSide(
-          color: AppColors.secondaryTeal.withValues(alpha: 0.4),
-        ),
-        textStyle: TextStyle(
-          fontFamily: 'Outfit',
-          fontWeight: FontWeight.w600,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChecklistRow extends StatelessWidget {
-  final ShiftChecklistItem item;
-  final ValueChanged<bool> onToggle;
-  final VoidCallback onRemove;
-
-  const _ChecklistRow({
-    required this.item,
-    required this.onToggle,
-    required this.onRemove,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: AppColors.searchBorder),
-      ),
-      child: Row(
-        children: [
-          Checkbox(
-            value: item.done,
-            onChanged: (value) => onToggle(value == true),
-            activeColor: AppColors.secondaryTeal,
-            visualDensity: VisualDensity.compact,
-          ),
-          Expanded(
-            child: Text(
-              item.label,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w400,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                color: AppColors.textHeading,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: onRemove,
-            tooltip: 'Remove checklist item',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(
-              Icons.close_rounded,
-              size: 14,
-              color: AppColors.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Searchable checkbox list of tenant staff ("Search staff…"). Toggling a

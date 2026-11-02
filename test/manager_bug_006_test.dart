@@ -191,7 +191,7 @@ Finder _label(String text) => find.textContaining(text, findRichText: true);
 
 Finder _tab(String label) => find.descendant(
       of: find.byType(CreateShiftStepTabs),
-      matching: find.text(label),
+      matching: find.textContaining(label),
     );
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
@@ -343,21 +343,11 @@ void main() {
     expect(find.text('Task Assignment'), findsOneWidget);
     expect(_label('Task Title'), findsOneWidget);
     expect(_label('Task Description'), findsOneWidget);
-    expect(_label('Task Checklist'), findsOneWidget);
+    expect(_label('Note'), findsOneWidget);
+    expect(find.text('Task Checklist'), findsNothing);
+    expect(find.text('Add checklist item'), findsNothing);
     expect(find.text('Leave empty to assign the shift without a task.'),
         findsOneWidget);
-
-    await tester.enterText(
-      find.byKey(const ValueKey('checklist-input-staff-shakib')),
-      'Give 8am meds',
-    );
-    await _tap(tester, find.byKey(const ValueKey('checklist-add-staff-shakib')));
-    expect(find.text('Give 8am meds'), findsOneWidget);
-    expect(find.text('1 step'), findsOneWidget);
-
-    await _tap(tester, find.byTooltip('Remove checklist item'));
-    expect(find.text('Give 8am meds'), findsNothing);
-    expect(find.text('1 step'), findsNothing);
 
     await _tap(
       tester,

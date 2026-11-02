@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../../../core/time/tenant_clock.dart';
 import 'shift_staff_option.dart';
 import 'shift_type_option.dart';
 
@@ -95,6 +96,7 @@ abstract final class CreateShiftField {
   static const startTime = 'startTime';
   static const endTime = 'endTime';
   static const assignedStaff = 'assignedStaff';
+  static const biddingDeadline = 'biddingDeadlineDate';
   static const endDate = 'endDate';
   static const occurrenceCount = 'occurrenceCount';
 }
@@ -160,7 +162,10 @@ class CreateShiftDraft {
       CreateShiftField.startTime,
       CreateShiftField.endTime,
     ],
-    CreateShiftStep.staffAssignment: [CreateShiftField.assignedStaff],
+    CreateShiftStep.staffAssignment: [
+      CreateShiftField.assignedStaff,
+      CreateShiftField.biddingDeadline,
+    ],
     CreateShiftStep.openShift: [],
     CreateShiftStep.recurring: [],
     CreateShiftStep.notifications: [],
@@ -288,13 +293,33 @@ class CreateShiftDraft {
         _number(occurrenceCount) == 0) {
       errors[CreateShiftField.occurrenceCount] = 'Say how many shifts to create';
     }
+    if (isOpenShift && biddingDeadlineDate != null) {
+      final deadline = TenantClock.at(
+        biddingDeadlineDate!,
+        biddingDeadlineMinutes ?? (23 * 60 + 59),
+      );
+      if (deadline.isBefore(DateTime.now())) {
+        errors[CreateShiftField.biddingDeadline] =
+            'Bidding deadline cannot be in the past';
+      } else if (shiftDate != null && startMinutes != null) {
+        final start = TenantClock.at(shiftDate!, startMinutes!);
+        if (deadline.isAfter(start)) {
+          errors[CreateShiftField.biddingDeadline] =
+              'Bidding deadline cannot be after the shift begins';
+        }
+      }
+    }
     return errors;
   }
 
   /// Errors the "Next" button reports for [step].
   Map<String, String> validateStep(CreateShiftStep step) {
     if (step == CreateShiftStep.staffAssignment) {
-      if (isOpenShift) return const {};
+      final bidding = validate()[CreateShiftField.biddingDeadline];
+      if (isOpenShift) {
+        if (bidding == null) return const {};
+        return {CreateShiftField.biddingDeadline: bidding};
+      }
       if (assignedStaff.isEmpty) {
         return {
           CreateShiftField.assignedStaff: 'Assign at least one staff member',
@@ -361,13 +386,7 @@ class CreateShiftDraft {
     final startsAt = _at(date, startMinutes!);
     var endsAt = _at(date, endMinutes!);
     if (!endsAt.isAfter(startsAt)) {
-      endsAt = DateTime(
-        endsAt.year,
-        endsAt.month,
-        endsAt.day + 1,
-        endsAt.hour,
-        endsAt.minute,
-      );
+      endsAt = endsAt.add(const Duration(days: 1));
     }
 
     Map<String, dynamic>? biddingConfig;
@@ -469,9 +488,9 @@ class CreateShiftDraft {
       });
 
   static DateTime _at(DateTime date, int minutes) =>
-      DateTime(date.year, date.month, date.day, minutes ~/ 60, minutes % 60);
+      TenantClock.at(date, minutes);
 
-  static String _iso(DateTime local) => local.toUtc().toIso8601String();
+  static String _iso(DateTime instant) => instant.toUtc().toIso8601String();
 
   /// JS `Number(value)` with `NaN` folded to 0.
   static num _number(String value) {

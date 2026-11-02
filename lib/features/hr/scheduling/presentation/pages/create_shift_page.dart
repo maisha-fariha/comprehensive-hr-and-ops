@@ -63,6 +63,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   Map<String, String> _errors = const {};
   String? _submitError;
   bool _isSubmitting = false;
+  Future<void>? _clockReady;
 
   final List<ShiftResidenceOption> _residences = [];
   bool _isLoadingResidences = false;
@@ -93,11 +94,14 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     _messageController =
         TextEditingController(text: _draft.notificationMessage);
     _initialSnapshot = _draft.snapshot();
-    if (_isEdit) {
-      _loadShift();
-    } else {
-      _loadDefaultBreak();
-    }
+    _clockReady = _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await _loadDefaultBreak();
+    if (!mounted) return;
+    if (_isEdit) await _loadShift();
+    if (!mounted) return;
     _loadResidences();
     _loadStaff();
   }
@@ -262,6 +266,19 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     });
   }
 
+  void _refreshBiddingError() {
+    final message = _draft.validate()[CreateShiftField.biddingDeadline];
+    setState(() {
+      final next = Map<String, String>.from(_errors);
+      if (message == null) {
+        next.remove(CreateShiftField.biddingDeadline);
+      } else {
+        next[CreateShiftField.biddingDeadline] = message;
+      }
+      _errors = next;
+    });
+  }
+
   void _goTo(CreateShiftStep step) {
     if (step == CreateShiftStep.openShift) {
       step = CreateShiftStep.staffAssignment;
@@ -298,6 +315,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   Future<void> _submit() async {
     if (_isSubmitting) return;
+    await _clockReady;
+    if (!mounted || _isSubmitting) return;
     final errors = _draft.validate();
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
@@ -792,10 +811,12 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
             maxBidsController: _maxBidsController,
             noteToBiddersController: _noteToBiddersController,
             deadlineDateValue: _formatDate(_draft.biddingDeadlineDate),
+            deadlineError: _errors[CreateShiftField.biddingDeadline],
             onDeadlineDateTap: () async {
               final date = await _pickDate(_draft.biddingDeadlineDate);
               if (date != null) {
                 _update(() => _draft.biddingDeadlineDate = date);
+                _refreshBiddingError();
               }
             },
             deadlineTimeValue: _formatTime(_draft.biddingDeadlineMinutes),
@@ -803,6 +824,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
               final time = await _pickTime(_draft.biddingDeadlineMinutes);
               if (time != null) {
                 _update(() => _draft.biddingDeadlineMinutes = time);
+                _refreshBiddingError();
               }
             },
             priorityValue: CreateShiftChoices.labelOf(
