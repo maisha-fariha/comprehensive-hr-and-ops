@@ -223,6 +223,11 @@ abstract final class ApiEndpoints {
   static String shiftAssignments(String id) => '$shifts/$id/assignments';
   static String shiftCancel(String id) => '$shifts/$id/cancel';
   static String shiftRecurring = '$shifts/recurring';
+  /// `POST /shifts/conflicts` — overlapping shifts + approved leave for staff.
+  static const String shiftConflicts = '$shifts/conflicts';
+  /// `PATCH /attendance/time-off-requests/{id}/review`.
+  static String attendanceTimeOffReview(String id) =>
+      '$attendanceTimeOffRequests/$id/review';
   static String shiftBidAccept(String shiftId, String bidId) =>
       '$shifts/$shiftId/bids/$bidId/accept';
   static String shiftBids(String shiftId) => '$shifts/$shiftId/bids';

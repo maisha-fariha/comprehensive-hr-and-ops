@@ -13,6 +13,7 @@ import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/entities/shift_request.dart';
 import '../../domain/entities/shift_residence_option.dart';
+import '../../domain/entities/shift_staff_conflict.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/staff_avatar.dart';
 
@@ -155,6 +156,113 @@ abstract final class SchedulingMapper {
       );
     }
     return options;
+  }
+
+  /// Parse `GET /shifts?from&to` rows for the "Has Shift" picker badge.
+  static List<ShiftWindowRow> shiftWindowRowsFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final rows = <ShiftWindowRow>[];
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id']);
+      final startsAt = JsonCodec.dateTime(json['startsAt']);
+      final endsAt = JsonCodec.dateTime(json['endsAt']);
+      if (id == null || startsAt == null || endsAt == null) continue;
+      final staffIds = <String>[];
+      final staff = json['staff'];
+      if (staff is List) {
+        for (final entry in staff) {
+          if (entry is! Map) continue;
+          final sid = JsonCodec.string(
+            JsonCodec.asMap(entry)['id'] ?? JsonCodec.asMap(entry)['staffId'],
+          );
+          if (sid != null && sid.isNotEmpty) staffIds.add(sid);
+        }
+      }
+      final assignments = json['assignments'];
+      if (assignments is List) {
+        for (final entry in assignments) {
+          if (entry is! Map) continue;
+          final map = JsonCodec.asMap(entry);
+          final sid = JsonCodec.string(
+            map['staffId'] ??
+                JsonCodec.mapAt(map, 'staff')?['id'] ??
+                map['id'],
+          );
+          if (sid != null && sid.isNotEmpty && !staffIds.contains(sid)) {
+            staffIds.add(sid);
+          }
+        }
+      }
+      rows.add(
+        ShiftWindowRow(
+          id: id,
+          startsAt: startsAt.toLocal(),
+          endsAt: endsAt.toLocal(),
+          status: JsonCodec.string(json['status']) ?? '',
+          staffIds: staffIds,
+        ),
+      );
+    }
+    return rows;
+  }
+
+  /// Parse `POST /shifts/conflicts` into roster + leave banners.
+  static ShiftConflictsResult shiftConflictsFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final conflicts = <ShiftScheduleConflict>[];
+    final leave = <ShiftLeaveConflict>[];
+    final conflictSource = json['conflicts'];
+    if (conflictSource is List) {
+      for (final item in conflictSource) {
+        if (item is! Map) continue;
+        final row = JsonCodec.asMap(item);
+        final staffId = JsonCodec.string(row['staffId']);
+        final staffName = JsonCodec.string(row['staffName']) ?? 'Staff';
+        final shiftId = JsonCodec.string(row['shiftId']) ?? '';
+        final label = JsonCodec.string(row['label']) ?? '';
+        if (staffId == null || staffId.isEmpty) continue;
+        conflicts.add(
+          ShiftScheduleConflict(
+            staffId: staffId,
+            staffName: staffName,
+            shiftId: shiftId,
+            label: label,
+            residenceName: JsonCodec.string(row['residenceName']),
+            startsAt: JsonCodec.dateTime(row['startsAt'])?.toLocal(),
+            endsAt: JsonCodec.dateTime(row['endsAt'])?.toLocal(),
+          ),
+        );
+      }
+    }
+    final leaveSource = json['leave'];
+    if (leaveSource is List) {
+      for (final item in leaveSource) {
+        if (item is! Map) continue;
+        final row = JsonCodec.asMap(item);
+        final staffId = JsonCodec.string(row['staffId']);
+        final staffName = JsonCodec.string(row['staffName']) ?? 'Staff';
+        final label = JsonCodec.string(row['label']) ?? '';
+        if (staffId == null || staffId.isEmpty) continue;
+        leave.add(
+          ShiftLeaveConflict(
+            staffId: staffId,
+            staffName: staffName,
+            label: label,
+            type: JsonCodec.string(row['type']),
+          ),
+        );
+      }
+    }
+    final hasConflict = JsonCodec.boolean(json['hasConflict']) == true ||
+        conflicts.isNotEmpty ||
+        leave.isNotEmpty;
+    return ShiftConflictsResult(
+      hasConflict: hasConflict,
+      conflicts: conflicts,
+      leave: leave,
+    );
   }
 
   /// Parse `GET /residences` into Create Shift dropdown options.

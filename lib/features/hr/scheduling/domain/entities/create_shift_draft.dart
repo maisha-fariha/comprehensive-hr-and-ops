@@ -355,11 +355,15 @@ class CreateShiftDraft {
     return count;
   }
 
-  /// `POST /shifts` body, field-for-field with the web `toCreateBody`.
-  Map<String, dynamic> toCreateBody() {
-    final date = shiftDate!;
-    final startsAt = _at(date, startMinutes!);
-    var endsAt = _at(date, endMinutes!);
+  /// Local start/end of the draft shift window (web `shiftWindow`), or null
+  /// when date/times are incomplete.
+  (DateTime startsAt, DateTime endsAt)? get shiftWindow {
+    final date = shiftDate;
+    final start = startMinutes;
+    final end = endMinutes;
+    if (date == null || start == null || end == null) return null;
+    final startsAt = _at(date, start);
+    var endsAt = _at(date, end);
     if (!endsAt.isAfter(startsAt)) {
       endsAt = DateTime(
         endsAt.year,
@@ -369,6 +373,14 @@ class CreateShiftDraft {
         endsAt.minute,
       );
     }
+    return (startsAt, endsAt);
+  }
+
+  /// `POST /shifts` body, field-for-field with the web `toCreateBody`.
+  Map<String, dynamic> toCreateBody() {
+    final window = shiftWindow!;
+    final startsAt = window.$1;
+    final endsAt = window.$2;
 
     Map<String, dynamic>? biddingConfig;
     if (isOpenShift) {

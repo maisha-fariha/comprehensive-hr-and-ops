@@ -1914,7 +1914,6 @@ void main() {
   group('BUG13 Daily Logs', () {
     final now = DateTime.now();
     final today = DailyLogsController.dayKey(now);
-    final weekAgo = DailyLogsController.dayKey(now.subtract(const Duration(days: 6)));
     String shown(String key) => WebFormat.date(DateTime.parse(key));
     Finder inKey(String key, Finder matching) =>
         find.descendant(of: find.byKey(ValueKey(key)), matching: matching);
@@ -1982,17 +1981,27 @@ void main() {
       final clock = DateTime(2026, 9, 29, 9, 41);
       expect(NewLogEntrySheet.defaultOccurredAt('2026-09-29', now: clock), clock);
       expect(NewLogEntrySheet.defaultOccurredAt('2026-08-27', now: clock), DateTime(2026, 8, 27, 12));
+
+      // Web `aw()` defaults From/To to today (daily view), not last 7 days.
+      final today = DailyLogsController.dayKey(DateTime.now());
+      final defaults = DailyLogsController(
+        repository: _FakeDailyLogsRepo(),
+        session: _CheckSession(),
+      );
+      expect(defaults.from.value, today);
+      expect(defaults.to.value, today);
+      defaults.dispose();
     });
 
     testWidgets('starts on the operational logbook for all residences, with All staff '
-        'and From / To defaulting to the last seven days', (tester) async {
+        'and From / To defaulting to today (web daily view)', (tester) async {
       final (repo, _) = await _openLogs(tester);
 
       expect(find.text('Daily Logs & Operations'), findsOneWidget);
       expect(find.text('All residences'), findsOneWidget);
       expect(find.text('All staff'), findsOneWidget);
       expect(find.text('Residence *'), findsNothing);
-      expect(inKey('dl-from', find.text(shown(weekAgo))), findsOneWidget);
+      expect(inKey('dl-from', find.text(shown(today))), findsOneWidget);
       expect(inKey('dl-to', find.text(shown(today))), findsOneWidget);
       for (final tab in [
         'Daily Log',
@@ -2011,7 +2020,7 @@ void main() {
         {
           'residenceId': null,
           'staffId': null,
-          'from': weekAgo,
+          'from': today,
           'to': today,
           'page': 1,
           'limit': 20,
@@ -2021,7 +2030,7 @@ void main() {
             'status': status,
             'residenceId': residence,
             'clientId': null,
-            'from': weekAgo,
+            'from': today,
             'to': today,
             'page': 1,
             'limit': 100,
@@ -2056,7 +2065,7 @@ void main() {
             'status': status,
             'residenceId': r,
             'clientId': c,
-            'from': weekAgo,
+            'from': today,
             'to': today,
             'page': 1,
             'limit': limit,
@@ -2079,7 +2088,7 @@ void main() {
 
       expect(inKey('dl-kpi-entries', find.text('5')), findsOneWidget);
       expect(inKey('dl-kpi-entries', find.text('ENTRIES TO SIGN OFF')), findsOneWidget);
-      expect(inKey('dl-kpi-entries', find.text('${md(weekAgo)} – ${md(today)}')), findsOneWidget);
+      expect(inKey('dl-kpi-entries', find.text(md(today))), findsOneWidget);
       expect(inKey('dl-kpi-review', find.text('7')), findsOneWidget);
       expect(inKey('dl-kpi-review', find.text('Finished shifts not yet signed off')), findsOneWidget);
       expect(inKey('dl-kpi-missing', find.text('4')), findsOneWidget);
@@ -2503,7 +2512,7 @@ void main() {
       expect(repo.activityQueries.last, {
         'residenceId': 'elm',
         'staffId': null,
-        'from': weekAgo,
+        'from': today,
         'to': today,
         'page': 1,
         'limit': 20,

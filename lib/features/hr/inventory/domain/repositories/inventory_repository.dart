@@ -139,7 +139,9 @@ abstract class InventoryRepository {
     required int limit,
   });
 
-  Future<Result<void>> createSupplier({required String name, required String category});
+  Future<Result<void>> createSupplier(Map<String, dynamic> body);
+
+  Future<Result<void>> updateSupplier(String id, Map<String, dynamic> body);
 
   Future<Result<void>> removeSupplier(String id);
 

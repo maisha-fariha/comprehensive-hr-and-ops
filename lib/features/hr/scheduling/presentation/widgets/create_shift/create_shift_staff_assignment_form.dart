@@ -5,6 +5,7 @@ import '../../../../../../core/constants/app_assets.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/widgets/app_svg_icon.dart';
 import '../../../domain/entities/create_shift_draft.dart';
+import '../../../domain/entities/shift_staff_conflict.dart';
 import '../../../domain/entities/shift_staff_option.dart';
 import 'create_shift_fields.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
@@ -25,6 +26,8 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
   final ValueChanged<String> onRemoveStaff;
   final ValueChanged<String> onToggleExpand;
   final VoidCallback onChanged;
+  final List<ShiftScheduleConflict> scheduleConflicts;
+  final List<ShiftLeaveConflict> leaveConflicts;
 
   const CreateShiftStaffAssignmentForm({
     super.key,
@@ -38,6 +41,8 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
     required this.onChanged,
     this.openShiftFields,
     this.isLoadingStaff = false,
+    this.scheduleConflicts = const [],
+    this.leaveConflicts = const [],
   });
 
   @override
@@ -73,6 +78,68 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
               onTap: onAddStaff,
               onRemove: onRemoveStaff,
             ),
+            if (leaveConflicts.isNotEmpty) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              _ShiftConflictBanner(
+                key: const ValueKey('shift-leave'),
+                title: 'On approved time off',
+                lines: [
+                  for (final row in leaveConflicts)
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                          color: AppColors.textHeading,
+                          height: 1.35,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: row.staffName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(
+                            text:
+                                ' is off ${row.label}. Remove them or choose another day to continue.',
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            if (scheduleConflicts.isNotEmpty) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              _ShiftConflictBanner(
+                key: const ValueKey('shift-conflicts'),
+                title: 'Already rostered at these hours',
+                lines: [
+                  for (final row in scheduleConflicts)
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                          color: AppColors.textHeading,
+                          height: 1.35,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: row.staffName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(
+                            text:
+                                ' is on ${row.label}${row.residenceName == null || row.residenceName!.isEmpty ? '' : ' at ${row.residenceName}'}. Remove them or change the shift\'s hours to continue.',
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
             Text(
               'Assigned Staff (${assignedStaff.length})',
@@ -789,6 +856,60 @@ class _ChecklistRow extends StatelessWidget {
   }
 }
 
+class _ShiftConflictBanner extends StatelessWidget {
+  final String title;
+  final List<Widget> lines;
+
+  const _ShiftConflictBanner({
+    super.key,
+    required this.title,
+    required this.lines,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.urgentAmber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.urgentAmber.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 14,
+                color: AppColors.urgentAmber,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: AppColors.urgentAmber,
+                ),
+              ),
+            ],
+          ),
+          for (final line in lines) ...[
+            const SizedBox(height: 6),
+            line,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Searchable checkbox list of tenant staff ("Search staff…"). Toggling a
 /// row adds or removes that person from the shift immediately.
 Future<void> showCreateShiftStaffPicker({
@@ -796,6 +917,7 @@ Future<void> showCreateShiftStaffPicker({
   required List<ShiftStaffOption> options,
   required Set<String> selectedIds,
   required ValueChanged<ShiftStaffOption> onToggle,
+  Set<String> hasShiftIds = const {},
   String? errorMessage,
   VoidCallback? onRetry,
 }) {
@@ -809,6 +931,7 @@ Future<void> showCreateShiftStaffPicker({
     builder: (sheetContext) => _StaffPickerSheet(
       options: options,
       selectedIds: {...selectedIds},
+      hasShiftIds: hasShiftIds,
       onToggle: onToggle,
       errorMessage: errorMessage,
       onRetry: onRetry,
@@ -819,6 +942,7 @@ Future<void> showCreateShiftStaffPicker({
 class _StaffPickerSheet extends StatefulWidget {
   final List<ShiftStaffOption> options;
   final Set<String> selectedIds;
+  final Set<String> hasShiftIds;
   final ValueChanged<ShiftStaffOption> onToggle;
   final String? errorMessage;
   final VoidCallback? onRetry;
@@ -827,6 +951,7 @@ class _StaffPickerSheet extends StatefulWidget {
     required this.options,
     required this.selectedIds,
     required this.onToggle,
+    this.hasShiftIds = const {},
     this.errorMessage,
     this.onRetry,
   });
@@ -956,6 +1081,8 @@ class _StaffPickerSheetState extends State<_StaffPickerSheet> {
                               final option = filtered[index];
                               final selected =
                                   widget.selectedIds.contains(option.id);
+                              final hasShift =
+                                  widget.hasShiftIds.contains(option.id);
                               return CheckboxListTile(
                                 key: ValueKey('staff-option-${option.id}'),
                                 value: selected,
@@ -963,7 +1090,9 @@ class _StaffPickerSheetState extends State<_StaffPickerSheet> {
                                 controlAffinity: ListTileControlAffinity.leading,
                                 dense: true,
                                 title: Text(
-                                  option.name,
+                                  hasShift
+                                      ? '${option.name} • (Has Shift)'
+                                      : option.name,
                                   style: const TextStyle(
                                     fontFamily: 'Outfit',
                                     fontWeight: FontWeight.w500,

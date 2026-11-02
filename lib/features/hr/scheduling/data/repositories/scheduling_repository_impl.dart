@@ -9,6 +9,7 @@ import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/entities/shift_residence_option.dart';
+import '../../domain/entities/shift_staff_conflict.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
 import '../mappers/scheduling_mapper.dart';
@@ -264,6 +265,64 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     return result.when(
       success: (body) async =>
           Result.success(SchedulingMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
+    required String from,
+    required String to,
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'from': from,
+        'to': to,
+        'limit': 200,
+        'page': 1,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.shiftWindowRowsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<ShiftConflictsResult>> checkStaffConflicts({
+    required List<String> staffIds,
+    required String startsAtIso,
+    required String endsAtIso,
+    String? residenceId,
+    String? excludeShiftId,
+  }) async {
+    if (staffIds.isEmpty) {
+      return Result.success(const ShiftConflictsResult());
+    }
+    final result = await _api.post(
+      ApiEndpoints.shiftConflicts,
+      data: {
+        'staffIds': staffIds,
+        'windows': [
+          {'startsAt': startsAtIso, 'endsAt': endsAtIso},
+        ],
+        if (excludeShiftId != null && excludeShiftId.isNotEmpty)
+          'excludeShiftId': excludeShiftId,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      allowQueue: false,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.shiftConflictsFrom(body)),
       failure: (error) async => Result.failure(error),
     );
   }

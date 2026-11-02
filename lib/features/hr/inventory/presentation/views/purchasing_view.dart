@@ -324,44 +324,64 @@ class _PurchasingViewState extends State<PurchasingView> {
     ];
   }
 
-  Widget _supplierCard(BuildContext context, InventorySupplier s) => HandoverPanel(
-        key: ValueKey('supplier-${s.id}'),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(s.name, style: handoverText(context, 15, weight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text(
-                    s.contactName ?? s.email ?? '—',
-                    style: handoverText(context, 12.5, color: AppColors.textMuted),
+  Widget _supplierCard(BuildContext context, InventorySupplier s) {
+    final contact = [
+      if (s.email != null && s.email!.trim().isNotEmpty) s.email!,
+      if (s.phone != null && s.phone!.trim().isNotEmpty) s.phone!,
+    ].join(' · ');
+    return HandoverPanel(
+      key: ValueKey('supplier-${s.id}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(s.name, style: handoverText(context, 15, weight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(
+            InventoryLabels.humanise(s.category ?? ''),
+            style: handoverText(context, 12.5, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            s.hasContact ? contact : 'No contact details — edit to add',
+            style: handoverText(
+              context,
+              12.5,
+              color: s.hasContact ? AppColors.textMuted : AppColors.urgentAmber,
+            ),
+          ),
+          if (_c.canWriteSuppliers) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (s.isDeleted)
+                  HandoverButton(
+                    key: ValueKey('supplier-restore-${s.id}'),
+                    label: 'Restore',
+                    compact: true,
+                    onPressed: () => _c.restoreSupplier(s),
+                  )
+                else ...[
+                  HandoverButton(
+                    key: ValueKey('supplier-edit-${s.id}'),
+                    label: 'Edit',
+                    icon: Icons.edit_outlined,
+                    compact: true,
+                    onPressed: () => showAddSupplierSheet(context, controller: _c, supplier: s),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${InventoryLabels.humanise(s.category ?? '')}${s.phone != null ? ' · ${s.phone}' : ''}',
-                    style: handoverText(context, 12.5, color: AppColors.textSecondary),
+                  HandoverButton(
+                    key: ValueKey('supplier-remove-${s.id}'),
+                    label: 'Remove',
+                    compact: true,
+                    onPressed: () => _c.removeSupplier(s),
                   ),
                 ],
-              ),
+              ],
             ),
-            if (_c.canWriteSuppliers)
-              s.isDeleted
-                  ? HandoverButton(
-                      key: ValueKey('supplier-restore-${s.id}'),
-                      label: 'Restore',
-                      compact: true,
-                      onPressed: () => _c.restoreSupplier(s),
-                    )
-                  : HandoverButton(
-                      key: ValueKey('supplier-remove-${s.id}'),
-                      label: 'Remove',
-                      compact: true,
-                      onPressed: () => _c.removeSupplier(s),
-                    ),
           ],
-        ),
-      );
+        ],
+      ),
+    );
+  }
 }

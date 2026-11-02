@@ -12,6 +12,8 @@ import '../../../hr_shell.dart';
 import '../../../presentation/manager_destinations.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
+import '../../../daily_activity/presentation/controllers/daily_activity_controller.dart';
+import '../../../daily_activity/presentation/widgets/daily_activity_form_sheet.dart';
 import '../controllers/daily_logs_controller.dart';
 import '../widgets/daily_log_common.dart';
 import '../widgets/daily_logs_filters.dart';
@@ -76,6 +78,19 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
 
   VoidCallback? get _openMedication =>
       managerDestinations().firstWhereOrNull((d) => d.title == 'Medication')?.open;
+
+  /// Web "Record activity" on Daily Logs → Resident Activity.
+  Future<void> _recordActivity() async {
+    const tag = 'dl-record-activity';
+    final reused = Get.isRegistered<DailyActivityController>();
+    final controller = reused
+        ? Get.find<DailyActivityController>()
+        : Get.put(GetIt.instance<DailyActivityController>(), tag: tag);
+    await controller.loadOptions();
+    if (!mounted) return;
+    await showDailyActivityFormSheet(context, controller: controller);
+    if (!reused) Get.delete<DailyActivityController>(tag: tag);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +196,20 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
       DailyLogsTabs(controller: _c, row: DailyLogsTabRow.section),
       const SizedBox(height: 15),
       DailyLogsFilters(controller: _c),
+      if (_c.showRecordActivity) ...[
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: HandoverButton(
+            key: const ValueKey('dl-record-activity'),
+            label: 'Record activity',
+            icon: Icons.add_rounded,
+            filled: true,
+            compact: true,
+            onPressed: _recordActivity,
+          ),
+        ),
+      ],
       const SizedBox(height: 15),
       if (tab != DailyLogsTab.day) ...[
         DailyLogsKpis(controller: _c),

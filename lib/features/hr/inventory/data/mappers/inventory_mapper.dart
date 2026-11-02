@@ -251,6 +251,7 @@ class InventoryMapper {
       contactName: JsonCodec.string(json['contactName']),
       email: JsonCodec.string(json['email']),
       phone: JsonCodec.string(json['phone']),
+      address: JsonCodec.string(json['address']),
       isActive: JsonCodec.boolean(json['isActive']) ?? true,
       deletedAt: JsonCodec.dateTime(json['deletedAt']),
     );

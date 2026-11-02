@@ -4,6 +4,7 @@ import '../entities/create_shift_draft.dart';
 import '../entities/scheduling_enums.dart';
 import '../entities/scheduling_overview.dart';
 import '../entities/shift_residence_option.dart';
+import '../entities/shift_staff_conflict.dart';
 import '../entities/shift_staff_option.dart';
 
 /// Contract for fetching the HR/Manager Scheduling screen's data (its
@@ -52,6 +53,23 @@ abstract class SchedulingRepository {
   /// Tenant staff for the Create Shift "Assigned Staff" picker
   /// (`GET /staff?page=1&limit=100`, searched client-side like the web).
   Future<Result<List<ShiftStaffOption>>> getStaffOptions();
+
+  /// Shifts in a day window for the "Has Shift" staff-picker badge
+  /// (`GET /shifts?from&to&limit=200`).
+  Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
+    required String from,
+    required String to,
+    String? residenceId,
+  });
+
+  /// `POST /shifts/conflicts` — overlapping roster + approved leave.
+  Future<Result<ShiftConflictsResult>> checkStaffConflicts({
+    required List<String> staffIds,
+    required String startsAtIso,
+    required String endsAtIso,
+    String? residenceId,
+    String? excludeShiftId,
+  });
 
   /// Creates a shift (or a recurring series) via `POST /shifts`.
   /// Returns how many shifts were created.

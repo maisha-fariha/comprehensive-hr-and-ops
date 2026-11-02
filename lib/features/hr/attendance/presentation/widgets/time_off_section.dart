@@ -151,9 +151,19 @@ class TimeOffSection extends StatelessWidget {
                 return _TimeOffTile(
                   request: request,
                   showStaff: managerMode,
+                  canReview: managerMode &&
+                      request.status == TimeOffStatus.pending,
                   rangeLabel: request.startDate == request.endDate
                       ? _fmt(request.startDate)
                       : '${_fmt(request.startDate)} → ${_fmt(request.endDate)}',
+                  onApprove: () => controller.reviewTimeOffRequest(
+                    request: request,
+                    status: TimeOffStatus.approved,
+                  ),
+                  onReject: () => controller.reviewTimeOffRequest(
+                    request: request,
+                    status: TimeOffStatus.rejected,
+                  ),
                 );
               },
             ),
@@ -173,12 +183,18 @@ class TimeOffSection extends StatelessWidget {
 class _TimeOffTile extends StatelessWidget {
   final TimeOffRequest request;
   final bool showStaff;
+  final bool canReview;
   final String rangeLabel;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
 
   const _TimeOffTile({
     required this.request,
     required this.showStaff,
     required this.rangeLabel,
+    this.canReview = false,
+    this.onApprove,
+    this.onReject,
   });
 
   Color _statusColor(TimeOffStatus s) {
@@ -254,6 +270,33 @@ class _TimeOffTile extends StatelessWidget {
               style: handoverText(context, 12.5, color: AppColors.textMuted),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if (canReview) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                OutlinedButton(
+                  key: ValueKey('time-off-reject-${request.id}'),
+                  onPressed: onReject,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.criticalRed,
+                    side: const BorderSide(color: AppColors.criticalRed),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Text('Reject'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  key: ValueKey('time-off-approve-${request.id}'),
+                  onPressed: onApprove,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.secondaryTeal,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Text('Approve'),
+                ),
+              ],
             ),
           ],
         ],

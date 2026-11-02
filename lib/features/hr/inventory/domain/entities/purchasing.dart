@@ -7,6 +7,7 @@ class InventorySupplier {
   final String? contactName;
   final String? email;
   final String? phone;
+  final String? address;
   final bool isActive;
   final DateTime? deletedAt;
 
@@ -18,11 +19,16 @@ class InventorySupplier {
     this.contactName,
     this.email,
     this.phone,
+    this.address,
     this.isActive = true,
     this.deletedAt,
   });
 
   bool get isDeleted => deletedAt != null;
+
+  bool get hasContact =>
+      (email != null && email!.trim().isNotEmpty) ||
+      (phone != null && phone!.trim().isNotEmpty);
 }
 
 /// The stock item a purchase-order line restocks.

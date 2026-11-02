@@ -378,4 +378,20 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       failure: (error) async => Result.failure(error),
     );
   }
+
+  @override
+  Future<Result<void>> reviewTimeOffRequest({
+    required String id,
+    required TimeOffStatus status,
+  }) async {
+    final result = await _api.patch(
+      ApiEndpoints.attendanceTimeOffReview(id),
+      data: {'status': status.apiValue},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 }
