@@ -25,7 +25,10 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart
 
 /// Staff Attendance — web-parity metrics, filters, list, and clock in/out.
 class StaffAttendancePage extends StatefulWidget {
-  const StaffAttendancePage({super.key});
+  /// Opened from a time-off notification: scroll to that section.
+  final bool focusTimeOff;
+
+  const StaffAttendancePage({super.key, this.focusTimeOff = false});
 
   static const int _moreTabIndex = 4;
 
@@ -35,6 +38,8 @@ class StaffAttendancePage extends StatefulWidget {
 
 class _StaffAttendancePageState extends State<StaffAttendancePage> {
   late final StaffAttendanceController _controller;
+  final _timeOffKey = GlobalKey();
+  var _scrolledToTimeOff = false;
 
   @override
   void initState() {
@@ -53,6 +58,17 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
 
   void _onBottomNavTap(int index) {
     Get.offAll(() => StaffShell(initialIndex: index));
+  }
+
+  void _scrollToTimeOff() {
+    if (!widget.focusTimeOff || _scrolledToTimeOff) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _scrolledToTimeOff) return;
+      final target = _timeOffKey.currentContext;
+      if (target == null) return;
+      _scrolledToTimeOff = true;
+      Scrollable.ensureVisible(target, alignment: 0.05);
+    });
   }
 
   @override
@@ -91,6 +107,7 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
         // creates or corrects a record and needs `attendance:manage`.
         final canClock = session == null || session.can('attendance:write');
         final canManual = session == null || session.can('attendance:manage');
+        _scrollToTimeOff();
         return Column(
           children: [
             ColoredBox(
@@ -198,7 +215,10 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 20),
                     ),
-                    StaffTimeOffSection(controller: controller),
+                    KeyedSubtree(
+                      key: _timeOffKey,
+                      child: StaffTimeOffSection(controller: controller),
+                    ),
                   ],
                 ),
               ),

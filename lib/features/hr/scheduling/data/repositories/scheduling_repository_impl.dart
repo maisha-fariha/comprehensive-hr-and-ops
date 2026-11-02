@@ -273,6 +273,20 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
+  Future<Result<List<ShiftClientOption>>> getClients(String residenceId) async {
+    final result = await _api.get(
+      ApiEndpoints.clients,
+      query: {'residenceId': residenceId, 'page': 1, 'limit': _pageSize},
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.clientsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<List<ShiftStaffOption>>> getStaffOptions() async {
     final result = await _api.get(
       ApiEndpoints.staff,

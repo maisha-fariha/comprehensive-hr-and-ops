@@ -38,14 +38,22 @@ abstract final class AppErrorDialog {
   }
 
   /// Suppress network and server dialogs that fire before the connection is up.
+  ///
+  /// Longer than the 30s API timeout, so a request that starts as the phone
+  /// comes back from power-off still fails inside this window.
   static void holdTransient([
-    Duration duration = const Duration(seconds: 12),
+    Duration duration = const Duration(seconds: 45),
   ]) {
     final until = DateTime.now().add(duration);
     final current = _holdTransientUntil;
     if (current == null || until.isAfter(current)) {
       _holdTransientUntil = until;
     }
+  }
+
+  /// The network answered, so a later failure is a real error.
+  static void releaseTransient() {
+    _holdTransientUntil = null;
   }
 
   static Future<void> showError(

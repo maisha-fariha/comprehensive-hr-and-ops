@@ -114,6 +114,10 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   Future<Result<int>> getDefaultBreakMinutes() async => Result.success(30);
 
   @override
+  Future<Result<List<ShiftClientOption>>> getClients(String residenceId) async =>
+      Result.success(const []);
+
+  @override
   Future<Result<List<ShiftStaffOption>>> getStaffOptions() async =>
       Result.success(const [
         ShiftStaffOption(
@@ -201,10 +205,13 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-Finder _tab(String label) => find.descendant(
-      of: find.byType(CreateShiftStepTabs),
-      matching: find.text(label),
-    );
+Finder _tab(String label) {
+  final resolved = label == 'Staff Assignment' ? 'Staffing' : label;
+  return find.descendant(
+    of: find.byType(CreateShiftStepTabs),
+    matching: find.text(resolved),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

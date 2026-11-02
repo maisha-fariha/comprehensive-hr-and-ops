@@ -113,6 +113,7 @@ abstract final class ClientsMapper {
         ClientFamilyMember(
           id: id,
           name: JsonCodec.stringOr(json['name'], ''),
+          middleName: JsonCodec.string(json['middleName']),
           userId: JsonCodec.string(json['userId']),
           relationship: JsonCodec.string(json['relationship']),
           email: JsonCodec.string(json['email']),

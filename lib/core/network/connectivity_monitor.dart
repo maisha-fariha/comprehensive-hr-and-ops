@@ -82,6 +82,7 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
   /// A real API response arrived: the server is reachable.
   void reportReachable() {
     if (!_hasInterface) return;
+    AppErrorDialog.releaseTransient();
     _setOnline(true);
   }
 
@@ -152,6 +153,7 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
     final wasOffline = !isOnline.value;
     isOnline.value = next;
     if (next) {
+      AppErrorDialog.releaseTransient();
       _offlineProbeTimer?.cancel();
       _offlineProbeTimer = null;
       if (wasOffline) unawaited(_flushQueue(ignoreBackoff: true));

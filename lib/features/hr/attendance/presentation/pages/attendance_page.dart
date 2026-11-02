@@ -82,11 +82,6 @@ class AttendancePage extends StatelessWidget {
                     if (controller.mainTab.value ==
                         AttendanceMainTab.timeOff) ...[
                       _gap(context, 14),
-                      AttendanceWeekButton(
-                        label: controller.week.value.label,
-                        onTap: () => _pickWeek(context, controller),
-                      ),
-                      _gap(context, 12),
                       TimeOffSection(
                         controller: controller,
                         managerMode: controller.canManage,

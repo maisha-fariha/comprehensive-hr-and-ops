@@ -49,6 +49,8 @@ abstract final class SchedulingMapper {
           requiredCount == null || requiredCount == 0 ? '' : '$requiredCount'
       ..title = JsonCodec.string(json['title']) ?? ''
       ..notes = JsonCodec.string(json['notes']) ?? ''
+      ..oneToOneClientId = JsonCodec.string(json['oneToOneClientId'])
+      ..oneToOneClientName = JsonCodec.string(json['oneToOneClientName'])
       ..isOpenShift = json['status'] == 'open' || bidding != null
       ..noteToBidders =
           (bidding == null ? null : JsonCodec.string(bidding['noteToBidders'])) ??
@@ -79,6 +81,31 @@ abstract final class SchedulingMapper {
       );
     }
     return draft;
+  }
+
+  /// Parse `GET /clients` into the one-to-one picker. Names are
+  /// `firstName` + `lastName` when `fullName` is empty.
+  static List<ShiftClientOption> clientsFrom(dynamic body) {
+    final options = <ShiftClientOption>[];
+    for (final row in JsonCodec.unwrapList(body).whereType<Map>()) {
+      final id = JsonCodec.string(row['id']);
+      if (id == null) continue;
+      final full = JsonCodec.string(row['fullName']) ??
+          JsonCodec.string(row['name']);
+      final joined = [row['firstName'], row['lastName']]
+          .whereType<String>()
+          .map((part) => part.trim())
+          .where((part) => part.isNotEmpty)
+          .join(' ');
+      final name = (full != null && full.trim().isNotEmpty)
+          ? full.trim()
+          : joined;
+      options.add(ShiftClientOption(
+        id: id,
+        name: name.isEmpty ? 'Unnamed' : name,
+      ));
+    }
+    return options;
   }
 
   /// Parse `GET /staff` into Create Shift assign-staff options.

@@ -69,6 +69,10 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   Future<Result<int>> getDefaultBreakMinutes() async => Result.success(30);
 
   @override
+  Future<Result<List<ShiftClientOption>>> getClients(String residenceId) async =>
+      Result.success(const []);
+
+  @override
   Future<Result<List<ShiftStaffOption>>> getStaffOptions() async =>
       Result.success(const [
         ShiftStaffOption(
@@ -209,19 +213,15 @@ Future<void> _pumpWizard(WidgetTester tester, {String? residenceId}) async {
 Finder _label(String text) => find.textContaining(text, findRichText: true);
 
 Finder _tab(String label) {
-  // Staff step was renamed to include Open Shift after the web merge.
-  final resolved = label == 'Staff Assignment'
-      ? 'Staff Assignment & Open Shift'
-      : label;
+  final resolved = switch (label) {
+    'Staff Assignment' || 'Open Shift' => 'Staffing',
+    _ => label,
+  };
   return find.descendant(
     of: find.byType(CreateShiftStepTabs),
     matching: find.text(resolved),
   );
 }
-Finder _tab(String label) => find.descendant(
-      of: find.byType(CreateShiftStepTabs),
-      matching: find.textContaining(label),
-    );
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
@@ -274,6 +274,7 @@ void main() {
       'Start Time',
       'End Time',
       'Break Duration',
+      'One-to-one with',
       'Title',
       'Shift Notes',
     ]) {
@@ -300,7 +301,7 @@ void main() {
       (tester) async {
     await _pumpWizard(tester);
 
-    expect(find.text('STEP 0 OF 5'), findsOneWidget);
+    expect(find.text('STEP 0 OF 4'), findsOneWidget);
     expect(find.text('0% complete'), findsOneWidget);
 
     await _tap(tester, _tab('Recurring'));
@@ -309,8 +310,8 @@ void main() {
 
     await _tap(tester, _tab('Shift Information'));
     await _pickResidence(tester, 'Elm House');
-    expect(find.text('STEP 1 OF 5'), findsOneWidget);
-    expect(find.text('20% complete'), findsOneWidget);
+    expect(find.text('STEP 1 OF 4'), findsOneWidget);
+    expect(find.text('25% complete'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('create-shift-step-done-shiftInformation')),
       findsOneWidget,
@@ -318,8 +319,8 @@ void main() {
 
     await _tap(tester, _tab('Staff Assignment'));
     await _addStaff(tester, 'Shakib Hasan');
-    expect(find.text('STEP 2 OF 5'), findsOneWidget);
-    expect(find.text('40% complete'), findsOneWidget);
+    expect(find.text('STEP 2 OF 4'), findsOneWidget);
+    expect(find.text('50% complete'), findsOneWidget);
   });
 
   testWidgets('BUG06: Next validates step 1 and Back returns', (tester) async {
@@ -348,7 +349,7 @@ void main() {
     expect(find.text('Assigned Staff (0)'), findsOneWidget);
     expect(
       find.text(
-        'No staff assigned yet. Select above to add someone, or leave this shift open in the next step.',
+        'No staff assigned yet. Select above to add someone, or choose Publish as Open Shift above to let staff bid.',
       ),
       findsOneWidget,
     );
@@ -399,7 +400,7 @@ void main() {
 
     await _tap(tester, _tab('Open Shift'));
     expect(_label('People needed'), findsNothing);
-    await _tap(tester, find.byKey(const ValueKey('create-shift-open-toggle')));
+    await _tap(tester, find.byKey(const ValueKey('create-shift-method-open')));
     for (final field in const [
       'People needed',
       'Bidding Deadline',
@@ -509,7 +510,7 @@ void main() {
       'Morning medication round',
     );
     await _tap(tester, _tab('Open Shift'));
-    await _tap(tester, find.byKey(const ValueKey('create-shift-open-toggle')));
+    await _tap(tester, find.byKey(const ValueKey('create-shift-method-open')));
     await tester.enterText(
       find.byKey(const ValueKey('create-shift-people-needed')),
       '2',
@@ -532,11 +533,13 @@ void main() {
     final body = _repo.created.single;
     expect(body, {
       'residenceId': 'elm',
+      'oneToOneClientId': null,
       'startsAt': DateTime(2026, 10, 5, 7).toUtc().toIso8601String(),
       'endsAt': DateTime(2026, 10, 5, 15).toUtc().toIso8601String(),
-      'staffIds': ['staff-shakib'],
+      'staffIds': <String>[],
       'shiftType': 'morning',
       'breakMinutes': 30,
+      'open': true,
       'requiredStaffCount': 2,
       'reminderMinutesBefore': 60,
       'notifyAssignedStaff': true,

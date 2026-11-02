@@ -105,9 +105,9 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
       TimeOffStatusTab.rejected => 'rejected',
       TimeOffStatusTab.all => null,
     };
+    // Web lists every request for the status tab. A week filter hid pending
+    // leave from earlier weeks, so Approve and Reject never appeared.
     final result = await _repository.getTimeOffRequests(
-      from: week.value.from,
-      to: week.value.to,
       status: status,
       residenceId: residenceId.value,
       mine: !canManage,

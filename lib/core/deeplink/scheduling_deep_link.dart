@@ -47,14 +47,24 @@ class SchedulingDeepLink {
     final path = uri.path;
     if (!path.startsWith('/dashboard/scheduling')) return null;
 
-    final shiftId = (uri.queryParameters['shiftId'] ?? '').trim();
+    var shiftId = (uri.queryParameters['shiftId'] ?? '').trim();
+    if (shiftId.isEmpty) {
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+      // /dashboard/scheduling/<id>
+      if (segments.length >= 3 && segments[1] == 'scheduling') {
+        shiftId = segments[2];
+      }
+    }
     if (shiftId.isEmpty) return null;
 
     String? tenant;
     if (host != appLinkHostSuffix) {
       tenant = host.substring(0, host.length - appLinkHostSuffix.length - 1);
-      if (tenant.isEmpty || tenant.contains('.')) {
-        // e.g. www.encoderittest.store — treat as no tenant.
+      // www is not a workspace. app-hr is the public login host.
+      if (tenant.isEmpty ||
+          tenant.contains('.') ||
+          tenant == 'www' ||
+          tenant == 'app-hr') {
         tenant = null;
       }
     }
