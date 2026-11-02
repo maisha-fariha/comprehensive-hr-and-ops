@@ -561,9 +561,15 @@ class FinanceRepositoryImpl implements FinanceRepository {
   }
 
   @override
-  Future<Result<List<FinancePersonOption>>> clientOptions() async {
+  Future<Result<List<FinancePersonOption>>> clientOptions({
+    String? residenceId,
+  }) async {
+    final q = StringBuffer('?page=1&limit=200');
+    if (residenceId != null && residenceId.isNotEmpty) {
+      q.write('&residenceId=$residenceId');
+    }
     final result = await _api.get(
-      '${FinanceEndpoints.clients}?page=1&limit=100',
+      '${FinanceEndpoints.clients}$q',
       silent: true,
     );
     return result.when(

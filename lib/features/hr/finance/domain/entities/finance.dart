@@ -172,6 +172,8 @@ class ResidencePnL {
   final String residenceId;
   final String residenceName;
   final double revenueTotal;
+  final double accruedFees;
+  final double ledgerRevenue;
   final double expenseTotal;
   final double payrollExpense;
   final double inventoryExpense;
@@ -182,6 +184,7 @@ class ResidencePnL {
   final int occupiedBedNights;
   final int residents;
   final double? averageResidents;
+  final double? costPerDay;
   final double? costPerBedNight;
   final double? costPerResident;
   final String? revenueDetail;
@@ -190,6 +193,8 @@ class ResidencePnL {
     required this.residenceId,
     required this.residenceName,
     required this.revenueTotal,
+    required this.accruedFees,
+    required this.ledgerRevenue,
     required this.expenseTotal,
     required this.payrollExpense,
     required this.inventoryExpense,
@@ -200,6 +205,7 @@ class ResidencePnL {
     required this.residents,
     this.margin,
     this.averageResidents,
+    this.costPerDay,
     this.costPerBedNight,
     this.costPerResident,
     this.revenueDetail,
@@ -301,6 +307,7 @@ class FinancePersonOption {
   final String id;
   final String name;
   final String? paymentDuration;
+  final String? residenceId;
   final bool mileageEnabled;
   final bool outOfPocketEnabled;
 
@@ -308,6 +315,7 @@ class FinancePersonOption {
     required this.id,
     required this.name,
     this.paymentDuration,
+    this.residenceId,
     this.mileageEnabled = false,
     this.outOfPocketEnabled = false,
   });
@@ -386,22 +394,48 @@ class ClientCostSummary {
   final String clientName;
   final String? residenceName;
   final int nights;
+  final double directSupplies;
+  final double oneToOneCare;
+  final double overheadShare;
   final double costTotal;
+  final double? dailyRate;
+  final double accruedFees;
   final double revenueTotal;
   final double variance;
-  final double overheadShare;
+  final bool fundingKnown;
+  final bool? costExceedsFunding;
+  final String? billToName;
   final String? fundingSource;
+  final String? beneficiary;
+  final int dosesGiven;
+  final int unpricedDoses;
+  final double oneToOneHours;
+  final double unpricedOneToOneHours;
+  final List<String> overheadResidenceNames;
 
   const ClientCostSummary({
     required this.clientId,
     required this.clientName,
     required this.nights,
+    required this.directSupplies,
+    required this.oneToOneCare,
+    required this.overheadShare,
     required this.costTotal,
+    required this.accruedFees,
     required this.revenueTotal,
     required this.variance,
-    required this.overheadShare,
+    required this.fundingKnown,
+    required this.dosesGiven,
+    required this.unpricedDoses,
+    required this.oneToOneHours,
+    required this.unpricedOneToOneHours,
     this.residenceName,
+    this.dailyRate,
+    this.costExceedsFunding,
+    this.billToName,
     this.fundingSource,
+    this.beneficiary,
+    this.overheadResidenceNames = const [],
   });
 }
 

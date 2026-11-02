@@ -1,8 +1,13 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/storage/media_store_download.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../data/mappers/finance_mapper.dart';
 import '../../domain/entities/finance.dart';
@@ -21,6 +26,7 @@ class FinancePnlView extends StatelessWidget {
       final loading = controller.isLoading.value;
       final residences = controller.residenceOptions.toList();
       final entries = controller.ledgerEntries.toList();
+      final canExport = report != null && report.residences.isNotEmpty;
       return RefreshIndicator(
         color: AppColors.secondaryTeal,
         onRefresh: () => controller.setPnlRange(
@@ -40,23 +46,23 @@ class FinancePnlView extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: TextEditingController(text: controller.pnlFrom.value),
-                    decoration: const InputDecoration(labelText: 'From'),
-                    onSubmitted: (v) => controller.setPnlRange(
-                      from: v.trim(),
+                  child: _DateField(
+                    label: 'From',
+                    value: controller.pnlFrom.value,
+                    onPicked: (ymd) => controller.setPnlRange(
+                      from: ymd,
                       to: controller.pnlTo.value,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: TextField(
-                    controller: TextEditingController(text: controller.pnlTo.value),
-                    decoration: const InputDecoration(labelText: 'To'),
-                    onSubmitted: (v) => controller.setPnlRange(
+                  child: _DateField(
+                    label: 'To',
+                    value: controller.pnlTo.value,
+                    onPicked: (ymd) => controller.setPnlRange(
                       from: controller.pnlFrom.value,
-                      to: v.trim(),
+                      to: ymd,
                     ),
                   ),
                 ),
@@ -116,19 +122,14 @@ class FinancePnlView extends StatelessWidget {
                 HandoverButton(
                   label: 'Export CSV',
                   compact: true,
-                  onPressed: () async {
-                    final csv = controller.pnlCsv();
-                    if (csv.isEmpty) {
-                      AppSnackbar.show('Nothing to export', '', force: true);
-                      return;
-                    }
-                    await copyFinanceText(csv, ok: 'P&L CSV copied');
-                  },
+                  icon: Icons.download_rounded,
+                  onPressed: canExport ? () => _exportCsv(context) : null,
                 ),
                 HandoverButton(
                   label: 'Client Cost Analysis',
                   compact: true,
-                  onPressed: () => _clientCost(context),
+                  icon: Icons.person_outline_rounded,
+                  onPressed: () => _openClientCost(context),
                 ),
               ],
             ),
@@ -143,7 +144,8 @@ class FinancePnlView extends StatelessWidget {
                   FinanceStatCard(
                     label: 'REVENUE',
                     value: FinanceLabels.money(report.revenueTotal),
-                    note: '${FinanceLabels.money(report.revenueTotal)} from day rates',
+                    note:
+                        '${FinanceLabels.money(report.revenueTotal)} from day rates',
                   ),
                   FinanceStatCard(
                     label: 'COSTS',
@@ -290,49 +292,43 @@ class FinancePnlView extends StatelessWidget {
     });
   }
 
-  Future<void> _clientCost(BuildContext context) async {
-    final clients = controller.clientOptions.toList();
-    if (clients.isEmpty) {
-      AppSnackbar.show('No residents on the books', '', force: true);
+  Future<void> _exportCsv(BuildContext context) async {
+    final csv = controller.pnlCsv();
+    if (csv.isEmpty) {
+      AppSnackbar.show('Nothing to export', '', force: true);
       return;
     }
-    final picked = await showFinancePicker<FinancePersonOption>(
-      context: context,
-      title: 'Resident',
-      options: clients,
-      labelOf: (c) => c.name,
+    final bytes = Uint8List.fromList(utf8.encode(csv));
+    final saved = await MediaStoreDownload.saveFileAndOpen(
+      fileName: controller.pnlExportFileName(),
+      bytes: bytes,
+      mimeType: 'text/csv',
+      chooserTitle: 'Open P&L export',
     );
-    if (picked == null || !context.mounted) return;
-    final result = await controller.loadClientCost(picked.id);
     if (!context.mounted) return;
-    if (result.error != null) {
-      AppSnackbar.show(result.error!, '', force: true);
-      return;
+    if (saved.success) {
+      AppSnackbar.show(
+        saved.locationLabel == null
+            ? 'P&L CSV exported'
+            : 'P&L CSV saved to ${saved.locationLabel}',
+        '',
+        force: true,
+      );
+    } else {
+      AppSnackbar.show(
+        saved.error ?? 'Could not save the export.',
+        '',
+        force: true,
+      );
     }
-    final c = result.value!;
-    await showDialog<void>(
+  }
+
+  Future<void> _openClientCost(BuildContext context) async {
+    await showAppBottomSheet<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Client Cost Analysis'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(c.clientName, style: handoverText(ctx, 15, weight: FontWeight.w700)),
-            Text(c.residenceName ?? '', style: handoverText(ctx, 12.5, color: AppColors.textMuted)),
-            const SizedBox(height: 10),
-            Text('Nights ${c.nights}'),
-            Text('Cost ${FinanceLabels.money(c.costTotal)}'),
-            Text('Revenue ${FinanceLabels.money(c.revenueTotal)}'),
-            Text('Variance ${FinanceLabels.money(c.variance)}'),
-            Text('Overhead share ${FinanceLabels.money(c.overheadShare)}'),
-            if (c.fundingSource != null) Text('Funding ${c.fundingSource}'),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-        ],
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ClientCostSheet(controller: controller),
     );
   }
 
@@ -362,7 +358,7 @@ class FinancePnlView extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
-                      value: entryType,
+                      initialValue: entryType,
                       decoration: const InputDecoration(labelText: 'Type'),
                       items: const [
                         DropdownMenuItem(value: 'expense', child: Text('Expense')),
@@ -378,7 +374,8 @@ class FinancePnlView extends StatelessWidget {
                       }),
                     ),
                     DropdownButtonFormField<String>(
-                      value: cats.any((c) => c.$1 == category) ? category : cats.first.$1,
+                      initialValue:
+                          cats.any((c) => c.$1 == category) ? category : cats.first.$1,
                       decoration: const InputDecoration(labelText: 'Category'),
                       items: [
                         for (final c in cats)
@@ -387,7 +384,7 @@ class FinancePnlView extends StatelessWidget {
                       onChanged: (v) => setState(() => category = v ?? category),
                     ),
                     DropdownButtonFormField<String>(
-                      value: residenceId,
+                      initialValue: residenceId,
                       decoration: const InputDecoration(labelText: 'Residence'),
                       items: [
                         for (final r in controller.residenceOptions)
@@ -454,5 +451,423 @@ class FinancePnlView extends StatelessWidget {
     if (ok == true && context.mounted) {
       AppSnackbar.show('Entry saved', '', force: true);
     }
+  }
+}
+
+class _DateField extends StatelessWidget {
+  final String label;
+  final String value;
+  final ValueChanged<String> onPicked;
+
+  const _DateField({
+    required this.label,
+    required this.value,
+    required this.onPicked,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () async {
+        final parts = value.split('-');
+        var initial = DateTime.now();
+        if (parts.length == 3) {
+          initial = DateTime(
+            int.tryParse(parts[0]) ?? initial.year,
+            int.tryParse(parts[1]) ?? initial.month,
+            int.tryParse(parts[2]) ?? initial.day,
+          );
+        }
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: initial,
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2035),
+        );
+        if (picked != null) onPicked(FinanceLabels.ymd(picked));
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+        ),
+        child: Text(value, style: handoverText(context, 13.5)),
+      ),
+    );
+  }
+}
+
+class _ClientCostSheet extends StatefulWidget {
+  final FinanceController controller;
+
+  const _ClientCostSheet({required this.controller});
+
+  @override
+  State<_ClientCostSheet> createState() => _ClientCostSheetState();
+}
+
+class _ClientCostSheetState extends State<_ClientCostSheet> {
+  List<FinancePersonOption> _clients = const [];
+  FinancePersonOption? _selected;
+  ClientCostSummary? _summary;
+  String? _error;
+  var _loadingClients = true;
+  var _loadingCost = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    final clients = await widget.controller.clientsForCostAnalysis();
+    if (!mounted) return;
+    setState(() {
+      _clients = clients;
+      _loadingClients = false;
+    });
+  }
+
+  Future<void> _pickResident() async {
+    if (_clients.isEmpty) return;
+    final picked = await showFinancePicker<FinancePersonOption>(
+      context: context,
+      title: 'Resident',
+      options: _clients,
+      labelOf: (c) => c.name,
+      selected: _selected,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _selected = picked;
+      _summary = null;
+      _error = null;
+      _loadingCost = true;
+    });
+    final result = await widget.controller.loadClientCost(picked.id);
+    if (!mounted) return;
+    setState(() {
+      _loadingCost = false;
+      if (result.error != null) {
+        _error = result.error;
+        _summary = null;
+      } else {
+        _summary = result.value;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.cardBorder,
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: AppColors.secondaryTeal,
+                  child: Icon(Icons.person, color: Colors.white),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Client Cost Analysis',
+                        style: handoverText(context, 16, weight: FontWeight.w700),
+                      ),
+                      Text(
+                        "One resident's cost of care against their funding, for this period.",
+                        style: handoverText(context, 12, color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+              children: [
+                Text(
+                  'Period ${widget.controller.pnlFrom.value} → ${widget.controller.pnlTo.value}',
+                  style: handoverText(context, 12, color: AppColors.textMuted),
+                ),
+                const SizedBox(height: 10),
+                Text('Resident', style: handoverText(context, 12.5, color: AppColors.textMuted)),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: _loadingClients ? null : _pickResident,
+                  borderRadius: BorderRadius.circular(10),
+                  child: FinanceCard(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _loadingClients
+                                ? 'Loading residents…'
+                                : (_selected?.name ?? 'Choose a resident'),
+                            style: handoverText(
+                              context,
+                              14,
+                              weight: FontWeight.w600,
+                              color: _selected == null
+                                  ? AppColors.textMuted
+                                  : AppColors.textHeading,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.expand_more),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (_selected == null)
+                  Text(
+                    widget.controller.canReadFinance
+                        ? 'Choose a resident to see their cost of care.'
+                        : "You don't have permission to view finance figures.",
+                    textAlign: TextAlign.center,
+                    style: handoverText(context, 13, color: AppColors.textMuted),
+                  )
+                else if (_loadingCost)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (_error != null)
+                  FinanceCard(
+                    child: Column(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: AppColors.textMuted),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Couldn't load this resident's cost",
+                          style: handoverText(context, 13.5, weight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: handoverText(context, 12.5, color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (_summary != null)
+                  _ClientCostResult(summary: _summary!),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClientCostResult extends StatelessWidget {
+  final ClientCostSummary summary;
+
+  const _ClientCostResult({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final overheadLabel = summary.overheadResidenceNames.length > 1
+        ? 'Share of home overhead (${summary.overheadResidenceNames.join(', ')})'
+        : 'Share of home overhead';
+    final notes = <String>[
+      if (summary.unpricedDoses > 0)
+        '${summary.unpricedDoses} of ${summary.dosesGiven} doses given are of medicines with no cost per dose, so they aren\'t in direct supplies.',
+      if (summary.unpricedOneToOneHours > 0)
+        '${summary.unpricedOneToOneHours} one-to-one hours were worked by salaried staff or staff with no rate on file; their pay stays in the home\'s overhead.',
+    ];
+    final billBits = [
+      if (summary.billToName != null) summary.billToName!,
+      if (summary.fundingSource != null) summary.fundingSource!,
+      if (summary.beneficiary != null) 'for ${summary.beneficiary}',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          summary.clientName,
+          style: handoverText(context, 15, weight: FontWeight.w700),
+        ),
+        if (summary.residenceName != null)
+          Text(
+            summary.residenceName!,
+            style: handoverText(context, 12.5, color: AppColors.textMuted),
+          ),
+        const SizedBox(height: 12),
+        FinanceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Cost of care · ${summary.nights} night${summary.nights == 1 ? '' : 's'}',
+                style: handoverText(context, 11.5, color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 8),
+              _row(
+                context,
+                'Direct supplies (${summary.dosesGiven} dose${summary.dosesGiven == 1 ? '' : 's'} given)',
+                FinanceLabels.money(summary.directSupplies),
+              ),
+              _row(
+                context,
+                '1:1 care (${summary.oneToOneHours} h)',
+                FinanceLabels.money(summary.oneToOneCare),
+              ),
+              _row(context, overheadLabel, FinanceLabels.money(summary.overheadShare)),
+              _row(
+                context,
+                'Total cost',
+                FinanceLabels.money(summary.costTotal),
+                bold: true,
+              ),
+              if (notes.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                for (final note in notes)
+                  Text(note, style: handoverText(context, 12, color: AppColors.textMuted)),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        FinanceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Funding received',
+                style: handoverText(context, 11.5, color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 8),
+              _row(
+                context,
+                'Day rate',
+                summary.dailyRate == null
+                    ? 'Not set'
+                    : FinanceLabels.money(summary.dailyRate),
+              ),
+              _row(
+                context,
+                'Accrued day-rate fees',
+                FinanceLabels.money(summary.accruedFees),
+              ),
+              if (billBits.isNotEmpty)
+                _row(context, 'Bill to', billBits.join(' · ')),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (summary.fundingKnown)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: (summary.costExceedsFunding == true
+                      ? AppColors.criticalRed
+                      : AppColors.secondaryTeal)
+                  .withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    summary.costExceedsFunding == true
+                        ? 'Shortfall — costing more than funding covers'
+                        : 'Surplus — within funding',
+                    style: handoverText(
+                      context,
+                      13,
+                      weight: FontWeight.w600,
+                      color: summary.costExceedsFunding == true
+                          ? AppColors.criticalRed
+                          : AppColors.secondaryTeal,
+                    ),
+                  ),
+                ),
+                Text(
+                  FinanceLabels.money(summary.variance.abs()),
+                  style: handoverText(
+                    context,
+                    14,
+                    weight: FontWeight.w700,
+                    color: summary.costExceedsFunding == true
+                        ? AppColors.criticalRed
+                        : AppColors.secondaryTeal,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          FinanceCard(
+            child: Text(
+              "No day rate is recorded for this resident, so their cost can't be compared with their funding. Set one on the resident's profile.",
+              style: handoverText(context, 12.5, color: AppColors.textMuted),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _row(
+    BuildContext context,
+    String label,
+    String value, {
+    bool bold = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(label, style: handoverText(context, 12.5, color: AppColors.textMuted)),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: handoverText(
+              context,
+              13,
+              weight: bold ? FontWeight.w700 : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

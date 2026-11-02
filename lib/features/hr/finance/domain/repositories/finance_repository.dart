@@ -132,7 +132,9 @@ abstract class FinanceRepository {
 
   Future<Result<List<FinancePersonOption>>> residenceOptions();
 
-  Future<Result<List<FinancePersonOption>>> clientOptions();
+  Future<Result<List<FinancePersonOption>>> clientOptions({
+    String? residenceId,
+  });
 
   Future<Result<FinanceExportJob>> exportPayrollEntries();
 

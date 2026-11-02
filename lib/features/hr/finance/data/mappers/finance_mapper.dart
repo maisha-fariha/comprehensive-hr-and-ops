@@ -261,6 +261,9 @@ abstract final class FinanceMapper {
       revenueDetail =
           '${FinanceLabels.money(revenue['accruedFees'])} from day rates';
     }
+    final other = (JsonCodec.number(expenses['other'])?.toDouble() ?? 0) +
+        (JsonCodec.number(expenses['manualPayroll'])?.toDouble() ?? 0) +
+        (JsonCodec.number(expenses['manualInventory'])?.toDouble() ?? 0);
     return ResidencePnL(
       residenceId: id,
       residenceName: JsonCodec.stringOr(
@@ -268,10 +271,12 @@ abstract final class FinanceMapper {
         'Residence',
       ),
       revenueTotal: JsonCodec.number(revenue['total'])?.toDouble() ?? 0,
+      accruedFees: JsonCodec.number(revenue['accruedFees'])?.toDouble() ?? 0,
+      ledgerRevenue: JsonCodec.number(revenue['ledger'])?.toDouble() ?? 0,
       expenseTotal: JsonCodec.number(expenses['total'])?.toDouble() ?? 0,
       payrollExpense: JsonCodec.number(expenses['payroll'])?.toDouble() ?? 0,
       inventoryExpense: JsonCodec.number(expenses['inventory'])?.toDouble() ?? 0,
-      otherExpense: JsonCodec.number(expenses['other'])?.toDouble() ?? 0,
+      otherExpense: other,
       netProfit: JsonCodec.number(json['netProfit'])?.toDouble() ?? 0,
       margin: JsonCodec.number(json['margin'])?.toDouble(),
       occupancyPercent:
@@ -281,6 +286,7 @@ abstract final class FinanceMapper {
       residents: JsonCodec.integer(occupancy['residents']) ?? 0,
       averageResidents:
           JsonCodec.number(unitCosts['averageResidents'])?.toDouble(),
+      costPerDay: JsonCodec.number(unitCosts['perDay'])?.toDouble(),
       costPerBedNight:
           JsonCodec.number(unitCosts['perOccupiedBedDay'])?.toDouble(),
       costPerResident: JsonCodec.number(unitCosts['perResident'])?.toDouble(),
@@ -418,12 +424,14 @@ abstract final class FinanceMapper {
       final first = JsonCodec.stringOr(json['firstName'], '');
       final last = JsonCodec.stringOr(json['lastName'], '');
       final name = '$first $last'.trim();
+      final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
       out.add(
         FinancePersonOption(
           id: id,
           name: name.isEmpty
               ? JsonCodec.stringOr(json['preferredName'], 'Resident')
               : name,
+          residenceId: JsonCodec.string(json['residenceId'] ?? residence['id']),
         ),
       );
     }
@@ -437,16 +445,39 @@ abstract final class FinanceMapper {
     final cost = JsonCodec.mapAt(json, 'cost') ?? const {};
     final revenue = JsonCodec.mapAt(json, 'revenue') ?? const {};
     final billTo = JsonCodec.mapAt(json, 'billTo') ?? const {};
+    final detail = JsonCodec.mapAt(json, 'detail') ?? const {};
+    final overheadNames = <String>[];
+    for (final row in JsonCodec.listAt(detail, 'overhead')) {
+      final o = JsonCodec.asMap(row);
+      final nights = JsonCodec.number(o['nights'])?.toDouble() ?? 0;
+      final name = JsonCodec.string(o['residenceName']);
+      if (nights > 0 && name != null) overheadNames.add(name);
+    }
     return ClientCostSummary(
       clientId: id,
       clientName: JsonCodec.stringOr(json['clientName'], 'Resident'),
       residenceName: JsonCodec.string(json['residenceName']),
       nights: JsonCodec.integer(json['nights']) ?? 0,
+      directSupplies: JsonCodec.number(cost['directSupplies'])?.toDouble() ?? 0,
+      oneToOneCare: JsonCodec.number(cost['oneToOneCare'])?.toDouble() ?? 0,
+      overheadShare: JsonCodec.number(cost['overheadShare'])?.toDouble() ?? 0,
       costTotal: JsonCodec.number(cost['total'])?.toDouble() ?? 0,
+      dailyRate: JsonCodec.number(revenue['dailyRate'])?.toDouble(),
+      accruedFees: JsonCodec.number(revenue['accruedFees'])?.toDouble() ?? 0,
       revenueTotal: JsonCodec.number(revenue['total'])?.toDouble() ?? 0,
       variance: JsonCodec.number(json['variance'])?.toDouble() ?? 0,
-      overheadShare: JsonCodec.number(cost['overheadShare'])?.toDouble() ?? 0,
+      fundingKnown: JsonCodec.boolean(json['fundingKnown']) ?? false,
+      costExceedsFunding: JsonCodec.boolean(json['costExceedsFunding']),
+      billToName: JsonCodec.string(billTo['name']),
       fundingSource: JsonCodec.string(billTo['fundingSource']),
+      beneficiary: JsonCodec.string(billTo['beneficiary']),
+      dosesGiven: JsonCodec.integer(detail['dosesGiven']) ?? 0,
+      unpricedDoses: JsonCodec.integer(detail['unpricedDoses']) ?? 0,
+      oneToOneHours:
+          JsonCodec.number(detail['oneToOneHours'])?.toDouble() ?? 0,
+      unpricedOneToOneHours:
+          JsonCodec.number(detail['unpricedOneToOneHours'])?.toDouble() ?? 0,
+      overheadResidenceNames: overheadNames,
     );
   }
 
