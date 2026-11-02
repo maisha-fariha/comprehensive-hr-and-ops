@@ -1,5 +1,6 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../entities/incident_ai_draft.dart';
 import '../entities/incident_category_option.dart';
 import '../entities/incident_cir_template_option.dart';
 import '../entities/incident_client_option.dart';
@@ -128,4 +129,17 @@ abstract class IncidentsRepository {
   /// When status/download is forbidden (role has `incidents:export` but not
   /// `reports:read`), falls back to CSV built from `GET /incidents`.
   Future<Result<List<int>>> exportIncidentListCsv();
+
+  /// Whether AI drafting is enabled for this tenant (`GET /ai`).
+  Future<Result<bool>> isAiDraftingEnabled();
+
+  /// Web "Draft from my notes" (`POST /ai/incidents/draft`).
+  Future<Result<IncidentAiDraft>> draftIncidentFromNotes({
+    required String notes,
+    String? residenceId,
+    String? clientId,
+    String? categoryId,
+    List<String>? detectedDuringOptions,
+    List<String>? notificationParties,
+  });
 }

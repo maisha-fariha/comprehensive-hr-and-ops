@@ -11,6 +11,7 @@ import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/incident_ai_draft.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
 import '../../domain/entities/incident_client_option.dart';
@@ -23,6 +24,7 @@ import '../../domain/repositories/incidents_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/searchable_option_list.dart';
+import '../widgets/draft_from_notes_sheet.dart';
 
 /// GetX controller for the 5-step "Create Incident" wizard (web parity).
 class IncidentCreationController extends GetxController {
@@ -130,6 +132,9 @@ class IncidentCreationController extends GetxController {
   final Rx<IncidentSeverity> severity = IncidentSeverity.high.obs;
   final RxInt formRevision = 0.obs;
   final RxnString detectedDuring = RxnString();
+
+  /// Web `useAiDrafting()` — button only when `GET /ai` reports enabled.
+  final RxBool aiDraftingEnabled = false.obs;
 
   static const Duration _clientSearchDebounce = Duration(milliseconds: 350);
   Timer? _clientSearchDebounceTimer;
@@ -393,10 +398,279 @@ class IncidentCreationController extends GetxController {
       loadCirTemplates(),
       loadResidences(),
       loadStaff(),
+      loadAiDraftingStatus(),
     ]);
     if (isEditMode) {
       await loadForEdit(editIncidentId!.trim());
     }
+  }
+
+  Future<void> loadAiDraftingStatus() async {
+    final result = await repository.isAiDraftingEnabled();
+    result.when(
+      success: (enabled) => aiDraftingEnabled.value = enabled,
+      failure: (_) => aiDraftingEnabled.value = false,
+    );
+  }
+
+  /// Opens the web-parity "Draft from my notes" sheet and applies the result.
+  Future<void> openDraftFromNotes(BuildContext context) async {
+    if (!aiDraftingEnabled.value) return;
+    final draft = await showDraftFromNotesSheet(
+      context,
+      repository: repository,
+      initialNotes: descriptionController.text,
+      residenceId: selectedResidenceId.value ?? session.residenceId,
+      clientId: selectedClient.value?.id,
+      categoryId: selectedCategory.value?.id,
+      detectedDuringOptions: detectedDuringOptions,
+      notificationParties: defaultPartyNames,
+    );
+    if (draft == null) return;
+    applyAiDraft(draft);
+    AppSnackbar.show(
+      'Draft applied',
+      'Fields were filled from your notes. Review before continuing.',
+      force: true,
+    );
+  }
+
+  /// Applies `POST /ai/incidents/draft` the same way the web Create Incident
+  /// form does after "Put it in the report".
+  void applyAiDraft(IncidentAiDraft draft) {
+    if (draft.date != null && draft.date!.trim().isNotEmpty) {
+      final parsed = _parseAiDate(draft.date!);
+      if (parsed != null) {
+        incidentDateController.text = _formatIncidentDate(parsed);
+      }
+    }
+    if (draft.time != null && draft.time!.trim().isNotEmpty) {
+      final parsed = _parseIncidentTime(draft.time!);
+      if (parsed != null) {
+        incidentTimeController.text = _formatIncidentTime(parsed);
+      }
+    }
+    if (draft.endTime != null && draft.endTime!.trim().isNotEmpty) {
+      final parsed = _parseIncidentTime(draft.endTime!);
+      if (parsed != null) {
+        endTimeController.text = _formatIncidentTime(parsed);
+      }
+    }
+
+    if (selectedCategory.value == null &&
+        draft.categoryId != null &&
+        draft.categoryId!.isNotEmpty) {
+      IncidentCategoryOption? match;
+      for (final option in categories) {
+        if (option.id == draft.categoryId) {
+          match = option;
+          break;
+        }
+      }
+      if (match != null) {
+        selectedCategory.value = match;
+      }
+    }
+
+    if ((selectedResidenceId.value == null ||
+            selectedResidenceId.value!.isEmpty) &&
+        draft.residenceId != null &&
+        draft.residenceId!.isNotEmpty) {
+      IncidentResidenceOption? match;
+      for (final option in residences) {
+        if (option.id == draft.residenceId) {
+          match = option;
+          break;
+        }
+      }
+      if (match != null) {
+        selectResidence(match);
+      } else {
+        selectedResidenceId.value = draft.residenceId;
+      }
+    }
+
+    if (selectedClient.value == null &&
+        draft.clientId != null &&
+        draft.clientId!.isNotEmpty) {
+      selectedClient.value = IncidentClientOption(
+        id: draft.clientId!,
+        name: 'Client',
+      );
+      clientController.text = 'Client';
+    }
+
+    if ((detectedDuring.value == null || detectedDuring.value!.isEmpty) &&
+        draft.detectedDuring != null &&
+        draft.detectedDuring!.trim().isNotEmpty) {
+      detectedDuring.value = draft.detectedDuring!.trim();
+    }
+
+    if (draft.witnesses.isNotEmpty) {
+      final merged = <String>{
+        ...witnesses,
+        ...draft.witnesses.map((w) => w.trim()).where((w) => w.isNotEmpty),
+      };
+      witnesses.assignAll(merged.toList());
+    }
+
+    final agency = draft.externalAgency;
+    if (agency != null && agency.type.trim().isNotEmpty) {
+      if (externalAgencyType.value == null ||
+          externalAgencyType.value!.isEmpty) {
+        externalAgencyType.value = agency.type.trim();
+      }
+      if (agency.reference != null &&
+          agency.reference!.trim().isNotEmpty &&
+          agencyReferenceController.text.trim().isEmpty) {
+        agencyReferenceController.text = agency.reference!.trim();
+      }
+      if (agency.responder != null &&
+          agency.responder!.trim().isNotEmpty &&
+          agencyResponderController.text.trim().isEmpty) {
+        agencyResponderController.text = agency.responder!.trim();
+      }
+    }
+
+    if (draft.notifications.isNotEmpty) {
+      for (var i = 0; i < partyNotifications.length; i++) {
+        final current = partyNotifications[i];
+        IncidentAiNotification? match;
+        for (final note in draft.notifications) {
+          if (note.party == current.party) {
+            match = note;
+            break;
+          }
+        }
+        if (match == null) continue;
+        partyNotifications[i] = current.copyWith(
+          notified: true,
+          contactName: current.contactName.trim().isNotEmpty
+              ? current.contactName
+              : (match.contactName ?? ''),
+          dateNotified: current.dateNotified.trim().isNotEmpty
+              ? current.dateNotified
+              : (match.date ?? ''),
+        );
+      }
+    }
+
+    incidentTitleController.text = draft.title;
+    descriptionController.text = draft.description;
+    if (draft.immediateAction.trim().isNotEmpty) {
+      immediateActionController.text = draft.immediateAction.trim();
+    }
+
+    if (draft.severity != null && draft.severity!.isNotEmpty) {
+      severity.value = IncidentSeverity.values.firstWhere(
+        (value) => value.name == draft.severity,
+        orElse: () => severity.value,
+      );
+    }
+
+    if (draft.emergencyServicesContacted != null) {
+      emergencyServicesContacted.value = draft.emergencyServicesContacted!;
+    }
+    if (draft.familyNotified != null) {
+      familyGuardianNotified.value = draft.familyNotified!;
+    }
+
+    if ((categoryDetailController.text.trim().isEmpty) &&
+        draft.categoryDetail != null &&
+        draft.categoryDetail!.trim().isNotEmpty) {
+      categoryDetailController.text = draft.categoryDetail!.trim();
+    }
+
+    if (selectedReporter.value == null && draft.reportedBy != null) {
+      final person = draft.reportedBy!;
+      selectedReporter.value = _staffById(person.id) ??
+          IncidentStaffOption(id: person.id, name: person.name);
+      reportedBy.value = selectedReporter.value?.name ?? person.name;
+    }
+
+    if (selectedSupervisor.value == null && draft.supervisor != null) {
+      final person = draft.supervisor!;
+      selectSupervisor(
+        _staffById(person.id) ??
+            IncidentStaffOption(id: person.id, name: person.name),
+      );
+    }
+
+    final child = draft.child;
+    if (child != null) {
+      if (child.idNumber != null &&
+          child.idNumber!.trim().isNotEmpty &&
+          childIdController.text.trim().isEmpty) {
+        childIdController.text = child.idNumber!.trim();
+      }
+      if (child.cfsStatus.isNotEmpty) {
+        cfsStatuses.assignAll({
+          ...cfsStatuses,
+          ...child.cfsStatus
+              .map((s) => s.trim().toUpperCase())
+              .where(cfsStatusOptions.contains),
+        }.toList());
+      }
+      if (child.cipName != null &&
+          child.cipName!.trim().isNotEmpty &&
+          cipController.text.trim().isEmpty) {
+        cipController.text = child.cipName!.trim();
+      }
+      if (child.cipOffice != null &&
+          child.cipOffice!.trim().isNotEmpty &&
+          cipOfficeController.text.trim().isEmpty) {
+        cipOfficeController.text = child.cipOffice!.trim();
+      }
+      if (child.informedOfRights != null) {
+        childInformedOfRights.value = child.informedOfRights!;
+      }
+    }
+
+    if (draft.followUp?.required != null) {
+      followUpRequired.value = draft.followUp!.required!;
+    }
+    if (draft.followUp?.dueDate != null &&
+        draft.followUp!.dueDate!.trim().isNotEmpty &&
+        followUpDateController.text.trim().isEmpty) {
+      followUpRequired.value = true;
+      final parsed = _parseAiDate(draft.followUp!.dueDate!);
+      followUpDateController.text = parsed == null
+          ? draft.followUp!.dueDate!.trim()
+          : _formatIncidentDate(parsed);
+    }
+
+    if (draft.debrief?.completed != null) {
+      debriefCompleted.value = draft.debrief!.completed!;
+    }
+    if (draft.debrief?.details != null &&
+        draft.debrief!.details!.trim().isNotEmpty &&
+        debriefDetailsController.text.trim().isEmpty) {
+      debriefCompleted.value = true;
+      debriefDetailsController.text = draft.debrief!.details!.trim();
+    }
+
+    if (draft.cirAnswers.isNotEmpty) {
+      for (final entry in draft.cirAnswers.entries) {
+        final controller = reportFormAnswerController(entry.key);
+        if (controller.text.trim().isNotEmpty) continue;
+        final value = entry.value;
+        if (value is List) {
+          controller.text = value.map((e) => e.toString()).join(', ');
+        } else if (value != null) {
+          controller.text = value.toString();
+        }
+      }
+    }
+
+    _bumpForm();
+  }
+
+  DateTime? _parseAiDate(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final iso = DateTime.tryParse(text);
+    if (iso != null) return DateTime(iso.year, iso.month, iso.day);
+    return _parseIncidentDate(text);
   }
 
   // ── Lookups ────────────────────────────────────────────────────────────

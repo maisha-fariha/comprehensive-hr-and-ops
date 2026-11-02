@@ -249,6 +249,9 @@ class _FakeIncidentsRepo implements IncidentsRepository {
   Future<Result<List<IncidentStaffOption>>> getStaff() async => Result.success(const []);
 
   @override
+  Future<Result<bool>> isAiDraftingEnabled() async => Result.success(false);
+
+  @override
   Future<Result<List<IncidentClientOption>>> searchClients(String search) async {
     searches.add(search);
     final q = search.trim().toLowerCase();

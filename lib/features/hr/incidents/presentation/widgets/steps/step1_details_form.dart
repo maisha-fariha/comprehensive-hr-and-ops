@@ -27,7 +27,56 @@ class Step1DetailsForm extends StatelessWidget {
           badgeBackground: Color(0xFFFBEAED),
           badgeForeground: Color(0xFFC45C6A),
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
+        Obx(() {
+          if (!controller.aiDraftingEnabled.value) {
+            return SizedBox(
+              height: ResponsiveHelper.getResponsiveHeight(context, 22),
+            );
+          }
+          return Padding(
+            padding: EdgeInsets.only(
+              top: ResponsiveHelper.getResponsiveHeight(context, 14),
+              bottom: ResponsiveHelper.getResponsiveHeight(context, 18),
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                key: const Key('incident-draft-from-notes'),
+                onPressed: () => controller.openDraftFromNotes(context),
+                icon: Icon(
+                  Icons.auto_awesome,
+                  size: ResponsiveHelper.getResponsiveSize(context, 16),
+                  color: AppColors.primaryNavy,
+                ),
+                label: Text(
+                  'Draft from my notes',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                    color: AppColors.primaryNavy,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryNavy,
+                  backgroundColor: AppColors.surfaceWhite,
+                  side: const BorderSide(color: AppColors.searchBorder),
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      ResponsiveHelper.getResponsiveRadius(context, 12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
         const WizardFieldLabel('Incident Category', required: true),
         Obx(
           () => WizardDropdownField(

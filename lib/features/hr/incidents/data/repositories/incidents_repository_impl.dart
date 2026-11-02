@@ -11,6 +11,7 @@ import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
 import '../../../../../core/offline/offline_file_cache.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/incident_ai_draft.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
 import '../../domain/entities/incident_client_option.dart';
@@ -844,5 +845,61 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
       return map['id']?.toString() ?? map['incidentId']?.toString();
     }
     return null;
+  }
+
+  @override
+  Future<Result<bool>> isAiDraftingEnabled() async {
+    final result = await _api.get(ApiEndpoints.aiStatus, silent: true);
+    return result.when(
+      success: (body) async {
+        final map = JsonCodec.unwrapMap(body);
+        return Result.success(map['enabled'] == true);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<IncidentAiDraft>> draftIncidentFromNotes({
+    required String notes,
+    String? residenceId,
+    String? clientId,
+    String? categoryId,
+    List<String>? detectedDuringOptions,
+    List<String>? notificationParties,
+  }) async {
+    final trimmed = notes.trim();
+    if (trimmed.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Enter your notes before drafting.'),
+      );
+    }
+
+    final body = <String, dynamic>{
+      'notes': trimmed,
+      if (residenceId != null && residenceId.trim().isNotEmpty)
+        'residenceId': residenceId.trim(),
+      if (clientId != null && clientId.trim().isNotEmpty)
+        'clientId': clientId.trim(),
+      if (categoryId != null && categoryId.trim().isNotEmpty)
+        'categoryId': categoryId.trim(),
+      'options': {
+        'detectedDuring':
+            detectedDuringOptions ?? const <String>[],
+        'notificationParties':
+            notificationParties ?? const <String>[],
+      },
+    };
+
+    final result = await _api.post(
+      ApiEndpoints.aiIncidentsDraft,
+      data: body,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (response) async =>
+          Result.success(IncidentsMapper.aiDraftFrom(response)),
+      failure: (error) async => Result.failure(error),
+    );
   }
 }

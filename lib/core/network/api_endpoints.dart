@@ -76,6 +76,10 @@ abstract final class ApiEndpoints {
   static const String incidentsSummary = '/incidents/summary';
   static const String incidentCategories = '/incident-categories';
   static const String incidentCirTemplates = '/incidents/cir-templates';
+  /// Web "Draft from my notes" (`POST /ai/incidents/draft`).
+  static const String aiIncidentsDraft = '/ai/incidents/draft';
+  /// AI drafting availability (`GET /ai`).
+  static const String aiStatus = '/ai';
   static const String uploads = '/uploads';
   static const String tickets = '/tickets';
   static const String notificationPreferences = '/notification-preferences';

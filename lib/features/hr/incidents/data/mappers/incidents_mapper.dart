@@ -1,6 +1,7 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/closed_incident.dart';
+import '../../domain/entities/incident_ai_draft.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
 import '../../domain/entities/incident_client_option.dart';
@@ -822,6 +823,137 @@ abstract final class IncidentsMapper {
         }
         return _Bucket.open;
     }
+  }
+
+  /// Parse `POST /ai/incidents/draft` (web "Draft from my notes").
+  static IncidentAiDraft aiDraftFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final agencyRaw = JsonCodec.mapAt(json, 'externalAgency');
+    final reportedByRaw = JsonCodec.mapAt(json, 'reportedBy');
+    final supervisorRaw = JsonCodec.mapAt(json, 'supervisor');
+    final childRaw = JsonCodec.mapAt(json, 'child');
+    final followUpRaw = JsonCodec.mapAt(json, 'followUp');
+    final debriefRaw = JsonCodec.mapAt(json, 'debrief');
+
+    final witnesses = <String>[];
+    final witnessesRaw = json['witnesses'];
+    if (witnessesRaw is List) {
+      for (final item in witnessesRaw) {
+        final value = JsonCodec.string(item)?.trim() ?? item.toString().trim();
+        if (value.isNotEmpty) witnesses.add(value);
+      }
+    }
+
+    final notifications = <IncidentAiNotification>[];
+    final notificationsRaw = json['notifications'];
+    if (notificationsRaw is List) {
+      for (final item in notificationsRaw) {
+        if (item is! Map) continue;
+        final map = JsonCodec.asMap(item);
+        final party = JsonCodec.string(map['party'])?.trim();
+        if (party == null || party.isEmpty) continue;
+        notifications.add(
+          IncidentAiNotification(
+            party: party,
+            contactName: JsonCodec.string(map['contactName']),
+            date: JsonCodec.string(map['date']),
+          ),
+        );
+      }
+    }
+
+    final missing = <String>[];
+    final missingRaw = json['missing'];
+    if (missingRaw is List) {
+      for (final item in missingRaw) {
+        final value = JsonCodec.string(item)?.trim() ?? item.toString().trim();
+        if (value.isNotEmpty) missing.add(value);
+      }
+    }
+
+    final cirRaw = json['cirAnswers'];
+    final cirAnswers = <String, dynamic>{};
+    if (cirRaw is Map) {
+      cirAnswers.addAll(JsonCodec.asMap(cirRaw));
+    }
+
+    IncidentAiPerson? person(Map<String, dynamic>? raw) {
+      if (raw == null) return null;
+      final id = JsonCodec.string(raw['id'])?.trim();
+      final name = JsonCodec.string(raw['name'])?.trim();
+      if (id == null || id.isEmpty || name == null || name.isEmpty) return null;
+      return IncidentAiPerson(id: id, name: name);
+    }
+
+    return IncidentAiDraft(
+      date: JsonCodec.string(json['date']),
+      time: JsonCodec.string(json['time']),
+      endTime: JsonCodec.string(json['endTime']),
+      categoryId: JsonCodec.string(json['categoryId']),
+      clientId: JsonCodec.string(json['clientId']),
+      residenceId: JsonCodec.string(json['residenceId']),
+      detectedDuring: JsonCodec.string(json['detectedDuring']),
+      witnesses: witnesses,
+      externalAgency: agencyRaw == null
+          ? null
+          : IncidentAiExternalAgency(
+              type: JsonCodec.stringOr(agencyRaw['type'], ''),
+              reference: JsonCodec.string(agencyRaw['reference']),
+              responder: JsonCodec.string(agencyRaw['responder']),
+            ),
+      notifications: notifications,
+      title: JsonCodec.stringOr(json['title'], ''),
+      description: JsonCodec.stringOr(json['description'], ''),
+      immediateAction: JsonCodec.stringOr(json['immediateAction'], ''),
+      severity: JsonCodec.string(json['severity'])?.toLowerCase(),
+      emergencyServicesContacted: json['emergencyServicesContacted'] is bool
+          ? json['emergencyServicesContacted'] as bool
+          : null,
+      familyNotified: json['familyNotified'] is bool
+          ? json['familyNotified'] as bool
+          : null,
+      categoryDetail: JsonCodec.string(json['categoryDetail']),
+      reportedBy: person(reportedByRaw),
+      supervisor: person(supervisorRaw),
+      child: childRaw == null
+          ? null
+          : IncidentAiChild(
+              idNumber: JsonCodec.string(childRaw['idNumber']),
+              cfsStatus: [
+                for (final item in (childRaw['cfsStatus'] is List
+                    ? childRaw['cfsStatus'] as List
+                    : const []))
+                  if ((JsonCodec.string(item) ?? item.toString())
+                      .trim()
+                      .isNotEmpty)
+                    (JsonCodec.string(item) ?? item.toString()).trim(),
+              ],
+              cipName: JsonCodec.string(childRaw['cipName']),
+              cipOffice: JsonCodec.string(childRaw['cipOffice']),
+              informedOfRights: childRaw['informedOfRights'] is bool
+                  ? childRaw['informedOfRights'] as bool
+                  : null,
+            ),
+      followUp: followUpRaw == null
+          ? null
+          : IncidentAiFollowUp(
+              required: followUpRaw['required'] is bool
+                  ? followUpRaw['required'] as bool
+                  : null,
+              dueDate: JsonCodec.string(followUpRaw['dueDate']),
+            ),
+      debrief: debriefRaw == null
+          ? null
+          : IncidentAiDebrief(
+              completed: debriefRaw['completed'] is bool
+                  ? debriefRaw['completed'] as bool
+                  : null,
+              details: JsonCodec.string(debriefRaw['details']),
+            ),
+      missing: missing,
+      cirAnswers: cirAnswers,
+      model: JsonCodec.string(json['model']),
+    );
   }
 
   const IncidentsMapper._();
