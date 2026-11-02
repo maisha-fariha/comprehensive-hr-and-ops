@@ -8,6 +8,9 @@ class InventorySupplier {
   final String? email;
   final String? phone;
   final String? address;
+  /// Printed on purchase orders so the supplier can match them.
+  final String? accountRef;
+  final String? notes;
   final bool isActive;
   final DateTime? deletedAt;
 
@@ -20,6 +23,8 @@ class InventorySupplier {
     this.email,
     this.phone,
     this.address,
+    this.accountRef,
+    this.notes,
     this.isActive = true,
     this.deletedAt,
   });

@@ -310,7 +310,10 @@ class _AddSupplierSheetState extends State<AddSupplierSheet> {
   late final TextEditingController _phone;
   late final TextEditingController _contact;
   late final TextEditingController _address;
+  late final TextEditingController _accountRef;
+  late final TextEditingController _notes;
   late String _category;
+  late String _residenceId;
   String? _error;
   bool _saving = false;
 
@@ -325,7 +328,10 @@ class _AddSupplierSheetState extends State<AddSupplierSheet> {
     _phone = TextEditingController(text: s?.phone ?? '');
     _contact = TextEditingController(text: s?.contactName ?? '');
     _address = TextEditingController(text: s?.address ?? '');
+    _accountRef = TextEditingController(text: s?.accountRef ?? '');
+    _notes = TextEditingController(text: s?.notes ?? '');
     _category = s?.category?.isNotEmpty == true ? s!.category! : 'general';
+    _residenceId = s?.residenceId ?? '';
   }
 
   @override
@@ -335,17 +341,29 @@ class _AddSupplierSheetState extends State<AddSupplierSheet> {
     _phone.dispose();
     _contact.dispose();
     _address.dispose();
+    _accountRef.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
-  Map<String, dynamic> get _body => {
-        'name': _name.text.trim(),
-        'category': _category,
-        'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
-        'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
-        'contactName': _contact.text.trim().isEmpty ? null : _contact.text.trim(),
-        'address': _address.text.trim().isEmpty ? null : _address.text.trim(),
-      };
+  Map<String, dynamic> get _body {
+    final residence = _residenceId.trim();
+    return {
+      'name': _name.text.trim(),
+      'category': _category,
+      'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
+      'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+      'contactName': _contact.text.trim().isEmpty ? null : _contact.text.trim(),
+      'address': _address.text.trim().isEmpty ? null : _address.text.trim(),
+      'accountRef': _accountRef.text.trim().isEmpty ? null : _accountRef.text.trim(),
+      'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      // Web: include residenceId when set; on edit, clear with null.
+      if (residence.isNotEmpty)
+        'residenceId': residence
+      else if (_editing)
+        'residenceId': null,
+    };
+  }
 
   Future<void> _save() async {
     setState(() => _error = null);
@@ -431,6 +449,33 @@ class _AddSupplierSheetState extends State<AddSupplierSheet> {
             key: const ValueKey('supplier-add-address'),
             label: 'Address',
             controller: _address,
+          ),
+          const SizedBox(height: 12),
+          InventoryField(
+            key: const ValueKey('supplier-add-account-ref'),
+            label: 'Our account number with them',
+            controller: _accountRef,
+            helper: 'Printed on purchase orders, so the supplier can match them.',
+          ),
+          const SizedBox(height: 12),
+          InventorySelect(
+            key: const ValueKey('supplier-add-home'),
+            label: 'Home',
+            options: [
+              ('', 'Every home'),
+              for (final r in widget.controller.residences) (r.value, r.label),
+            ],
+            value: _residenceId,
+            placeholder: 'Select the home this supplier serves',
+            helper:
+                'Leave empty for a supplier every home uses — only if you work across every home.',
+            onChanged: (v) => setState(() => _residenceId = v),
+          ),
+          const SizedBox(height: 12),
+          HandoverTextArea(
+            key: const ValueKey('supplier-add-notes'),
+            label: 'Notes',
+            controller: _notes,
           ),
         ],
       );
