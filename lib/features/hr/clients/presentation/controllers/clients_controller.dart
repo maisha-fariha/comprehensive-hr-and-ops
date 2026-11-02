@@ -250,6 +250,9 @@ class ClientsController extends GetxController {
     }
   }
 
+  /// Most recent successful [createClient] result (for opening Care Planning AI).
+  ClientSummary? justCreated;
+
   /// "Create Client" / "Save Draft". Returns an error message, or `null`.
   ///
   /// Once the client exists the wizard is done: a contact or goal that the
@@ -260,6 +263,7 @@ class ClientsController extends GetxController {
     bool draft = false,
     String? idempotencyKey,
   }) async {
+    justCreated = null;
     final ClientSummary client;
     try {
       final photoUrl = await _uploadPhoto(form);
@@ -294,6 +298,7 @@ class ClientsController extends GetxController {
       );
     }
     await loadClients();
+    justCreated = client;
     return null;
   }
 

@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../ai/presentation/widgets/ai_draft_sheet.dart';
+import '../../../ai/presentation/widgets/ai_feature_sheets.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../controllers/scheduling_controller.dart';
 import '../widgets/board_tab_view.dart';
@@ -24,8 +26,15 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart
 /// share the exact same header and segmented tab bar and only swap their
 /// main content area — implemented here as a single page with an internal
 /// segmented-tab state rather than 3 separate pages.
-class SchedulingPage extends StatelessWidget {
+class SchedulingPage extends StatefulWidget {
   const SchedulingPage({super.key});
+
+  @override
+  State<SchedulingPage> createState() => _SchedulingPageState();
+}
+
+class _SchedulingPageState extends State<SchedulingPage> {
+  bool? _aiEnabled;
 
   SchedulingController _resolveController() {
     try {
@@ -33,6 +42,31 @@ class SchedulingPage extends StatelessWidget {
     } catch (_) {
       return Get.put(GetIt.instance<SchedulingController>(), permanent: true);
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    aiDraftingEnabled().then((enabled) {
+      if (mounted) setState(() => _aiEnabled = enabled);
+    });
+  }
+
+  Future<void> _reviewRota(SchedulingController controller) async {
+    await controller.loadResidences();
+    if (!mounted) return;
+    final week = controller.weekOf.value;
+    final from =
+        '${week.year.toString().padLeft(4, '0')}-${week.month.toString().padLeft(2, '0')}-${week.day.toString().padLeft(2, '0')}';
+    await openRotaReviewSheet(
+      context,
+      fromDate: from,
+      initialResidenceId: controller.residenceFilter.value,
+      residences: [
+        for (final r in controller.residences)
+          AiSelectOption(r.id, r.name),
+      ],
+    );
   }
 
   Future<void> _openCreateShift(SchedulingController controller) async {
@@ -127,6 +161,9 @@ class SchedulingPage extends StatelessWidget {
                   children: [
                     SchedulingTopBar(
                       onMenuTap: openManagerMenu,
+                      onReviewRotaTap: _aiEnabled == true
+                          ? () => _reviewRota(controller)
+                          : null,
                       onCreateShiftTap: controller.canWrite
                           ? () => _openCreateShift(controller)
                           : null,

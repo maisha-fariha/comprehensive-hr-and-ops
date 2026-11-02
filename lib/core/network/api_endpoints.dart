@@ -80,6 +80,16 @@ abstract final class ApiEndpoints {
   static const String aiIncidentsDraft = '/ai/incidents/draft';
   /// AI drafting availability (`GET /ai`).
   static const String aiStatus = '/ai';
+  static String aiMarClientReview(String clientId) =>
+      '/ai/mar/clients/$clientId/review';
+  static String aiClientGoalsSuggest(String clientId) =>
+      '/ai/client-goals/$clientId/suggest';
+  static String aiClientGoalsReview(String clientId) =>
+      '/ai/client-goals/$clientId/review';
+  static const String aiDailyLogsSummarize = '/ai/daily-logs/summarize';
+  static const String aiSchedulingReview = '/ai/scheduling/review';
+  static const String aiTrainingGaps = '/ai/training/gaps';
+  static const String aiInventoryReorder = '/ai/inventory/reorder';
   static const String uploads = '/uploads';
   static const String tickets = '/tickets';
   static const String notificationPreferences = '/notification-preferences';

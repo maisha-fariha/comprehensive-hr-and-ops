@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../ai/presentation/widgets/ai_draft_sheet.dart';
+import '../../../ai/presentation/widgets/ai_feature_sheets.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/inventory_item.dart';
@@ -31,11 +33,15 @@ class InventoryStockView extends StatefulWidget {
 class _InventoryStockViewState extends State<InventoryStockView> {
   late final InventoryStockController _c;
   final _search = TextEditingController();
+  bool? _aiEnabled;
 
   @override
   void initState() {
     super.initState();
     _c = Get.put(GetIt.instance<InventoryStockController>());
+    aiDraftingEnabled().then((enabled) {
+      if (mounted) setState(() => _aiEnabled = enabled);
+    });
   }
 
   @override
@@ -124,6 +130,19 @@ class _InventoryStockViewState extends State<InventoryStockView> {
             value: _c.categoryId.value ?? '',
             onChanged: (v) => _c.setCategory(v.isEmpty ? null : v),
           ),
+          if (_aiEnabled == true)
+            AiAssistButton(
+              buttonKey: const ValueKey('inventory-what-to-order'),
+              label: 'What to order',
+              onPressed: () => openWhatToOrderSheet(
+                context,
+                initialResidenceId: _c.residenceId.value,
+                residences: [
+                  for (final r in _c.residences)
+                    if (r.value.isNotEmpty) AiSelectOption(r.value, r.label),
+                ],
+              ),
+            ),
           if (_c.canWrite) ...[
             HandoverButton(
               key: const ValueKey('inventory-open-catalogue'),

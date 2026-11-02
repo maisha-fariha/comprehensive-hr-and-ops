@@ -51,6 +51,8 @@ abstract final class ClientsMapper {
       admissionDate: JsonCodec.dateTime(json['admissionDate']),
       gender: JsonCodec.string(json['gender']),
       fundingSource: JsonCodec.string(json['fundingSource']),
+      fundingVendorName: JsonCodec.string(json['fundingVendorName']),
+      fundingVendorId: JsonCodec.string(json['fundingVendorId']),
       rateAmount: JsonCodec.number(json['rateAmount'] ?? json['dailyRate'])
           ?.toDouble(),
       rateFrequency: JsonCodec.string(json['rateFrequency']),
