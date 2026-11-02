@@ -13,6 +13,7 @@ import '../../features/hr/daily_logs/di/daily_logs_di.dart';
 import '../../features/hr/dashboard/di/dashboard_di.dart';
 import '../../features/hr/documents/di/hr_documents_di.dart';
 import '../../features/hr/emergency/di/emergency_di.dart';
+import '../../features/hr/finance/di/finance_di.dart';
 import '../../features/hr/handovers/di/handovers_di.dart';
 import '../../features/hr/inventory/di/inventory_di.dart';
 import '../../features/hr/training/di/hr_training_di.dart';
@@ -75,6 +76,7 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupHrDocumentsDependencies();
   await setupHrAppointmentsDependencies();
   await setupHrTrainingDependencies();
+  await setupHrFinanceDependencies();
 
   await setupStaffDashboardDependencies();
   await setupStaffExtrasDependencies();
