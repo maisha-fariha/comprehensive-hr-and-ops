@@ -9,7 +9,7 @@ import '../../../domain/entities/create_shift_draft.dart';
 extension CreateShiftStepX on CreateShiftStep {
   String get label => switch (this) {
         CreateShiftStep.shiftInformation => 'Shift Information',
-        CreateShiftStep.staffAssignment => 'Staff Assignment & Open Shift',
+        CreateShiftStep.staffAssignment => 'Staffing',
         CreateShiftStep.openShift => 'Open Shift',
         CreateShiftStep.recurring => 'Recurring',
         CreateShiftStep.notifications => 'Notifications',
@@ -17,7 +17,7 @@ extension CreateShiftStepX on CreateShiftStep {
 
   String get description => switch (this) {
         CreateShiftStep.shiftInformation => 'Timing & residence',
-        CreateShiftStep.staffAssignment => 'Assign Staff or Open Shift',
+        CreateShiftStep.staffAssignment => 'Assign or open for bids',
         CreateShiftStep.openShift => 'Bidding & eligibility',
         CreateShiftStep.recurring => 'Repeat pattern',
         CreateShiftStep.notifications => 'Alerts & reminders',

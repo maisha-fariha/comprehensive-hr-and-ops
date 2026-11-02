@@ -54,6 +54,10 @@ abstract class SchedulingRepository {
   /// (`GET /staff?page=1&limit=100`, searched client-side like the web).
   Future<Result<List<ShiftStaffOption>>> getStaffOptions();
 
+  /// Residents of one home for "One-to-one with"
+  /// (`GET /clients?residenceId=`).
+  Future<Result<List<ShiftClientOption>>> getClients(String residenceId);
+
   /// Shifts in a day window for the "Has Shift" staff-picker badge
   /// (`GET /shifts?from&to&limit=200`).
   Future<Result<List<ShiftWindowRow>>> listShiftsInRange({

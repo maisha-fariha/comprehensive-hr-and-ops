@@ -28,6 +28,7 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
   final VoidCallback onChanged;
   final List<ShiftScheduleConflict> scheduleConflicts;
   final List<ShiftLeaveConflict> leaveConflicts;
+  final String? residenceName;
 
   const CreateShiftStaffAssignmentForm({
     super.key,
@@ -43,6 +44,7 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
     this.isLoadingStaff = false,
     this.scheduleConflicts = const [],
     this.leaveConflicts = const [],
+    this.residenceName,
   });
 
   @override
@@ -57,10 +59,13 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CreateShiftSectionHeader(
-            title: 'Staff Assignment & Open Shift',
-            description:
-                'Assign staff members to this shift, or publish as an open shift for staff bidding.',
+          CreateShiftSectionHeader(
+            title: isOpenShift
+                ? 'Staffing · Open Shift'
+                : 'Staffing · Staff Assignment',
+            description: isOpenShift
+                ? 'Configure bidding rules, deadlines, and broadcast to qualified staff.'
+                : 'Assign qualified team members directly to this shift, or publish as an open shift.',
           ),
           const CreateShiftFieldLabel('Staffing Method'),
           _StaffingMethodToggle(
@@ -69,6 +74,8 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
           if (isOpenShift) ...[
+            _OpenShiftBroadcast(residenceName: residenceName),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ?openShiftFields,
           ] else ...[
             const CreateShiftFieldLabel('Assigned Staff'),
@@ -185,43 +192,34 @@ class _StaffingMethodToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Column(
       key: const ValueKey('create-shift-staffing-method'),
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: AppColors.filterButtonBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _MethodChip(
-              key: const ValueKey('create-shift-method-assign'),
-              label: 'Assign Staff',
-              icon: Icons.person_outline_rounded,
-              selected: !isOpenShift,
-              onTap: () => onChanged(false),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: _MethodChip(
-              key: const ValueKey('create-shift-method-open'),
-              label: 'Open Shift (Bidding)',
-              icon: Icons.campaign_outlined,
-              selected: isOpenShift,
-              onTap: () => onChanged(true),
-            ),
-          ),
-        ],
-      ),
+      children: [
+        _MethodChip(
+          key: const ValueKey('create-shift-method-assign'),
+          label: 'Assign Specific Staff',
+          subtitle: 'Pick team members to staff this shift directly.',
+          icon: Icons.person_outline_rounded,
+          selected: !isOpenShift,
+          onTap: () => onChanged(false),
+        ),
+        const SizedBox(height: 8),
+        _MethodChip(
+          key: const ValueKey('create-shift-method-open'),
+          label: 'Publish as Open Shift',
+          subtitle: 'Broadcast to qualified staff to claim or submit bids.',
+          icon: Icons.campaign_outlined,
+          selected: isOpenShift,
+          onTap: () => onChanged(true),
+        ),
+      ],
     );
   }
 }
 
 class _MethodChip extends StatelessWidget {
   final String label;
+  final String subtitle;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
@@ -229,6 +227,7 @@ class _MethodChip extends StatelessWidget {
   const _MethodChip({
     super.key,
     required this.label,
+    required this.subtitle,
     required this.icon,
     required this.selected,
     required this.onTap,
@@ -237,43 +236,113 @@ class _MethodChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.surfaceWhite : Colors.transparent,
-      borderRadius: BorderRadius.circular(9),
+      color: selected ? AppColors.surfaceWhite : AppColors.filterButtonBackground,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(9),
-            border: selected
-                ? Border.all(color: AppColors.cardBorder)
-                : null,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.secondaryTeal : AppColors.cardBorder,
+            ),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
-                size: 15,
+                size: 18,
                 color: selected ? AppColors.textHeading : AppColors.textMuted,
               ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: selected ? AppColors.textHeading : AppColors.textMuted,
-                  ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          14,
+                        ),
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12,
+                        ),
+                        color: AppColors.textSecondary,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _OpenShiftBroadcast extends StatelessWidget {
+  final String? residenceName;
+
+  const _OpenShiftBroadcast({this.residenceName});
+
+  @override
+  Widget build(BuildContext context) {
+    final home = residenceName?.trim();
+    final where = home == null || home.isEmpty
+        ? 'all eligible staff'
+        : 'all eligible staff assigned to $home';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.filterButtonBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Open Shift Broadcast',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'This shift will be published for bidding and broadcast to $where. '
+            'Qualified team members can submit bids until the deadline according to the rules below.',
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -434,7 +503,7 @@ class _EmptyAssignedStaff extends StatelessWidget {
         border: Border.all(color: AppColors.searchBorder),
       ),
       child: Text(
-        'No staff assigned yet. Select above to add someone, or leave this shift open in the next step.',
+        'No staff assigned yet. Select above to add someone, or choose Publish as Open Shift above to let staff bid.',
         textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'Outfit',

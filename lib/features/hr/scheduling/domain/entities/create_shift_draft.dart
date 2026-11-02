@@ -182,6 +182,10 @@ class CreateShiftDraft {
   String title = '';
   String notes = '';
 
+  /// `null` is "Not one-to-one". Sent as `oneToOneClientId`.
+  String? oneToOneClientId;
+  String? oneToOneClientName;
+
   final List<AssignedShiftStaff> assignedStaff = [];
 
   bool isOpenShift = false;
@@ -425,6 +429,7 @@ class CreateShiftDraft {
 
     return {
       'residenceId': residenceId,
+      'oneToOneClientId': oneToOneClientId,
       'startsAt': _iso(startsAt),
       'endsAt': _iso(endsAt),
       'staffIds': [for (final staff in assignedStaff) staff.staffId],
@@ -466,6 +471,7 @@ class CreateShiftDraft {
         'start': startMinutes,
         'end': endMinutes,
         'break': breakMinutes,
+        'oneToOneClientId': oneToOneClientId,
         'title': title,
         'notes': notes,
         'staff': [

@@ -69,6 +69,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   final List<ShiftResidenceOption> _residences = [];
   bool _isLoadingResidences = false;
+  List<ShiftClientOption> _clients = [];
 
   final List<ShiftStaffOption> _staffOptions = [];
   bool _isLoadingStaff = false;
@@ -110,6 +111,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (!mounted) return;
     _loadResidences();
     _loadStaff();
+    _loadClients();
   }
 
   Future<void> _loadDefaultBreak() async {
@@ -560,57 +562,89 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     required List<ShiftFormChoice<T>> options,
     required T? selected,
     required bool hasSelection,
+    bool searchable = false,
   }) {
-    return showAppBottomSheet<T>(
+    final query = TextEditingController();
+    final sheet = showAppBottomSheet<T>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
-          ),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final needle = query.text.trim().toLowerCase();
+          final visible = !searchable || needle.isEmpty
+              ? options
+              : [
+                  for (final option in options)
+                    if (option.label.toLowerCase().contains(needle)) option,
+                ];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+            ),
+            child: SafeArea(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                    ),
+                    if (searchable)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                        child: TextField(
+                          controller: query,
+                          onChanged: (_) => setSheetState(() {}),
+                          decoration: const InputDecoration(
+                            hintText: 'Search…',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    for (final option in visible)
+                      ListTile(
+                        title: Text(
+                          option.label,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textHeading,
+                          ),
+                        ),
+                        trailing: hasSelection && option.value == selected
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: AppColors.secondaryTeal,
+                              )
+                            : null,
+                        onTap: () =>
+                            Navigator.of(sheetContext).pop(option.value),
+                      ),
+                  ],
                 ),
               ),
-              for (final option in options)
-                ListTile(
-                  title: Text(
-                    option.label,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  trailing: hasSelection && option.value == selected
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.secondaryTeal,
-                        )
-                      : null,
-                  onTap: () => Navigator.of(sheetContext).pop(option.value),
-                ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
+    return sheet.whenComplete(query.dispose);
   }
 
   Future<void> _pickResidence() async {
@@ -629,7 +663,65 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       selected: _draft.residenceId,
       hasSelection: _draft.residenceId.isNotEmpty,
     );
-    if (id != null) _update(() => _draft.residenceId = id);
+    if (id == null || id == _draft.residenceId) return;
+    _update(() {
+      _draft.residenceId = id;
+      _draft.oneToOneClientId = null;
+      _draft.oneToOneClientName = null;
+    });
+    _loadClients();
+  }
+
+  Future<void> _loadClients() async {
+    final residenceId = _draft.residenceId;
+    if (residenceId.isEmpty) {
+      if (_clients.isNotEmpty && mounted) setState(() => _clients = []);
+      return;
+    }
+    final result = await _repository.getClients(residenceId);
+    if (!mounted || _draft.residenceId != residenceId) return;
+    result.when(
+      success: (rows) => setState(() {
+        _clients = rows;
+        final selected = _draft.oneToOneClientId;
+        if (selected == null) return;
+        ShiftClientOption? match;
+        for (final row in rows) {
+          if (row.id == selected) match = row;
+        }
+        if (match == null) {
+          _draft.oneToOneClientId = null;
+          _draft.oneToOneClientName = null;
+        } else {
+          _draft.oneToOneClientName = match.name;
+        }
+      }),
+      failure: (_) => setState(() => _clients = []),
+    );
+  }
+
+  Future<void> _pickOneToOne() async {
+    if (_draft.residenceId.isEmpty) return;
+    final id = await _pickOption<String>(
+      title: 'One-to-one with',
+      searchable: true,
+      options: [
+        const ShiftFormChoice('', 'Not one-to-one'),
+        for (final client in _clients)
+          ShiftFormChoice(client.id, client.name),
+      ],
+      selected: _draft.oneToOneClientId ?? '',
+      hasSelection: true,
+    );
+    if (id == null) return;
+    String? name;
+    for (final client in _clients) {
+      if (client.id == id) name = client.name;
+    }
+    _update(() {
+      _draft.oneToOneClientId = id.isEmpty ? null : id;
+      _draft.oneToOneClientName = id.isEmpty ? null : name;
+    });
   }
 
   Future<void> _pickShiftType() async {
@@ -908,6 +1000,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
             _draft.breakMinutes,
           ),
           onBreakDurationTap: _pickBreak,
+          oneToOneValue: _draft.oneToOneClientName ?? 'Not one-to-one',
+          oneToOneEnabled: _draft.residenceId.isNotEmpty,
+          onOneToOneTap: _pickOneToOne,
           onTextChanged: _onTextChanged,
           errors: _errors,
         );
@@ -919,6 +1014,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           isOpenShift: _draft.isOpenShift,
           scheduleConflicts: _conflicts.conflicts,
           leaveConflicts: _conflicts.leave,
+          residenceName: _residenceLabel,
           onOpenShiftChanged: (value) => _update(() {
             _draft.isOpenShift = value;
             if (value) _draft.assignedStaff.clear();

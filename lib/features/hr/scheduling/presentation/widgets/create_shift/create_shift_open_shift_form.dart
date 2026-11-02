@@ -65,7 +65,7 @@ class CreateShiftOpenShiftForm extends StatelessWidget {
         left: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CreateShiftFieldLabel('Bidding Deadline'),
+            const CreateShiftFieldLabel('Bidding Deadline', required: true),
             CreateShiftDateField(
               key: const ValueKey('create-shift-bid-deadline'),
               value: deadlineDateValue,

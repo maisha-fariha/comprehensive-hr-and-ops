@@ -41,13 +41,13 @@ class CreateShiftNotificationsForm extends StatelessWidget {
           const CreateShiftSectionHeader(
             title: 'Notifications',
             description:
-                'Choose whether staff are told about this shift, and when they are reminded.',
+                'Choose whether the people on this shift are told, and when they are reminded.',
           ),
           CreateShiftSwitchCard(
             key: const ValueKey('create-shift-notify-toggle'),
-            label: 'Notify staff',
+            label: 'Notify assigned staff',
             description:
-                'Send a notification as soon as the shift is saved — to assignees, or to eligible staff when this is an open shift. Turn off while drafting a rota.',
+                'Tell each assignee, in the app and by email, with the date, time, place and their tasks. On an edit: when the time or place changes, and anyone newly added. Turn off while drafting a rota.',
             value: notifyAssignedStaff,
             onChanged: onNotifyAssignedStaffChanged,
           ),
