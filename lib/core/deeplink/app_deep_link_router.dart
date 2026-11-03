@@ -6,17 +6,18 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../features/hr/hr_shell.dart';
-import '../../features/hr/scheduling/presentation/pages/create_shift_page.dart';
 import '../../features/staff/staff_shell.dart';
 import '../network/tenant_store.dart';
 import '../roles/user_role.dart';
 import '../roles/user_session.dart';
 import 'scheduling_deep_link.dart';
 
-/// Opens Schedule / Edit Shift from HTTPS App Links and `hrcare://shifts/...`.
+/// Opens the Schedule module from HTTPS App Links and `hrcare://shifts/...`.
 ///
 /// Email example:
 /// `https://my-care.encoderittest.store/dashboard/scheduling?shiftId=…&action=edit`
+///
+/// Opens Schedule only (does not auto-open the shift edit form).
 class AppDeepLinkRouter {
   final AppLinks _links;
   StreamSubscription<Uri>? _sub;
@@ -102,10 +103,6 @@ class AppDeepLinkRouter {
               scheduleFocusShiftId: shiftId,
             ),
           );
-          if (link.action == 'edit' || link.action.isEmpty) {
-            await Future<void>.delayed(const Duration(milliseconds: 80));
-            await Get.to(() => CreateShiftPage(editShiftId: shiftId));
-          }
         case UserRole.staff:
           Get.offAll(
             () => StaffShell(

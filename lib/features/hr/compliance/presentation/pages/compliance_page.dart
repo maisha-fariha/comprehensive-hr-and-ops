@@ -189,6 +189,8 @@ class _CompliancePageState extends State<CompliancePage> {
                   onOpenAudit: () => setState(() => _tab = ComplianceTab.audit),
                   onOpenChecks: () =>
                       setState(() => _tab = ComplianceTab.checks),
+                  onOpenRequirements: () =>
+                      setState(() => _tab = ComplianceTab.requirements),
                   onAddIssue: () => showCreateFindingSheet(
                     context,
                     controller: _controller,

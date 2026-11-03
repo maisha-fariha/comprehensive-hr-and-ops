@@ -15,6 +15,7 @@ class ComplianceOverviewView extends StatelessWidget {
   final VoidCallback onOpenActions;
   final VoidCallback onOpenAudit;
   final VoidCallback onOpenChecks;
+  final VoidCallback onOpenRequirements;
   final VoidCallback onAddIssue;
 
   const ComplianceOverviewView({
@@ -24,6 +25,7 @@ class ComplianceOverviewView extends StatelessWidget {
     required this.onOpenActions,
     required this.onOpenAudit,
     required this.onOpenChecks,
+    required this.onOpenRequirements,
     required this.onAddIssue,
   });
 
@@ -125,37 +127,88 @@ class ComplianceOverviewView extends StatelessWidget {
                     'Audit Readiness Summary',
                     style: handoverText(context, 14, weight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${o.score.toStringAsFixed(0)}% Ready',
-                    style: handoverText(context, 22, weight: FontWeight.w700),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 110,
+                        height: 110,
+                        child: CustomPaint(
+                          painter: _ReadinessRingPainter(
+                            percent: o.score.clamp(0, 100) / 100,
+                            trackColor: AppColors.filterButtonBackground,
+                            progressColor: o.score >= 90
+                                ? AppColors.activeGreen
+                                : o.score >= 70
+                                    ? AppColors.urgentAmber
+                                    : AppColors.criticalRed,
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${o.score.toStringAsFixed(0)}%',
+                                  style: handoverText(
+                                    context,
+                                    20,
+                                    weight: FontWeight.w700,
+                                  ),
+                                ),
+                                Text(
+                                  'Ready',
+                                  style: handoverText(
+                                    context,
+                                    11.5,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            for (final d in o.domains) ...[
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 78,
+                                    child: Text(
+                                      d.domain,
+                                      style: handoverText(context, 12),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: LinearProgressIndicator(
+                                      value: (d.percent / 100).clamp(0, 1),
+                                      minHeight: 7,
+                                      borderRadius: BorderRadius.circular(99),
+                                      color: d.percent < 50
+                                          ? AppColors.criticalRed
+                                          : AppColors.secondaryTeal,
+                                      backgroundColor:
+                                          AppColors.filterButtonBackground,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${d.percent.toStringAsFixed(0)}%',
+                                    style: handoverText(context, 11.5),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 7),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  for (final d in o.domains) ...[
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 90,
-                          child: Text(
-                            d.domain,
-                            style: handoverText(context, 12.5),
-                          ),
-                        ),
-                        Expanded(
-                          child: LinearProgressIndicator(
-                            value: (d.percent / 100).clamp(0, 1),
-                            minHeight: 8,
-                            borderRadius: BorderRadius.circular(99),
-                            color: AppColors.secondaryTeal,
-                            backgroundColor: AppColors.filterButtonBackground,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text('${d.percent.toStringAsFixed(0)}%'),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                  ],
                   TextButton(
                     onPressed: onOpenChecks,
                     child: const Text('View Audit Checklist'),
@@ -222,6 +275,8 @@ class ComplianceOverviewView extends StatelessWidget {
                     'Certificates expiring within a month: ${n('expiringCertificates')}',
                     'Training not finished: ${n('incompleteTraining')}',
                   ],
+                  actionLabel: 'View Staff Compliance',
+                  onAction: onOpenRequirements,
                 ),
                 _DomainCard(
                   title: 'Client File Completeness',
@@ -230,6 +285,8 @@ class ComplianceOverviewView extends StatelessWidget {
                     'No care plan on file: ${o.clientFiles.missingCarePlan}',
                     'Not placed in a room: ${o.clientFiles.missingRoom}',
                   ],
+                  actionLabel: 'Review Client Files',
+                  onAction: onOpenFindings,
                 ),
                 _DomainCard(
                   title: 'Incident Follow-up',
@@ -238,6 +295,8 @@ class ComplianceOverviewView extends StatelessWidget {
                     'Nobody investigating: ${n('incidentsWithoutInvestigation')}',
                     'Corrective actions overdue: ${n('overdueCorrectiveActions')}',
                   ],
+                  actionLabel: 'View Incidents',
+                  onAction: onOpenActions,
                 ),
                 _DomainCard(
                   title: 'Medication Compliance',
@@ -246,6 +305,8 @@ class ComplianceOverviewView extends StatelessWidget {
                     'Refused this week: ${o.medication.refused}',
                     'Medications needing a refill: ${n('medicationRefillNeeded')}',
                   ],
+                  actionLabel: 'View MAR Compliance',
+                  onAction: onOpenFindings,
                 ),
                 _DomainCard(
                   title: 'Policy & Document Compliance',
@@ -254,6 +315,8 @@ class ComplianceOverviewView extends StatelessWidget {
                     'Expiring within a month: ${n('expiringDocuments')}',
                     'Checks overdue: ${n('overdueChecks')}',
                   ],
+                  actionLabel: 'Manage Documents',
+                  onAction: onOpenChecks,
                 ),
               ],
             ),
@@ -435,7 +498,15 @@ class ComplianceOverviewView extends StatelessWidget {
 class _DomainCard extends StatelessWidget {
   final String title;
   final List<String> lines;
-  const _DomainCard({required this.title, required this.lines});
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  const _DomainCard({
+    required this.title,
+    required this.lines,
+    required this.actionLabel,
+    required this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -455,9 +526,62 @@ class _DomainCard extends StatelessWidget {
                   style: handoverText(context, 12.5, color: AppColors.textMuted),
                 ),
               ),
+            const SizedBox(height: 4),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(actionLabel),
+            ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _ReadinessRingPainter extends CustomPainter {
+  final double percent;
+  final Color trackColor;
+  final Color progressColor;
+
+  const _ReadinessRingPainter({
+    required this.percent,
+    required this.trackColor,
+    required this.progressColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.shortestSide / 2) - 6;
+    final track = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+    final progress = Paint()
+      ..color = progressColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, track);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -1.57079632679,
+      6.28318530718 * percent.clamp(0.0, 1.0),
+      false,
+      progress,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReadinessRingPainter oldDelegate) {
+    return oldDelegate.percent != percent ||
+        oldDelegate.progressColor != progressColor ||
+        oldDelegate.trackColor != trackColor;
   }
 }
