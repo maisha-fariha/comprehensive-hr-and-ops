@@ -3,6 +3,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_document_enums.dart';
 import '../../domain/entities/family_documents_overview.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class FamilyDocumentsMapper {
   static FamilyDocumentsOverview fromBody(dynamic body) {
@@ -41,7 +42,7 @@ abstract final class FamilyDocumentsMapper {
             title: name,
             dateLabel: at == null
                 ? JsonCodec.stringOr(json['dateLabel'], '')
-                : 'Updated ${IsoDateRange.formatMonthDay(at.toLocal())}',
+                : 'Updated ${IsoDateRange.formatMonthDay(TenantClock.wallOf(at))}',
             fileType: type.contains('jp') ||
                     type.contains('png') ||
                     type.contains('image') ||

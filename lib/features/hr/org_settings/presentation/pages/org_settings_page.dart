@@ -54,7 +54,12 @@ Future<OrgSettingsSnapshot> loadOrgSettings() async {
     );
   }
   final map = JsonCodec.unwrapMap(settings.value);
-  TenantClock.use(JsonCodec.string(JsonCodec.asMap(map['general'])['timezone']));
+  final general = JsonCodec.asMap(map['general']);
+  TenantClock.use(
+    JsonCodec.string(general['timezone']),
+    dateFmt: JsonCodec.string(general['dateFormat']),
+    timeFmt: JsonCodec.string(general['timeFormat']),
+  );
 
   int? breakMinutes;
   final scheduling = await api.get(ApiEndpoints.settingsScheduling, silent: true);

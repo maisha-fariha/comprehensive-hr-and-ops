@@ -1,4 +1,5 @@
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 class StaffShiftHandover {
   final String id;
@@ -55,7 +56,7 @@ class StaffShiftHandover {
   }
 
   static String _dateTimeLabel(DateTime value) {
-    final d = value.toLocal();
+    final d = TenantClock.wallOf(value);
     final day = d.day.toString().padLeft(2, '0');
     final month = d.month.toString().padLeft(2, '0');
     final hour = d.hour.toString().padLeft(2, '0');
@@ -64,7 +65,7 @@ class StaffShiftHandover {
   }
 
   static String _timeLabel(DateTime value) {
-    final d = value.toLocal();
+    final d = TenantClock.wallOf(value);
     return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 

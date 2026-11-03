@@ -8,6 +8,7 @@ import '../../domain/entities/staff_shift.dart';
 import '../../domain/entities/staff_shift_form_option.dart';
 import '../../domain/entities/staff_shift_swap.dart';
 import '../../domain/entities/week_day.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffScheduleMapper {
   /// Parse `GET /residences` into Create Shift dropdown options.
@@ -188,7 +189,7 @@ abstract final class StaffScheduleMapper {
       json['endAt'] ?? json['endsAt'] ?? json['endTime'] ?? json['to'],
     );
     final now = DateTime.now();
-    final localStart = start?.toLocal();
+    final localStart = (start == null ? null : TenantClock.wallOf(start));
     final isToday =
         localStart != null &&
         localStart.year == now.year &&
@@ -370,7 +371,7 @@ abstract final class StaffScheduleMapper {
           final fromStart = _shiftStart(fromShift);
           // Drop swaps whose giving shift is fully in the past.
           if (fromStart != null) {
-            final local = fromStart.toLocal();
+            final local = TenantClock.wallOf(fromStart);
             final shiftDay = DateTime(local.year, local.month, local.day);
             if (shiftDay.isBefore(todayStart)) return null;
           }
@@ -463,7 +464,7 @@ abstract final class StaffScheduleMapper {
       );
       if (start != null) {
         return [
-          IsoDateRange.formatShortDate(start.toLocal()),
+          IsoDateRange.formatShortDate(TenantClock.wallOf(start)),
           if (name != null && name.isNotEmpty) name,
           if (residence != null && residence.isNotEmpty) residence,
         ].join(' · ');
@@ -498,7 +499,7 @@ abstract final class StaffScheduleMapper {
       }
       // Upcoming section: drop past calendar days.
       if (at != null) {
-        final local = at.toLocal();
+        final local = TenantClock.wallOf(at);
         final day = DateTime(local.year, local.month, local.day);
         if (day.isBefore(todayStart)) continue;
       }
@@ -509,7 +510,7 @@ abstract final class StaffScheduleMapper {
           title: _appointmentTitle(json),
           dateTimeLabel: at == null
               ? JsonCodec.stringOr(json['dateLabel'], '')
-              : IsoDateRange.dateTimeLabel(at.toLocal()),
+              : IsoDateRange.dateTimeLabel(at),
           location: JsonCodec.stringOr(
             json['location'] ??
                 json['mode'] ??

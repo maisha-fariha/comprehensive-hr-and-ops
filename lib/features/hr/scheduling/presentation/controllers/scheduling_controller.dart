@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../data/mappers/scheduling_mapper.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
@@ -110,7 +111,7 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   SchedulingOverview? get overview => state.value.data;
 
   static DateTime _todayLocal() {
-    final now = DateTime.now();
+    final now = TenantClock.now();
     return DateTime(now.year, now.month, now.day);
   }
 
@@ -122,27 +123,16 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   /// Call when the Schedule tab becomes visible (login, shell open, or
   /// bottom-nav switch). Resets the week strip to today until the user
   /// manually picks another day again.
+  ///
+  /// Always refetches so Settings → General timezone changes apply (shift
+  /// labels are baked in at map time and cannot be reused).
   Future<void> resetCalendarToToday() async {
     final today = _todayLocal();
     final currentWeek = IsoDateRange.startOfWeek(today);
-    final sameWeek = _isSameDay(weekOf.value, currentWeek);
 
     _userPickedDay = false;
     weekOf.value = currentWeek;
     selectedDay.value = today;
-
-    final current = overview;
-    if (sameWeek && current != null) {
-      setSuccess(
-        current.copyWith(
-          calendar: SchedulingMapper.calendarForSelectedDay(
-            current: current.calendar,
-            selectedDay: today,
-          ),
-        ),
-      );
-      return;
-    }
 
     await loadOverview();
   }

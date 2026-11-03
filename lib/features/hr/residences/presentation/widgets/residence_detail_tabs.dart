@@ -12,6 +12,7 @@ import '../../domain/repositories/residences_repository.dart';
 import '../residences_labels.dart';
 import 'residence_form_inputs.dart';
 import 'residences_common.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 const _tabPageSizes = [10, 25, 50];
 
@@ -1014,8 +1015,8 @@ class _ResidenceScheduleTabState extends State<ResidenceScheduleTab> {
   }
 
   static bool _sameDay(DateTime a, DateTime b) {
-    final x = a.toLocal();
-    final y = b.toLocal();
+    final x = TenantClock.wallOf(a);
+    final y = TenantClock.wallOf(b);
     return x.year == y.year && x.month == y.month && x.day == y.day;
   }
 

@@ -2,6 +2,7 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/staff_dashboard_enums.dart';
 import '../../domain/entities/staff_dashboard_overview.dart';
 import '../../domain/entities/staff_overview_stat.dart';
@@ -42,7 +43,7 @@ abstract final class StaffHomeMapper {
     final tiles = JsonCodec.mapAt(json, 'tiles') ?? {};
     final attendance = JsonCodec.mapAt(json, 'attendance') ?? {};
     final shift = JsonCodec.mapAt(json, 'shift') ?? {};
-    final clock = now ?? DateTime.now();
+    final clock = now ?? TenantClock.now();
     final firstName = session.displayName.split(' ').first;
 
     session.applyPermissions(

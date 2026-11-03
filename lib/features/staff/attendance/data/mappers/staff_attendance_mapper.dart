@@ -4,6 +4,7 @@ import '../../../../hr/attendance/data/mappers/attendance_mapper.dart';
 import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_metrics.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffAttendanceMapper {
   static StaffAttendanceOverview compose({
@@ -142,7 +143,7 @@ abstract final class StaffAttendanceMapper {
       isOnShift: onShift,
       shiftStartedLabel: checkIn == null
           ? 'Not clocked in'
-          : 'Started at ${IsoDateRange.timeLabel(checkIn.toLocal())}',
+          : 'Started at ${IsoDateRange.timeLabel(checkIn)}',
       shiftLocationName: locationName,
       shiftTimeRange: IsoDateRange.rangeLabel(start, end).isEmpty
           ? JsonCodec.stringOr(shift['timeRange'], 'No shift assigned')
@@ -150,7 +151,7 @@ abstract final class StaffAttendanceMapper {
       elapsedTimeLabel: checkIn == null
           ? '00:00:00'
           : IsoDateRange.elapsedHms(checkIn),
-      checkInAt: checkIn?.toLocal(),
+      checkInAt: (checkIn == null ? null : TenantClock.wallOf(checkIn)),
       isWithinGeofence: within,
       geofenceStatusLabel: geofenceStatusLabel,
       geofenceAddress: geofenceAddress,
@@ -159,13 +160,13 @@ abstract final class StaffAttendanceMapper {
           ? 'Selfie not captured'
           : checkIn == null
           ? 'Verified'
-          : 'Verified · ${IsoDateRange.timeLabel(checkIn.toLocal())}',
+          : 'Verified · ${IsoDateRange.timeLabel(checkIn)}',
       selfieUrl: selfieUrl,
       isOnBreak: onBreak,
       breakStatusLabel: onBreak
           ? (breakStartedAt == null
                 ? 'On break'
-                : 'On break · since ${IsoDateRange.timeLabel(breakStartedAt.toLocal())}')
+                : 'On break · since ${IsoDateRange.timeLabel(breakStartedAt)}')
           : 'Not on break',
       shiftId: JsonCodec.string(
         shift['id'] ??
@@ -274,9 +275,10 @@ abstract final class StaffAttendanceMapper {
     final shiftStart = JsonCodec.dateTime(
       shift['startsAt'] ?? shift['startAt'] ?? shift['startTime'],
     );
+    final occurredRaw =
+        checkIn ?? shiftStart ?? JsonCodec.dateTime(json['createdAt']);
     final occurredAt =
-        (checkIn ?? shiftStart ?? JsonCodec.dateTime(json['createdAt']))
-            ?.toLocal();
+        occurredRaw == null ? null : TenantClock.wallOf(occurredRaw);
 
     final minutes = JsonCodec.integer(json['workedMinutes']);
     final fromMinutes = IsoDateRange.workedMinutesLabel(minutes);

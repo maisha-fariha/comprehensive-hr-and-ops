@@ -1,36 +1,41 @@
-/// The web portal's date / time formats (DD/MM/YYYY, 24h, local clock) and
-/// its one-line shift description, shared by features that mirror web screens.
+import '../time/tenant_clock.dart';
+
+/// The web portal's date / time formats and shift description, using the
+/// organisation timezone from Settings → General ([TenantClock]).
 abstract final class WebFormat {
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  static String _two(int v) => v.toString().padLeft(2, '0');
-
-  /// `29/09/2026`, or `Tue 29/09/2026` with [weekday].
+  /// Settings → General date format (default `DD/MM/YYYY`), or with [weekday].
   static String date(DateTime? value, {bool weekday = false, String empty = '—'}) {
     if (value == null) return empty;
-    final l = value.toLocal();
-    final text = '${_two(l.day)}/${_two(l.month)}/${l.year}';
-    return weekday ? '${_weekdays[l.weekday - 1]} $text' : text;
+    final text = TenantClock.formatDate(value);
+    if (text == '—') return empty;
+    if (!weekday) return text;
+    final l = TenantClock.wallOf(value);
+    return '${_weekdays[l.weekday - 1]} $text';
   }
 
-  /// `14:05`.
+  /// Settings → General time format (`12h` / `24h`).
   static String time(DateTime? value, {String empty = '—'}) {
     if (value == null) return empty;
-    final l = value.toLocal();
-    return '${_two(l.hour)}:${_two(l.minute)}';
+    final text = TenantClock.formatTime(value);
+    return text == '—' ? empty : text;
   }
 
-  /// `29/09/2026 14:05`.
-  static String dateTime(DateTime? value, {String empty = '—'}) =>
-      value == null ? empty : '${date(value)} ${time(value)}';
+  /// Date and time in the organisation zone.
+  static String dateTime(DateTime? value, {String empty = '—'}) {
+    if (value == null) return empty;
+    final text = TenantClock.formatDateTime(value);
+    return text == '—' ? empty : text;
+  }
 
-  /// Time alone when [value] is today, otherwise the date.
+  /// Time alone when [value] is today (org calendar), otherwise the date.
   static String short(DateTime? value, {DateTime? now, String empty = ''}) {
     if (value == null) return empty;
-    final l = value.toLocal();
-    final n = (now ?? DateTime.now()).toLocal();
+    final l = TenantClock.wallOf(value);
+    final n = now == null ? TenantClock.now() : TenantClock.wallOf(now);
     final today = l.year == n.year && l.month == n.month && l.day == n.day;
-    return today ? time(l) : date(l);
+    return today ? time(value, empty: empty) : date(value, empty: empty);
   }
 
   /// `needs_attention` → `Needs attention`; `—` when empty.

@@ -1,27 +1,20 @@
+import '../../../../core/time/tenant_clock.dart';
 import '../domain/entities/attendance_record.dart';
 
-/// Display rules of the web Attendance table, in device local time.
+/// Display rules of the web Attendance table, in the organisation timezone.
 abstract final class AttendanceFormat {
   static String two(int n) => n.toString().padLeft(2, '0');
 
-  /// `dd/MM/yyyy`.
-  static String date(DateTime? value) {
-    if (value == null) return '—';
-    final local = value.toLocal();
-    return '${two(local.day)}/${two(local.month)}/${local.year}';
-  }
+  /// Settings → General date format (default `dd/MM/yyyy`).
+  static String date(DateTime? value) => TenantClock.formatDate(value);
 
-  /// `HH:mm`.
-  static String time(DateTime? value) {
-    if (value == null) return '—';
-    final local = value.toLocal();
-    return '${two(local.hour)}:${two(local.minute)}';
-  }
+  /// Settings → General time format.
+  static String time(DateTime? value) => TenantClock.formatTime(value);
 
   /// `yyyy-MM-dd HH:mm`, as the web wizard's review panels print times.
   static String wallClock(DateTime? value) {
     if (value == null) return '';
-    final local = value.toLocal();
+    final local = TenantClock.wallOf(value);
     return '${local.year}-${two(local.month)}-${two(local.day)} '
         '${two(local.hour)}:${two(local.minute)}';
   }

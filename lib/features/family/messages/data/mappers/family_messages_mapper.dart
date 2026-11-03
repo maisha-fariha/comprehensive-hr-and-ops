@@ -34,7 +34,7 @@ abstract final class FamilyMessagesMapper {
       avatarType: ConversationAvatarType.team,
       initials: IsoDateRange.initials(name),
       accent: ConversationAccent.blue,
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       previewText: JsonCodec.stringOr(
         last['body'] ?? last['text'] ?? last['preview'],
         '',
@@ -99,7 +99,7 @@ abstract final class FamilyMessagesMapper {
       text: JsonCodec.stringOr(json['body'] ?? json['text'], ''),
       direction:
           mine ? FamilyMessageDirection.outgoing : FamilyMessageDirection.incoming,
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       senderName:
           mine ? 'You' : (senderName == 'Unknown' ? 'Care team' : senderName),
     );

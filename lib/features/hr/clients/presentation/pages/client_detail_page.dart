@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/offline/offline_image.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
@@ -351,7 +352,7 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                           style: handoverText(context, 13, weight: FontWeight.w500),
                         ),
                         Text(
-                          [ClientsLabels.date(t.transferredAt?.toLocal()), ?t.reason].join(' · '),
+                          [TenantClock.formatDate(t.transferredAt), ?t.reason].join(' · '),
                           style: handoverText(context, 12, color: AppColors.textMuted),
                         ),
                       ],

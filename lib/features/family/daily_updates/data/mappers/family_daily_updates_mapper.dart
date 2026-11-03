@@ -122,7 +122,7 @@ abstract final class FamilyDailyUpdatesMapper {
     return FamilyDailyUpdateEntry(
       id: '${JsonCodec.stringOr(json['id'], title)}-$title',
       category: category,
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       title: title,
       description: description.trim(),
       hasPhoto: hasPhoto,

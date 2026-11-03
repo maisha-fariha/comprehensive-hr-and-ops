@@ -1,4 +1,5 @@
 /// Option lists, tab ids and formatting from the web training constants.
+import '../../../../core/time/tenant_clock.dart';
 abstract final class TrainingLabels {
   static const List<(String, String)> tabs = [
     ('overview', 'Overview'),
@@ -86,14 +87,14 @@ abstract final class TrainingLabels {
   /// Web `formatDate` (tenant default `DD/MM/YYYY`).
   static String date(DateTime? value, {String fallback = '—'}) {
     if (value == null) return fallback;
-    final l = value.toLocal();
+    final l = TenantClock.wallOf(value);
     return '${_two(l.day)}/${_two(l.month)}/${l.year}';
   }
 
   /// Web `formatDateTime` (`DD/MM/YYYY HH:mm`).
   static String dateTime(DateTime? value, {String fallback = '—'}) {
     if (value == null) return fallback;
-    final l = value.toLocal();
+    final l = TenantClock.wallOf(value);
     return '${date(l)} ${_two(l.hour)}:${_two(l.minute)}';
   }
 

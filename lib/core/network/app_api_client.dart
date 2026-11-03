@@ -858,6 +858,9 @@ class AppApiClient implements OutboxTransport {
     if (method != 'GET') return false;
     // SIN and banking numbers must never be written to the device.
     if (path.endsWith('/sensitive')) return false;
+    // Organisation timezone / formats change from Settings → General; never
+    // serve a saved copy or the app keeps showing the previous zone.
+    if (path.contains('/settings')) return false;
     return !_isAuthPath(path);
   }
 

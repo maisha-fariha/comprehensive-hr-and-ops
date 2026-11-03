@@ -1,4 +1,5 @@
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 class StaffEmergencyResponseNote {
   final String id;
@@ -109,7 +110,7 @@ class StaffEmergencyAlert {
       locationNote.trim().isEmpty ? '—' : locationNote.trim();
 
   static String _dateLabel(DateTime value) {
-    final d = value.toLocal();
+    final d = TenantClock.wallOf(value);
     final day = d.day.toString().padLeft(2, '0');
     final month = d.month.toString().padLeft(2, '0');
     return '$day/$month/${d.year}';

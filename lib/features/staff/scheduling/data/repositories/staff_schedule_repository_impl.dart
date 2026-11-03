@@ -5,6 +5,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/staff_schedule_overview.dart';
 import '../../domain/entities/staff_shift.dart';
 import '../../domain/entities/staff_shift_form_option.dart';
@@ -28,11 +29,15 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
     DateTime? weekStart,
     DateTime? selectedDate,
   }) async {
-    final start = IsoDateRange.startOfWeek(weekStart ?? DateTime.now());
+    await TenantClock.syncFromApi(_api, force: true);
+    final start = IsoDateRange.startOfWeek(weekStart ?? TenantClock.now());
     final end = start.add(const Duration(days: 7));
     // Open bidding look-ahead: two weeks so next-week opens aren't missed
     // when the list is paginated oldest-first without a date window.
     final openEnd = start.add(const Duration(days: 14));
+    final fromIso = TenantClock.at(start, 0).toUtc().toIso8601String();
+    final toIso = TenantClock.at(end, 0).toUtc().toIso8601String();
+    final openEndIso = TenantClock.at(openEnd, 0).toUtc().toIso8601String();
     // B2: appointments are nurse / caregiver only — never housekeeper / other.
     final includeAppointments = _session.canSeeStaffScheduleAppointments;
 
@@ -42,8 +47,8 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
         ApiEndpoints.shifts,
         query: {
           'mine': true,
-          'from': start.toUtc().toIso8601String(),
-          'to': end.toUtc().toIso8601String(),
+          'from': fromIso,
+          'to': toIso,
           'page': 1,
           'limit': _pageLimit,
         },
@@ -54,8 +59,8 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
         ApiEndpoints.shifts,
         query: {
           'status': 'open',
-          'from': start.toUtc().toIso8601String(),
-          'to': openEnd.toUtc().toIso8601String(),
+          'from': fromIso,
+          'to': openEndIso,
           'page': 1,
           'limit': _pageLimit,
         },

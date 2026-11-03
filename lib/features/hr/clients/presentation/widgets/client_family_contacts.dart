@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/client_extras.dart';
 import '../client_form.dart';
@@ -571,7 +572,7 @@ class _ClientSpendSectionState extends State<ClientSpendSection> {
                       style: handoverText(context, 12.5, color: AppColors.textSecondary),
                     ),
                     Text(
-                      'Ordered ${ClientsLabels.date(p.orderedAt?.toLocal())}',
+                      'Ordered ${TenantClock.formatDate(p.orderedAt)}',
                       style: handoverText(context, 12, color: AppColors.textMuted),
                     ),
                   ],

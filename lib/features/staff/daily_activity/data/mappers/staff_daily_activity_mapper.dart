@@ -1,5 +1,6 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/staff_daily_activity_item.dart';
 import '../../domain/entities/staff_daily_activity_metrics.dart';
 import '../../domain/entities/staff_daily_activity_option.dart';
@@ -108,14 +109,10 @@ abstract final class StaffDailyActivityMapper {
   }
 
   static String _dateTimeLabel(DateTime? activityDate, DateTime? occurredAt) {
-    final primary = (occurredAt ?? activityDate)?.toLocal();
-    if (primary == null) return '—';
-    final d =
-        '${primary.day.toString().padLeft(2, '0')}/${primary.month.toString().padLeft(2, '0')}/${primary.year}';
-    if (occurredAt == null) return d;
-    final h = primary.hour.toString().padLeft(2, '0');
-    final m = primary.minute.toString().padLeft(2, '0');
-    return '$d $h:$m';
+    final raw = occurredAt ?? activityDate;
+    if (raw == null) return '—';
+    if (occurredAt == null) return TenantClock.formatDate(raw);
+    return TenantClock.formatDateTime(raw);
   }
 
   static int _int(dynamic value, {int fallback = 0}) {

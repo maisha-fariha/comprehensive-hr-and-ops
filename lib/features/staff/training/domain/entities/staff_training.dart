@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 @immutable
 class StaffTrainingSummary {
@@ -117,7 +118,7 @@ class StaffTrainingCourse {
   String get createdLabel {
     final at = createdAt;
     if (at == null) return '—';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -229,7 +230,7 @@ class StaffTrainingAssignment {
     if (statusNormalized == 'overdue') return true;
     final due = dueAt;
     if (due == null) return false;
-    return due.toLocal().isBefore(DateTime.now());
+    return TenantClock.wallOf(due).isBefore(DateTime.now());
   }
 
   String get statusLabel {
@@ -255,7 +256,7 @@ class StaffTrainingAssignment {
   String get dueLabel {
     final due = dueAt;
     if (due == null) return '';
-    final local = due.toLocal();
+    final local = TenantClock.wallOf(due);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -264,7 +265,7 @@ class StaffTrainingAssignment {
   String get completedLabel {
     final at = completedAt;
     if (at == null) return '';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -315,7 +316,7 @@ class StaffTrainingCertificate {
   String get issuedLabel {
     final at = issuedAt;
     if (at == null) return '—';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -324,7 +325,7 @@ class StaffTrainingCertificate {
   String get expiresLabel {
     final at = expiresAt;
     if (at == null) return 'No expiry';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';

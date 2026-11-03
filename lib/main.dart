@@ -14,7 +14,9 @@ import 'core/errors/app_error_dialog.dart';
 import 'core/network/connectivity_monitor.dart';
 import 'core/offline/offline_bootstrap.dart';
 import 'core/push/firebase_push_bridge.dart';
+import 'core/network/app_api_client.dart';
 import 'core/roles/user_session.dart';
+import 'core/time/tenant_clock.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -52,6 +54,12 @@ Future<void> main() async {
 
   // Cold-start App Link while already signed in (attach ran before restore).
   if (session.isSignedIn) {
+    try {
+      await TenantClock.syncFromApi(
+        GetIt.instance<AppApiClient>(),
+        force: true,
+      );
+    } catch (_) {}
     try {
       GetIt.instance<AppDeepLinkRouter>().flushAfterAuth();
     } catch (_) {}

@@ -1,4 +1,5 @@
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/closed_incident.dart';
 import '../../domain/entities/incident_ai_draft.dart';
@@ -38,7 +39,10 @@ abstract final class IncidentsMapper {
           witnessName: JsonCodec.stringOr(json['witnessName'], ''),
           statementText: JsonCodec.stringOr(json['statementText'], ''),
           takenByName: takenByName,
-          signedAt: JsonCodec.dateTime(json['signedAt'])?.toLocal(),
+          signedAt: () {
+            final at = JsonCodec.dateTime(json['signedAt']);
+            return at == null ? null : TenantClock.wallOf(at);
+          }(),
         ),
       );
     }
@@ -384,15 +388,16 @@ abstract final class IncidentsMapper {
   }
 
   static int _resolvedTodayCount(List<Map<String, dynamic>> closedRows) {
-    final now = DateTime.now();
+    final now = TenantClock.now();
     return closedRows.where((row) {
       final closedAt = JsonCodec.dateTime(
         row['closedAt'] ?? row['resolvedAt'] ?? row['updatedAt'],
-      )?.toLocal();
+      );
       if (closedAt == null) return false;
-      return closedAt.year == now.year &&
-          closedAt.month == now.month &&
-          closedAt.day == now.day;
+      final wall = TenantClock.wallOf(closedAt);
+      return wall.year == now.year &&
+          wall.month == now.month &&
+          wall.day == now.day;
     }).length;
   }
 
@@ -449,7 +454,9 @@ abstract final class IncidentsMapper {
       iconKind: _icon(json),
       isArchived: _isArchived(json),
       subtitle: _clientName(json),
-      dateLabel: at == null ? '' : IsoDateRange.formatShortDate(at.toLocal()),
+      dateLabel: at == null
+          ? ''
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(at)),
       reviewerInitials:
           reviewerName == null ? null : IsoDateRange.initials(reviewerName),
       reviewerName: reviewerName,
@@ -534,7 +541,7 @@ abstract final class IncidentsMapper {
       residenceName: residenceName.isEmpty ? '—' : residenceName,
       reportedAtLabel: reportedAt == null
           ? '—'
-          : _formatDayMonthYear(reportedAt.toLocal()),
+          : TenantClock.formatDate(reportedAt),
       reportedAtUtcLabel:
           reportedAt == null ? '-' : _formatUtcStamp(reportedAt.toUtc()),
       reportedByName: () {
@@ -750,12 +757,6 @@ abstract final class IncidentsMapper {
       CirFormField(label: 'Other, please describe', value: other),
     );
     return out;
-  }
-
-  static String _formatDayMonthYear(DateTime date) {
-    final dd = date.day.toString().padLeft(2, '0');
-    final mm = date.month.toString().padLeft(2, '0');
-    return '$dd/$mm/${date.year}';
   }
 
   static IncidentSeverity _severity(dynamic raw) {

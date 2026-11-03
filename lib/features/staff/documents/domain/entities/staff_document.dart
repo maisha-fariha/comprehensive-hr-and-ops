@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 @immutable
 class StaffDocument {
@@ -87,7 +88,7 @@ class StaffDocument {
   String get expiryLabel {
     final at = expiresAt;
     if (at == null) return 'No expiry';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -96,7 +97,7 @@ class StaffDocument {
   String get uploadedLabel {
     final at = createdAt;
     if (at == null) return '—';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';

@@ -38,10 +38,14 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     ScheduleSpan span = ScheduleSpan.week,
     DateTime? monthOf,
   }) async {
+    // Always refresh org timezone so Settings → General changes match the web.
+    await TenantClock.syncFromApi(_api, force: true);
     final scopedResidenceId = residenceId ?? _session.residenceId;
-    final anchor = weekOf ?? DateTime.now();
-    final from = IsoDateRange.startOfWeek(anchor).toUtc().toIso8601String();
-    final to = IsoDateRange.endOfWeek(anchor).toUtc().toIso8601String();
+    final anchor = weekOf ?? TenantClock.now();
+    final weekStart = IsoDateRange.startOfWeek(anchor);
+    final weekEnd = IsoDateRange.endOfWeek(anchor);
+    final from = TenantClock.at(weekStart, 0).toUtc().toIso8601String();
+    final to = TenantClock.at(weekEnd, 0).toUtc().toIso8601String();
     final month = monthOf ?? DateTime(anchor.year, anchor.month, 1);
     final monthStart = DateTime(month.year, month.month, 1);
     final monthEnd = DateTime(month.year, month.month + 1, 0);
@@ -258,19 +262,8 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   /// `GET /settings/general` timezone, so shift times match the web.
-  Future<void> _loadTenantTimeZone() async {
-    final result = await _api.get(
-      ApiEndpoints.settingsGeneral,
-      silent: true,
-    );
-    result.when(
-      success: (body) {
-        final json = JsonCodec.unwrapMap(body);
-        TenantClock.use(JsonCodec.string(json['timezone']));
-      },
-      failure: (_) {},
-    );
-  }
+  Future<void> _loadTenantTimeZone() =>
+      TenantClock.syncFromApi(_api, force: true);
 
   @override
   Future<Result<List<ShiftClientOption>>> getClients(String residenceId) async {

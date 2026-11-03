@@ -11,6 +11,7 @@ import '../../domain/entities/staff_task_detail.dart';
 import '../../domain/entities/task_stats.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
 import '../../domain/entities/tasks_messages_overview.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffTasksMessagesMapper {
   static TasksMessagesOverview overview({
@@ -122,8 +123,8 @@ abstract final class StaffTasksMessagesMapper {
       );
       final dueText = due == null
           ? JsonCodec.stringOr(json['dueLabel'], '')
-          : 'due ${_ddMmYyyy(due.toLocal())} '
-                '${IsoDateRange.timeLabel(due.toLocal())}';
+          : 'due ${_ddMmYyyy(TenantClock.wallOf(due))} '
+                '${IsoDateRange.timeLabel(due)}';
       return RecurringCheckInstance(
         id: JsonCodec.stringOr(json['id'] ?? json['instanceId'], name),
         scheduleId: JsonCodec.stringOr(json['scheduleId'], ''),
@@ -193,8 +194,8 @@ abstract final class StaffTasksMessagesMapper {
       );
       final whenLabel = checkedAt == null
           ? ''
-          : '${_ddMmYyyy(checkedAt.toLocal())} '
-                '${IsoDateRange.timeLabel(checkedAt.toLocal())}';
+          : '${_ddMmYyyy(TenantClock.wallOf(checkedAt))} '
+                '${IsoDateRange.timeLabel(checkedAt)}';
       return RecurringCheckInstance(
         id: JsonCodec.stringOr(json['id'], name),
         scheduleId: JsonCodec.stringOr(json['scheduleId'], ''),
@@ -280,7 +281,7 @@ abstract final class StaffTasksMessagesMapper {
       title: JsonCodec.stringOr(json['title'] ?? json['name'], 'Task'),
       dueTimeLabel: due == null
           ? JsonCodec.stringOr(json['dueLabel'], '')
-          : IsoDateRange.timeLabel(due.toLocal()),
+          : IsoDateRange.timeLabel(due),
       location: JsonCodec.stringOr(
         json['residenceName'] ??
             JsonCodec.mapAt(json, 'residence')?['name'] ??
@@ -332,7 +333,7 @@ abstract final class StaffTasksMessagesMapper {
 
   /// Web task dialog: `dd/MM/yyyy HH:mm` in local time.
   static String _webDateTime(DateTime value) {
-    final local = value.toLocal();
+    final local = TenantClock.wallOf(value);
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(local.day)}/${two(local.month)}/${local.year} '
         '${two(local.hour)}:${two(local.minute)}';
@@ -403,7 +404,7 @@ abstract final class StaffTasksMessagesMapper {
         authorName: IsoDateRange.personName(
           json['author'] ?? json['createdBy'] ?? json['staff'] ?? json['user'],
         ),
-        timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+        timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       );
     }).toList();
   }
@@ -475,7 +476,7 @@ abstract final class StaffTasksMessagesMapper {
       id: JsonCodec.stringOr(json['id'], name),
       name: name,
       initials: IsoDateRange.initials(name),
-      timeLabel: lastAt == null ? '' : IsoDateRange.timeLabel(lastAt.toLocal()),
+      timeLabel: lastAt == null ? '' : IsoDateRange.timeLabel(lastAt),
       previewText: JsonCodec.stringOr(
         lastMessage?['body'] ??
             lastMessage?['text'] ??
@@ -607,7 +608,7 @@ abstract final class StaffTasksMessagesMapper {
           direction: outgoing
               ? MessageDirection.outgoing
               : MessageDirection.incoming,
-          timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+          timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
           // Per-message Seen/Delivered is not available — only lastReadAt.
           receiptStatus: null,
           senderInitials: outgoing

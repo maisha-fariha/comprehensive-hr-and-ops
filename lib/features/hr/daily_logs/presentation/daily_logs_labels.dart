@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/formatting/web_formats.dart';
+import '../../../../core/time/tenant_clock.dart';
 
 enum DailyLogTone { success, warning, danger, info, neutral, cyan, purple }
 
@@ -158,7 +159,7 @@ abstract final class DailyLogLabels {
   /// `29 Sep, 08:15` (Priority Notes raised stamp).
   static String raised(DateTime? value) {
     if (value == null) return '';
-    final l = value.toLocal();
+    final l = TenantClock.wallOf(value);
     return '${l.day} ${_months[l.month - 1]}, ${WebFormat.time(l)}';
   }
 

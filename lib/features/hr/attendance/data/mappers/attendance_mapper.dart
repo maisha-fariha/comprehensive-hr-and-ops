@@ -1,4 +1,5 @@
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
@@ -170,13 +171,9 @@ abstract final class AttendanceMapper {
     return options;
   }
 
-  /// `dd/MM/yyyy HH:mm` in device local time.
-  static String formatDateTime(DateTime value) {
-    final local = value.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} '
-        '${two(local.hour)}:${two(local.minute)}';
-  }
+  /// `dd/MM/yyyy HH:mm` in the organisation timezone.
+  static String formatDateTime(DateTime value) =>
+      TenantClock.formatDateTime(value);
 
   static List<ManualEntryResidenceOption> residencesFrom(dynamic body) {
     final options = <ManualEntryResidenceOption>[];
@@ -322,11 +319,9 @@ abstract final class AttendanceMapper {
   }
 
   static String _formatShiftClock(DateTime dt) {
-    final local = dt.toLocal();
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final minute = local.minute.toString().padLeft(2, '0');
-    final period = local.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $period';
+    final formatted = TenantClock.formatTime(dt);
+    if (formatted == '—') return formatted;
+    return formatted.replaceAll(' am', ' AM').replaceAll(' pm', ' PM');
   }
 
   static List<TimeOffRequest> timeOffListFrom(dynamic body) {

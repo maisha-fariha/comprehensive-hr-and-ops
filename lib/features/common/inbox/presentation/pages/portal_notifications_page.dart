@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/portal_notification.dart';
 import '../controllers/portal_notifications_controller.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 class PortalNotificationsPage extends StatefulWidget {
   const PortalNotificationsPage({super.key});
@@ -435,7 +436,7 @@ _Band _band(PortalNotification item) {
 }
 
 String _ago(DateTime date) {
-  final seconds = DateTime.now().difference(date.toLocal()).inSeconds;
+  final seconds = DateTime.now().difference(TenantClock.wallOf(date)).inSeconds;
   if (seconds < 60) return 'just now';
   final minutes = (seconds / 60).round();
   if (minutes < 60) return '${minutes}m ago';

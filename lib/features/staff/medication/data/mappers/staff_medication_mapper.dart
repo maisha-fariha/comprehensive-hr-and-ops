@@ -7,6 +7,7 @@ import '../../domain/entities/refused_dose.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/entities/staff_medication_overview.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffMedicationMapper {
   /// Maps `GET /mar/round` into all four tab lists + summary counters.
@@ -254,7 +255,7 @@ abstract final class StaffMedicationMapper {
     );
     final inRound = JsonCodec.boolean(json['scheduled']) ?? true;
     final scheduledTime = JsonCodec.stringOr(json['scheduledTime'], '');
-    final dueLocal = scheduled?.toLocal();
+    final dueLocal = (scheduled == null ? null : TenantClock.wallOf(scheduled));
     final dueHhmm = dueLocal == null
         ? ''
         : '${dueLocal.hour.toString().padLeft(2, '0')}:'
@@ -339,7 +340,7 @@ abstract final class StaffMedicationMapper {
       medicationName: _medName(json),
       dose: _dose(json),
       route: _route(json),
-      givenTimeLabel: given == null ? '' : _givenStamp(given.toLocal()),
+      givenTimeLabel: given == null ? '' : _givenStamp(TenantClock.wallOf(given)),
       administeredByName: JsonCodec.stringOr(
         staff?['name'] ??
             IsoDateRange.personName(
@@ -402,7 +403,7 @@ abstract final class StaffMedicationMapper {
       route: _route(json),
       scheduledTimeLabel: scheduled == null
           ? ''
-          : IsoDateRange.timeLabel(scheduled.toLocal()),
+          : IsoDateRange.timeLabel(scheduled),
       missedByName: IsoDateRange.personName(json['recordedBy'] ?? json['staff']),
       reason: JsonCodec.stringOr(json['notes'] ?? json['reason'], ''),
     );
@@ -421,7 +422,7 @@ abstract final class StaffMedicationMapper {
       medicationName: _medName(json),
       dose: _dose(json),
       route: _route(json),
-      timeLabel: when == null ? '' : IsoDateRange.timeLabel(when.toLocal()),
+      timeLabel: when == null ? '' : IsoDateRange.timeLabel(when),
       refusedByName:
           IsoDateRange.personName(json['recordedBy'] ?? json['staff']),
       notes: JsonCodec.stringOr(json['notes'] ?? json['reason'], ''),

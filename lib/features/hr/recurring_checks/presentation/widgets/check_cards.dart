@@ -67,7 +67,7 @@ class DueCheckCard extends StatelessWidget {
           Text(
             '${i.clientName ?? 'Resident'}'
             '${i.roomNumber != null ? ' · Room ${i.roomNumber}' : ''}'
-            ' · due ${WebFormat.dateTime(i.dueAt.toLocal())}',
+            ' · due ${WebFormat.dateTime(i.dueAt)}',
             style: muted,
           ),
           const SizedBox(height: 2),
@@ -167,7 +167,7 @@ class _EntryBox extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             '${entry.staffName ?? 'Unknown'}'
-            '${entry.checkedAt != null ? ' · ${WebFormat.dateTime(entry.checkedAt!.toLocal())}' : ''}',
+            '${entry.checkedAt != null ? ' · ${WebFormat.dateTime(entry.checkedAt)}' : ''}',
             style: handoverText(context, 11.5, color: AppColors.textMuted),
           ),
           if (readings.isNotEmpty) ...[
@@ -235,7 +235,7 @@ class RecordedCheckCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '${e.staffName ?? 'Unknown'}'
-            '${e.checkedAt != null ? ' · ${WebFormat.dateTime(e.checkedAt!.toLocal())}' : ''}',
+            '${e.checkedAt != null ? ' · ${WebFormat.dateTime(e.checkedAt)}' : ''}',
             style: handoverText(context, 12.5, color: AppColors.textMuted),
           ),
           if (readings.isNotEmpty) ...[

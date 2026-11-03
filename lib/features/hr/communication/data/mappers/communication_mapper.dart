@@ -3,6 +3,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_conversation.dart';
 import '../../domain/entities/hr_message_contact.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class CommunicationMapper {
   static List<HrConversation> conversationsFrom(
@@ -67,7 +68,7 @@ abstract final class CommunicationMapper {
         lastMessage?['body'] ?? json['preview'],
         'No messages yet',
       ),
-      dateLabel: lastAt == null ? '' : IsoDateRange.formatShortDate(lastAt.toLocal()),
+      dateLabel: lastAt == null ? '' : IsoDateRange.formatShortDate(TenantClock.wallOf(lastAt)),
       subtitle: _subtitle(kind, peopleCount),
       kind: kind,
       memberCount: peopleCount,
@@ -210,7 +211,7 @@ abstract final class CommunicationMapper {
         fallback: 'TM',
       ),
       text: JsonCodec.stringOr(json['body'] ?? json['text'], ''),
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       direction:
           mine ? ChatMessageDirection.outgoing : ChatMessageDirection.incoming,
       sortKey: at?.millisecondsSinceEpoch ?? 0,

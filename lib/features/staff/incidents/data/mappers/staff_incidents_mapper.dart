@@ -8,6 +8,7 @@ import '../../domain/entities/staff_incident.dart';
 import '../../domain/entities/staff_incident_options.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
 import '../../domain/entities/staff_incidents_summary.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffIncidentsMapper {
   static List<StaffIncident> listFrom(dynamic body) {
@@ -74,16 +75,16 @@ abstract final class StaffIncidentsMapper {
       reportedByName: reporterName == 'Unknown' ? '' : reporterName,
       reportedAtLabel: reportedAt == null
           ? ''
-          : IsoDateRange.formatShortDate(reportedAt.toLocal()),
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(reportedAt)),
       acknowledged: acknowledgedAt != null,
       acknowledgedAtLabel: acknowledgedAt == null
           ? null
-          : IsoDateRange.formatShortDate(acknowledgedAt.toLocal()),
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(acknowledgedAt)),
       iconKind: _iconKind(json),
       severity: _severity(json['severity']),
       dateTimeLabel: occurred == null
           ? JsonCodec.stringOr(json['dateLabel'], '')
-          : '${IsoDateRange.formatShortDate(occurred.toLocal())} · ${IsoDateRange.timeLabel(occurred.toLocal())}',
+          : '${IsoDateRange.formatShortDate(TenantClock.wallOf(occurred))} · ${IsoDateRange.timeLabel(occurred)}',
       personInitials: IsoDateRange.initials(name),
       personName: name,
       assignedNames: assignees
@@ -143,7 +144,7 @@ abstract final class StaffIncidentsMapper {
             list.reportedAtLabel,
             _dashToEmpty(cirReport.reportedAtLabel),
           )
-        : IsoDateRange.formatShortDate(reportedAt.toLocal());
+        : IsoDateRange.formatShortDate(TenantClock.wallOf(reportedAt));
 
     final acknowledgedAt = JsonCodec.dateTime(json['acknowledgedAt']);
     final investigation = JsonCodec.mapAt(json, 'investigation') ?? const {};
@@ -225,7 +226,7 @@ abstract final class StaffIncidentsMapper {
       acknowledged: acknowledgedAt != null || list.acknowledged,
       acknowledgedAtLabel: acknowledgedAt == null
           ? list.acknowledgedAtLabel
-          : IsoDateRange.formatShortDate(acknowledgedAt.toLocal()),
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(acknowledgedAt)),
       witnessNames: _witnessNames(payload['witnesses'] ?? json['witnesses']),
       investigationStatus: _humanizeToken(
         investigation['status'] ?? payload['investigationStatus'],
@@ -251,7 +252,7 @@ abstract final class StaffIncidentsMapper {
               : recordedByName,
       investigationRecordedAtLabel: investigationRecordedAt == null
           ? null
-          : IsoDateRange.formatShortDate(investigationRecordedAt.toLocal()),
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(investigationRecordedAt)),
       source: Map<String, dynamic>.from(json),
     );
   }
@@ -370,7 +371,7 @@ abstract final class StaffIncidentsMapper {
                   : uploaderName,
           uploadedAtLabel: uploadedAt == null
               ? null
-              : IsoDateRange.formatShortDate(uploadedAt.toLocal()),
+              : IsoDateRange.formatShortDate(TenantClock.wallOf(uploadedAt)),
         ),
       );
     }
@@ -403,7 +404,7 @@ abstract final class StaffIncidentsMapper {
       title: _activityTitle(json),
       meta: [
         if (actor != 'Unknown') actor,
-        if (at != null) IsoDateRange.formatShortDate(at.toLocal()),
+        if (at != null) IsoDateRange.formatShortDate(TenantClock.wallOf(at)),
       ].join(' · '),
       isActive: isActive,
       isFailure: isFailure,

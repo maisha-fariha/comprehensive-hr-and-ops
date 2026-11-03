@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/time/tenant_clock.dart';
 
 /// Foreground / background pair for the web's badge variants.
 class MarTone {
@@ -196,14 +197,14 @@ abstract final class MedicationLabels {
   static String _two(int v) => v.toString().padLeft(2, '0');
 
   static String time(DateTime value) {
-    final l = value.toLocal();
+    final l = TenantClock.wallOf(value);
     return '${_two(l.hour)}:${_two(l.minute)}';
   }
 
   /// The web `formatDateTime`: `dd/MM/yyyy HH:mm`.
   static String dateTime(DateTime? value) {
     if (value == null) return '—';
-    final l = value.toLocal();
+    final l = TenantClock.wallOf(value);
     return '${_two(l.day)}/${_two(l.month)}/${l.year} ${time(l)}';
   }
 
@@ -214,7 +215,7 @@ abstract final class MedicationLabels {
   /// Given-tab stamp: `01 Oct, 08:15`.
   static String shortStamp(DateTime? value) {
     if (value == null) return '—';
-    final l = value.toLocal();
+    final l = TenantClock.wallOf(value);
     return '${_two(l.day)} ${_months[l.month - 1]}, ${time(l)}';
   }
 

@@ -1,5 +1,6 @@
 import '../../../../../core/formatting/web_formats.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/assignee.dart';
 import '../../domain/entities/compliance_checklist_item.dart';
@@ -507,11 +508,12 @@ abstract final class TasksComplianceMapper {
 
   static TaskItem _task(Map<String, dynamic> json) {
     final due = JsonCodec.dateTime(json['dueAt'] ?? json['scheduledAt'] ?? json['date']);
-    final now = DateTime.now();
-    final isToday = due != null &&
-        due.toLocal().year == now.year &&
-        due.toLocal().month == now.month &&
-        due.toLocal().day == now.day;
+    final now = TenantClock.now();
+    final dueWall = due == null ? null : TenantClock.wallOf(due);
+    final isToday = dueWall != null &&
+        dueWall.year == now.year &&
+        dueWall.month == now.month &&
+        dueWall.day == now.day;
     final statusRaw = (JsonCodec.string(json['status'] ?? json['state']) ?? '')
         .toLowerCase();
     final awaitingReview = _awaitingReview(json, statusRaw);
@@ -535,8 +537,8 @@ abstract final class TasksComplianceMapper {
       timeLabel: due == null
           ? JsonCodec.stringOr(json['timeLabel'] ?? json['completedAtLabel'], '')
           : isToday
-              ? 'Today, ${IsoDateRange.timeLabel(due.toLocal())}'
-              : IsoDateRange.formatShortDate(due.toLocal()),
+              ? 'Today, ${IsoDateRange.timeLabel(due)}'
+              : IsoDateRange.formatShortDate(TenantClock.wallOf(due)),
       isToday: isToday,
       status: status,
       awaitingReview: awaitingReview,
@@ -601,7 +603,7 @@ abstract final class TasksComplianceMapper {
       ),
       expiryLabel: expires == null
           ? JsonCodec.stringOr(json['expiryLabel'], 'Expiring soon')
-          : 'Expires ${IsoDateRange.formatShortDate(expires.toLocal())}',
+          : 'Expires ${IsoDateRange.formatShortDate(TenantClock.wallOf(expires))}',
     );
   }
 
@@ -661,7 +663,9 @@ abstract final class TasksComplianceMapper {
         'Compliance',
       ),
       assignee: assignee,
-      dateLabel: at == null ? '' : IsoDateRange.formatShortDate(at.toLocal()),
+      dateLabel: at == null
+          ? ''
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(at)),
       status: status,
     );
   }
@@ -757,12 +761,12 @@ abstract final class TasksComplianceMapper {
             json['createdByName'],
       ),
       dueDateLabel: status == CorrectiveActionStatus.completed && completedAt != null
-          ? 'Resolved ${IsoDateRange.formatShortDate(completedAt.toLocal())}'
+          ? 'Resolved ${IsoDateRange.formatShortDate(TenantClock.wallOf(completedAt))}'
           : due == null
               ? JsonCodec.stringOr(json['dueLabel'], '')
               : late
-                  ? '${IsoDateRange.formatShortDate(due.toLocal())} · late'
-                  : IsoDateRange.formatShortDate(due.toLocal()),
+                  ? '${IsoDateRange.formatShortDate(TenantClock.wallOf(due))} · late'
+                  : IsoDateRange.formatShortDate(TenantClock.wallOf(due)),
       isDueLate: late || status == CorrectiveActionStatus.overdue,
       status: status,
     );

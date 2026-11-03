@@ -1,4 +1,5 @@
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/compliance.dart';
 
 abstract final class ComplianceMapper {
@@ -383,16 +384,7 @@ abstract final class ComplianceMapper {
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
-  static String when(DateTime? at) {
-    if (at == null) return '—';
-    final local = at.toLocal();
-    final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final ampm = local.hour >= 12 ? 'pm' : 'am';
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '${local.day.toString().padLeft(2, '0')}/'
-        '${local.month.toString().padLeft(2, '0')}/'
-        '${local.year} $h:$mm $ampm';
-  }
+  static String when(DateTime? at) => TenantClock.formatDateTime(at);
 
   static String readinessTone(num score) {
     if (score >= 90) return 'Ready';

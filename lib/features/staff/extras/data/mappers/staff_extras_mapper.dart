@@ -1,6 +1,7 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/staff_residence.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffExtrasMapper {
   static StaffResidencePerson? _personFrom(dynamic raw) {
@@ -118,7 +119,7 @@ abstract final class StaffExtrasMapper {
         json['createdAt'] ?? json['activityDate'] ?? json['updatedAt'],
       );
       if (subtitle.isEmpty && at != null) {
-        subtitle = IsoDateRange.formatDisplayDate(at.toLocal());
+        subtitle = IsoDateRange.formatDisplayDate(TenantClock.wallOf(at));
       }
       return {
         'id': JsonCodec.stringOr(json['id'], title),

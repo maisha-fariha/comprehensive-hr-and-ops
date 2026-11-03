@@ -22,6 +22,19 @@ abstract final class SchedulingMapper {
   static DateTime? _wall(DateTime? instant) =>
       instant == null ? null : TenantClock.wallOf(instant);
 
+  /// Timeline chip: `(time, period)` in the organisation zone.
+  static (String, String) _timelineClock(DateTime? instant) {
+    if (instant == null) return ('--', '');
+    final wall = TenantClock.wallOf(instant);
+    final minute = wall.minute.toString().padLeft(2, '0');
+    if (TenantClock.timeFormat == '24h') {
+      final hour = wall.hour.toString().padLeft(2, '0');
+      return ('$hour:$minute', '');
+    }
+    final hour12 = wall.hour % 12 == 0 ? 12 : wall.hour % 12;
+    return ('$hour12:$minute', wall.hour >= 12 ? 'PM' : 'AM');
+  }
+
   /// Parse `GET /shifts/{id}` into the Edit Shift form, field-for-field
   /// with the web `shiftToFormValues`.
   static CreateShiftDraft draftFromShift(dynamic body) {
@@ -229,8 +242,8 @@ abstract final class SchedulingMapper {
       rows.add(
         ShiftWindowRow(
           id: id,
-          startsAt: startsAt.toLocal(),
-          endsAt: endsAt.toLocal(),
+          startsAt: TenantClock.wallOf(startsAt),
+          endsAt: TenantClock.wallOf(endsAt),
           status: JsonCodec.string(json['status']) ?? '',
           staffIds: staffIds,
         ),
@@ -261,8 +274,8 @@ abstract final class SchedulingMapper {
             shiftId: shiftId,
             label: label,
             residenceName: JsonCodec.string(row['residenceName']),
-            startsAt: JsonCodec.dateTime(row['startsAt'])?.toLocal(),
-            endsAt: JsonCodec.dateTime(row['endsAt'])?.toLocal(),
+            startsAt: _wall(JsonCodec.dateTime(row['startsAt'])),
+            endsAt: _wall(JsonCodec.dateTime(row['endsAt'])),
           ),
         );
       }
@@ -337,7 +350,7 @@ abstract final class SchedulingMapper {
     dynamic coverageBody,
   }) {
     final weekStart = IsoDateRange.startOfWeek(weekOf);
-    final today = DateTime.now();
+    final today = TenantClock.now();
     final todayDate = DateTime(today.year, today.month, today.day);
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final weekShiftsRaw = _shifts(weekBody);
@@ -356,7 +369,7 @@ abstract final class SchedulingMapper {
       final day = weekStart.add(Duration(days: index));
       final dayDate = DateTime(day.year, day.month, day.day);
       final hasShift = weekShiftsRaw.any((shift) {
-        final start = _startOf(shift);
+        final start = _wall(_startOf(shift));
         return start != null && _isSameDay(start, dayDate);
       });
       return CalendarDay(
@@ -518,31 +531,31 @@ abstract final class SchedulingMapper {
         .toList();
   }
 
+  /// Raw API instant (usually UTC). Display via [_wall] / [IsoDateRange].
   static DateTime? _startOf(Map<String, dynamic> json) {
     return JsonCodec.dateTime(
       json['startAt'] ?? json['startsAt'] ?? json['startTime'] ?? json['from'],
-    )?.toLocal();
+    );
   }
 
   static DateTime? _endOf(Map<String, dynamic> json) {
     return JsonCodec.dateTime(
       json['endAt'] ?? json['endsAt'] ?? json['endTime'] ?? json['to'],
-    )?.toLocal();
+    );
   }
 
   static CalendarShift _calendarShift(
     Map<String, dynamic> json, {
     required bool showDivider,
   }) {
-    final start = _startOf(json);
-    final end = _endOf(json);
+    final startUtc = _startOf(json);
+    final endUtc = _endOf(json);
+    final start = _wall(startUtc);
+    final end = _wall(endUtc);
     final filled = _filled(json);
     final total = _total(json, filled);
     final open = (total - filled).clamp(0, total);
-    final hour = start?.hour ?? 0;
-    final minute = (start?.minute ?? 0).toString().padLeft(2, '0');
-    final hour12 = hour % 12 == 0 ? 12 : hour % 12;
-    final period = hour >= 12 ? 'PM' : 'AM';
+    final timeParts = _timelineClock(startUtc);
     final avatars = _avatars(json);
     return CalendarShift(
       id: JsonCodec.stringOr(json['id'], 'shift'),
@@ -572,13 +585,13 @@ abstract final class SchedulingMapper {
         json['residenceName'] ??
             JsonCodec.mapAt(json, 'residence')?['name'],
       ),
-      startTime: start == null ? '--' : '$hour12:$minute',
-      startPeriod: period,
+      startTime: timeParts.$1,
+      startPeriod: timeParts.$2,
       name: JsonCodec.stringOr(
         json['name'] ?? json['title'] ?? json['role'] ?? json['period'],
         _periodName(start),
       ),
-      timeRange: IsoDateRange.rangeLabel(start, end),
+      timeRange: IsoDateRange.rangeLabel(startUtc, endUtc),
       filled: filled,
       total: total,
       status: _coverageStatus(filled, total),
@@ -592,8 +605,9 @@ abstract final class SchedulingMapper {
   }
 
   static BoardShift _boardShift(Map<String, dynamic> json) {
-    final start = _startOf(json);
-    final end = _endOf(json);
+    final startUtc = _startOf(json);
+    final endUtc = _endOf(json);
+    final start = _wall(startUtc);
     final filled = _filled(json);
     final total = _total(json, filled);
     final open = (total - filled).clamp(0, total);
@@ -605,7 +619,7 @@ abstract final class SchedulingMapper {
         json['name'] ?? json['title'] ?? json['period'],
         _periodName(start),
       ),
-      timeRange: IsoDateRange.rangeLabel(start, end),
+      timeRange: IsoDateRange.rangeLabel(startUtc, endUtc),
       filled: filled,
       total: total,
       status: status,
