@@ -277,10 +277,14 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
             error: _errors['middleName'],
           ),
           const SizedBox(height: 12),
-          ClientInput(
+          ClientSelect(
             label: 'Relationship',
-            placeholder: 'Daughter, son, spouse…',
-            controller: d.relationship,
+            placeholder: 'Select relationship',
+            value: d.relationship.text,
+            options: [
+              for (final r in ClientsLabels.relationships) (r, r),
+            ],
+            onChanged: (v) => setState(() => d.relationship.text = v),
           ),
           const SizedBox(height: 12),
           ClientInput(

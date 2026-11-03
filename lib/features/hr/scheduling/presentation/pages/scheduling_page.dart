@@ -14,8 +14,10 @@ import '../widgets/requests_tab_view.dart';
 import '../widgets/scheduling_filter_bar.dart';
 import '../widgets/scheduling_segmented_tabs.dart';
 import '../../../presentation/open_manager_menu.dart';
+import '../widgets/schedule_side_rails.dart';
 import '../widgets/schedule_span_panel.dart';
 import '../widgets/scheduling_top_bar.dart';
+import '../widgets/staff_rostered_hours_sheet.dart';
 import 'create_shift_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
@@ -128,6 +130,22 @@ class _SchedulingPageState extends State<SchedulingPage> {
     );
   }
 
+  Future<void> _openStaffHours(
+    BuildContext context,
+    SchedulingController controller,
+  ) async {
+    final overview = controller.state.value.data;
+    if (overview == null) return;
+    await showStaffRosteredHoursSheet(
+      context: context,
+      weekOf: controller.weekOf.value,
+      weekRows: overview.staffRosteredHours,
+      residenceId: controller.residenceFilter.value,
+      status: controller.statusFilter.value,
+      mine: controller.mineOnly.value,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
@@ -164,6 +182,8 @@ class _SchedulingPageState extends State<SchedulingPage> {
                       onReviewRotaTap: _aiEnabled == true
                           ? () => _reviewRota(controller)
                           : null,
+                      onStaffHoursTap: () =>
+                          _openStaffHours(context, controller),
                       onCreateShiftTap: controller.canWrite
                           ? () => _openCreateShift(controller)
                           : null,
@@ -219,6 +239,19 @@ class _SchedulingPageState extends State<SchedulingPage> {
                           ),
                         ],
                         trailing: [
+                          OpenShiftsRail(
+                            controller: controller,
+                            openShifts: overview.openShifts,
+                            onOpenShift: controller.canWrite
+                                ? (id) => _openEditShift(controller, id)
+                                : null,
+                          ),
+                          StaffRosteredHoursRail(
+                            rows: overview.staffRosteredHours,
+                            weekStart: controller.weekOf.value,
+                            onViewBreakdown: () =>
+                                _openStaffHours(context, controller),
+                          ),
                           WeekSwapRail(
                             controller: controller,
                             shifts: overview.calendar.weekShifts,

@@ -93,12 +93,12 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     };
 
     final results = await Future.wait([
+      // Open / past-unstaffed rail is not limited to the visible week — the
+      // web keeps last week's unstaffed opens until they are deleted.
       _fetchAllPages(
         path: ApiEndpoints.shifts,
         baseQuery: {
           'status': 'open',
-          'from': from,
-          'to': to,
           'residenceId': ?scopedResidenceId,
           if (mine) 'mine': true,
         },

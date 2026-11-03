@@ -420,7 +420,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (index >= 0) _goTo(CreateShiftStep.values[index]);
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit({bool asDraft = false}) async {
     if (_isSubmitting) return;
     await _clockReady;
     if (!mounted || _isSubmitting) return;
@@ -430,7 +430,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       _goTo(CreateShiftDraft.stepOf(errors.keys.first));
       return;
     }
-    if (_staffingBlocked) {
+    if (!asDraft && _staffingBlocked) {
       AppSnackbar.show('Staff assignment', _staffingBlockedToast);
       _goTo(CreateShiftStep.staffAssignment);
       return;
@@ -445,14 +445,18 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       await _saveEdit();
       return;
     }
-    final result = await _repository.createShift(_draft.toCreateBody());
+    final result = await _repository.createShift(
+      _draft.toCreateBody(asDraft: asDraft),
+    );
     if (!mounted) return;
     result.when(
       success: (count) {
         Navigator.of(context).pop(true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           AppSnackbar.show(
-            count == 1 ? 'Shift created' : '$count shifts created',
+            asDraft
+                ? (count == 1 ? 'Draft saved' : '$count drafts saved')
+                : (count == 1 ? 'Shift created' : '$count shifts created'),
             '',
           );
         });
@@ -466,6 +470,82 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           _goTo(CreateShiftStep.staffAssignment);
         }
         if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      },
+    );
+  }
+
+  Future<void> _deleteShift() async {
+    final id = widget.editShiftId;
+    if (id == null || _isSubmitting) return;
+    final confirmed = await showAppPopup<bool>(
+      context: context,
+      builder: (dialogContext) => AppSheetDialog(
+        backgroundColor: AppColors.surfaceWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete this shift?',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: AppColors.textHeading,
+          ),
+        ),
+        content: const Text(
+          'This permanently removes the shift and any bids on it. This cannot be undone.',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 14,
+            color: AppColors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(
+              'Keep shift',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                color: AppColors.textHeading,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                color: AppColors.criticalRed,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _isSubmitting = true;
+      _submitError = null;
+    });
+    final result = await _repository.deleteShift(id);
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        Navigator.of(context).pop(true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          AppSnackbar.show('Shift deleted', '');
+        });
+      },
+      failure: (error) {
+        setState(() {
+          _isSubmitting = false;
+          _submitError = error.message;
+        });
       },
     );
   }
@@ -922,7 +1002,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                   onCancel: _requestClose,
                   onBack: _back,
                   onNext: _next,
-                  onSubmit: _submit,
+                  onSubmit: () => _submit(),
+                  onSaveDraft: _isEdit ? null : () => _submit(asDraft: true),
+                  onDelete: _isEdit ? _deleteShift : null,
                   isEdit: _isEdit,
                 ),
               ],

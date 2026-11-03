@@ -37,6 +37,7 @@ abstract final class ClientsLabels {
     'Spouse',
     'Sibling',
     'Legal Guardian',
+    'Case Worker',
     'Other',
   ];
 

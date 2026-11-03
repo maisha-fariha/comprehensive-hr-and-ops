@@ -400,7 +400,10 @@ class CreateShiftDraft {
   }
 
   /// `POST /shifts` body, field-for-field with the web `toCreateBody`.
-  Map<String, dynamic> toCreateBody() {
+  ///
+  /// When [asDraft] is true, sends `status: draft` (web "Save as draft") so
+  /// the shift is stored without going live / open for bids.
+  Map<String, dynamic> toCreateBody({bool asDraft = false}) {
     final window = shiftWindow!;
     final startsAt = window.$1;
     final endsAt = window.$2;
@@ -435,16 +438,17 @@ class CreateShiftDraft {
       'staffIds': [for (final staff in assignedStaff) staff.staffId],
       'shiftType': shiftType,
       'breakMinutes': breakMinutes,
-      'open': isOpenShift,
-      if (isOpenShift)
+      'open': asDraft ? false : isOpenShift,
+      if (asDraft) 'status': 'draft',
+      if (!asDraft && isOpenShift)
         'requiredStaffCount': staffCount == 0 ? null : _jsonNumber(staffCount),
       'reminderMinutesBefore': reminderMinutes,
-      'notifyAssignedStaff': notifyAssignedStaff,
+      'notifyAssignedStaff': asDraft ? false : notifyAssignedStaff,
       if (message.isNotEmpty) 'notificationMessage': message,
       if (trimmedTitle.isNotEmpty) 'title': trimmedTitle,
       if (trimmedNotes.isNotEmpty) 'notes': trimmedNotes,
-      'biddingConfig': biddingConfig,
-      if (isRecurring)
+      if (!asDraft) 'biddingConfig': biddingConfig,
+      if (!asDraft && isRecurring)
         'recurrence': {
           'occurrences': plannedOccurrences(),
           'intervalDays': recurrenceFrequency == 0 ? 7 : recurrenceFrequency,

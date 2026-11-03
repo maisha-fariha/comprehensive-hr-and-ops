@@ -148,6 +148,7 @@ class ClientForm {
   final contactNotes = TextEditingController();
   final doctorName = TextEditingController();
   final pharmacyName = TextEditingController();
+  final healthCardNumber = TextEditingController();
   final behavioralTriggers = TextEditingController();
   final safetyPlanNotes = TextEditingController();
   final servicePlan = TextEditingController();
@@ -227,6 +228,7 @@ class ClientForm {
     form.contactNotes.text = c.contactNotes;
     form.doctorName.text = c.doctorName;
     form.pharmacyName.text = c.pharmacyName;
+    form.healthCardNumber.text = c.healthCardNumber;
     form.behavioralTriggers.text = c.behavioralTriggers;
     form.safetyPlanNotes.text = c.safetyPlanNotes;
     form.servicePlan.text = c.servicePlan;
@@ -473,6 +475,7 @@ class ClientForm {
         'currentMedications': List.of(currentMedications),
         'doctorName': doctorName.text,
         'pharmacyName': pharmacyName.text,
+        'healthCardNumber': healthCardNumber.text.trim(),
         'behavioralTriggers': behavioralTriggers.text,
         'safetyPlanNotes': safetyPlanNotes.text,
       },
@@ -552,6 +555,7 @@ class ClientForm {
       contactNotes,
       doctorName,
       pharmacyName,
+      healthCardNumber,
       behavioralTriggers,
       safetyPlanNotes,
       servicePlan,

@@ -418,6 +418,9 @@ abstract final class SchedulingMapper {
         ),
     ];
 
+    final openShiftCards = [
+      for (final raw in openShifts) _calendarShift(raw, showDivider: false),
+    ];
     return SchedulingOverview(
       weekCoverage: _weekCoverage(
         coverageBody == null ? weekShiftsRaw : _shifts(coverageBody),
@@ -443,7 +446,46 @@ abstract final class SchedulingMapper {
         declinedRequests: _requests(declinedSwapsBody, RequestStatus.declined),
         openShiftRequests: openShifts.map(_openPosition).toList(),
       ),
+      openShifts: openShiftCards,
+      staffRosteredHours: _staffRosteredHours(weekShiftsRaw),
     );
+  }
+
+  static List<StaffRosteredHours> _staffRosteredHours(
+    List<Map<String, dynamic>> rows,
+  ) {
+    final totals = <String, ({String name, double hours, int shifts})>{};
+    for (final json in rows) {
+      final start = _startOf(json);
+      final end = _endOf(json);
+      if (start == null || end == null) continue;
+      final minutes = end.difference(start).inMinutes;
+      if (minutes <= 0) continue;
+      final hours = minutes / 60.0;
+      for (final person in _assignedPeople(json)) {
+        if (person is! Map) continue;
+        final map = JsonCodec.asMap(person);
+        final id = JsonCodec.string(map['id'] ?? map['staffId']);
+        if (id == null || id.isEmpty) continue;
+        final name = _fullName(person);
+        final prev = totals[id];
+        totals[id] = (
+          name: name.isNotEmpty ? name : (prev?.name ?? 'Staff'),
+          hours: (prev?.hours ?? 0) + hours,
+          shifts: (prev?.shifts ?? 0) + 1,
+        );
+      }
+    }
+    final rowsOut = [
+      for (final entry in totals.entries)
+        StaffRosteredHours(
+          staffId: entry.key,
+          name: entry.value.name,
+          hours: entry.value.hours,
+          shiftCount: entry.value.shifts,
+        ),
+    ]..sort((a, b) => b.hours.compareTo(a.hours));
+    return rowsOut;
   }
 
   /// Rebuilds only the calendar strip/timeline for a newly selected day using

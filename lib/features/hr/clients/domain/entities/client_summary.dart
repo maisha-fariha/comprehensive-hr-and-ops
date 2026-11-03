@@ -44,6 +44,9 @@ class ClientSummary {
   final List<String> currentMedications;
   final String doctorName;
   final String pharmacyName;
+
+  /// Provincial / insurance health card number (`medicalInfo.healthCardNumber`).
+  final String healthCardNumber;
   final String behavioralTriggers;
   final String safetyPlanNotes;
   final List<String> carePlanGoals;
@@ -83,6 +86,7 @@ class ClientSummary {
     this.currentMedications = const [],
     this.doctorName = '',
     this.pharmacyName = '',
+    this.healthCardNumber = '',
     this.behavioralTriggers = '',
     this.safetyPlanNotes = '',
     this.carePlanGoals = const [],

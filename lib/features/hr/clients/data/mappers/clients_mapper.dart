@@ -63,6 +63,9 @@ abstract final class ClientsMapper {
       currentMedications: _strings(medical['currentMedications']),
       doctorName: _text(medical['doctorName']),
       pharmacyName: _text(medical['pharmacyName']),
+      healthCardNumber: _text(
+        medical['healthCardNumber'] ?? json['healthCardNumber'],
+      ),
       behavioralTriggers: _text(medical['behavioralTriggers']),
       safetyPlanNotes: _text(medical['safetyPlanNotes']),
       carePlanGoals: _strings(carePlan['goals']),

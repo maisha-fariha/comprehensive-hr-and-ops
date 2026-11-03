@@ -133,6 +133,15 @@ class ClientBasicSection extends StatelessWidget {
           error: errors['status'],
           onChanged: (v) => _set(() => form.status = v),
         ),
+        _gap,
+        ClientInput(
+          key: const ValueKey('client-health-card'),
+          label: 'Health Card #',
+          placeholder: 'e.g. 1234-567-890-XX',
+          controller: form.healthCardNumber,
+          enabled: enabled,
+          onChanged: (_) => onChanged(),
+        ),
       ],
     );
   }

@@ -3,7 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 
-/// Wizard footer: "* Required fields", Cancel/Back and Next/Create.
+/// Wizard footer: Cancel/Back, optional Draft / Delete, and Next/Create.
 class CreateShiftFooter extends StatelessWidget {
   final bool isFirstStep;
   final bool isLastStep;
@@ -13,6 +13,12 @@ class CreateShiftFooter extends StatelessWidget {
   final VoidCallback? onBack;
   final VoidCallback? onNext;
   final VoidCallback? onSubmit;
+
+  /// Create only: web "Save as draft".
+  final VoidCallback? onSaveDraft;
+
+  /// Edit only: delete this shift.
+  final VoidCallback? onDelete;
 
   /// Edit Shift mode: the submit reads "Save changes".
   final bool isEdit;
@@ -27,6 +33,8 @@ class CreateShiftFooter extends StatelessWidget {
     this.onBack,
     this.onNext,
     this.onSubmit,
+    this.onSaveDraft,
+    this.onDelete,
     this.isEdit = false,
   });
 
@@ -90,6 +98,30 @@ class CreateShiftFooter extends StatelessWidget {
             onTap: onNext,
           );
 
+    final draft = !isEdit && onSaveDraft != null
+        ? _FooterButton(
+            key: const ValueKey('create-shift-draft'),
+            label: isSubmitting ? 'Saving…' : 'Save as Draft',
+            filled: false,
+            onTap: isSubmitting ? null : onSaveDraft,
+          )
+        : null;
+
+    final delete = isEdit && onDelete != null
+        ? _FooterButton(
+            key: const ValueKey('create-shift-delete'),
+            label: 'Delete',
+            filled: false,
+            danger: true,
+            onTap: isSubmitting ? null : onDelete,
+          )
+        : null;
+
+    final extras = <Widget>[
+      ?delete,
+      ?draft,
+    ];
+
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -112,11 +144,32 @@ class CreateShiftFooter extends StatelessWidget {
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 12),
                     ),
+                    if (extras.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          for (var i = 0; i < extras.length; i++) ...[
+                            if (i != 0)
+                              SizedBox(
+                                width: ResponsiveHelper.getResponsiveWidth(
+                                  context,
+                                  10,
+                                ),
+                              ),
+                            Expanded(child: extras[i]),
+                          ],
+                        ],
+                      ),
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 10),
+                      ),
+                    ],
                     Row(
                       children: [
                         Expanded(child: secondary(expanded: true)),
                         SizedBox(
-                          width: ResponsiveHelper.getResponsiveWidth(context, 10),
+                          width:
+                              ResponsiveHelper.getResponsiveWidth(context, 10),
                         ),
                         Expanded(child: primary(expanded: true)),
                       ],
@@ -127,6 +180,15 @@ class CreateShiftFooter extends StatelessWidget {
                   children: [
                     requiredHint,
                     const Spacer(),
+                    ...[
+                      for (final extra in extras) ...[
+                        extra,
+                        SizedBox(
+                          width:
+                              ResponsiveHelper.getResponsiveWidth(context, 10),
+                        ),
+                      ],
+                    ],
                     secondary(),
                     SizedBox(
                       width: ResponsiveHelper.getResponsiveWidth(context, 10),
@@ -145,6 +207,7 @@ class _FooterButton extends StatelessWidget {
   final bool filled;
   final bool expanded;
   final bool isLoading;
+  final bool danger;
   final VoidCallback? onTap;
 
   const _FooterButton({
@@ -154,6 +217,7 @@ class _FooterButton extends StatelessWidget {
     this.onTap,
     this.expanded = false,
     this.isLoading = false,
+    this.danger = false,
   });
 
   @override
@@ -166,9 +230,13 @@ class _FooterButton extends StatelessWidget {
         : AppColors.surfaceWhite;
     final foreground = filled
         ? Colors.white
-        : (enabled
-            ? AppColors.textHeading
-            : AppColors.textHeading.withValues(alpha: 0.45));
+        : danger
+            ? (enabled
+                ? AppColors.criticalRed
+                : AppColors.criticalRed.withValues(alpha: 0.45))
+            : (enabled
+                ? AppColors.textHeading
+                : AppColors.textHeading.withValues(alpha: 0.45));
 
     return Material(
       color: background,
@@ -192,7 +260,13 @@ class _FooterButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(
               ResponsiveHelper.getResponsiveRadius(context, 12),
             ),
-            border: filled ? null : Border.all(color: AppColors.searchBorder),
+            border: filled
+                ? null
+                : Border.all(
+                    color: danger
+                        ? AppColors.criticalRed.withValues(alpha: 0.35)
+                        : AppColors.searchBorder,
+                  ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,

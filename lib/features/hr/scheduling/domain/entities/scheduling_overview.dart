@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'board_overview.dart';
 import 'calendar_schedule.dart';
+import 'calendar_shift.dart';
 import 'requests_overview.dart';
 
 /// Aggregate root for everything shown on the Manager "Scheduling" screen
@@ -16,11 +17,20 @@ class SchedulingOverview {
   /// while All shifts is showing a different list.
   final WeekShiftCoverage weekCoverage;
 
+  /// Open / bidding shifts (not limited to the visible week) for the web
+  /// "Open shifts" rail — upcoming vs past unstaffed.
+  final List<CalendarShift> openShifts;
+
+  /// Staff rostered hours for the visible week (web "Staff Rostered Hours").
+  final List<StaffRosteredHours> staffRosteredHours;
+
   const SchedulingOverview({
     required this.calendar,
     required this.board,
     required this.requests,
     this.weekCoverage = WeekShiftCoverage.empty,
+    this.openShifts = const [],
+    this.staffRosteredHours = const [],
   });
 
   SchedulingOverview copyWith({
@@ -28,13 +38,54 @@ class SchedulingOverview {
     BoardOverview? board,
     RequestsOverview? requests,
     WeekShiftCoverage? weekCoverage,
+    List<CalendarShift>? openShifts,
+    List<StaffRosteredHours>? staffRosteredHours,
   }) {
     return SchedulingOverview(
       calendar: calendar ?? this.calendar,
       board: board ?? this.board,
       requests: requests ?? this.requests,
       weekCoverage: weekCoverage ?? this.weekCoverage,
+      openShifts: openShifts ?? this.openShifts,
+      staffRosteredHours: staffRosteredHours ?? this.staffRosteredHours,
     );
+  }
+}
+
+/// One row in the web "Staff Rostered Hours" sidebar / modal.
+@immutable
+class StaffRosteredHours {
+  final String staffId;
+  final String name;
+  final double hours;
+
+  /// Assigned shifts contributing to [hours].
+  final int shiftCount;
+
+  const StaffRosteredHours({
+    required this.staffId,
+    required this.name,
+    required this.hours,
+    this.shiftCount = 0,
+  });
+
+  /// Web weekly FTE baseline used for capacity % and overtime.
+  static const double weeklyCapacityHours = 40;
+
+  double overtime({required bool monthly, required int daysInMonth}) {
+    final capacity = monthly
+        ? weeklyCapacityHours * (daysInMonth / 7.0)
+        : weeklyCapacityHours;
+    final over = hours - capacity;
+    return over > 0 ? over : 0;
+  }
+
+  double capacityFraction({required bool monthly, required int daysInMonth}) {
+    final capacity = monthly
+        ? weeklyCapacityHours * (daysInMonth / 7.0)
+        : weeklyCapacityHours;
+    if (capacity <= 0) return 0;
+    return (hours / capacity).clamp(0.0, 1.0);
   }
 }
 
