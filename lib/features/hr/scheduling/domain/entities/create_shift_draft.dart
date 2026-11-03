@@ -435,7 +435,11 @@ class CreateShiftDraft {
       'oneToOneClientId': oneToOneClientId,
       'startsAt': _iso(startsAt),
       'endsAt': _iso(endsAt),
-      'staffIds': [for (final staff in assignedStaff) staff.staffId],
+      // Open shifts are unassigned on create; keep [assignedStaff] in memory
+      // so the form can restore picks if the user switches back.
+      'staffIds': isOpenShift && !asDraft
+          ? <String>[]
+          : [for (final staff in assignedStaff) staff.staffId],
       'shiftType': shiftType,
       'breakMinutes': breakMinutes,
       'open': asDraft ? false : isOpenShift,

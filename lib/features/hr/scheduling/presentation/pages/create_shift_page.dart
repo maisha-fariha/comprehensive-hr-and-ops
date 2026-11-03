@@ -557,7 +557,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     final result = await _repository.updateShift(
       shiftId: widget.editShiftId!,
       payload: _draft.toUpdateBody(),
-      staffIds: [for (final staff in _draft.assignedStaff) staff.staffId],
+      staffIds: _draft.isOpenShift
+          ? const <String>[]
+          : [for (final staff in _draft.assignedStaff) staff.staffId],
     );
     if (!mounted) return;
     result.when(
@@ -1101,8 +1103,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           leaveConflicts: _conflicts.leave,
           residenceName: _residenceLabel,
           onOpenShiftChanged: (value) => _update(() {
+            // Keep assigned staff while toggling methods so switching back
+            // to "Assign Specific Staff" restores the previous picks.
             _draft.isOpenShift = value;
-            if (value) _draft.assignedStaff.clear();
           }),
           openShiftFields: CreateShiftOpenShiftForm(
             embedded: true,
