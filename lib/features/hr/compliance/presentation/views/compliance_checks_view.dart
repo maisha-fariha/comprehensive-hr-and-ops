@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../data/mappers/compliance_mapper.dart';
 import '../controllers/compliance_controller.dart';
 import '../widgets/compliance_common.dart';
 import '../widgets/create_check_sheet.dart';
+import '../widgets/submit_check_sheet.dart';
 
 class ComplianceChecksView extends StatelessWidget {
   final ComplianceController controller;
@@ -170,6 +172,47 @@ class ComplianceChecksView extends StatelessWidget {
                                         color: AppColors.textMuted,
                                       ),
                                     ),
+                                    if (controller.canWrite) ...[
+                                      const SizedBox(height: 8),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: c.result == null
+                                            ? TextButton(
+                                                onPressed: () =>
+                                                    showSubmitCheckSheet(
+                                                  context,
+                                                  controller: controller,
+                                                  check: c,
+                                                ),
+                                                child: const Text('Carry out'),
+                                              )
+                                            : c.reviewedAt == null
+                                                ? TextButton(
+                                                    onPressed: () async {
+                                                      final err = await controller
+                                                          .reviewCheck(c.id);
+                                                      if (!context.mounted) {
+                                                        return;
+                                                      }
+                                                      if (err != null) {
+                                                        AppSnackbar.show(
+                                                          err,
+                                                          '',
+                                                          force: true,
+                                                        );
+                                                      } else {
+                                                        AppSnackbar.show(
+                                                          'Check signed off',
+                                                          '',
+                                                          force: true,
+                                                        );
+                                                      }
+                                                    },
+                                                    child: const Text('Sign off'),
+                                                  )
+                                                : const SizedBox.shrink(),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               );

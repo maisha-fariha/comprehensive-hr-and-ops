@@ -29,6 +29,16 @@ abstract class ComplianceRepository {
 
   Future<Result<ComplianceCheck>> createCheck(Map<String, dynamic> body);
 
+  Future<Result<ComplianceCheck>> submitCheck(
+    String id,
+    Map<String, dynamic> body,
+  );
+
+  Future<Result<ComplianceCheck>> reviewCheck(
+    String id, {
+    Map<String, dynamic> body = const {},
+  });
+
   Future<Result<CompliancePageResult<ComplianceFinding>>> findings({
     int page = 1,
     int limit = 20,

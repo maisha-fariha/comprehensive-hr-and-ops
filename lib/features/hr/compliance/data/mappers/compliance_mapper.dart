@@ -105,15 +105,22 @@ abstract final class ComplianceMapper {
 
   static ComplianceAlert? _alertFrom(dynamic body) {
     final json = JsonCodec.asMap(body);
-    final id = JsonCodec.string(json['id'] ?? json['key'] ?? json['kind']);
+    // Live GET /compliance/alerts returns {type, severity, message, meta}.
+    final id = JsonCodec.string(
+      json['id'] ?? json['key'] ?? json['type'] ?? json['kind'],
+    );
     final title = JsonCodec.string(
-      json['title'] ?? json['label'] ?? json['message'] ?? json['kind'],
+      json['message'] ??
+          json['title'] ??
+          json['label'] ??
+          json['kind'] ??
+          json['type'],
     );
     if (id == null || title == null) return null;
     return ComplianceAlert(
       id: id,
       title: title,
-      kind: JsonCodec.string(json['kind'] ?? json['type']),
+      kind: JsonCodec.string(json['type'] ?? json['kind']),
       severity: JsonCodec.string(json['severity']),
       detail: JsonCodec.string(json['detail'] ?? json['description']),
     );
@@ -306,6 +313,9 @@ abstract final class ComplianceMapper {
       reportKey: JsonCodec.stringOr(json['reportKey'], ''),
       status: JsonCodec.stringOr(json['status'], ''),
       createdAt: JsonCodec.dateTime(json['createdAt']),
+      downloadUrl: JsonCodec.string(
+        json['downloadUrl'] ?? json['fileUrl'],
+      ),
     );
   }
 
@@ -343,6 +353,19 @@ abstract final class ComplianceMapper {
     ('staff_report', 'Reported by staff'),
     ('regulatory_inspection', 'Regulatory inspection'),
   ];
+
+  /// Web Checks → Carry out result options.
+  static const checkResults = [
+    ('compliant', 'Compliant'),
+    ('partially_compliant', 'Partially compliant'),
+    ('non_compliant', 'Not compliant'),
+    ('needs_review', 'Needs review'),
+  ];
+
+  static const raiseFindingResults = {
+    'non_compliant',
+    'partially_compliant',
+  };
 
   static const pageSizes = [10, 20, 25, 50];
 

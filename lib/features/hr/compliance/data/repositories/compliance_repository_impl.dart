@@ -182,6 +182,58 @@ class ComplianceRepositoryImpl implements ComplianceRepository {
   }
 
   @override
+  Future<Result<ComplianceCheck>> submitCheck(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final result = await _api.post(
+      ComplianceEndpoints.submitCheck(id),
+      data: body,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final list = ComplianceMapper.checksFrom({
+          'data': [JsonCodec.unwrap(body)],
+        });
+        if (list.isEmpty) {
+          return Result.failure(
+            const ApiError(message: 'Could not record check'),
+          );
+        }
+        return Result.success(list.first);
+      },
+      failure: (e) async => Result.failure(e),
+    );
+  }
+
+  @override
+  Future<Result<ComplianceCheck>> reviewCheck(
+    String id, {
+    Map<String, dynamic> body = const {},
+  }) async {
+    final result = await _api.post(
+      ComplianceEndpoints.reviewCheck(id),
+      data: body,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final list = ComplianceMapper.checksFrom({
+          'data': [JsonCodec.unwrap(body)],
+        });
+        if (list.isEmpty) {
+          return Result.failure(
+            const ApiError(message: 'Could not sign off check'),
+          );
+        }
+        return Result.success(list.first);
+      },
+      failure: (e) async => Result.failure(e),
+    );
+  }
+
+  @override
   Future<Result<CompliancePageResult<ComplianceFinding>>> findings({
     int page = 1,
     int limit = 20,

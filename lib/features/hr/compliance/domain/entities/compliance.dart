@@ -292,11 +292,13 @@ class ComplianceExportJob {
   final String reportKey;
   final String status;
   final DateTime? createdAt;
+  final String? downloadUrl;
 
   const ComplianceExportJob({
     required this.id,
     required this.reportKey,
     required this.status,
     this.createdAt,
+    this.downloadUrl,
   });
 }

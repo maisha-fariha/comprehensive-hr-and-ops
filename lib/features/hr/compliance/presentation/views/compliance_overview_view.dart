@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../data/mappers/compliance_mapper.dart';
 import '../controllers/compliance_controller.dart';
@@ -348,12 +350,44 @@ class ComplianceOverviewView extends StatelessWidget {
                     style: handoverText(context, 14, weight: FontWeight.w700),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    controller.exports.isEmpty
-                        ? 'No exports have been run yet.'
-                        : 'Last: ${ComplianceMapper.label(controller.exports.first.status)}',
-                    style: handoverText(context, 13, color: AppColors.textMuted),
-                  ),
+                  if (controller.exports.isEmpty)
+                    Text(
+                      'No exports have been run yet.',
+                      style: handoverText(
+                        context,
+                        13,
+                        color: AppColors.textMuted,
+                      ),
+                    )
+                  else ...[
+                    for (final job in controller.exports.take(3)) ...[
+                      Text(
+                        '${ComplianceMapper.label(job.reportKey)} · ${ComplianceMapper.label(job.status)}',
+                        style: handoverText(context, 12.5),
+                      ),
+                      if (job.downloadUrl != null &&
+                          job.downloadUrl!.isNotEmpty)
+                        TextButton(
+                          onPressed: () async {
+                            final uri = Uri.tryParse(job.downloadUrl!);
+                            if (uri == null) return;
+                            final ok = await launchUrl(
+                              uri,
+                              mode: LaunchMode.externalApplication,
+                            );
+                            if (!context.mounted) return;
+                            if (!ok) {
+                              AppSnackbar.show(
+                                'Could not open export',
+                                '',
+                                force: true,
+                              );
+                            }
+                          },
+                          child: const Text('Download'),
+                        ),
+                    ],
+                  ],
                 ],
               ),
             ),

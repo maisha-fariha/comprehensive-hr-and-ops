@@ -384,16 +384,96 @@ class ComplianceController extends GetxController {
     return error;
   }
 
-  Future<String?> raiseFinding(Map<String, dynamic> body) async {
+  /// Returns `null` on success, or an error message.
+  ///
+  /// Web create flow: POST finding, then PATCH `status` when not `open`,
+  /// then optional corrective action linked by `incidentId`.
+  Future<String?> raiseFinding(
+    Map<String, dynamic> body, {
+    String status = 'open',
+    String? correctiveActionDescription,
+    String? correctiveOwnerId,
+    DateTime? correctiveDueAt,
+  }) async {
     if (!canWrite) return 'You need compliance write access.';
     busy.value = true;
+    String? error;
+    ComplianceFinding? created;
     final result = await repository.createFinding(body);
+    await result.when(
+      success: (f) async => created = f,
+      failure: (e) async => error = e.message,
+    );
+    if (error != null || created == null) {
+      busy.value = false;
+      return error ?? 'Could not raise finding';
+    }
+    if (status.isNotEmpty && status != 'open') {
+      final patch = await repository.updateFinding(created!.id, {
+        'status': status,
+      });
+      await patch.when(
+        success: (f) async => created = f,
+        failure: (e) async => error = e.message,
+      );
+      if (error != null) {
+        busy.value = false;
+        return error;
+      }
+    }
+    final actionText = correctiveActionDescription?.trim() ?? '';
+    if (actionText.isNotEmpty) {
+      final actionBody = <String, dynamic>{
+        'incidentId': created!.id,
+        'description': actionText,
+        if (correctiveOwnerId != null && correctiveOwnerId.isNotEmpty)
+          'ownerId': correctiveOwnerId,
+        if (correctiveDueAt != null)
+          'dueAt': correctiveDueAt.toUtc().toIso8601String(),
+      };
+      final action = await repository.createAction(actionBody);
+      await action.when(
+        success: (_) async {},
+        failure: (e) async => error = e.message,
+      );
+      if (error != null) {
+        busy.value = false;
+        return error;
+      }
+    }
+    findingsPage.value = 1;
+    await Future.wait([
+      _loadFindings(),
+      _loadOverview(),
+      _loadAlerts(),
+      _loadActions(),
+    ]);
+    busy.value = false;
+    return null;
+  }
+
+  Future<String?> submitCheck(String id, Map<String, dynamic> body) async {
+    if (!canWrite) return 'You need compliance write access.';
+    busy.value = true;
+    final result = await repository.submitCheck(id, body);
     String? error;
     await result.when(
       success: (_) async {
-        findingsPage.value = 1;
-        await Future.wait([_loadFindings(), _loadOverview(), _loadAlerts()]);
+        await Future.wait([_loadChecks(), _loadOverview(), _loadFindings()]);
       },
+      failure: (e) async => error = e.message,
+    );
+    busy.value = false;
+    return error;
+  }
+
+  Future<String?> reviewCheck(String id) async {
+    if (!canWrite) return 'You need compliance write access.';
+    busy.value = true;
+    final result = await repository.reviewCheck(id);
+    String? error;
+    await result.when(
+      success: (_) async => _loadChecks(),
       failure: (e) async => error = e.message,
     );
     busy.value = false;

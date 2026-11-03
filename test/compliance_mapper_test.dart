@@ -181,4 +181,34 @@ void main() {
     expect(ComplianceMapper.readinessTone(82), 'Watch');
     expect(ComplianceMapper.readinessTone(40), 'At risk');
   });
+
+  test('alertsFrom maps live {type,message,severity,meta} payloads', () {
+    final alerts = ComplianceMapper.alertsFrom({
+      'data': [
+        {
+          'type': 'certificate_expired',
+          'severity': 'high',
+          'message': 'Certificate expired: kkkkkkk (Rifat Islam)',
+          'meta': {'staffDocumentId': 'doc-1', 'staffId': 's-1'},
+        },
+      ],
+    });
+    expect(alerts, hasLength(1));
+    expect(alerts.single.id, 'certificate_expired');
+    expect(alerts.single.kind, 'certificate_expired');
+    expect(alerts.single.title, contains('Certificate expired'));
+    expect(alerts.single.severity, 'high');
+  });
+
+  test('exportFrom keeps downloadUrl for Reports & Exports', () {
+    final job = ComplianceMapper.exportFrom({
+      'data': {
+        'id': 'e1',
+        'reportKey': 'compliance_findings',
+        'status': 'ready',
+        'downloadUrl': 'https://example.test/export.csv',
+      },
+    });
+    expect(job?.downloadUrl, 'https://example.test/export.csv');
+  });
 }

@@ -33,6 +33,7 @@ class _CreateFindingSheetState extends State<CreateFindingSheet> {
   final _title = TextEditingController();
   final _notes = TextEditingController();
   final _risk = TextEditingController();
+  final _corrective = TextEditingController();
   String _severity = 'medium';
   String? _residenceId;
   String? _clientId;
@@ -45,6 +46,7 @@ class _CreateFindingSheetState extends State<CreateFindingSheet> {
     _title.dispose();
     _notes.dispose();
     _risk.dispose();
+    _corrective.dispose();
     super.dispose();
   }
 
@@ -73,7 +75,13 @@ class _CreateFindingSheetState extends State<CreateFindingSheet> {
         'issueOrigin': _issueOrigin,
       if (_risk.text.trim().isNotEmpty) 'riskContext': _risk.text.trim(),
     };
-    final err = await widget.controller.raiseFinding(body);
+    final err = await widget.controller.raiseFinding(
+      body,
+      status: resolved ? 'resolved' : 'open',
+      correctiveActionDescription: _corrective.text.trim().isEmpty
+          ? null
+          : _corrective.text.trim(),
+    );
     if (!mounted) return;
     if (err != null) {
       setState(() {
@@ -82,11 +90,12 @@ class _CreateFindingSheetState extends State<CreateFindingSheet> {
       });
       return;
     }
-    if (resolved) {
-      // Web "Save as resolved" patches status after create; overview refresh covers list.
-    }
     Navigator.of(context).pop();
-    AppSnackbar.show('Finding raised', '', force: true);
+    AppSnackbar.show(
+      resolved ? 'Finding saved as resolved' : 'Finding raised',
+      '',
+      force: true,
+    );
   }
 
   @override
@@ -339,6 +348,22 @@ class _CreateFindingSheetState extends State<CreateFindingSheet> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                Text(
+                  'Corrective action (optional)',
+                  style: handoverText(context, 12.5),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _corrective,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'What will be done',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -346,21 +371,27 @@ class _CreateFindingSheetState extends State<CreateFindingSheet> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Row(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
                 children: [
-                  Expanded(
-                    child: HandoverButton(
-                      label: 'Cancel',
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                  HandoverButton(
+                    label: 'Cancel',
+                    compact: true,
+                    onPressed: _saving ? null : () => Navigator.pop(context),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: HandoverButton(
-                      label: _saving ? 'Saving…' : 'Raise finding',
-                      filled: true,
-                      onPressed: _saving ? null : () => _save(),
-                    ),
+                  HandoverButton(
+                    label: _saving ? 'Saving…' : 'Save as resolved',
+                    compact: true,
+                    icon: Icons.check_circle_outline,
+                    onPressed: _saving ? null : () => _save(resolved: true),
+                  ),
+                  HandoverButton(
+                    label: _saving ? 'Saving…' : 'Raise finding',
+                    filled: true,
+                    compact: true,
+                    onPressed: _saving ? null : () => _save(),
                   ),
                 ],
               ),
