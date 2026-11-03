@@ -505,7 +505,7 @@ void main() {
 
       expect(avatarTapped, isTrue);
       expect(find.byType(StaffProfileSettingsPage), findsOneWidget);
-      expect(find.text('Profile & Settings'), findsOneWidget);
+      expect(find.text('My Profile'), findsOneWidget);
       expect(find.text('Sam Jones'), findsOneWidget);
       expect(find.text('sam@example.com'), findsOneWidget);
 

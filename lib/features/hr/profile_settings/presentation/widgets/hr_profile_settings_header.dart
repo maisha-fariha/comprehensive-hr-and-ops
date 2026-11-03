@@ -70,7 +70,7 @@ class HrProfileSettingsHeader extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  'Profile & Settings',
+                  'My Profile',
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

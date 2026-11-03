@@ -1,6 +1,10 @@
+import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get_it/get_it.dart';
 
+import '../network/app_api_client.dart';
 import '../../features/auth/di/auth_di.dart';
+import '../../features/common/direct_deposit/data/direct_deposit_repository.dart';
 import '../../features/common/inbox/di/portal_inbox_di.dart';
 import '../../features/hr/admissions/di/admissions_di.dart';
 import '../../features/hr/ai/di/ai_assist_di.dart';
@@ -54,6 +58,10 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupDataLayerServices(apiConfig: apiConfig);
   await setupAuthDependencies();
   await setupPortalInboxDependencies();
+
+  DIHelper.registerRepository<DirectDepositRepository>(
+    factory: () => DirectDepositRepository(api: GetIt.instance<AppApiClient>()),
+  );
 
   await setupHrAiAssistDependencies();
   await setupHrDashboardDependencies();

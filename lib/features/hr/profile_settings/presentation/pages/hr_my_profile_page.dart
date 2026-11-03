@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/constants/app_text_styles.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
+import '../../../../common/direct_deposit/presentation/direct_deposit_card.dart';
 import '../../hr_profile_settings_constants.dart';
 import '../controllers/hr_profile_settings_controller.dart';
 import '../widgets/hr_change_password_dialog.dart';
@@ -182,6 +183,8 @@ class HrMyProfilePage extends StatelessWidget {
                   ),
                 ),
               ),
+              SizedBox(height: gap),
+              const DirectDepositCard(),
             ],
           );
         }),

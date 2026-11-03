@@ -43,7 +43,7 @@ class FamilyMoreMenuPage extends StatelessWidget {
     icon: Icons.person_outline_rounded,
     iconBackground: AppColors.nightBackground,
     iconColor: AppColors.nightPurple,
-    title: 'Profile & Settings',
+    title: 'My Profile',
     subtitle: 'Account, linked clients & preferences',
   );
 

@@ -6,6 +6,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../common/direct_deposit/presentation/direct_deposit_card.dart';
 import '../../domain/entities/staff_profile.dart';
 import '../../staff_profile_settings_constants.dart';
 import '../controllers/staff_profile_settings_controller.dart';
@@ -99,6 +100,10 @@ class StaffProfileDetailPage extends StatelessWidget {
                       ),
                     ],
                   ),
+                  SizedBox(
+                    height: ResponsiveHelper.getResponsiveHeight(context, 16),
+                  ),
+                  const DirectDepositCard(),
                   SizedBox(
                     height: ResponsiveHelper.getResponsiveHeight(context, 16),
                   ),

@@ -63,32 +63,24 @@ class ComplianceChecksView extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final f in const [
-                          ('all', 'All'),
-                          ('outstanding', 'Outstanding'),
-                          ('overdue', 'Overdue'),
-                        ]) ...[
-                          FilterChip(
-                            label: Text(f.$2),
-                            selected: controller.checkFilter.value == f.$1,
-                            onSelected: (_) => controller.setCheckFilter(f.$1),
-                            selectedColor:
-                            AppColors.secondaryTeal.withValues(alpha: 0.25),
-                            checkmarkColor: AppColors.secondaryTeal,
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                      ],
-                    ),
+                for (final f in const [
+                  ('all', 'All'),
+                  ('outstanding', 'Outstanding'),
+                  ('overdue', 'Overdue'),
+                ])
+                  FilterChip(
+                    label: Text(f.$2),
+                    selected: controller.checkFilter.value == f.$1,
+                    onSelected: (_) => controller.setCheckFilter(f.$1),
+                    selectedColor:
+                        AppColors.secondaryTeal.withValues(alpha: 0.25),
+                    checkmarkColor: AppColors.secondaryTeal,
                   ),
-                ),
                 if (controller.canWrite)
                   TextButton(
                     onPressed: () =>

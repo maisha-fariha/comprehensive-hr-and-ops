@@ -5,6 +5,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../../hr/compliance/presentation/pages/compliance_page.dart';
 import '../../../hr/finance/presentation/pages/finance_page.dart';
+import '../../../hr/org_settings/presentation/pages/org_settings_page.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
 import '../../extras/presentation/pages/staff_admissions_page.dart';
@@ -264,12 +265,13 @@ List<StaffSearchDestination> staffSearchDestinations() {
       open: () =>
           Get.to(() => const CommunicationPage(showStaffBottomNav: true)),
     ),
-    const StaffSearchDestination(
+    StaffSearchDestination(
       label: 'Settings',
-      permissions: ['settings:read'],
+      permissions: const ['settings:read'],
       icon: Icons.settings_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
+      open: () => Get.to(() => const OrgSettingsPage(showShell: false)),
     ),
   ];
 }

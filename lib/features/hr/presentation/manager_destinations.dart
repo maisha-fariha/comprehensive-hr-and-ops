@@ -413,7 +413,7 @@ List<ManagerDestination> managerDestinations() {
         ],
       ),
     ManagerDestination(
-      title: 'Profile & Settings',
+      title: 'My Profile',
       subtitle: 'Account, residences & preferences',
       icon: Icons.person_outline_rounded,
       iconBackground: AppColors.criticalBackgroundSoft,

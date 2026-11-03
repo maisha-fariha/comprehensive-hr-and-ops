@@ -21,6 +21,7 @@ import '../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../extras/presentation/pages/staff_training_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
+import '../../../hr/org_settings/presentation/pages/org_settings_page.dart';
 import '../open_staff_profile.dart';
 import '../widgets/staff_menu_entry.dart';
 
@@ -161,11 +162,19 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Incidents',
                 subtitle: 'My reports & all residence incidents',
               ),
+            if (session.can('settings:read'))
+              const StaffMenuEntry(
+                icon: Icons.settings_outlined,
+                iconBackground: AppColors.nightBackground,
+                iconColor: AppColors.nightPurple,
+                title: 'Settings',
+                subtitle: 'Organisation, notifications, payroll & care',
+              ),
             const StaffMenuEntry(
               icon: Icons.person_outline_rounded,
               iconBackground: AppColors.nightBackground,
               iconColor: AppColors.nightPurple,
-              title: 'Profile & Settings',
+              title: 'My Profile',
               subtitle: 'Account, assigned clients & preferences',
             ),
           ];
@@ -279,7 +288,13 @@ class StaffMoreMenuPage extends StatelessWidget {
           anyOf: const ['incidents:read'],
           builder: () => const StaffIncidentsListPage(),
         );
-      case 'Profile & Settings':
+      case 'Settings':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['settings:read'],
+          builder: () => const OrgSettingsPage(showShell: false),
+        );
+      case 'My Profile':
         openStaffProfile();
     }
   }
