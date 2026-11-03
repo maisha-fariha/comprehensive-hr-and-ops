@@ -24,6 +24,7 @@ import '../recurring_checks/presentation/pages/recurring_checks_page.dart';
 import '../residences/presentation/pages/residences_page.dart';
 import '../compliance/presentation/pages/compliance_page.dart';
 import '../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
+import '../team_reports/presentation/pages/team_reports_page.dart';
 
 /// A page the Manager can navigate to from the More menu or the
 /// "Search pages" sheet on the dashboard.
@@ -390,6 +391,27 @@ List<ManagerDestination> managerDestinations() {
           builder: () => const CommunicationPage(),
         ),
         keywords: const ['messages', 'chat', 'announcements'],
+      ),
+    if (can('reports:read'))
+      ManagerDestination(
+        title: 'Reports & Analytics',
+        subtitle: 'Team, reports, insights & exports',
+        icon: Icons.insert_chart_outlined_rounded,
+        iconBackground: AppColors.infoBackground,
+        iconColor: AppColors.infoBlue,
+        open: () => openPermittedPage(
+          title: 'Reports & Analytics',
+          anyOf: const ['reports:read'],
+          builder: () => const TeamReportsPage(),
+        ),
+        keywords: const [
+          'reports',
+          'analytics',
+          'insights',
+          'exports',
+          'team reports',
+          'kpi',
+        ],
       ),
     if (can('settings:read'))
       ManagerDestination(

@@ -22,6 +22,7 @@ import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
 import '../../medication/presentation/pages/staff_medication_page.dart';
 import '../../staff_shell.dart';
 import '../../tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
+import '../../../hr/team_reports/presentation/pages/team_reports_page.dart';
 import '../domain/entities/staff_search_record.dart';
 
 /// One entry of the web tenant sidebar (`tenantNavItems`) as listed in the
@@ -186,13 +187,14 @@ List<StaffSearchDestination> staffSearchDestinations() {
       iconColor: AppColors.nightPurple,
       open: () => Get.to(() => const StaffInventoryPage()),
     ),
-    const StaffSearchDestination(
+    StaffSearchDestination(
       label: 'Reports & Analytics',
-      permissions: ['reports:read'],
+      permissions: const ['reports:read'],
       module: 'reports',
       icon: Icons.insert_chart_outlined_rounded,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
+      open: () => Get.to(() => const TeamReportsPage()),
     ),
     StaffSearchDestination(
       label: 'Compliance & Audit',

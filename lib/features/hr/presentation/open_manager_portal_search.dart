@@ -2,7 +2,9 @@ import 'package:get/get.dart';
 
 import '../../common/inbox/domain/entities/portal_search_hit.dart';
 import '../../common/inbox/presentation/pages/portal_search_page.dart';
-import '../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../clients/presentation/pages/clients_page.dart';
+import '../communication/presentation/pages/communication_page.dart';
+import '../documents/presentation/pages/hr_documents_page.dart';
 import '../hr_shell.dart';
 import '../medication/presentation/pages/medication_page.dart';
 import '../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
@@ -31,10 +33,11 @@ void openManagerPortalSearch() {
           case PortalSearchHitType.medication:
             Get.to(() => const MedicationPage());
           case PortalSearchHitType.client:
-            Get.to(() => const DailyLogsPage());
+            Get.to(() => const ClientsPage());
           case PortalSearchHitType.message:
+            Get.to(() => const CommunicationPage());
           case PortalSearchHitType.document:
-            Get.to(() => const TeamReportsPage());
+            Get.to(() => const HrDocumentsPage());
           case PortalSearchHitType.unknown:
             break;
         }
