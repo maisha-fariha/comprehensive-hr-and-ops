@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../domain/entities/staff_shift.dart';
 import '../../domain/entities/staff_shift_form_option.dart';
 import '../controllers/staff_schedule_controller.dart';
@@ -14,7 +15,7 @@ Future<void> showStaffSwapRequestSheet(
   StaffScheduleController controller,
   StaffShift shift,
 ) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,

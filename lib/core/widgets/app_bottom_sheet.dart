@@ -6,7 +6,7 @@ import 'package:get/get.dart';
 import '../constants/app_colors.dart';
 
 /// Shared modal sheet. Every popup in the app goes through here so the
-/// system navigation bar never covers the actions.
+/// sheet stays below the status bar and above the system navigation bar.
 abstract final class AppBottomSheet {
   static int _open = 0;
 
@@ -16,11 +16,14 @@ abstract final class AppBottomSheet {
   const AppBottomSheet._();
 }
 
-/// Shows [builder] as a modal bottom sheet with the bottom system inset
-/// reserved for the navigation bar.
+/// Shows [builder] as a modal bottom sheet with system insets reserved.
 ///
-/// The child's [MediaQueryData.size] height is the space above that bar, so
-/// sheets that size themselves as a fraction of the screen still fit.
+/// - Top: pads by the opener's status-bar inset so content never sits under
+///   the clock / notch.
+/// - Bottom: navigation-bar inset when [useSafeArea] is true (default).
+///
+/// The child's [MediaQueryData.size] height is the space inside those insets,
+/// so fraction-of-screen sheets still fit.
 Future<T?> showAppBottomSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -38,6 +41,19 @@ Future<T?> showAppBottomSheet<T>({
   RouteSettings? routeSettings,
   bool useSafeArea = true,
 }) {
+  // Capture from the opener — inside the sheet route, top viewPadding is
+  // often already zeroed, so reading it there would skip the status bar.
+  final media = MediaQuery.of(context);
+  final statusTop = math.max(media.viewPadding.top, media.padding.top);
+  final mergedConstraints = BoxConstraints(
+    minWidth: constraints?.minWidth ?? 0,
+    maxWidth: constraints?.maxWidth ?? double.infinity,
+    minHeight: constraints?.minHeight ?? 0,
+    // Full screen max; [_SheetSafeArea] pads the top safe inset so content
+    // sits below the status bar (capping height here would double-subtract).
+    maxHeight: constraints?.maxHeight ?? media.size.height,
+  );
+
   AppBottomSheet._open++;
   return showModalBottomSheet<T>(
     context: context,
@@ -45,7 +61,7 @@ Future<T?> showAppBottomSheet<T>({
     elevation: elevation,
     shape: shape,
     clipBehavior: clipBehavior ?? Clip.antiAlias,
-    constraints: constraints,
+    constraints: mergedConstraints,
     barrierColor: barrierColor,
     isScrollControlled: isScrollControlled,
     useRootNavigator: useRootNavigator,
@@ -53,10 +69,10 @@ Future<T?> showAppBottomSheet<T>({
     enableDrag: enableDrag,
     showDragHandle: showDragHandle,
     routeSettings: routeSettings,
-    // Flutter's flag only insets the top. The bottom inset is applied below.
     useSafeArea: false,
     builder: (sheetContext) {
-      return _BottomSafeArea(
+      return _SheetSafeArea(
+        topInset: statusTop,
         applyBottom: useSafeArea,
         child: Builder(builder: builder),
       );
@@ -119,26 +135,35 @@ Future<T?> showAppPopupWidget<T>(
   );
 }
 
-/// Reserves the navigation-bar inset and tells the child the screen is only
-/// as tall as the space above it.
-class _BottomSafeArea extends StatelessWidget {
-  const _BottomSafeArea({required this.child, required this.applyBottom});
+/// Reserves status-bar (top) and navigation-bar (bottom) insets and reports
+/// the remaining height via [MediaQuery] so full-height children fit.
+class _SheetSafeArea extends StatelessWidget {
+  const _SheetSafeArea({
+    required this.child,
+    required this.topInset,
+    required this.applyBottom,
+  });
 
   final Widget child;
+  final double topInset;
   final bool applyBottom;
 
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final nav = applyBottom ? media.viewPadding.bottom : 0.0;
-    final safeHeight = math.max(0.0, media.size.height - nav);
+    final top = topInset;
+    final nav = applyBottom
+        ? math.max(media.viewPadding.bottom, media.padding.bottom)
+        : 0.0;
+    final safeHeight = math.max(0.0, media.size.height - top - nav);
     return Padding(
-      padding: EdgeInsets.only(bottom: nav),
+      // Real top gap below the status bar (not only a maxHeight cap).
+      padding: EdgeInsets.only(top: top, bottom: nav),
       child: MediaQuery(
         data: media.copyWith(
           size: Size(media.size.width, safeHeight),
-          padding: media.padding.copyWith(bottom: 0),
-          viewPadding: media.viewPadding.copyWith(bottom: 0),
+          padding: media.padding.copyWith(top: 0, bottom: 0),
+          viewPadding: media.viewPadding.copyWith(top: 0, bottom: 0),
         ),
         child: child,
       ),

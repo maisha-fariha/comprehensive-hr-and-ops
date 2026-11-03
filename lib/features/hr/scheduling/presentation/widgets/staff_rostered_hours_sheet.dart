@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/repositories/scheduling_repository.dart';
@@ -16,7 +17,7 @@ Future<void> showStaffRosteredHoursSheet({
   ShiftStatusFilter? status,
   bool mine = false,
 }) {
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
@@ -121,17 +122,15 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
         ? 'Monthly view: ${_monthLabel(_monthStart)}'
         : 'Weekly view: ${_short(_weekStart)} – ${_short(_weekEnd)}';
 
-    return Padding(
-      padding: EdgeInsets.only(top: media.padding.top + 12),
-      child: Material(
-        color: AppColors.surfaceWhite,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        clipBehavior: Clip.antiAlias,
-        child: SizedBox(
-          height: media.size.height - media.padding.top - 12,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+    return Material(
+      color: AppColors.surfaceWhite,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        height: media.size.height,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
                 child: Row(
@@ -405,7 +404,6 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
             ],
           ),
         ),
-      ),
     );
   }
 

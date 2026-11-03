@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../data/mappers/finance_mapper.dart';
 
@@ -192,15 +193,14 @@ Future<T?> showFinancePicker<T>({
   required String Function(T) labelOf,
   T? selected,
 }) async {
-  return showModalBottomSheet<T>(
+  return showAppBottomSheet<T>(
     context: context,
     backgroundColor: AppColors.surfaceWhite,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (ctx) {
-      return SafeArea(
-        child: Column(
+      return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
@@ -225,7 +225,6 @@ Future<T?> showFinancePicker<T>({
               ),
             ),
           ],
-        ),
       );
     },
   );

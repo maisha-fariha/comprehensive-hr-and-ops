@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../domain/entities/calendar_shift.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
@@ -798,13 +799,11 @@ Future<void> _confirmDeleteShift(
   CalendarShift shift,
   SchedulingController controller,
 ) async {
-  final confirmed = await showModalBottomSheet<bool>(
+  final confirmed = await showAppBottomSheet<bool>(
     context: context,
     backgroundColor: AppColors.surfaceWhite,
     builder: (sheetContext) {
-      return SafeArea(
-        top: false,
-        child: Padding(
+      return Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -841,7 +840,6 @@ Future<void> _confirmDeleteShift(
               ),
             ],
           ),
-        ),
       );
     },
   );
@@ -915,7 +913,7 @@ Future<void> showRequestSwapSheet(
   SchedulingController controller,
 ) async {
   final note = TextEditingController();
-  final submitted = await showModalBottomSheet<bool>(
+  final submitted = await showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,
@@ -923,53 +921,52 @@ Future<void> showRequestSwapSheet(
       final inset = MediaQuery.viewInsetsOf(sheetContext).bottom;
       return Padding(
         padding: EdgeInsets.only(bottom: inset),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Request a swap',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Request a swap',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Leave this as a cover request and a manager will decide.',
+                style: TextStyle(
+                  color: AppColors.textPrimary.withValues(alpha: 0.7),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Leave this as a cover request and a manager will decide.',
-                  style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.7)),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: note,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Note',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: note,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Note',
-                    border: OutlineInputBorder(),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(sheetContext, false),
+                      child: const Text('Cancel'),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(sheetContext, false),
-                        child: const Text('Cancel'),
-                      ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(sheetContext, true),
+                      child: const Text('Request swap'),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => Navigator.pop(sheetContext, true),
-                        child: const Text('Request swap'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       );

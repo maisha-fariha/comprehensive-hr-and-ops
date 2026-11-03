@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../data/mappers/compliance_mapper.dart';
@@ -167,7 +168,7 @@ Future<T?> showCompliancePicker<T>({
   required String Function(T) labelOf,
   T? selected,
 }) {
-  return showModalBottomSheet<T>(
+  return showAppBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,
@@ -175,8 +176,7 @@ Future<T?> showCompliancePicker<T>({
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (ctx) {
-      return SafeArea(
-        child: ConstrainedBox(
+      return ConstrainedBox(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.sizeOf(ctx).height * 0.7,
           ),
@@ -200,7 +200,6 @@ Future<T?> showCompliancePicker<T>({
                 ),
             ],
           ),
-        ),
       );
     },
   );
