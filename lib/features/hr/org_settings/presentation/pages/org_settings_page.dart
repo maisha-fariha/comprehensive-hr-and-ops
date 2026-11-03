@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
@@ -14,8 +15,9 @@ import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 
 /// Organisation Settings — the web `/dashboard/settings` tabs.
 ///
-/// Residence managers can read these values (`settings:read`) and the web
-/// leaves every control, including Save changes, disabled.
+/// Anyone with `settings:read` can open this portal (Manager, HR Admin, and
+/// staff roles that receive the permission). General matches the web editor
+/// (`PATCH /settings/general` with a `value` wrapper).
 class OrgSettingsPage extends StatefulWidget {
   final Future<OrgSettingsSnapshot> Function()? load;
 
@@ -54,6 +56,21 @@ Future<OrgSettingsSnapshot> loadOrgSettings() async {
     );
   }
   final map = JsonCodec.unwrapMap(settings.value);
+
+  // Aggregate `/settings` sometimes omits identity fields; merge `/settings/general`.
+  final generalResult = await api.get(ApiEndpoints.settingsGeneral, silent: true);
+  if (generalResult.isSuccess) {
+    final flat = JsonCodec.unwrapMap(generalResult.value);
+    final nested = JsonCodec.asMap(flat['general']);
+    final merged = <String, dynamic>{
+      ...JsonCodec.asMap(map['general']),
+      ...flat,
+      ...nested,
+    };
+    merged.remove('general');
+    map['general'] = merged;
+  }
+
   final general = JsonCodec.asMap(map['general']);
   TenantClock.use(
     JsonCodec.string(general['timezone']),
@@ -69,9 +86,12 @@ Future<OrgSettingsSnapshot> loadOrgSettings() async {
     );
   }
 
-  var canWrite = false;
+  // Web Settings is editable for accounts that can open it (`settings:read`).
+  // `settings:write` is not issued on this tenant.
+  var canWrite = true;
   if (Get.isRegistered<UserSession>()) {
-    canWrite = Get.find<UserSession>().can('settings:write');
+    final session = Get.find<UserSession>();
+    canWrite = session.can('settings:read') || session.can('settings:write');
   }
   return OrgSettingsSnapshot(
     settings: map,
@@ -90,10 +110,21 @@ class _OrgSettingsPageState extends State<OrgSettingsPage> {
     'Care & operations',
   ];
 
+  static const _dateFormats = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'];
+  static const _timeFormats = [('12h', '12-hour'), ('24h', '24-hour')];
+
   final ScrollController _scroll = ScrollController();
+  final _platformName = TextEditingController();
+  final _itemsPerPage = TextEditingController();
   int _tab = 0;
   bool _loading = true;
+  bool _saving = false;
   OrgSettingsSnapshot? _snapshot;
+  String? _timezone;
+  String? _dateFormat;
+  String? _timeFormat;
+  String? _logoUrl;
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -104,13 +135,26 @@ class _OrgSettingsPageState extends State<OrgSettingsPage> {
   @override
   void dispose() {
     _scroll.dispose();
+    _platformName.dispose();
+    _itemsPerPage.dispose();
     super.dispose();
+  }
+
+  void _hydrateGeneral(Map<String, dynamic> general) {
+    _platformName.text = JsonCodec.string(general['platformName']) ?? '';
+    _itemsPerPage.text = general['itemsPerPage']?.toString() ?? '20';
+    _timezone = JsonCodec.string(general['timezone']);
+    _dateFormat = JsonCodec.string(general['dateFormat']) ?? 'DD/MM/YYYY';
+    _timeFormat = JsonCodec.string(general['timeFormat']) ?? '12h';
+    _logoUrl = JsonCodec.string(general['logoUrl']);
+    _dirty = false;
   }
 
   Future<void> _reload() async {
     setState(() => _loading = true);
     final snapshot = await (widget.load ?? loadOrgSettings)();
     if (!mounted) return;
+    _hydrateGeneral(JsonCodec.asMap(snapshot.settings['general']));
     setState(() {
       _loading = false;
       _snapshot = snapshot;
@@ -120,6 +164,62 @@ class _OrgSettingsPageState extends State<OrgSettingsPage> {
   void _selectTab(int index) {
     setState(() => _tab = index);
     if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  void _markDirty() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
+
+  Future<void> _saveGeneral() async {
+    if (_saving || !(_snapshot?.canWrite ?? false)) return;
+    final items = int.tryParse(_itemsPerPage.text.trim());
+    if (items == null || items < 5 || items > 100) {
+      AppSnackbar.show('Rows per page', 'Enter a number between 5 and 100.');
+      return;
+    }
+    if (_timezone == null || _timezone!.isEmpty) {
+      AppSnackbar.show('Timezone', 'Pick a timezone.');
+      return;
+    }
+    setState(() => _saving = true);
+    final api = GetIt.instance<AppApiClient>();
+    final result = await api.patch(
+      ApiEndpoints.settingsGeneral,
+      data: {
+        'value': {
+          'platformName': _platformName.text.trim().isEmpty
+              ? null
+              : _platformName.text.trim(),
+          'logoUrl': _logoUrl,
+          'timezone': _timezone,
+          'dateFormat': _dateFormat,
+          'timeFormat': _timeFormat,
+          'itemsPerPage': items,
+        },
+      },
+    );
+    if (!mounted) return;
+    if (result.isFailure) {
+      setState(() => _saving = false);
+      AppSnackbar.show(
+        'Could not save',
+        result.error?.message ?? 'Settings were not updated.',
+      );
+      return;
+    }
+    TenantClock.use(
+      _timezone,
+      dateFmt: _dateFormat,
+      timeFmt: _timeFormat,
+    );
+    await TenantClock.syncFromApi(api, force: true);
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      _dirty = false;
+    });
+    AppSnackbar.show('Settings saved', '');
+    await _reload();
   }
 
   @override
@@ -201,10 +301,22 @@ class _OrgSettingsPageState extends State<OrgSettingsPage> {
                             children: [
                               ..._tabBody(_snapshot!),
                               const SizedBox(height: 16),
-                              const FilledButton(
-                                onPressed: null,
-                                child: Text('Save changes'),
-                              ),
+                              if (_tab == 0)
+                                FilledButton(
+                                  onPressed: (_snapshot!.canWrite &&
+                                          _dirty &&
+                                          !_saving)
+                                      ? _saveGeneral
+                                      : null,
+                                  child: Text(
+                                    _saving ? 'Saving…' : 'Save changes',
+                                  ),
+                                )
+                              else
+                                const FilledButton(
+                                  onPressed: null,
+                                  child: Text('Save changes'),
+                                ),
                             ],
                           ),
                         ),
@@ -218,7 +330,7 @@ class _OrgSettingsPageState extends State<OrgSettingsPage> {
   List<Widget> _tabBody(OrgSettingsSnapshot snapshot) {
     final settings = snapshot.settings;
     return switch (_tab) {
-      0 => _general(JsonCodec.asMap(settings['general'])),
+      0 => _general(snapshot.canWrite),
       1 => _notifications(snapshot),
       2 => _security(JsonCodec.asMap(settings['security'])),
       3 => _family(JsonCodec.asMap(settings['family_portal_visibility'])),
@@ -227,30 +339,119 @@ class _OrgSettingsPageState extends State<OrgSettingsPage> {
     };
   }
 
-  List<Widget> _general(Map<String, dynamic> general) {
-    final name = JsonCodec.string(general['platformName']);
-    final logo = JsonCodec.string(general['logoUrl']);
+  List<String> get _timezoneChoices {
+    const common = [
+      'UTC',
+      'America/Vancouver',
+      'America/Toronto',
+      'America/New_York',
+      'Europe/London',
+      'Europe/Zurich',
+      'Europe/Berlin',
+      'Asia/Dhaka',
+      'Asia/Dubai',
+      'Asia/Kolkata',
+      'Australia/Sydney',
+    ];
+    final all = <String>{
+      ...common,
+      if (_timezone != null && _timezone!.isNotEmpty) _timezone!,
+    }.toList()
+      ..sort();
+    return all;
+  }
+
+  List<Widget> _general(bool editable) {
+    final zones = _timezoneChoices;
     return [
       const _Intro(
         'What this tenant calls itself, and how dates and times are shown.',
       ),
       const _Heading('IDENTITY'),
-      _ValueRow('Platform name', name ?? 'Not set'),
-      _ValueRow('Logo', logo == null ? 'Not set' : 'On file'),
+      if (editable)
+        _TextFieldRow(
+          label: 'Platform name',
+          controller: _platformName,
+          onChanged: (_) => _markDirty(),
+        )
+      else
+        _ValueRow(
+          'Platform name',
+          _platformName.text.trim().isEmpty ? 'Not set' : _platformName.text,
+        ),
+      _ValueRow('Logo', _logoUrl == null ? 'Not set' : 'On file'),
       const _Help(
         "Shown beside your organisation's name in the sidebar. Save the page to apply it.",
       ),
       const _Heading('DISPLAY'),
-      _ValueRow('Timezone', _timezoneLabel(JsonCodec.string(general['timezone']))),
+      if (editable)
+        _DropdownRow<String>(
+          label: 'Timezone',
+          value: zones.contains(_timezone) ? _timezone : null,
+          items: [
+            for (final z in zones)
+              DropdownMenuItem(
+                value: z,
+                child: Text(
+                  _timezoneLabel(z),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (v) {
+            setState(() => _timezone = v);
+            _markDirty();
+          },
+        )
+      else
+        _ValueRow('Timezone', _timezoneLabel(_timezone)),
       const _Help(
         'Every screen, email and report shows dates and times in this timezone, for everyone in the organisation. Times are still stored in UTC.',
       ),
-      _ValueRow('Date format', _dateExample(JsonCodec.string(general['dateFormat']))),
-      _ValueRow('Time format', _timeExample(JsonCodec.string(general['timeFormat']))),
-      _ValueRow(
-        'Rows per page',
-        general['itemsPerPage'] == null ? 'Not set' : '${general['itemsPerPage']}',
-      ),
+      if (editable)
+        _DropdownRow<String>(
+          label: 'Date format',
+          value: _dateFormats.contains(_dateFormat) ? _dateFormat : null,
+          items: [
+            for (final f in _dateFormats)
+              DropdownMenuItem(value: f, child: Text(_dateExample(f))),
+          ],
+          onChanged: (v) {
+            setState(() => _dateFormat = v);
+            _markDirty();
+          },
+        )
+      else
+        _ValueRow('Date format', _dateExample(_dateFormat)),
+      if (editable)
+        _DropdownRow<String>(
+          label: 'Time format',
+          value: _timeFormats.any((e) => e.$1 == _timeFormat)
+              ? _timeFormat
+              : null,
+          items: [
+            for (final e in _timeFormats)
+              DropdownMenuItem(value: e.$1, child: Text(e.$2)),
+          ],
+          onChanged: (v) {
+            setState(() => _timeFormat = v);
+            _markDirty();
+          },
+        )
+      else
+        _ValueRow('Time format', _timeExample(_timeFormat)),
+      if (editable)
+        _TextFieldRow(
+          label: 'Rows per page',
+          controller: _itemsPerPage,
+          keyboardType: TextInputType.number,
+          onChanged: (_) => _markDirty(),
+        )
+      else
+        _ValueRow(
+          'Rows per page',
+          _itemsPerPage.text.trim().isEmpty ? 'Not set' : _itemsPerPage.text,
+        ),
       const _Help(
         'Between 5 and 100 — the API refuses to return more than 100 rows at once',
       ),
@@ -604,6 +805,126 @@ class _Help extends StatelessWidget {
           height: 1.35,
           color: AppColors.textSecondary,
         ),
+      ),
+    );
+  }
+}
+
+class _TextFieldRow extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final ValueChanged<String>? onChanged;
+  final TextInputType? keyboardType;
+
+  const _TextFieldRow({
+    required this.label,
+    required this.controller,
+    this.onChanged,
+    this.keyboardType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 13.5,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextField(
+            controller: controller,
+            onChanged: onChanged,
+            keyboardType: keyboardType,
+            style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.surfaceWhite,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.cardBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.cardBorder),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DropdownRow<T> extends StatelessWidget {
+  final String label;
+  final T? value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  const _DropdownRow({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 13.5,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 4),
+          InputDecorator(
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: AppColors.surfaceWhite,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.cardBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.cardBorder),
+              ),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<T>(
+                isExpanded: true,
+                value: value,
+                items: items,
+                onChanged: onChanged,
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 14,
+                  color: AppColors.textHeading,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -416,7 +416,8 @@ List<ManagerDestination> managerDestinations() {
     if (can('settings:read'))
       ManagerDestination(
         title: 'Settings',
-        subtitle: 'Organisation, notifications, payroll & care',
+        subtitle:
+            'General, notifications, security, family portal, payroll & care',
         icon: Icons.settings_outlined,
         iconBackground: AppColors.infoBackground,
         iconColor: AppColors.infoBlue,
@@ -427,11 +428,14 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const [
           'settings',
+          'organisation',
+          'organization',
           'timezone',
           'payroll',
           'notifications',
           'security',
           'family portal',
+          'care & operations',
         ],
       ),
     ManagerDestination(
