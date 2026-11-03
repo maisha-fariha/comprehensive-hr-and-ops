@@ -62,10 +62,14 @@ abstract final class CreateShiftChoices {
     ShiftFormChoice(28, 'Monthly'),
   ];
 
+  /// Web Notifications → Reminder options (`reminderMinutesBefore`).
   static const List<ShiftFormChoice<int?>> reminders = [
     ShiftFormChoice(null, 'No reminder'),
+    ShiftFormChoice(15, '15 minutes before'),
+    ShiftFormChoice(30, '30 minutes before'),
     ShiftFormChoice(60, '1 hour before'),
     ShiftFormChoice(120, '2 hours before'),
+    ShiftFormChoice(240, '4 hours before'),
     ShiftFormChoice(1440, '24 hours before'),
     ShiftFormChoice(2880, '48 hours before'),
   ];
