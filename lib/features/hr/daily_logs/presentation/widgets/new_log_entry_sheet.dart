@@ -2,6 +2,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../ai/domain/entities/ai_assist.dart';
+import '../../../ai/presentation/widgets/ai_draft_sheet.dart';
+import '../../../ai/presentation/widgets/ai_feature_sheets.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../recurring_checks/presentation/widgets/check_common.dart';
 import '../../domain/entities/daily_log.dart';
@@ -9,6 +12,7 @@ import '../controllers/daily_logs_controller.dart';
 import '../daily_logs_labels.dart';
 import 'daily_log_common.dart';
 import 'entry_sheets.dart';
+import 'tidy_my_note_sheet.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
@@ -47,8 +51,10 @@ Future<void> showNewLogEntrySheet(
         controller: controller,
         clientId: controller.clientId.value,
         clientName: controller.clientName,
-        residenceId: controller.residenceId.value,
-        residenceName: controller.residenceName,
+        residenceId: controller.dayResidenceId ?? controller.residenceId.value,
+        residenceName: controller.dayResidenceName.isNotEmpty
+            ? controller.dayResidenceName
+            : controller.residenceName,
         logDate: controller.logDate.value,
         pickFiles: pickFiles ?? _pickWithFilePicker,
       ),
@@ -112,6 +118,7 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
   String _sleep = '';
   String _hygiene = '';
   final _meals = TextEditingController();
+  final _wellnessNotes = TextEditingController();
   final _activities = TextEditingController();
   bool _outing = false;
   final _outingNotes = TextEditingController();
@@ -126,16 +133,26 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
   bool _flag = false;
   String _flagCategory = '';
   final _flagNote = TextEditingController();
+  bool? _aiEnabled;
 
   Map<String, String> _errors = {};
   String? _formError;
   bool _saving = false;
 
   @override
+  void initState() {
+    super.initState();
+    aiDraftingEnabled().then((enabled) {
+      if (mounted) setState(() => _aiEnabled = enabled);
+    });
+  }
+
+  @override
   void dispose() {
     for (final c in [
       _body,
       _meals,
+      _wellnessNotes,
       _activities,
       _outingNotes,
       _behaviorNotes,
@@ -168,6 +185,7 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
       if (_sleep.isNotEmpty) 'sleep': _sleep,
       if (_hygiene.isNotEmpty) 'hygiene': _hygiene,
       'meals': ?text(_meals),
+      'wellness': ?text(_wellnessNotes),
       'activities': ?text(_activities),
       'outingNotes': ?text(_outingNotes),
       'behaviorNotes': ?text(_behaviorNotes),
@@ -246,6 +264,63 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
   ) async {
     final picked = await pickDailyLogOption(context, title, options, current);
     if (picked != null) setState(() => set(picked));
+  }
+
+  Future<void> _tidyNote() async {
+    final draft = await showTidyMyNoteSheet(
+      context,
+      clientId: widget.clientId,
+      initialNotes: _body.text,
+      logType: _logType,
+      mood: _mood,
+      sleep: _sleep,
+      hygiene: _hygiene,
+    );
+    if (draft == null || !mounted) return;
+    _applyAiDraft(draft);
+  }
+
+  void _applyAiDraft(AiDailyLogDraftEntry draft) {
+    final obs = draft.observations;
+    setState(() {
+      _body.text = draft.body;
+      if ((draft.logType ?? '').isNotEmpty) _logType = draft.logType!;
+      if ((obs.mood ?? '').isNotEmpty) _mood = obs.mood!;
+      if ((obs.sleep ?? '').isNotEmpty) _sleep = obs.sleep!;
+      if ((obs.hygiene ?? '').isNotEmpty) _hygiene = obs.hygiene!;
+      if ((obs.meals ?? '').isNotEmpty) _meals.text = obs.meals!;
+      if ((obs.wellness ?? '').isNotEmpty) _wellnessNotes.text = obs.wellness!;
+      if ((obs.activities ?? '').isNotEmpty) _activities.text = obs.activities!;
+      if ((obs.behaviorNotes ?? '').isNotEmpty) {
+        _behaviorNotes.text = obs.behaviorNotes!;
+      }
+      if ((obs.appointmentNotes ?? '').isNotEmpty) {
+        _appointmentNotes.text = obs.appointmentNotes!;
+      }
+      if (draft.communityOuting != null) _outing = draft.communityOuting!;
+      if ((draft.outingNotes ?? '').isNotEmpty && _outingNotes.text.isEmpty) {
+        _outingNotes.text = draft.outingNotes!;
+      }
+      if (draft.wellnessCheckCompleted == true) _wellness = true;
+      if (draft.bedCheckCompleted == true) _bed = true;
+      if ((draft.shift ?? '').isNotEmpty && _shift.isEmpty) {
+        _shift = draft.shift!;
+      }
+      if ((draft.time ?? '').isNotEmpty) {
+        final stamp = DateTime.tryParse('${widget.logDate}T${draft.time}');
+        if (stamp != null) _occurredAt = stamp;
+      }
+      if ((draft.remindAt ?? '').isNotEmpty && _remindAt == null) {
+        _remindAt = DateTime.tryParse('${widget.logDate}T${draft.remindAt}') ??
+            DateTime.tryParse(draft.remindAt!);
+      }
+      final flag = draft.flag;
+      if (flag != null && flag.category.isNotEmpty) {
+        _flag = true;
+        _flagCategory = flag.category;
+        if (flag.note.isNotEmpty) _flagNote.text = flag.note;
+      }
+    });
   }
 
   @override
@@ -469,6 +544,17 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
           'Care Details',
           'Record what happened and how the resident was through the shift.',
         ),
+        if (_aiEnabled == true) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AiAssistButton(
+              buttonKey: const ValueKey('dl-tidy-my-note'),
+              label: 'Tidy my note',
+              onPressed: _tidyNote,
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         _area(
           'dl-new-body',
           'What happened',
@@ -503,6 +589,13 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
           label: 'Meals',
           controller: _meals,
           placeholder: 'e.g. Breakfast completed, lunch partial',
+        ),
+        CheckInput(
+          key: const ValueKey('dl-new-wellness-notes'),
+          label: 'Wellness',
+          controller: _wellnessNotes,
+          placeholder:
+              'How they seemed in themselves — e.g. No concerns, a bit off colour.',
         ),
         _area(
           'dl-new-activities',

@@ -166,7 +166,80 @@ abstract final class AiAssistMapper {
     );
   }
 
+  static AiAskDayAnswer askDayFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final sources = <AiAskDaySource>[];
+    for (final item in _list(json['sources'])) {
+      if (item is! Map) continue;
+      final map = JsonCodec.asMap(item);
+      final type = JsonCodec.stringOr(map['type'], '');
+      final label = JsonCodec.stringOr(map['label'], '');
+      if (type.isEmpty && label.isEmpty) continue;
+      sources.add(
+        AiAskDaySource(
+          type: type,
+          label: label,
+          time: JsonCodec.string(map['time']),
+        ),
+      );
+    }
+    final status = JsonCodec.stringOr(json['status'], 'answered');
+    return AiAskDayAnswer(
+      answer: JsonCodec.stringOr(json['answer'], ''),
+      sources: sources,
+      needsAttention: _strings(json['needsAttention']),
+      status: status.isEmpty ? 'answered' : status,
+      notIncluded: _strings(json['notIncluded']),
+      day: JsonCodec.string(json['day']),
+      answeredAt: JsonCodec.string(json['answeredAt']),
+    );
+  }
+
+  static AiDailyLogDraftEntry dailyLogDraftFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final obsRaw = JsonCodec.mapAt(json, 'observations') ?? const {};
+    final flagRaw = JsonCodec.mapAt(json, 'flag');
+    return AiDailyLogDraftEntry(
+      body: JsonCodec.stringOr(json['body'], ''),
+      time: JsonCodec.string(json['time']),
+      shift: JsonCodec.string(json['shift']),
+      communityOuting: json['communityOuting'] is bool
+          ? json['communityOuting'] as bool
+          : null,
+      outingNotes: JsonCodec.string(json['outingNotes']),
+      wellnessCheckCompleted: json['wellnessCheckCompleted'] == true
+          ? true
+          : null,
+      bedCheckCompleted:
+          json['bedCheckCompleted'] == true ? true : null,
+      remindAt: JsonCodec.string(json['remindAt']),
+      logType: JsonCodec.string(json['logType']),
+      observations: AiDailyLogDraftObservations(
+        mood: JsonCodec.string(obsRaw['mood']),
+        sleep: JsonCodec.string(obsRaw['sleep']),
+        hygiene: JsonCodec.string(obsRaw['hygiene']),
+        meals: JsonCodec.string(obsRaw['meals']),
+        activities: JsonCodec.string(obsRaw['activities']),
+        behaviorNotes: JsonCodec.string(obsRaw['behaviorNotes']),
+        appointmentNotes: JsonCodec.string(obsRaw['appointmentNotes']),
+        wellness: JsonCodec.string(obsRaw['wellness']),
+      ),
+      flag: flagRaw == null
+          ? null
+          : AiDailyLogDraftFlag(
+              category: JsonCodec.stringOr(flagRaw['category'], ''),
+              note: JsonCodec.stringOr(flagRaw['note'], ''),
+            ),
+      model: JsonCodec.string(json['model']),
+    );
+  }
+
   static List<dynamic> _list(dynamic raw) => raw is List ? raw : const [];
+
+  static List<String> _strings(dynamic raw) => [
+        for (final item in _list(raw))
+          if ('$item'.trim().isNotEmpty) '$item'.trim(),
+      ];
 
   static int _int(dynamic value) {
     if (value is int) return value;

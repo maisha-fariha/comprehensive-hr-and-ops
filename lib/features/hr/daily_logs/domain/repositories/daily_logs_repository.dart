@@ -70,4 +70,26 @@ abstract class DailyLogsRepository {
 
   /// `POST /uploads?category=daily-log-attachment`.
   Future<Result<DailyLogUpload>> upload(String path, String fileName);
+
+  /// Web day card: `GET /daily-summaries/clients/:id?from&to&limit=1`.
+  Future<Result<DailySummary?>> daySummary({
+    required String clientId,
+    required String day,
+  });
+
+  /// `POST /daily-summaries/clients/:id/generate` with `{ day }`.
+  Future<Result<DailySummary?>> generateDaySummary({
+    required String clientId,
+    required String day,
+  });
+
+  Future<Result<DailySummary>> updateDaySummary(
+    String id, {
+    required String summary,
+    String? familySummary,
+  });
+
+  Future<Result<DailySummary>> shareDaySummary(String id);
+
+  Future<Result<DailySummary>> unshareDaySummary(String id);
 }

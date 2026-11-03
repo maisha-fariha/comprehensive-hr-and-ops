@@ -173,3 +173,118 @@ class AiStockReorder {
     this.model,
   });
 }
+
+/// One citation from web AI Day Assistant (`POST /ai/daily-logs/ask-day`).
+@immutable
+class AiAskDaySource {
+  final String type;
+  final String label;
+  final String? time;
+
+  const AiAskDaySource({
+    required this.type,
+    required this.label,
+    this.time,
+  });
+}
+
+/// Web AI Day Assistant answer payload.
+@immutable
+class AiAskDayAnswer {
+  final String answer;
+  final List<AiAskDaySource> sources;
+  final List<String> needsAttention;
+  /// `answered` | `partly` | `not_recorded`
+  final String status;
+  final List<String> notIncluded;
+  final String? day;
+  final String? answeredAt;
+
+  const AiAskDayAnswer({
+    required this.answer,
+    this.sources = const [],
+    this.needsAttention = const [],
+    this.status = 'answered',
+    this.notIncluded = const [],
+    this.day,
+    this.answeredAt,
+  });
+}
+
+@immutable
+class AiDailyLogDraftFlag {
+  final String category;
+  final String note;
+
+  const AiDailyLogDraftFlag({required this.category, required this.note});
+}
+
+@immutable
+class AiDailyLogDraftObservations {
+  final String? mood;
+  final String? sleep;
+  final String? hygiene;
+  final String? meals;
+  final String? activities;
+  final String? behaviorNotes;
+  final String? appointmentNotes;
+  final String? wellness;
+
+  const AiDailyLogDraftObservations({
+    this.mood,
+    this.sleep,
+    this.hygiene,
+    this.meals,
+    this.activities,
+    this.behaviorNotes,
+    this.appointmentNotes,
+    this.wellness,
+  });
+}
+
+/// Web "Tidy my note" (`POST /ai/daily-logs/draft-entry`).
+@immutable
+class AiDailyLogDraftEntry {
+  final String body;
+  final String? time;
+  final String? shift;
+  final bool? communityOuting;
+  final String? outingNotes;
+  final bool? wellnessCheckCompleted;
+  final bool? bedCheckCompleted;
+  final String? remindAt;
+  final String? logType;
+  final AiDailyLogDraftObservations observations;
+  final AiDailyLogDraftFlag? flag;
+  final String? model;
+
+  const AiDailyLogDraftEntry({
+    required this.body,
+    this.time,
+    this.shift,
+    this.communityOuting,
+    this.outingNotes,
+    this.wellnessCheckCompleted,
+    this.bedCheckCompleted,
+    this.remindAt,
+    this.logType,
+    this.observations = const AiDailyLogDraftObservations(),
+    this.flag,
+    this.model,
+  });
+
+  AiDailyLogDraftEntry copyWith({String? body}) => AiDailyLogDraftEntry(
+        body: body ?? this.body,
+        time: time,
+        shift: shift,
+        communityOuting: communityOuting,
+        outingNotes: outingNotes,
+        wellnessCheckCompleted: wellnessCheckCompleted,
+        bedCheckCompleted: bedCheckCompleted,
+        remindAt: remindAt,
+        logType: logType,
+        observations: observations,
+        flag: flag,
+        model: model,
+      );
+}

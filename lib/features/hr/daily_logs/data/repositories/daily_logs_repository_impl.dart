@@ -232,6 +232,110 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
       );
 
   @override
+  Future<Result<DailySummary?>> daySummary({
+    required String clientId,
+    required String day,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.dailySummariesForClient(clientId),
+      query: {'from': day, 'to': day, 'limit': 1},
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final rows = JsonCodec.unwrapList(body).whereType<Map>();
+        if (rows.isEmpty) return Result.success(null);
+        return Result.success(
+          DailyLogsMapper.dailySummaryFrom(JsonCodec.asMap(rows.first)),
+        );
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailySummary?>> generateDaySummary({
+    required String clientId,
+    required String day,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.dailySummariesGenerate(clientId),
+      data: {'day': day},
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final data = JsonCodec.unwrap(body);
+        if (data == null) return Result.success(null);
+        if (data is Map && data.isEmpty) return Result.success(null);
+        final map = JsonCodec.unwrapMap(body);
+        if (map.isEmpty || JsonCodec.string(map['id']) == null) {
+          return Result.success(null);
+        }
+        return Result.success(DailyLogsMapper.dailySummaryFrom(map));
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailySummary>> updateDaySummary(
+    String id, {
+    required String summary,
+    String? familySummary,
+  }) async {
+    final trimmedFamily = familySummary?.trim();
+    final result = await _api.patch(
+      ApiEndpoints.dailySummaryById(id),
+      data: {
+        'summary': summary,
+        if (trimmedFamily != null && trimmedFamily.isNotEmpty)
+          'familySummary': trimmedFamily,
+      },
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async => Result.success(
+        DailyLogsMapper.dailySummaryFrom(JsonCodec.unwrapMap(body)),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailySummary>> shareDaySummary(String id) async {
+    final result = await _api.post(
+      ApiEndpoints.dailySummaryShare(id),
+      data: const <String, dynamic>{},
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async => Result.success(
+        DailyLogsMapper.dailySummaryFrom(JsonCodec.unwrapMap(body)),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailySummary>> unshareDaySummary(String id) async {
+    final result = await _api.delete(
+      ApiEndpoints.dailySummaryShare(id),
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async => Result.success(
+        DailyLogsMapper.dailySummaryFrom(JsonCodec.unwrapMap(body)),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<DailyLogUpload>> upload(String path, String fileName) async {
     try {
       final form = FormData.fromMap({

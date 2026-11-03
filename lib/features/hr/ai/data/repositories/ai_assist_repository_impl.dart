@@ -84,6 +84,61 @@ class AiAssistRepositoryImpl implements AiAssistRepository {
   }
 
   @override
+  Future<Result<AiAskDayAnswer>> askDay({
+    required String clientId,
+    required String logDate,
+    required String query,
+    required String preset,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.aiDailyLogsAskDay,
+      data: {
+        'clientId': clientId,
+        'logDate': logDate,
+        'query': query,
+        'preset': preset,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AiAssistMapper.askDayFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<AiDailyLogDraftEntry>> draftDailyLogEntry({
+    required String clientId,
+    required String notes,
+    String? logType,
+    String? mood,
+    String? sleep,
+    String? hygiene,
+  }) async {
+    final options = <String, dynamic>{
+      if (logType != null && logType.isNotEmpty) 'logType': logType,
+      if (mood != null && mood.isNotEmpty) 'mood': mood,
+      if (sleep != null && sleep.isNotEmpty) 'sleep': sleep,
+      if (hygiene != null && hygiene.isNotEmpty) 'hygiene': hygiene,
+    };
+    final result = await _api.post(
+      ApiEndpoints.aiDailyLogsDraftEntry,
+      data: {
+        'clientId': clientId,
+        'notes': notes,
+        if (options.isNotEmpty) 'options': options,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AiAssistMapper.dailyLogDraftFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<AiDraftResult>> reviewGoals({
     required String clientId,
     required int days,

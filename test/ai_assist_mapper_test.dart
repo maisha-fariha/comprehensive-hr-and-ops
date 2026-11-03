@@ -14,6 +14,48 @@ void main() {
     expect(draft.partial, isTrue);
   });
 
+  test('askDayFrom maps answer, sources and attention', () {
+    final answer = AiAssistMapper.askDayFrom({
+      'data': {
+        'answer': 'Ate breakfast and was settled.',
+        'status': 'partly',
+        'needsAttention': ['Missed evening dose'],
+        'notIncluded': ['appointments'],
+        'sources': [
+          {'type': 'care_note', 'label': 'Morning note', 'time': '08:10'},
+        ],
+        'day': '2026-11-03',
+      },
+    });
+    expect(answer.answer, 'Ate breakfast and was settled.');
+    expect(answer.status, 'partly');
+    expect(answer.needsAttention, ['Missed evening dose']);
+    expect(answer.sources.single.type, 'care_note');
+    expect(answer.sources.single.time, '08:10');
+  });
+
+  test('dailyLogDraftFrom maps body, observations and flag', () {
+    final draft = AiAssistMapper.dailyLogDraftFrom({
+      'data': {
+        'body': 'Joined music and ate well.',
+        'logType': 'care_note',
+        'shift': 'morning',
+        'time': '10:15',
+        'observations': {
+          'mood': 'cheerful',
+          'meals': 'Breakfast completed',
+          'wellness': 'No concerns',
+        },
+        'flag': {'category': 'medical', 'note': 'Nurse to review'},
+      },
+    });
+    expect(draft.body, 'Joined music and ate well.');
+    expect(draft.logType, 'care_note');
+    expect(draft.observations.mood, 'cheerful');
+    expect(draft.observations.wellness, 'No concerns');
+    expect(draft.flag?.category, 'medical');
+  });
+
   test('marReviewFrom maps figures and draft', () {
     final review = AiAssistMapper.marReviewFrom({
       'data': {

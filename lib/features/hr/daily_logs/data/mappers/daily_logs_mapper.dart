@@ -7,6 +7,42 @@ abstract final class DailyLogsMapper {
     return text.length >= 10 ? text.substring(0, 10) : text;
   }
 
+  static DailySummary dailySummaryFrom(Map<String, dynamic> json) {
+    final attentionRaw = json['attentionJson'] ?? json['attention'];
+    final sourcesRaw = json['sourcesJson'] ?? json['sources'];
+    final sources = <String, int>{};
+    if (sourcesRaw is Map) {
+      for (final entry in sourcesRaw.entries) {
+        final key = '${entry.key}';
+        final value = entry.value;
+        final count = value is int
+            ? value
+            : value is num
+                ? value.toInt()
+                : int.tryParse('$value') ?? 0;
+        if (key.isNotEmpty && count > 0) sources[key] = count;
+      }
+    }
+    return DailySummary(
+      id: JsonCodec.stringOr(json['id'], ''),
+      clientId: JsonCodec.stringOr(json['clientId'], ''),
+      residenceId: JsonCodec.string(json['residenceId']),
+      day: _day(json['day']),
+      summary: JsonCodec.stringOr(json['summary'], ''),
+      familySummary: JsonCodec.string(json['familySummary']),
+      attention: [
+        for (final item in attentionRaw is List ? attentionRaw : const [])
+          if ('$item'.trim().isNotEmpty) '$item'.trim(),
+      ],
+      sources: sources,
+      model: JsonCodec.string(json['model']),
+      generatedBy: JsonCodec.string(json['generatedBy']),
+      generatedAt: JsonCodec.dateTime(json['generatedAt']),
+      editedAt: JsonCodec.dateTime(json['editedAt']),
+      sharedAt: JsonCodec.dateTime(json['sharedAt']),
+    );
+  }
+
   static String _personName(Map row) => [row['firstName'], row['lastName']]
       .whereType<String>()
       .where((s) => s.isNotEmpty)

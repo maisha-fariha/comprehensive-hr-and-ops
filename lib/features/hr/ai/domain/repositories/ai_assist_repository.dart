@@ -24,6 +24,24 @@ abstract class AiAssistRepository {
     required int days,
   });
 
+  /// Web AI Day Assistant (`POST /ai/daily-logs/ask-day`).
+  Future<Result<AiAskDayAnswer>> askDay({
+    required String clientId,
+    required String logDate,
+    required String query,
+    required String preset,
+  });
+
+  /// Web "Tidy my note" (`POST /ai/daily-logs/draft-entry`).
+  Future<Result<AiDailyLogDraftEntry>> draftDailyLogEntry({
+    required String clientId,
+    required String notes,
+    String? logType,
+    String? mood,
+    String? sleep,
+    String? hygiene,
+  });
+
   /// Web "Draft outcome review" (`POST /ai/client-goals/:id/review`).
   Future<Result<AiDraftResult>> reviewGoals({
     required String clientId,

@@ -280,3 +280,62 @@ class DailyLogUpload {
 
   const DailyLogUpload({required this.fileUrl, this.fileType, this.fileName});
 }
+
+/// Web Resident Activity "Daily summary" (`/daily-summaries/*`).
+class DailySummary {
+  final String id;
+  final String clientId;
+  final String? residenceId;
+  final String day;
+  final String summary;
+  final String? familySummary;
+  final List<String> attention;
+  /// Source kind → count (care notes, doses, …).
+  final Map<String, int> sources;
+  final String? model;
+  final String? generatedBy;
+  final DateTime? generatedAt;
+  final DateTime? editedAt;
+  final DateTime? sharedAt;
+
+  const DailySummary({
+    required this.id,
+    required this.clientId,
+    required this.day,
+    required this.summary,
+    this.residenceId,
+    this.familySummary,
+    this.attention = const [],
+    this.sources = const {},
+    this.model,
+    this.generatedBy,
+    this.generatedAt,
+    this.editedAt,
+    this.sharedAt,
+  });
+
+  bool get isShared => sharedAt != null;
+
+  DailySummary copyWith({
+    String? summary,
+    String? familySummary,
+    DateTime? editedAt,
+    DateTime? sharedAt,
+    bool clearSharedAt = false,
+  }) =>
+      DailySummary(
+        id: id,
+        clientId: clientId,
+        residenceId: residenceId,
+        day: day,
+        summary: summary ?? this.summary,
+        familySummary: familySummary ?? this.familySummary,
+        attention: attention,
+        sources: sources,
+        model: model,
+        generatedBy: generatedBy,
+        generatedAt: generatedAt,
+        editedAt: editedAt ?? this.editedAt,
+        sharedAt: clearSharedAt ? null : (sharedAt ?? this.sharedAt),
+      );
+}

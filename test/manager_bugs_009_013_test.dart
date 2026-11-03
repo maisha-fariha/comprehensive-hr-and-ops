@@ -2137,13 +2137,15 @@ void main() {
     });
 
     testWidgets('Missing tab "Write entry" opens that resident-day with a Date picker and '
-        'Add Entry', (tester) async {
+        'Add Care Note', (tester) async {
       final (repo, c) = await _openLogs(tester);
       await _pickResidence(tester);
 
       await _tap(tester, find.byKey(const ValueKey('dl-tab-day')));
       expect(find.text('A day view is one resident on one date.'), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-add-entry')), findsNothing);
+      // Web keeps "+ Add Care Note" on Resident Activity even before a resident
+      // is chosen; tapping it asks for residence + resident.
+      expect(find.byKey(const ValueKey('dl-add-care-note')), findsOneWidget);
 
       await _tap(tester, find.byKey(const ValueKey('dl-tab-section-log')));
       await _tap(tester, find.byKey(const ValueKey('dl-tab-missing')));
@@ -2158,7 +2160,7 @@ void main() {
       expect(find.byKey(const ValueKey('dl-from')), findsNothing);
       expect(find.byKey(const ValueKey('dl-kpi-entries')), findsNothing);
       expect(inKey('dl-resident', find.text('Nadia Islam')), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-add-entry')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-add-care-note')), findsOneWidget);
     });
 
     testWidgets('BUG14: Missing rows offer only "Write entry" - no Send Reminder or '
@@ -2183,7 +2185,7 @@ void main() {
       await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
       expect(inKey('dl-resident', find.text('Ayaan Karim')), findsOneWidget);
 
-      await _tap(tester, find.byKey(const ValueKey('dl-add-entry')));
+      await _tap(tester, find.byKey(const ValueKey('dl-add-care-note')));
       expect(find.text('Care documentation for Ayaan Karim on 2026-08-27.'), findsOneWidget);
     });
 
@@ -2303,7 +2305,7 @@ void main() {
       expect(find.text('Entry deleted'), findsOneWidget);
     });
 
-    testWidgets('Add Entry wizard: 3 steps, completion, summary, validation that jumps to '
+    testWidgets('Add Care Note wizard: 3 steps, completion, summary, validation that jumps to '
         'the failing step, attachments and the web request body', (tester) async {
       final (repo, _) = await _openLogs(
         tester,
@@ -2312,7 +2314,7 @@ void main() {
       await _pickResidence(tester);
       await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
-      await _tap(tester, find.byKey(const ValueKey('dl-add-entry')));
+      await _tap(tester, find.byKey(const ValueKey('dl-add-care-note')));
 
       expect(find.text('New Log Entry'), findsOneWidget);
       expect(find.text('Care documentation for Ayaan Karim on 2026-08-27.'), findsOneWidget);
@@ -2489,7 +2491,7 @@ void main() {
       expect(repo.flagQueries.length, flagLoads + 2);
     });
 
-    testWidgets('no care-flags:resolve hides Resolve; no daily-logs:write hides Add Entry, '
+    testWidgets('no care-flags:resolve hides Resolve; no daily-logs:write hides Add Care Note, '
         'Amend and Delete', (tester) async {
       await _openLogs(tester, denied: {'care-flags:resolve', 'daily-logs:write'});
       await _pickResidence(tester);
@@ -2497,7 +2499,7 @@ void main() {
 
       await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
-      expect(find.byKey(const ValueKey('dl-add-entry')), findsNothing);
+      expect(find.byKey(const ValueKey('dl-add-care-note')), findsNothing);
       expect(find.byKey(const ValueKey('dl-entry-view-e3')), findsOneWidget);
       expect(find.byKey(const ValueKey('dl-entry-amend-e3')), findsNothing);
       expect(find.byKey(const ValueKey('dl-entry-delete-e3')), findsNothing);

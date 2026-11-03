@@ -253,11 +253,14 @@ enum DailyLogsTabRow { section, queue }
 class DailyLogsTabs extends StatelessWidget {
   final DailyLogsController controller;
   final DailyLogsTabRow row;
+  /// Web header "+ Add Care Note" beside Daily Log / Resident Activity.
+  final VoidCallback? onAddCareNote;
 
   const DailyLogsTabs({
     super.key,
     required this.controller,
     this.row = DailyLogsTabRow.queue,
+    this.onAddCareNote,
   });
 
   @override
@@ -267,26 +270,45 @@ class DailyLogsTabs extends StatelessWidget {
         final tab = controller.tab.value;
         final onDay = tab == DailyLogsTab.day;
         if (row == DailyLogsTabRow.section) {
+          final showAdd = onDay && controller.showAddEntry && onAddCareNote != null;
           return HandoverPanel(
             padding: const EdgeInsets.all(8),
-            child: Wrap(
-              spacing: 4,
-              runSpacing: 4,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _TabChip(
-                  tabKey: 'section-log',
-                  label: 'Daily Log',
-                  selected: !onDay,
-                  onTap: () {
-                    if (onDay) controller.setTab(DailyLogsTab.activity);
-                  },
+                Expanded(
+                  child: Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      _TabChip(
+                        tabKey: 'section-log',
+                        label: 'Daily Log',
+                        selected: !onDay,
+                        onTap: () {
+                          if (onDay) controller.setTab(DailyLogsTab.activity);
+                        },
+                      ),
+                      _TabChip(
+                        tabKey: 'day',
+                        label: 'Resident Activity',
+                        selected: onDay,
+                        onTap: () => controller.setTab(DailyLogsTab.day),
+                      ),
+                    ],
+                  ),
                 ),
-                _TabChip(
-                  tabKey: 'day',
-                  label: 'Resident Activity',
-                  selected: onDay,
-                  onTap: () => controller.setTab(DailyLogsTab.day),
-                ),
+                if (showAdd) ...[
+                  const SizedBox(width: 8),
+                  HandoverButton(
+                    key: const ValueKey('dl-add-care-note'),
+                    label: 'Add Care Note',
+                    icon: Icons.add_rounded,
+                    filled: true,
+                    compact: true,
+                    onPressed: onAddCareNote,
+                  ),
+                ],
               ],
             ),
           );

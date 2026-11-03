@@ -87,9 +87,20 @@ abstract final class ApiEndpoints {
   static String aiClientGoalsReview(String clientId) =>
       '/ai/client-goals/$clientId/review';
   static const String aiDailyLogsSummarize = '/ai/daily-logs/summarize';
+  /// Web AI Day Assistant (`POST /ai/daily-logs/ask-day`).
+  static const String aiDailyLogsAskDay = '/ai/daily-logs/ask-day';
+  /// Web "Tidy my note" (`POST /ai/daily-logs/draft-entry`).
+  static const String aiDailyLogsDraftEntry = '/ai/daily-logs/draft-entry';
   static const String aiSchedulingReview = '/ai/scheduling/review';
   static const String aiTrainingGaps = '/ai/training/gaps';
   static const String aiInventoryReorder = '/ai/inventory/reorder';
+  /// Resident day AI / auto daily summary (`GET` list, `POST …/generate`).
+  static String dailySummariesForClient(String clientId) =>
+      '/daily-summaries/clients/$clientId';
+  static String dailySummariesGenerate(String clientId) =>
+      '/daily-summaries/clients/$clientId/generate';
+  static String dailySummaryById(String id) => '/daily-summaries/$id';
+  static String dailySummaryShare(String id) => '/daily-summaries/$id/share';
   static const String uploads = '/uploads';
   static const String tickets = '/tickets';
   static const String notificationPreferences = '/notification-preferences';

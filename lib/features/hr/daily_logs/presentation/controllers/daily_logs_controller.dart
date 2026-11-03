@@ -76,9 +76,29 @@ class DailyLogsController extends GetxController {
   bool get canReadFlags => session.can('care-flags:read');
   bool get canRecordActivity => session.can('client-activities:write');
   bool get hasResidence => residenceId.value.isNotEmpty;
-  /// Reads the observables before the permission so an `Obx` always subscribes.
-  bool get showAddEntry =>
-      tab.value == DailyLogsTab.day && clientId.value.isNotEmpty && hasResidence && canWrite;
+  /// Residence used for the day view / new care note (filter, opened day, or
+  /// the resident's home when the filter is "All residences").
+  String? get dayResidenceId => _dayResidence;
+  String get dayResidenceName {
+    final id = dayResidenceId;
+    if (id == null || id.isEmpty) return '';
+    return _labelOf(residences, id);
+  }
+
+  /// Web shows "+ Add Care Note" on Resident Activity whenever the user can write.
+  /// Reads observables before the permission so an `Obx` always subscribes.
+  bool get showAddEntry => tab.value == DailyLogsTab.day && canWrite;
+
+  /// Ready to open the New Log Entry sheet (residence + resident resolved).
+  bool get canOpenCareNote {
+    final hasClient = clientId.value.isNotEmpty;
+    final residence = dayResidenceId;
+    return showAddEntry &&
+        hasClient &&
+        residence != null &&
+        residence.isNotEmpty;
+  }
+
   /// Web Daily Logs → Resident Activity exposes "Record activity" before a
   /// resident is chosen (same permission as Daily Activity).
   bool get showRecordActivity => tab.value == DailyLogsTab.day && canRecordActivity;
@@ -167,10 +187,21 @@ class DailyLogsController extends GetxController {
 
   void setClient(String id) {
     clientId.value = id;
-    if (id.isEmpty) _openedResidence = null;
+    if (id.isEmpty) {
+      _openedResidence = null;
+    } else {
+      final home = clients.firstWhereOrNull((c) => c.id == id)?.residenceId;
+      if (home != null && home.isNotEmpty) {
+        _openedResidence = home;
+        // Web day view needs a home; adopt the resident's when the filter is
+        // still "All residences".
+        if (residenceId.value.isEmpty) residenceId.value = home;
+      }
+    }
     page.value = 1;
     loadQueues();
     loadDay();
+    loadShiftLogs();
   }
 
   /// Empty [id] is "All staff". Only the operational logbook sends it.

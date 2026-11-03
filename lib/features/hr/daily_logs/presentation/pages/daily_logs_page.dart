@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
@@ -16,9 +17,12 @@ import '../../../daily_activity/presentation/controllers/daily_activity_controll
 import '../../../daily_activity/presentation/widgets/daily_activity_form_sheet.dart';
 import '../../../daily_activity/presentation/widgets/daily_activity_group_sheet.dart';
 import '../controllers/daily_logs_controller.dart';
+import '../daily_logs_labels.dart';
 import '../widgets/daily_log_common.dart';
 import '../widgets/daily_logs_filters.dart';
 import '../widgets/daily_logs_lists.dart';
+import '../widgets/ai_day_assistant_card.dart';
+import '../widgets/daily_summary_card.dart';
 import '../widgets/day_timeline.dart';
 import '../widgets/entry_sheets.dart';
 import '../widgets/new_log_entry_sheet.dart';
@@ -181,25 +185,6 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
                   style: handoverText(context, 18, weight: FontWeight.w700),
                 ),
               ),
-              Obx(
-                () => _c.showAddEntry
-                    ? Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: HandoverButton(
-                          key: const ValueKey('dl-add-entry'),
-                          label: 'Add Entry',
-                          icon: Icons.add_rounded,
-                          filled: true,
-                          compact: true,
-                          onPressed: () => showNewLogEntrySheet(
-                            context,
-                            controller: _c,
-                            pickFiles: widget.pickFiles,
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
               GestureDetector(
                 onTap: openManagerPortalSearch,
                 behavior: HitTestBehavior.opaque,
@@ -222,11 +207,31 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
     );
   }
 
+  void _addCareNote() {
+    if (!_c.canOpenCareNote) {
+      AppSnackbar.show(
+        'Choose residence and resident',
+        'Pick a residence and resident before adding a care note.',
+        force: true,
+      );
+      return;
+    }
+    showNewLogEntrySheet(
+      context,
+      controller: _c,
+      pickFiles: widget.pickFiles,
+    );
+  }
+
   List<Widget> _content(BuildContext context) {
     final tab = _c.tab.value;
     final hasResidence = _c.hasResidence;
     return [
-      DailyLogsTabs(controller: _c, row: DailyLogsTabRow.section),
+      DailyLogsTabs(
+        controller: _c,
+        row: DailyLogsTabRow.section,
+        onAddCareNote: _addCareNote,
+      ),
       const SizedBox(height: 15),
       DailyLogsFilters(controller: _c),
       if (_c.showRecordActivity) ...[
@@ -255,6 +260,16 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
               ),
             ],
           ),
+        ),
+      ],
+      if (tab == DailyLogsTab.day && _c.clientId.value.isNotEmpty) ...[
+        const SizedBox(height: 12),
+        _ActiveResidentBanner(
+          clientName: _c.clientName.isEmpty ? 'Resident' : _c.clientName,
+          logDate: _c.logDate.value,
+          canAddCareNote: _c.showAddEntry,
+          onAddCareNote: _addCareNote,
+          onViewAllResidents: () => _c.setClient(''),
         ),
       ],
       const SizedBox(height: 15),
@@ -363,6 +378,19 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
             DailyLogFormError(error),
             const SizedBox(height: 12),
           ],
+          AiDayAssistantCard(
+            clientId: _c.clientId.value,
+            clientName: _c.clientName,
+            logDate: _c.logDate.value,
+          ),
+          const SizedBox(height: 12),
+          DailySummaryCard(
+            clientId: _c.clientId.value,
+            clientName: _c.clientName,
+            logDate: _c.logDate.value,
+            canReview: _c.canReview,
+          ),
+          const SizedBox(height: 12),
           DayTimeline(
             day: _c.day.value,
             loading: _c.dayLoading.value,
@@ -374,5 +402,95 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
           ),
         ];
     }
+  }
+}
+
+/// Web Resident Activity active-resident card with "+ Add Care Note".
+class _ActiveResidentBanner extends StatelessWidget {
+  final String clientName;
+  final String logDate;
+  final bool canAddCareNote;
+  final VoidCallback onAddCareNote;
+  final VoidCallback onViewAllResidents;
+
+  const _ActiveResidentBanner({
+    required this.clientName,
+    required this.logDate,
+    required this.canAddCareNote,
+    required this.onAddCareNote,
+    required this.onViewAllResidents,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return HandoverPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          clientName,
+                          style: handoverText(
+                            context,
+                            15,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        const DailyLogPill(
+                          'Active Resident',
+                          tone: DailyLogTone.info,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Viewing activity timeline and care documentation for $logDate',
+                      style: handoverText(
+                        context,
+                        12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (canAddCareNote)
+                HandoverButton(
+                  key: const ValueKey('dl-banner-add-care-note'),
+                  label: 'Add Care Note',
+                  icon: Icons.add_rounded,
+                  filled: true,
+                  compact: true,
+                  onPressed: onAddCareNote,
+                ),
+              HandoverButton(
+                key: const ValueKey('dl-view-all-residents'),
+                label: 'View all residents',
+                compact: true,
+                onPressed: onViewAllResidents,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
