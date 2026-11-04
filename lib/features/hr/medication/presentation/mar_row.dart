@@ -62,6 +62,14 @@ class MarRow {
 
   bool get isPrn => recordType == 'PRN';
 
+  /// Web `t_`: an already-charted dose given outside a round
+  /// (`scheduled === false` → scheduleTime "Unscheduled" + administrationId).
+  /// Delete is blocked; Edit opens a correction (amendments API).
+  bool get isGivenUnscheduledMarDose =>
+      recordType == 'MAR' &&
+      scheduleTime == 'Unscheduled' &&
+      (administrationId?.isNotEmpty ?? false);
+
   factory MarRow.fromOccurrence(
     MarOccurrence o, {
     Map<String, String> staffNames = const {},

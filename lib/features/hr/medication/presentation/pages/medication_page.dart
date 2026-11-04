@@ -79,6 +79,22 @@ class _MedicationPageState extends State<MedicationPage> {
     if (action == MarRowAction.view || action == MarRowAction.chart) {
       return _record(entries: [row]);
     }
+    // Already-given unscheduled MAR dose (schedule === false): delete is
+    // message-only; edit corrects via POST …/administrations/:id/amendments.
+    if (row.isGivenUnscheduledMarDose) {
+      if (action == MarRowAction.delete) {
+        AppSnackbar.show(
+          MedicationController.cantDeleteGivenUnscheduledTitle,
+          MedicationController.cantDeleteGivenUnscheduledBody,
+          force: true,
+        );
+        return;
+      }
+      if (action == MarRowAction.edit) {
+        await _editGivenUnscheduled(row);
+        return;
+      }
+    }
     final m = _lookup(row);
     if (m == null) return;
     switch (action) {
@@ -106,6 +122,23 @@ class _MedicationPageState extends State<MedicationPage> {
         );
         if (ok) await _c.delete(m);
     }
+  }
+
+  Future<void> _editGivenUnscheduled(MarRow row) async {
+    final admin = await _c.administrationForUnscheduled(row);
+    if (admin == null) {
+      AppSnackbar.show(MedicationController.doseNotFound, '', force: true);
+      return;
+    }
+    if (!_c.canCorrect(admin)) {
+      AppSnackbar.show(
+        MedicationController.correctPermissionDenied,
+        '',
+        force: true,
+      );
+      return;
+    }
+    await _correct(admin);
   }
 
   Future<void> _correct(MarAdministration a) => showMarCorrectDialog(

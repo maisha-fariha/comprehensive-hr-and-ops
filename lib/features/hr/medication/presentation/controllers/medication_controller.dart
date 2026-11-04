@@ -654,6 +654,36 @@ class MedicationController extends GetxController {
         'Correction recorded. The original stays on the chart.',
       );
 
+  /// Resolve a charted dose for Edit on an unscheduled MAR row (web `tW`).
+  Future<MarAdministration?> administrationForUnscheduled(MarRow row) async {
+    final id = row.administrationId;
+    if (id == null || id.isEmpty) return null;
+    for (final a in given) {
+      if (a.id == id) return a;
+    }
+    final result = await repository.administrations();
+    return result.when(
+      success: (list) {
+        given.assignAll(list);
+        for (final a in list) {
+          if (a.id == id) return a;
+        }
+        return null;
+      },
+      failure: (_) => null,
+    );
+  }
+
+  static const cantDeleteGivenUnscheduledTitle = "This dose can't be deleted";
+  static const cantDeleteGivenUnscheduledBody =
+      'It was already given, so it stays on the medication record. '
+      'If it was recorded by mistake, use Edit to correct it — the original '
+      'stays visible with your reason.';
+  static const correctPermissionDenied =
+      'Only the person who gave this dose, or a supervisor, can correct it.';
+  static const doseNotFound =
+      'This dose could not be found. Refresh the page and try again.';
+
   Future<List<MarOption>> witnessesFor(String residenceId) async {
     if (residenceId.isEmpty) return const [];
     final result = await repository.witnesses(residenceId);
