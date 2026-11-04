@@ -7,6 +7,7 @@ import 'package:comprehensive_hr_and_ops/features/hr/medication/data/mappers/med
 import 'package:comprehensive_hr_and_ops/features/hr/medication/data/repositories/medication_repository_impl.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_administration.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_medication.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_medication_stock.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_options.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_round.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/repositories/medication_repository.dart';
@@ -202,12 +203,39 @@ class _FakeRepo implements MedicationRepository {
       );
 
   @override
-  Future<Result<List<MarMedication>>> medications({String? residenceId}) async =>
+  Future<Result<List<MarMedication>>> medications({
+    String? residenceId,
+    String? type,
+  }) async =>
       Result.success(List.of(meds));
 
   @override
   Future<Result<List<MarMedication>>> prnMedications({String? residenceId}) async =>
       Result.success(List.of(prnList));
+
+  @override
+  Future<Result<List<MarMedicationStock>>> medicationStock({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  ) async {
+    calls.add('setStock');
+    return Result.success(
+      MarMedicationStock(
+        id: 'stock-1',
+        residenceId: draft.residenceId,
+        medicationId: draft.medicationId,
+        prnMedicationId: draft.prnMedicationId,
+        quantity: draft.quantity,
+        unit: draft.unit,
+        refillThreshold: draft.refillThreshold,
+      ),
+    );
+  }
 
   @override
   Future<Result<List<MarAdministration>>> administrations() async => Result.success(List.of(givenList));

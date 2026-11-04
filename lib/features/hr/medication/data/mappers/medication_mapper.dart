@@ -1,6 +1,7 @@
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/mar_administration.dart';
 import '../../domain/entities/mar_medication.dart';
+import '../../domain/entities/mar_medication_stock.dart';
 import '../../domain/entities/mar_options.dart';
 import '../../domain/entities/mar_round.dart';
 
@@ -117,6 +118,35 @@ abstract final class MedicationMapper {
       _rows(body).map(medicationFrom).toList();
 
   static List<MarMedication> prnsFrom(dynamic body) => _rows(body).map(prnFrom).toList();
+
+  static MarMedicationStock stockFrom(Map<String, dynamic> json) =>
+      MarMedicationStock(
+        id: JsonCodec.stringOr(json['id'], ''),
+        residenceId: JsonCodec.stringOr(json['residenceId'], ''),
+        medicationId: JsonCodec.string(json['medicationId']),
+        prnMedicationId: JsonCodec.string(json['prnMedicationId']),
+        quantity: JsonCodec.number(json['quantity']) ?? 0,
+        unit: JsonCodec.string(json['unit']),
+        refillThreshold: JsonCodec.number(json['refillThreshold']),
+        needsRefill: JsonCodec.boolean(json['needsRefill']) ?? false,
+        updatedAt: JsonCodec.dateTime(json['updatedAt']),
+      );
+
+  static List<MarMedicationStock> stocksFrom(dynamic body) =>
+      _rows(body).map(stockFrom).toList();
+
+  static Map<String, dynamic> stockCountToJson(MarStockCountDraft draft) => {
+        'residenceId': draft.residenceId,
+        'quantity': draft.quantity,
+        if (draft.medicationId != null && draft.medicationId!.isNotEmpty)
+          'medicationId': draft.medicationId,
+        if (draft.prnMedicationId != null && draft.prnMedicationId!.isNotEmpty)
+          'prnMedicationId': draft.prnMedicationId,
+        if (draft.unit != null && draft.unit!.trim().isNotEmpty)
+          'unit': draft.unit!.trim(),
+        if (draft.refillThreshold != null)
+          'refillThreshold': draft.refillThreshold,
+      };
 
   static MarAdministration administrationFrom(Map<String, dynamic> json) {
     final medication = JsonCodec.mapAt(json, 'medication');

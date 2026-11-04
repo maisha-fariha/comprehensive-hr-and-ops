@@ -13,6 +13,8 @@ import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../controllers/staff_medication_controller.dart';
+import '../../../../hr/medication/presentation/widgets/mar_count_stock_sheet.dart';
+import '../../../../hr/medication/presentation/widgets/mar_stock_tab.dart';
 import '../widgets/given_tab_view.dart';
 import '../widgets/mar_registry_tab_view.dart';
 import '../widgets/prn_registry_tab_view.dart';
@@ -26,7 +28,7 @@ import '../widgets/staff_mar_metrics_row.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Medication MAR — web console parity:
-/// metrics + MAR / PRN / Given / Resident chart tabs.
+/// metrics + MAR / PRN / Given / Stock / Resident chart tabs.
 class StaffMedicationPage extends StatelessWidget {
   static const int _marTasksTabIndex = 3;
 
@@ -213,6 +215,23 @@ class StaffMedicationPage extends StatelessWidget {
                         ),
                       StaffMedicationTab.given => GivenTabView(
                           doses: controller.givenItems.toList(),
+                        ),
+                      StaffMedicationTab.stock => MarStockTab(
+                          rows: controller.stockRows,
+                          residences: controller.stockResidenceOptions,
+                          residenceId: controller.stockResidenceFilter.value,
+                          loading: controller.stockLoading.value,
+                          error: controller.stockError.value,
+                          canWrite: canWrite,
+                          lowCount: controller.stockLowCount,
+                          onResidenceChange: controller.setStockResidence,
+                          onClearResidence: () =>
+                              controller.setStockResidence(''),
+                          onCountStock: (row) => showMarCountStockSheet(
+                            context,
+                            row: row,
+                            onSave: controller.countStock,
+                          ),
                         ),
                       StaffMedicationTab.residentChart =>
                         ResidentChartTabView(

@@ -5,6 +5,8 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/medication/data/mappers/medication_mapper.dart';
+import '../../../../hr/medication/domain/entities/mar_medication_stock.dart';
 import '../../domain/entities/administered_dose.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_med_options.dart';
@@ -218,6 +220,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   Future<Result<List<StaffClientMedicationItem>>> listMedications({
     String? residenceId,
     String? clientId,
+    String? type,
   }) async {
     final result = await _api.get(
       ApiEndpoints.medications,
@@ -227,6 +230,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
         if (residenceId != null && residenceId.isNotEmpty)
           'residenceId': residenceId,
         if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
+        if (type != null && type.isNotEmpty) 'type': type,
       },
       silent: true,
     );
@@ -237,6 +241,51 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
         return Result.success(await _enrichMedicationResidences(items));
       },
       failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<MarMedicationStock>>> listMedicationStock({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.medicationStock,
+      query: {
+        'page': 1,
+        'limit': 100,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) => Result.success(MedicationMapper.stocksFrom(body)),
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  ) async {
+    final result = await _api.put(
+      ApiEndpoints.medicationStock,
+      data: MedicationMapper.stockCountToJson(draft),
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) {
+        final map = JsonCodec.mapAt(body, 'data') ??
+            (body is Map ? JsonCodec.asMap(body) : null);
+        if (map == null) {
+          return Result.failure(
+            const ApiError(message: 'Stock count response was empty.'),
+          );
+        }
+        return Result.success(MedicationMapper.stockFrom(map));
+      },
+      failure: Result.failure,
     );
   }
 

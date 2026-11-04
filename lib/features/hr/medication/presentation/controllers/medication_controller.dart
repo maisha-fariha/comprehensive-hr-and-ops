@@ -9,6 +9,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/storage/media_store_download.dart';
 import '../../domain/entities/mar_administration.dart';
 import '../../domain/entities/mar_medication.dart';
+import '../../domain/entities/mar_medication_stock.dart';
 import '../../domain/entities/mar_options.dart';
 import '../../domain/entities/mar_round.dart';
 import '../../domain/repositories/medication_repository.dart';
@@ -29,9 +30,9 @@ Future<String?> _saveAndOpen(String fileName, List<int> bytes) async {
 }
 
 /// Web `/dashboard/medication` ("Medication Administration Record (MAR)"):
-/// KPI cards, the MAR / PRN / Given / Resident chart tabs, Due Now and
-/// Missed / Overdue panels, and every add / edit / chart / correct /
-/// discontinue / delete / export action.
+/// KPI cards, the MAR / PRN / Given / Stock / Resident chart tabs, Due Now
+/// and Missed / Overdue panels, and every add / edit / chart / correct /
+/// discontinue / delete / export / count-stock action.
 class MedicationController extends GetxController {
   final MedicationRepository repository;
   final UserSession session;
@@ -57,6 +58,14 @@ class MedicationController extends GetxController {
   final RxList<MarAdministration> given = <MarAdministration>[].obs;
   final RxBool givenLoading = true.obs;
   final RxnString givenError = RxnString();
+
+  /// Stock tab — scheduled + PRN prescriptions joined to trolley counts.
+  final RxList<MarMedication> stockScheduled = <MarMedication>[].obs;
+  final RxList<MarMedication> stockPrns = <MarMedication>[].obs;
+  final RxList<MarMedicationStock> stocks = <MarMedicationStock>[].obs;
+  final RxBool stockLoading = false.obs;
+  final RxnString stockError = RxnString();
+  final RxString stockResidenceFilter = ''.obs;
 
   final RxList<MarOption> residences = <MarOption>[].obs;
   final RxList<MarClientOption> clients = <MarClientOption>[].obs;
@@ -129,6 +138,7 @@ class MedicationController extends GetxController {
       loadMedications(),
       loadPrn(),
       loadGiven(),
+      if (tab.value == 'stock') loadStock(),
       if (chartClientId.value.isNotEmpty) loadChart(chartClientId.value),
     ]);
   }
@@ -301,6 +311,153 @@ class MedicationController extends GetxController {
   void setTab(String id) {
     tab.value = id;
     page.value = 1;
+    if (id == 'stock') loadStock();
+  }
+
+  /// Web Stock tab home filter (independent of the MAR registry filter).
+  void setStockResidence(String residenceId) {
+    stockResidenceFilter.value = residenceId;
+    loadStock();
+  }
+
+  Future<void> loadStock() async {
+    stockLoading.value = true;
+    stockError.value = null;
+    final residenceId =
+        stockResidenceFilter.value.isEmpty ? null : stockResidenceFilter.value;
+    final (scheduled, prnList, stockList) = await (
+      repository.medications(residenceId: residenceId, type: 'scheduled'),
+      repository.prnMedications(residenceId: residenceId),
+      repository.medicationStock(residenceId: residenceId),
+    ).wait;
+    String? error;
+    scheduled.when(
+      success: stockScheduled.assignAll,
+      failure: (e) => error ??= e.message,
+    );
+    prnList.when(
+      success: stockPrns.assignAll,
+      failure: (e) => error ??= e.message,
+    );
+    stockList.when(
+      success: stocks.assignAll,
+      failure: (e) => error ??= e.message,
+    );
+    stockError.value = error;
+    stockLoading.value = false;
+  }
+
+  List<MarStockRow> get stockRows {
+    final people = clientNames;
+    final homes = residenceNames;
+    final filter = stockResidenceFilter.value;
+    final counts = stocks.toList();
+
+    MarMedicationStock? matchStock({
+      String? medicationId,
+      String? prnMedicationId,
+      required String residenceId,
+    }) {
+      for (final row in counts) {
+        if (filter.isNotEmpty && row.residenceId != residenceId) continue;
+        if (medicationId != null &&
+            medicationId.isNotEmpty &&
+            row.medicationId == medicationId) {
+          return row;
+        }
+        if (prnMedicationId != null &&
+            prnMedicationId.isNotEmpty &&
+            row.prnMedicationId == prnMedicationId) {
+          return row;
+        }
+      }
+      return null;
+    }
+
+    String displayName(MarMedication m) {
+      final dose = (m.dose ?? '').trim();
+      if (dose.isEmpty || dose == '—') return m.name;
+      return '${m.name} — $dose';
+    }
+
+    final rows = <MarStockRow>[
+      for (final m in stockScheduled.where((m) => m.isActive))
+        MarStockRow(
+          key: 'med:${m.id}',
+          medicationId: m.id,
+          residenceId: m.residenceId,
+          residenceName: homes[m.residenceId] ?? '—',
+          name: displayName(m),
+          kind: 'Scheduled',
+          resident: m.clientId.isEmpty
+              ? 'House stock'
+              : (people[m.clientId] ?? 'Resident'),
+          unitsPerDose: m.stockUnitsPerDose,
+          stock: matchStock(
+            medicationId: m.id,
+            residenceId: m.residenceId,
+          ),
+        ),
+      for (final p in stockPrns.where((p) => p.isActive))
+        MarStockRow(
+          key: 'prn:${p.id}',
+          prnMedicationId: p.id,
+          residenceId: p.residenceId,
+          residenceName: homes[p.residenceId] ?? '—',
+          name: displayName(p),
+          kind: 'PRN',
+          resident: p.clientId.isEmpty
+              ? 'House stock'
+              : (people[p.clientId] ?? 'Resident'),
+          unitsPerDose: p.stockUnitsPerDose,
+          stock: matchStock(
+            prnMedicationId: p.id,
+            residenceId: p.residenceId,
+          ),
+        ),
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return rows;
+  }
+
+  int get stockLowCount =>
+      stockRows.where((r) => r.stock?.needsRefill == true).length;
+
+  Future<bool> countStock(MarStockCountDraft draft) async {
+    busy.value = true;
+    final result = await repository.setMedicationStock(draft);
+    busy.value = false;
+    return result.when(
+      success: (saved) {
+        final idx = stocks.indexWhere((s) => s.id == saved.id);
+        if (idx >= 0) {
+          stocks[idx] = saved;
+        } else {
+          stocks.add(saved);
+        }
+        stocks.refresh();
+        final name = stockRows
+            .where(
+              (r) =>
+                  (draft.medicationId != null &&
+                      r.medicationId == draft.medicationId) ||
+                  (draft.prnMedicationId != null &&
+                      r.prnMedicationId == draft.prnMedicationId),
+            )
+            .map((r) => r.name)
+            .firstOrNull;
+        AppSnackbar.show(
+          saved.needsRefill
+              ? 'Stock saved — ${name ?? 'Medicine'} is at or below its refill level'
+              : 'Stock saved',
+          '',
+        );
+        return true;
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not save stock count', error.message);
+        return false;
+      },
+    );
   }
 
   void setSearch(String text) {

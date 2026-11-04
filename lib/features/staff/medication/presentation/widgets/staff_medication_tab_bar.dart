@@ -21,7 +21,7 @@ class _TabData {
   });
 }
 
-/// Web-parity tabs: MAR · PRN · Given · Resident chart.
+/// Web-parity tabs: MAR · PRN · Given · Stock · Resident chart.
 class StaffMedicationTabBar extends StatelessWidget {
   final StaffMedicationTab selectedTab;
   final int marCount;
@@ -72,6 +72,10 @@ class StaffMedicationTabBar extends StatelessWidget {
         count: givenCount,
         badgeBackground: _givenBadgeBg,
         badgeForeground: _givenBadgeFg,
+      ),
+      const _TabData(
+        tab: StaffMedicationTab.stock,
+        label: 'Stock',
       ),
       const _TabData(
         tab: StaffMedicationTab.residentChart,

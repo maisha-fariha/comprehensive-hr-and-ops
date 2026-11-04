@@ -17,9 +17,12 @@ import '../widgets/mar_given_tab.dart';
 import '../widgets/mar_kpi_grid.dart';
 import '../widgets/mar_medicine_form_sheet.dart';
 import '../widgets/mar_record_administration_sheet.dart';
+import '../../domain/entities/mar_medication_stock.dart';
+import '../widgets/mar_count_stock_sheet.dart';
 import '../widgets/mar_resident_chart_tab.dart';
 import '../widgets/mar_row_card.dart';
 import '../widgets/mar_side_panels.dart';
+import '../widgets/mar_stock_tab.dart';
 import '../widgets/medication_common.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
@@ -246,11 +249,20 @@ class _MedicationPageState extends State<MedicationPage> {
     );
   }
 
+  Future<void> _countStock(MarStockRow row) async {
+    await showMarCountStockSheet(
+      context,
+      row: row,
+      onSave: _c.countStock,
+    );
+  }
+
   Widget _tabs(BuildContext context) {
     final tabs = [
       ('mar', 'MAR (${_c.filteredMar.length})'),
       ('prn', 'PRN (${_c.filteredPrn.length})'),
       ('given', 'Given (${_c.given.length})'),
+      ('stock', 'Stock'),
       ('chart', 'Resident chart'),
     ];
     return SingleChildScrollView(
@@ -302,6 +314,21 @@ class _MedicationPageState extends State<MedicationPage> {
             error: _c.givenError.value,
             canCorrect: _c.canCorrect,
             onCorrect: _correct,
+          ),
+        ];
+      case 'stock':
+        return [
+          MarStockTab(
+            rows: _c.stockRows,
+            residences: _c.residences.toList(),
+            residenceId: _c.stockResidenceFilter.value,
+            loading: _c.stockLoading.value,
+            error: _c.stockError.value,
+            canWrite: _c.canWrite,
+            lowCount: _c.stockLowCount,
+            onResidenceChange: _c.setStockResidence,
+            onClearResidence: () => _c.setStockResidence(''),
+            onCountStock: _countStock,
           ),
         ];
       case 'chart':

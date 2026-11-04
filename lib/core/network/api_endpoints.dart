@@ -182,6 +182,8 @@ abstract final class ApiEndpoints {
   static const String marAdministrations = '/mar/administrations';
   static const String medications = '/medications';
   static const String prnMedications = '/prn-medications';
+  /// Web MAR Stock tab trolley counts.
+  static const String medicationStock = '/medication-stock';
 
   // ── Tasks & compliance ──────────────────────────────────────────────────
   static const String tasks = '/tasks';

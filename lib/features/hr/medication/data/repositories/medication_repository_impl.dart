@@ -10,6 +10,7 @@ import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
 import '../../domain/entities/mar_administration.dart';
 import '../../domain/entities/mar_medication.dart';
+import '../../domain/entities/mar_medication_stock.dart';
 import '../../domain/entities/mar_options.dart';
 import '../../domain/entities/mar_round.dart';
 import '../../domain/repositories/medication_repository.dart';
@@ -72,11 +73,57 @@ class MedicationRepositoryImpl implements MedicationRepository {
       );
 
   @override
-  Future<Result<List<MarMedication>>> medications({String? residenceId}) => _get(
+  Future<Result<List<MarMedication>>> medications({
+    String? residenceId,
+    String? type,
+  }) =>
+      _get(
         MedicationEndpoints.medications,
         MedicationMapper.medicationsFrom,
-        query: _page(residenceId: residenceId),
+        query: {
+          ..._page(residenceId: residenceId),
+          'type': ?_blank(type),
+        },
       );
+
+  @override
+  Future<Result<List<MarMedicationStock>>> medicationStock({
+    String? residenceId,
+  }) =>
+      _get(
+        MedicationEndpoints.medicationStock,
+        MedicationMapper.stocksFrom,
+        query: {
+          'page': 1,
+          'limit': MedicationEndpoints.maxPageLimit,
+          'residenceId': ?_blank(residenceId),
+        },
+      );
+
+  @override
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  ) async {
+    final result = await _api.put(
+      MedicationEndpoints.medicationStock,
+      data: MedicationMapper.stockCountToJson(draft),
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) {
+        final map = JsonCodec.mapAt(body, 'data') ??
+            (body is Map ? JsonCodec.asMap(body) : null);
+        if (map == null) {
+          return Result.failure(
+            const ApiError(message: 'Stock count response was empty.'),
+          );
+        }
+        return Result.success(MedicationMapper.stockFrom(map));
+      },
+      failure: Result.failure,
+    );
+  }
 
   @override
   Future<Result<List<MarMedication>>> prnMedications({String? residenceId}) => _get(

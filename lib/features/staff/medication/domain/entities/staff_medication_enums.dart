@@ -1,5 +1,5 @@
-/// Web MAR console tabs: MAR · PRN · Given · Resident chart.
-enum StaffMedicationTab { mar, prn, given, residentChart }
+/// Web MAR console tabs: MAR · PRN · Given · Stock · Resident chart.
+enum StaffMedicationTab { mar, prn, given, stock, residentChart }
 
 /// Color palette used for resident/staff initials avatars across every
 /// Staff Medication tab.

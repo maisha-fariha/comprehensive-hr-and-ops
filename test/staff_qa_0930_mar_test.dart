@@ -1,6 +1,7 @@
 import 'package:comprehensive_hr_and_ops/core/constants/app_colors.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_role.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_medication_stock.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/data/mappers/staff_medication_mapper.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/domain/entities/administered_dose.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/domain/entities/due_dose.dart';
@@ -135,9 +136,32 @@ class _FakeRepo implements StaffMedicationRepository {
   Future<Result<List<StaffClientMedicationItem>>> listMedications({
     String? residenceId,
     String? clientId,
+    String? type,
   }) async =>
       Result.success(
         StaffMedicationMapper.clientMedicationsFrom(medicationRows, isPrn: false),
+      );
+
+  @override
+  Future<Result<List<MarMedicationStock>>> listMedicationStock({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  ) async =>
+      Result.success(
+        MarMedicationStock(
+          id: 'stock-1',
+          residenceId: draft.residenceId,
+          medicationId: draft.medicationId,
+          prnMedicationId: draft.prnMedicationId,
+          quantity: draft.quantity,
+          unit: draft.unit,
+          refillThreshold: draft.refillThreshold,
+        ),
       );
 
   @override

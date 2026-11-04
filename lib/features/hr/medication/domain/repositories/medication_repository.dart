@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../entities/mar_administration.dart';
 import '../entities/mar_medication.dart';
+import '../entities/mar_medication_stock.dart';
 import '../entities/mar_options.dart';
 import '../entities/mar_round.dart';
 
@@ -11,10 +12,26 @@ abstract class MedicationRepository {
   Future<Result<MarRound>> round({String? residenceId});
 
   /// `GET /medications` — every prescription in scope.
-  Future<Result<List<MarMedication>>> medications({String? residenceId});
+  ///
+  /// Pass [type] `scheduled` for the Stock tab (excludes PRN rows the API
+  /// otherwise mixes into `/medications`).
+  Future<Result<List<MarMedication>>> medications({
+    String? residenceId,
+    String? type,
+  });
 
   /// `GET /prn-medications`.
   Future<Result<List<MarMedication>>> prnMedications({String? residenceId});
+
+  /// `GET /medication-stock` — trolley counts for the Stock tab.
+  Future<Result<List<MarMedicationStock>>> medicationStock({
+    String? residenceId,
+  });
+
+  /// `PUT /medication-stock` — web "Count stock" / `setStock`.
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  );
 
   /// `GET /mar/administrations` — the Given tab (first 50).
   Future<Result<List<MarAdministration>>> administrations();

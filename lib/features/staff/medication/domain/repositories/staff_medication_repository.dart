@@ -1,5 +1,6 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../../../../hr/medication/domain/entities/mar_medication_stock.dart';
 import '../entities/administered_dose.dart';
 import '../entities/staff_client_medication_item.dart';
 import '../entities/staff_med_options.dart';
@@ -49,10 +50,23 @@ abstract class StaffMedicationRepository {
   });
 
   /// `GET /medications` — optional filters (resident chart / record admin).
+  ///
+  /// Pass [type] `scheduled` for the Stock tab.
   Future<Result<List<StaffClientMedicationItem>>> listMedications({
     String? residenceId,
     String? clientId,
+    String? type,
   });
+
+  /// `GET /medication-stock` — web Stock tab.
+  Future<Result<List<MarMedicationStock>>> listMedicationStock({
+    String? residenceId,
+  });
+
+  /// `PUT /medication-stock` — web Count stock.
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  );
 
   /// `POST /medications`
   Future<Result<void>> createMedication(StaffCreateMedicationInput input);
