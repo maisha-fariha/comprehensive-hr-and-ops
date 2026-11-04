@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../data/mappers/scheduling_mapper.dart';
@@ -79,12 +80,21 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   Future<void> loadResidences() async {
     if (_residencesLoaded) return;
     final result = await repository.getResidences();
+    final loaded = <ShiftResidenceOption>[];
     result.when(
-      success: (items) {
-        _residencesLoaded = true;
-        residences.assignAll(items);
-      },
+      success: loaded.addAll,
       failure: (_) {},
+    );
+    _residencesLoaded = true;
+    residences.assignAll(
+      mergeResidencePickerOptions<ShiftResidenceOption>(
+        loaded: loaded,
+        idOf: (r) => r.id,
+        nameOf: (r) => r.name,
+        create: (id, name) => ShiftResidenceOption(id: id, name: name),
+        sessionId: session?.residenceId,
+        sessionName: session?.residenceName,
+      ),
     );
   }
 
@@ -140,6 +150,8 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   Future<void> loadOverview() async {
     final generation = ++_loadGeneration;
     setLoading(true);
+    // Keep scheduling:write / bid gates in sync with tenant role edits.
+    await session?.refreshProfile();
 
     // Until the user picks a day, always request today's selection when the
     // visible week contains today.

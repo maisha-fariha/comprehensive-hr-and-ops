@@ -23,6 +23,7 @@ import '../../medication/presentation/pages/staff_medication_page.dart';
 import '../../staff_shell.dart';
 import '../../tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
 import '../../../hr/team_reports/presentation/pages/team_reports_page.dart';
+import '../../../hr/users_access/presentation/pages/users_access_page.dart';
 import '../domain/entities/staff_search_record.dart';
 
 /// One entry of the web tenant sidebar (`tenantNavItems`) as listed in the
@@ -93,12 +94,13 @@ List<StaffSearchDestination> staffSearchDestinations() {
       iconColor: AppColors.infoBlue,
       open: () => Get.to(() => const StaffAdmissionsPage()),
     ),
-    const StaffSearchDestination(
+    StaffSearchDestination(
       label: 'Users & Access',
-      permissions: ['users:read', 'roles:read'],
+      permissions: const ['users:read', 'roles:read'],
       icon: Icons.admin_panel_settings_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
+      open: () => Get.to(() => const UsersAccessPage()),
     ),
     StaffSearchDestination(
       label: 'Scheduling',

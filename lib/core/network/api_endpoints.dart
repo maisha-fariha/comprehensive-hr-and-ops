@@ -194,6 +194,10 @@ abstract final class ApiEndpoints {
   static const String emergencyAlerts = '/emergency-alerts';
   static const String inventoryItems = '/inventory/items';
   static const String supportTickets = '/support/tickets';
+  /// Web Users & Access (`/dashboard/users`) — requires `users:read`.
+  static const String users = '/users';
+  /// Role catalog with grants — requires `roles:read`.
+  static const String roles = '/roles';
   static const String referrals = '/referrals';
 
   static String emergencyAlertCancel(String id) =>

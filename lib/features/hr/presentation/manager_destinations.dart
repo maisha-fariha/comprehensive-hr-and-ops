@@ -25,6 +25,7 @@ import '../residences/presentation/pages/residences_page.dart';
 import '../compliance/presentation/pages/compliance_page.dart';
 import '../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
 import '../team_reports/presentation/pages/team_reports_page.dart';
+import '../users_access/presentation/pages/users_access_page.dart';
 
 /// A page the Manager can navigate to from the More menu or the
 /// "Search pages" sheet on the dashboard.
@@ -87,14 +88,28 @@ List<ManagerDestination> managerDestinations() {
     if (can('dashboard:read'))
       ManagerDestination(
         title: 'Dashboard',
-      subtitle: 'Today at a glance',
-      icon: Icons.dashboard_outlined,
-      iconBackground: AppColors.infoBackground,
-      iconColor: AppColors.infoBlue,
-      open: () => _openTab(0),
-      keywords: const ['home', 'overview'],
-      inMoreMenu: false,
-    ),
+        subtitle: 'Today at a glance',
+        icon: Icons.dashboard_outlined,
+        iconBackground: AppColors.infoBackground,
+        iconColor: AppColors.infoBlue,
+        open: () => _openTab(0),
+        keywords: const ['home', 'overview'],
+        inMoreMenu: false,
+      ),
+    if (can('users:read') || can('roles:read'))
+      ManagerDestination(
+        title: 'Users & Access',
+        subtitle: 'Accounts, roles and permission grants',
+        icon: Icons.admin_panel_settings_outlined,
+        iconBackground: AppColors.nightBackground,
+        iconColor: AppColors.nightPurple,
+        open: () => openPermittedPage(
+          title: 'Users & Access',
+          anyOf: const ['users:read', 'roles:read'],
+          builder: () => const UsersAccessPage(),
+        ),
+        keywords: const ['users', 'roles', 'permissions', 'access', 'rbac'],
+      ),
     if (can('residences'))
       ManagerDestination(
         title: 'Residences',

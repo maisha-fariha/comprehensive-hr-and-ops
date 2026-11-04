@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../../../hr/scheduling/domain/entities/create_shift_draft.dart';
@@ -157,29 +158,41 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
     setState(() => _isLoadingResidences = true);
     final result = await widget.repository.getResidences();
     if (!mounted) return;
-    setState(() => _isLoadingResidences = false);
+    final loaded = <StaffShiftResidenceOption>[];
+    String? loadError;
     result.when(
-      success: (data) {
-        setState(() {
-          _residences
-            ..clear()
-            ..addAll(data);
-          final selectedId = _selectedResidence?.id;
-          if (selectedId != null) {
-            for (final option in data) {
-              if (option.id == selectedId) {
-                _selectedResidence = option;
-                break;
-              }
-            }
-          } else if (data.isNotEmpty) {
-            _selectedResidence = data.first;
-          }
-        });
-      },
-      failure: (error) =>
-          AppSnackbar.show('Could not load residences', error.message),
+      success: loaded.addAll,
+      failure: (error) => loadError = error.message,
     );
+    final session = Get.find<UserSession>();
+    final merged = mergeResidencePickerOptions<StaffShiftResidenceOption>(
+      loaded: loaded,
+      idOf: (r) => r.id,
+      nameOf: (r) => r.name,
+      create: (id, name) => StaffShiftResidenceOption(id: id, name: name),
+      sessionId: session.residenceId,
+      sessionName: session.residenceName,
+    );
+    setState(() {
+      _isLoadingResidences = false;
+      _residences
+        ..clear()
+        ..addAll(merged);
+      final selectedId = _selectedResidence?.id;
+      if (selectedId != null) {
+        for (final option in merged) {
+          if (option.id == selectedId) {
+            _selectedResidence = option;
+            break;
+          }
+        }
+      } else if (merged.isNotEmpty) {
+        _selectedResidence = merged.first;
+      }
+    });
+    if (loadError != null && merged.isEmpty) {
+      AppSnackbar.show('Could not load residences', loadError!);
+    }
   }
 
   Future<void> _loadStaffPool({String? search}) async {

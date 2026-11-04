@@ -164,7 +164,7 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   bool get canAccessTraining => can('training');
   bool get canWriteTraining => can('training:write');
   bool get canAccessAdmissions =>
-      can('admissions:assess') || can('admissions');
+      can('admissions:read') || can('admissions:write') || can('admissions');
 
   /// Charting needs `mar:write`. Web does not client-block PRN on cert flags —
   /// the API enforces certification/approval on submit when required.

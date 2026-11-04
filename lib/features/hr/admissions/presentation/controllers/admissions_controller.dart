@@ -4,6 +4,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/referral.dart';
 import '../../domain/repositories/admissions_repository.dart';
@@ -123,9 +124,21 @@ class AdmissionsController extends GetxController {
   }
 
   Future<void> loadResidences() async {
-    if (!canReadResidences) return;
-    final result = await repository.residences();
-    result.when(success: residences.assignAll, failure: (_) {});
+    final loaded = <AdmissionOption>[];
+    if (canReadResidences) {
+      final result = await repository.residences();
+      result.when(success: loaded.addAll, failure: (_) {});
+    }
+    residences.assignAll(
+      mergeResidencePickerOptions<AdmissionOption>(
+        loaded: loaded,
+        idOf: (r) => r.id,
+        nameOf: (r) => r.label,
+        create: (id, name) => AdmissionOption(id: id, label: name),
+        sessionId: session.residenceId,
+        sessionName: session.residenceName,
+      ),
+    );
   }
 
   Future<void> loadTemplates() async {

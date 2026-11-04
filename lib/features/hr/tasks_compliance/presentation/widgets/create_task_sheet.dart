@@ -4,10 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get_it/get_it.dart';
 
+import 'package:get/get.dart';
+
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../incidents/presentation/widgets/wizard_form_fields.dart';
@@ -172,25 +176,39 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     setState(() => _loadingResidences = true);
     final result = await _repository.getResidences();
     if (!mounted) return;
+    final loaded = <TaskResidenceOption>[];
+    String? loadError;
     result.when(
-      success: (items) {
-        setState(() {
-          _residences = items;
-          _loadingResidences = false;
-          final editing = widget.editing;
-          if (editing != null) {
-            _applyEditing(editing);
-          } else if (_residence == null && items.isNotEmpty) {
-            _residence = items.first;
-          }
-        });
-        _loadResidenceOptions();
-      },
-      failure: (error) {
-        setState(() => _loadingResidences = false);
-        AppSnackbar.show('Could not load residences', error.message);
-      },
+      success: loaded.addAll,
+      failure: (error) => loadError = error.message,
     );
+    UserSession? session;
+    try {
+      session = Get.find<UserSession>();
+    } catch (_) {}
+    final merged = mergeResidencePickerOptions<TaskResidenceOption>(
+      loaded: loaded,
+      idOf: (r) => r.id,
+      nameOf: (r) => r.name,
+      create: (id, name) => TaskResidenceOption(id: id, name: name),
+      sessionId: session?.residenceId,
+      sessionName: session?.residenceName,
+    );
+    setState(() {
+      _residences = merged;
+      _loadingResidences = false;
+      final editing = widget.editing;
+      if (editing != null) {
+        _applyEditing(editing);
+      } else if (_residence == null && merged.isNotEmpty) {
+        _residence = merged.first;
+      }
+    });
+    if (loadError != null && merged.isEmpty) {
+      AppSnackbar.show('Could not load residences', loadError!);
+    } else {
+      _loadResidenceOptions();
+    }
   }
 
   /// Rooms and shifts belong to the chosen residence.

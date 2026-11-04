@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/handover_options.dart';
 import '../../domain/entities/shift_handover.dart';
@@ -76,8 +77,19 @@ class HandoversController extends GetxController {
 
   Future<void> _loadOptions() async {
     final residenceResult = await repository.residences();
-    residenceResult.when(success: residences.assignAll, failure: (_) {});
-    if (session.can('staff:read')) {
+    final loaded = <HandoverOption>[];
+    residenceResult.when(success: loaded.addAll, failure: (_) {});
+    residences.assignAll(
+      mergeResidencePickerOptions<HandoverOption>(
+        loaded: loaded,
+        idOf: (r) => r.id,
+        nameOf: (r) => r.label,
+        create: (id, name) => HandoverOption(id: id, label: name),
+        sessionId: session.residenceId,
+        sessionName: session.residenceName,
+      ),
+    );
+    if (session.can('staff:read') || session.can('staff:directory')) {
       final staffResult = await repository.staff();
       staffResult.when(success: staff.assignAll, failure: (_) {});
     }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/shift_break_duration_option.dart';
@@ -193,18 +196,33 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     setState(() => _isLoadingResidences = true);
     final result = await _repository.getResidences();
     if (!mounted) return;
+    final loaded = <ShiftResidenceOption>[];
+    String? loadError;
     result.when(
-      success: (data) => setState(() {
-        _isLoadingResidences = false;
-        _residences
-          ..clear()
-          ..addAll(data);
-      }),
-      failure: (error) {
-        setState(() => _isLoadingResidences = false);
-        AppSnackbar.show('Could not load residences', error.message);
-      },
+      success: loaded.addAll,
+      failure: (error) => loadError = error.message,
     );
+    UserSession? session;
+    try {
+      session = Get.find<UserSession>();
+    } catch (_) {}
+    final merged = mergeResidencePickerOptions<ShiftResidenceOption>(
+      loaded: loaded,
+      idOf: (r) => r.id,
+      nameOf: (r) => r.name,
+      create: (id, name) => ShiftResidenceOption(id: id, name: name),
+      sessionId: session?.residenceId,
+      sessionName: session?.residenceName,
+    );
+    setState(() {
+      _isLoadingResidences = false;
+      _residences
+        ..clear()
+        ..addAll(merged);
+    });
+    if (loadError != null && merged.isEmpty) {
+      AppSnackbar.show('Could not load residences', loadError!);
+    }
   }
 
   Future<void> _loadStaff() async {

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_conversation.dart';
@@ -148,9 +149,22 @@ class CommunicationController extends BaseController<List<HrConversation>> {
 
   Future<void> loadResidences() async {
     final result = await repository.getResidences();
-    result.when(
-      success: (items) => residences.assignAll(items),
-      failure: (_) {},
+    final loaded = <CommunicationResidenceOption>[];
+    result.when(success: loaded.addAll, failure: (_) {});
+    UserSession? session;
+    try {
+      session = Get.find<UserSession>();
+    } catch (_) {}
+    residences.assignAll(
+      mergeResidencePickerOptions<CommunicationResidenceOption>(
+        loaded: loaded,
+        idOf: (r) => r.id,
+        nameOf: (r) => r.name,
+        create: (id, name) =>
+            CommunicationResidenceOption(id: id, name: name),
+        sessionId: session?.residenceId,
+        sessionName: session?.residenceName,
+      ),
     );
   }
 

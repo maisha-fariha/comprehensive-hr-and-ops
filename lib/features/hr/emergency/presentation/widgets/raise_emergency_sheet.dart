@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/emergency_alert.dart';
 import '../../domain/repositories/emergency_repository.dart';
@@ -91,10 +93,30 @@ class _RaiseEmergencySheetState extends State<RaiseEmergencySheet> {
   Future<void> _loadResidences() async {
     final result = await widget.repository.residences();
     if (!mounted) return;
-    result.when(
-      success: (list) => setState(() => _residences = list),
-      failure: (_) {},
+    final loaded = <EmergencyOption>[];
+    result.when(success: loaded.addAll, failure: (_) {});
+    UserSession? session;
+    try {
+      session = Get.find<UserSession>();
+    } catch (_) {}
+    final merged = mergeResidencePickerOptions<EmergencyOption>(
+      loaded: loaded,
+      idOf: (r) => r.id,
+      nameOf: (r) => r.label,
+      create: (id, name) => EmergencyOption(id: id, label: name),
+      sessionId: session?.residenceId,
+      sessionName: session?.residenceName,
     );
+    setState(() {
+      _residences = merged;
+      if (_residenceId == null && merged.length == 1) {
+        _residenceId = merged.first.id;
+      } else if (_residenceId == null &&
+          session?.residenceId != null &&
+          merged.any((r) => r.id == session!.residenceId)) {
+        _residenceId = session!.residenceId;
+      }
+    });
   }
 
   /// A single home is chosen for you.

@@ -3,6 +3,7 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/attendance_week.dart';
@@ -252,9 +253,22 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
 
   Future<void> _loadResidences() async {
     final result = await _repository.getResidences();
+    final loaded = <ManualEntryResidenceOption>[];
     result.when(
-      success: residences.assignAll,
+      success: loaded.addAll,
       failure: (_) {},
+    );
+    // Without residences:read the list is empty — still offer the session
+    // home so filters / clock-in match the web.
+    residences.assignAll(
+      mergeResidencePickerOptions<ManualEntryResidenceOption>(
+        loaded: loaded,
+        idOf: (r) => r.id,
+        nameOf: (r) => r.name,
+        create: (id, name) => ManualEntryResidenceOption(id: id, name: name),
+        sessionId: _session.residenceId,
+        sessionName: _session.residenceName,
+      ),
     );
   }
 
