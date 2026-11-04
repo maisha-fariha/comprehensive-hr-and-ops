@@ -42,7 +42,19 @@ abstract class SchedulingRepository {
   Future<Result<void>> requestSwap({
     required String shiftId,
     String? note,
+    String? targetStaffId,
+    String? toShiftId,
   });
+
+  /// Colleagues for Request a swap (`GET /staff/directory`).
+  Future<Result<List<ShiftStaffOption>>> listSwapColleagues({
+    String? residenceId,
+  });
+
+  /// Upcoming shifts for a colleague (`GET /shifts?staffId&from=today`).
+  Future<Result<List<({String id, String label})>>> listColleagueShifts(
+    String staffId,
+  );
 
   /// Residences for the Create Shift "Residence" dropdown (`GET /residences`).
   Future<Result<List<ShiftResidenceOption>>> getResidences();

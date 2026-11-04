@@ -678,6 +678,9 @@ abstract final class SchedulingMapper {
           : null,
       title: JsonCodec.string(json['title']),
       apiStatus: JsonCodec.stringOr(json['status'], ''),
+      residenceId: JsonCodec.string(
+        json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
+      ),
       residenceName: JsonCodec.string(
         json['residenceName'] ??
             JsonCodec.mapAt(json, 'residence')?['name'],

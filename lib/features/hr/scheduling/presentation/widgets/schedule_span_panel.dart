@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../domain/entities/calendar_shift.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/entities/shift_request.dart';
+import '../../domain/entities/shift_staff_option.dart';
 import '../controllers/scheduling_controller.dart';
 import 'request_card.dart';
 
@@ -96,7 +101,7 @@ bool shiftCanBeSwapped(CalendarShift shift, String? staffId) {
   if (staffId == null || staffId.isEmpty) return false;
   if (!shift.staffIds.contains(staffId)) return false;
   final start = shift.startsAt;
-  if (start == null || !start.isAfter(DateTime.now())) return false;
+  if (start == null || !start.isAfter(TenantClock.now())) return false;
   final status = shift.apiStatus.toLowerCase();
   return status != 'cancelled' && status != 'canceled' && status != 'declined';
 }
@@ -907,74 +912,340 @@ class _SwapShiftRow extends StatelessWidget {
   }
 }
 
+/// Web "Request a swap" — colleague, optional exchange, note (same as staff).
 Future<void> showRequestSwapSheet(
   BuildContext context,
   CalendarShift shift,
   SchedulingController controller,
-) async {
-  final note = TextEditingController();
-  final submitted = await showAppBottomSheet<bool>(
+) {
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceWhite,
-    builder: (sheetContext) {
-      final inset = MediaQuery.viewInsetsOf(sheetContext).bottom;
-      return Padding(
-        padding: EdgeInsets.only(bottom: inset),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Request a swap',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Leave this as a cover request and a manager will decide.',
-                style: TextStyle(
-                  color: AppColors.textPrimary.withValues(alpha: 0.7),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => _HrSwapRequestSheet(shift: shift, controller: controller),
+  );
+}
+
+class _HrSwapRequestSheet extends StatefulWidget {
+  final CalendarShift shift;
+  final SchedulingController controller;
+
+  const _HrSwapRequestSheet({
+    required this.shift,
+    required this.controller,
+  });
+
+  @override
+  State<_HrSwapRequestSheet> createState() => _HrSwapRequestSheetState();
+}
+
+class _HrSwapRequestSheetState extends State<_HrSwapRequestSheet> {
+  final _note = TextEditingController();
+  List<ShiftStaffOption> _colleagues = const [];
+  List<({String id, String label})> _exchanges = const [];
+  String? _colleagueId;
+  String? _exchangeId;
+  bool _canSeeStaff = true;
+  bool _loadingStaff = true;
+  bool _loadingShifts = false;
+  bool _sending = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadColleagues();
+  }
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  String? get _ownStaffId {
+    if (!Get.isRegistered<UserSession>()) return null;
+    return Get.find<UserSession>().staffId;
+  }
+
+  Future<void> _loadColleagues() async {
+    final result = await widget.controller.repository.listSwapColleagues(
+      residenceId: widget.shift.residenceId,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (people) {
+        final taken = widget.shift.staffIds.toSet();
+        final own = _ownStaffId;
+        setState(() {
+          _canSeeStaff = true;
+          _loadingStaff = false;
+          _colleagues = [
+            for (final person in people)
+              if (person.id != own && !taken.contains(person.id)) person,
+          ];
+        });
+      },
+      failure: (_) {
+        setState(() {
+          _canSeeStaff = false;
+          _loadingStaff = false;
+        });
+      },
+    );
+  }
+
+  Future<void> _selectColleague(String? id) async {
+    setState(() {
+      _colleagueId = id;
+      _exchangeId = null;
+      _exchanges = const [];
+      _error = null;
+    });
+    if (id == null || id.isEmpty) return;
+    setState(() => _loadingShifts = true);
+    final result = await widget.controller.repository.listColleagueShifts(id);
+    if (!mounted) return;
+    result.when(
+      success: (shifts) {
+        setState(() {
+          _loadingShifts = false;
+          _exchanges = [
+            for (final item in shifts)
+              if (item.id != widget.shift.id) item,
+          ];
+        });
+      },
+      failure: (_) => setState(() => _loadingShifts = false),
+    );
+  }
+
+  Future<void> _send() async {
+    if (_sending) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    final colleague = _colleagueId;
+    final message = await widget.controller.requestSwap(
+      widget.shift.id,
+      note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+      targetStaffId: colleague,
+      toShiftId: colleague == null ? null : _exchangeId,
+    );
+    if (!mounted) return;
+    if (message != null) {
+      setState(() {
+        _sending = false;
+        _error = message;
+      });
+      return;
+    }
+    Navigator.of(context).pop();
+    AppSnackbar.show(
+      colleague == null
+          ? 'Cover requested — a manager will decide'
+          : 'Swap requested — your colleague has been asked',
+      '',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.9;
+    final when = _whenLabel(widget.shift.startsAt);
+    return Padding(
+      padding: EdgeInsets.only(bottom: inset),
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Request a swap',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: note,
-                minLines: 2,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Note',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 4),
+                Text(
+                  '$when — ask a colleague to take it, or ask for cover.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(sheetContext, false),
-                      child: const Text('Cancel'),
+                const SizedBox(height: 16),
+                if (_error != null) ...[
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.criticalBackgroundSoft,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: AppColors.criticalRed),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(sheetContext, true),
-                      child: const Text('Request swap'),
+                  const SizedBox(height: 12),
+                ],
+                const Text(
+                  'Who',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                const Text('Ask a colleague', style: TextStyle(fontSize: 13)),
+                const SizedBox(height: 4),
+                DropdownButtonFormField<String?>(
+                  initialValue: _colleagueId,
+                  isExpanded: true,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Anyone — put it out for cover'),
+                    ),
+                    for (final person in _colleagues)
+                      DropdownMenuItem<String?>(
+                        value: person.id,
+                        child: Text(
+                          person.detail.trim().isEmpty
+                              ? person.name
+                              : '${person.name} · ${person.detail}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: !_canSeeStaff || _loadingStaff
+                      ? null
+                      : _selectColleague,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _canSeeStaff
+                      ? 'Leave empty and the shift goes out for bids once a manager approves.'
+                      : 'You cannot see the staff list here — ask for cover instead and a manager will place it.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (_colleagueId != null) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Take one of theirs in exchange',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<String?>(
+                    key: ValueKey('hr-exchange-$_colleagueId'),
+                    initialValue: _exchangeId,
+                    isExpanded: true,
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Nothing in exchange'),
+                      ),
+                      for (final item in _exchanges)
+                        DropdownMenuItem<String?>(
+                          value: item.id,
+                          child: Text(
+                            item.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: _loadingShifts
+                        ? null
+                        : (value) => setState(() => _exchangeId = value),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Optional — leave empty to simply hand the shift over.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ],
-              ),
-            ],
+                const SizedBox(height: 12),
+                const Text('Note', style: TextStyle(fontSize: 13)),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _note,
+                  minLines: 3,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Why you need the swap…',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4F6F8),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      _colleagueId == null
+                          ? 'A manager decides. Nothing on the rota changes until they do.'
+                          : 'Your colleague is asked first. If they agree, a manager still has to approve it before the rota changes.',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed:
+                            _sending ? null : () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _sending ? null : _send,
+                        child: Text(_sending ? 'Sending…' : 'Send request'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      );
-    },
-  );
-  final text = note.text;
-  note.dispose();
-  if (submitted == true) {
-    await controller.requestSwap(shift.id, note: text);
+      ),
+    );
   }
+}
+
+String _whenLabel(DateTime? start) {
+  if (start == null) return 'This shift';
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  final day = start.day.toString().padLeft(2, '0');
+  final month = start.month.toString().padLeft(2, '0');
+  final hour = start.hour.toString().padLeft(2, '0');
+  final minute = start.minute.toString().padLeft(2, '0');
+  return '${days[start.weekday - 1]} $day/$month/${start.year} $hour:$minute';
 }

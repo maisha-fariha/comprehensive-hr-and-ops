@@ -462,11 +462,16 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   Future<Result<void>> requestSwap({
     required String shiftId,
     String? note,
+    String? targetStaffId,
+    String? toShiftId,
   }) async {
     final result = await _api.post(
       ApiEndpoints.shiftSwapRequests(shiftId),
       data: {
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        if (targetStaffId != null && targetStaffId.isNotEmpty)
+          'targetStaffId': targetStaffId,
+        if (toShiftId != null && toShiftId.isNotEmpty) 'toShiftId': toShiftId,
       },
       allowQueue: false,
     );
@@ -474,6 +479,75 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> listSwapColleagues({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: {
+        'page': 1,
+        'limit': 100,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<({String id, String label})>>> listColleagueShifts(
+    String staffId,
+  ) async {
+    final today = TenantClock.now();
+    final from =
+        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'page': 1,
+        'limit': 50,
+        'from': from,
+        'staffId': staffId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final shifts = <({String id, String label})>[];
+        for (final item in JsonCodec.unwrapList(body)) {
+          if (item is! Map) continue;
+          final json = JsonCodec.asMap(item);
+          final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
+          if (status == 'cancelled' || status == 'canceled') continue;
+          final id = JsonCodec.string(json['id']);
+          final start = JsonCodec.dateTime(
+            json['startsAt'] ?? json['startAt'],
+          );
+          if (id == null || start == null) continue;
+          final wall = TenantClock.wallOf(start);
+          shifts.add((id: id, label: _swapShiftLabel(wall)));
+        }
+        return Result.success(shifts);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  static String _swapShiftLabel(DateTime start) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final day = start.day.toString().padLeft(2, '0');
+    final month = start.month.toString().padLeft(2, '0');
+    final hour = start.hour.toString().padLeft(2, '0');
+    final minute = start.minute.toString().padLeft(2, '0');
+    return '${days[start.weekday - 1]} $day/$month/${start.year} $hour:$minute';
   }
 
   static String _ymd(DateTime date) {

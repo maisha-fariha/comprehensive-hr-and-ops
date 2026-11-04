@@ -4,12 +4,15 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_shift_swap.dart';
 
-/// "My Swap Requests" — list from `GET /shift-swaps?mine=true`.
+/// Web "Your swap requests" — list from `GET /shift-swaps?mine=true`.
 class SwapRequestsSection extends StatelessWidget {
   final List<StaffShiftSwap> swaps;
   final ValueChanged<StaffShiftSwap>? onAccept;
   final ValueChanged<StaffShiftSwap>? onDecline;
   final ValueChanged<StaffShiftSwap>? onCancel;
+
+  /// When true, show the section even with no rows (web empty copy).
+  final bool showWhenEmpty;
 
   const SwapRequestsSection({
     super.key,
@@ -17,11 +20,12 @@ class SwapRequestsSection extends StatelessWidget {
     this.onAccept,
     this.onDecline,
     this.onCancel,
+    this.showWhenEmpty = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (swaps.isEmpty) return const SizedBox.shrink();
+    if (swaps.isEmpty && !showWhenEmpty) return const SizedBox.shrink();
 
     final radius = ResponsiveHelper.getResponsiveRadius(context, 16);
 
@@ -29,7 +33,7 @@ class SwapRequestsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'My Swap Requests',
+          'Your swap requests',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -40,7 +44,29 @@ class SwapRequestsSection extends StatelessWidget {
           ),
         ),
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-        for (var i = 0; i < swaps.length; i++) ...[
+        if (swaps.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceWhite,
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Text(
+              'Nothing of yours is waiting on a manager.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize:
+                    ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                color: AppColors.textMuted,
+              ),
+            ),
+          )
+        else
+          for (var i = 0; i < swaps.length; i++) ...[
           if (i > 0)
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
           _SwapCard(

@@ -20,6 +20,7 @@ class CalendarShift {
   final int? requiredStaffCount;
   final String? title;
   final String apiStatus;
+  final String? residenceId;
   final String? residenceName;
   final String startTime;
   final String startPeriod;
@@ -49,6 +50,7 @@ class CalendarShift {
     this.requiredStaffCount,
     this.title,
     this.apiStatus = '',
+    this.residenceId,
     this.residenceName,
     required this.startTime,
     required this.startPeriod,

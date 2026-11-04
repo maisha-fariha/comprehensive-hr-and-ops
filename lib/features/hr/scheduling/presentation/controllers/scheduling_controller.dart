@@ -273,17 +273,25 @@ class SchedulingController extends BaseController<SchedulingOverview> {
     );
   }
 
-  Future<void> requestSwap(String shiftId, {String? note}) async {
-    final result = await repository.requestSwap(shiftId: shiftId, note: note);
-    result.when(
-      success: (_) {
-        AppSnackbar.show(
-          'Cover requested — a manager will decide',
-          '',
-        );
+  /// Returns an error message when the request fails; null on success.
+  Future<String?> requestSwap(
+    String shiftId, {
+    String? note,
+    String? targetStaffId,
+    String? toShiftId,
+  }) async {
+    final result = await repository.requestSwap(
+      shiftId: shiftId,
+      note: note,
+      targetStaffId: targetStaffId,
+      toShiftId: toShiftId,
+    );
+    return result.when(
+      success: (_) async {
         loadOverview();
+        return null;
       },
-      failure: (error) => AppSnackbar.show(error.message, ''),
+      failure: (error) async => error.message,
     );
   }
 

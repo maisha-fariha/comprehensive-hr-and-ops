@@ -55,7 +55,21 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   Future<Result<void>> requestSwap({
     required String shiftId,
     String? note,
+    String? targetStaffId,
+    String? toShiftId,
   }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> listSwapColleagues({
+    String? residenceId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<List<({String id, String label})>>> listColleagueShifts(
+    String staffId,
+  ) =>
       throw UnimplementedError();
 
   @override

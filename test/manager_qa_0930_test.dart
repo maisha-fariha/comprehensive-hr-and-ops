@@ -101,8 +101,22 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   Future<Result<void>> requestSwap({
     required String shiftId,
     String? note,
+    String? targetStaffId,
+    String? toShiftId,
   }) async =>
       Result.success(null);
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> listSwapColleagues({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<({String id, String label})>>> listColleagueShifts(
+    String staffId,
+  ) async =>
+      Result.success(const []);
 
   @override
   Future<Result<List<ShiftResidenceOption>>> getResidences() async =>
