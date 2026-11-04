@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../hr/scheduling/domain/entities/create_shift_draft.dart';
 import '../../../../hr/scheduling/domain/entities/shift_break_duration_option.dart';
 import '../../../../hr/scheduling/domain/entities/shift_type_option.dart';
@@ -451,8 +452,11 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
   }
 
   String _formatTime(TimeOfDay time) {
-    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
     final minute = time.minute.toString().padLeft(2, '0');
+    if (TenantClock.is24Hour) {
+      return '${time.hour.toString().padLeft(2, '0')}:$minute';
+    }
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
     final period = time.period == DayPeriod.am ? 'AM' : 'PM';
     return '${hour.toString().padLeft(2, '0')}:$minute $period';
   }

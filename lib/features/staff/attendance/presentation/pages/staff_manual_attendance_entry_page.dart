@@ -7,6 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../../../hr/attendance/presentation/widgets/manual_entry/manual_entry_footer.dart';
 import '../../../../hr/attendance/presentation/widgets/manual_entry/manual_entry_forms.dart';
@@ -173,13 +174,13 @@ class _StaffManualAttendanceEntryPageState
   }
 
   String _formatDateTime(DateTime dt) {
-    final local = dt.toLocal();
+    final local = TenantClock.wallOf(dt);
     final mm = local.month.toString().padLeft(2, '0');
     final dd = local.day.toString().padLeft(2, '0');
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final minute = local.minute.toString().padLeft(2, '0');
-    final period = local.hour >= 12 ? 'PM' : 'AM';
-    return '$mm/$dd/${local.year} $hour:$minute $period';
+    final time = TenantClock.formatTime(dt)
+        .replaceAll(' am', ' AM')
+        .replaceAll(' pm', ' PM');
+    return '$mm/$dd/${local.year} $time';
   }
 
   Future<void> _loadResidences() async {

@@ -43,4 +43,17 @@ void main() {
     expect(TenantClock.formatTime(instant), '8:15 pm');
     expect(TenantClock.wallOf(instant).hour, 20);
   });
+
+  test('12-hour / 24-hour aliases from Settings → General normalize', () {
+    TenantClock.use('Asia/Dhaka', timeFmt: '12-hour');
+    expect(TenantClock.timeFormat, '12h');
+    expect(TenantClock.is24Hour, isFalse);
+    expect(TenantClock.formatMinutes(13 * 60 + 5), '1:05 pm');
+
+    TenantClock.use('Asia/Dhaka', timeFmt: '24-hour');
+    expect(TenantClock.timeFormat, '24h');
+    expect(TenantClock.is24Hour, isTrue);
+    expect(TenantClock.formatMinutes(13 * 60 + 5), '13:05');
+    expect(TenantClock.formatClock(hour: 7, minute: 0), '07:00');
+  });
 }

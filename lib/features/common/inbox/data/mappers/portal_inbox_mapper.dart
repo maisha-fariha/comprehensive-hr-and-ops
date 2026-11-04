@@ -94,16 +94,16 @@ abstract final class PortalInboxMapper {
     return when;
   }
 
+  /// Web bell pads the hour (`01:00 pm` / `13:00`) using Settings → General.
   static String _paddedTenantTime(DateTime instant) {
     final wall = TenantClock.wallOf(instant);
-    if (TenantClock.timeFormat == '24h') {
-      return '${wall.hour.toString().padLeft(2, '0')}:'
-          '${wall.minute.toString().padLeft(2, '0')}';
+    final minute = wall.minute.toString().padLeft(2, '0');
+    if (TenantClock.is24Hour) {
+      return '${wall.hour.toString().padLeft(2, '0')}:$minute';
     }
     final h = wall.hour % 12 == 0 ? 12 : wall.hour % 12;
     final ampm = wall.hour >= 12 ? 'pm' : 'am';
-    return '${h.toString().padLeft(2, '0')}:'
-        '${wall.minute.toString().padLeft(2, '0')} $ampm';
+    return '${h.toString().padLeft(2, '0')}:$minute $ampm';
   }
 
   /// Shared read-state parser used by list + dashboard badge counts.

@@ -91,11 +91,11 @@ abstract final class TrainingLabels {
     return '${_two(l.day)}/${_two(l.month)}/${l.year}';
   }
 
-  /// Web `formatDateTime` (`DD/MM/YYYY HH:mm`).
+  /// Settings → General date + time formats (same for every role).
   static String dateTime(DateTime? value, {String fallback = '—'}) {
     if (value == null) return fallback;
-    final l = TenantClock.wallOf(value);
-    return '${date(l)} ${_two(l.hour)}:${_two(l.minute)}';
+    final text = TenantClock.formatDateTime(value);
+    return text == '—' ? fallback : text;
   }
 
   /// A `type="date"` value sent through `new Date(v).toISOString()` is UTC midnight.

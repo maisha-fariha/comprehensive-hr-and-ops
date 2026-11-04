@@ -9,6 +9,7 @@ import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/incident_detail.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_incident_options.dart';
@@ -1434,10 +1435,8 @@ class IncidentCreationController extends GetxController {
   }
 
   String _formatTime(TimeOfDay time) {
-    final hour12 = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final meridiem = time.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$hour12:$minute $meridiem';
+    final text = TenantClock.formatClock(hour: time.hour, minute: time.minute);
+    return text.replaceAll(' am', ' AM').replaceAll(' pm', ' PM');
   }
 
   String _mimeForName(String name) {

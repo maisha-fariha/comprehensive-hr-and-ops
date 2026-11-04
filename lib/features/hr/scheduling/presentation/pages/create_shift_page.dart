@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/shift_break_duration_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
@@ -919,12 +920,18 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     return '${_months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
-  /// "07:00 AM" — the 12-hour form the web's time inputs show.
+  /// Settings → General time format (same for every role).
+  ///
+  /// Create-shift chips keep zero-padded hours (`07:00 AM` / `07:00`) to match
+  /// the web inputs; the 12h vs 24h choice still comes from tenant settings.
   static String? formatShiftTime(int? minutes) {
     if (minutes == null) return null;
     final hour = minutes ~/ 60;
-    final h12 = hour % 12 == 0 ? 12 : hour % 12;
     final m = (minutes % 60).toString().padLeft(2, '0');
+    if (TenantClock.is24Hour) {
+      return '${hour.toString().padLeft(2, '0')}:$m';
+    }
+    final h12 = hour % 12 == 0 ? 12 : hour % 12;
     return '${h12.toString().padLeft(2, '0')}:$m ${hour < 12 ? 'AM' : 'PM'}';
   }
 

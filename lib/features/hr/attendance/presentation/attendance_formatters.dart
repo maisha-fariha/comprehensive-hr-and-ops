@@ -11,12 +11,12 @@ abstract final class AttendanceFormat {
   /// Settings → General time format.
   static String time(DateTime? value) => TenantClock.formatTime(value);
 
-  /// `yyyy-MM-dd HH:mm`, as the web wizard's review panels print times.
+  /// Wizard review stamp: calendar day + Settings → General time format.
   static String wallClock(DateTime? value) {
     if (value == null) return '';
     final local = TenantClock.wallOf(value);
     return '${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}';
+        '${TenantClock.formatTime(value)}';
   }
 
   /// "pending_approval" -> "Pending approval".

@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../incidents/presentation/widgets/wizard_form_fields.dart';
 import '../../domain/entities/create_task_request.dart';
@@ -406,11 +407,10 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
   String _formatDue(DateTime value) {
     final day = value.day.toString().padLeft(2, '0');
     final month = value.month.toString().padLeft(2, '0');
-    final hour24 = value.hour;
-    final period = hour24 >= 12 ? 'PM' : 'AM';
-    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-    final minute = value.minute.toString().padLeft(2, '0');
-    return '$day/$month/${value.year}, ${hour12.toString().padLeft(2, '0')}:$minute $period';
+    final time = TenantClock.formatClock(hour: value.hour, minute: value.minute)
+        .replaceAll(' am', ' AM')
+        .replaceAll(' pm', ' PM');
+    return '$day/$month/${value.year}, $time';
   }
 
   void _onResidentQueryChanged(String value) {

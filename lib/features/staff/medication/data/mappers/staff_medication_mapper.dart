@@ -358,7 +358,7 @@ abstract final class StaffMedicationMapper {
     );
   }
 
-  /// Web Given column style: `Aug 27, 09:33 AM`.
+  /// Web Given column: month day + Settings → General time format.
   static String _givenStamp(DateTime local) {
     const months = [
       'Jan',
@@ -374,12 +374,10 @@ abstract final class StaffMedicationMapper {
       'Nov',
       'Dec',
     ];
-    final h24 = local.hour;
-    final h12 = h24 % 12 == 0 ? 12 : h24 % 12;
-    final ampm = h24 >= 12 ? 'PM' : 'AM';
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '${months[local.month - 1]} ${local.day}, '
-        '${h12.toString().padLeft(2, '0')}:$mm $ampm';
+    final time = TenantClock.formatClock(hour: local.hour, minute: local.minute)
+        .replaceAll(' am', ' AM')
+        .replaceAll(' pm', ' PM');
+    return '${months[local.month - 1]} ${local.day}, $time';
   }
 
   /// Maps `GET /mar/administrations` list payload.

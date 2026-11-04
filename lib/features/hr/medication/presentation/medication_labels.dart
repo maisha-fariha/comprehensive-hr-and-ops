@@ -196,27 +196,24 @@ abstract final class MedicationLabels {
 
   static String _two(int v) => v.toString().padLeft(2, '0');
 
-  static String time(DateTime value) {
-    final l = TenantClock.wallOf(value);
-    return '${_two(l.hour)}:${_two(l.minute)}';
-  }
+  /// Settings → General time format (same for every role).
+  static String time(DateTime value) => TenantClock.formatTime(value);
 
-  /// The web `formatDateTime`: `dd/MM/yyyy HH:mm`.
+  /// Settings → General date + time formats.
   static String dateTime(DateTime? value) {
     if (value == null) return '—';
-    final l = TenantClock.wallOf(value);
-    return '${_two(l.day)}/${_two(l.month)}/${l.year} ${time(l)}';
+    return TenantClock.formatDateTime(value);
   }
 
   static const List<String> _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
-  /// Given-tab stamp: `01 Oct, 08:15`.
+  /// Given-tab stamp: `01 Oct, 8:15 am` (or 24h when configured).
   static String shortStamp(DateTime? value) {
     if (value == null) return '—';
     final l = TenantClock.wallOf(value);
-    return '${_two(l.day)} ${_months[l.month - 1]}, ${time(l)}';
+    return '${_two(l.day)} ${_months[l.month - 1]}, ${TenantClock.formatTime(value)}';
   }
 
   static String day(DateTime value) =>

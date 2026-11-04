@@ -18,6 +18,9 @@ abstract final class TenantClock {
   static Future<void>? _loading;
   static int _syncGeneration = 0;
 
+  /// True when Settings → General uses 24-hour clocks for every role.
+  static bool get is24Hour => timeFormat == '24h';
+
   /// [iana] empty or unknown falls back to the device zone.
   static void use(
     String? iana, {
@@ -42,8 +45,15 @@ abstract final class TenantClock {
       dateFormat = dateFmt.trim();
     }
     if (timeFmt != null && timeFmt.trim().isNotEmpty) {
-      timeFormat = timeFmt.trim();
+      timeFormat = _normalizeTimeFormat(timeFmt);
     }
+  }
+
+  /// Web/API may send `12h`, `12-hour`, `24h`, or `24-hour`.
+  static String _normalizeTimeFormat(String raw) {
+    final v = raw.trim().toLowerCase().replaceAll(' ', '');
+    if (v.startsWith('24')) return '24h';
+    return '12h';
   }
 
   /// Loads `GET /settings/general`.
@@ -168,12 +178,30 @@ abstract final class TenantClock {
   static String formatTime(DateTime? instant) {
     if (instant == null) return '—';
     final w = wallOf(instant);
-    if (timeFormat == '24h') {
-      return '${_two(w.hour)}:${_two(w.minute)}';
+    return formatClock(hour: w.hour, minute: w.minute);
+  }
+
+  /// Wall-clock parts already in the tenant zone (no further conversion).
+  ///
+  /// Use for shift start/end minutes, TimeOfDay pickers, and other values that
+  /// are already organisation-local — every role must share this path so the
+  /// app never mixes 12h and 24h against Settings → General.
+  static String formatClock({required int hour, required int minute}) {
+    final h = hour.clamp(0, 23);
+    final m = minute.clamp(0, 59);
+    if (is24Hour) {
+      return '${_two(h)}:${_two(m)}';
     }
-    final h = w.hour % 12 == 0 ? 12 : w.hour % 12;
-    final ampm = w.hour >= 12 ? 'pm' : 'am';
-    return '$h:${_two(w.minute)} $ampm';
+    final h12 = h % 12 == 0 ? 12 : h % 12;
+    final ampm = h >= 12 ? 'pm' : 'am';
+    return '$h12:${_two(m)} $ampm';
+  }
+
+  /// Minutes after midnight in the tenant zone → Settings → General time.
+  static String formatMinutes(int? minutesAfterMidnight) {
+    if (minutesAfterMidnight == null) return '—';
+    final minutes = minutesAfterMidnight % (24 * 60);
+    return formatClock(hour: minutes ~/ 60, minute: minutes % 60);
   }
 
   /// `date time` using tenant formats.

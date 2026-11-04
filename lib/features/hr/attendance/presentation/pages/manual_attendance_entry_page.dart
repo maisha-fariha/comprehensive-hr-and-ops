@@ -8,6 +8,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../data/mappers/attendance_mapper.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
@@ -309,13 +310,13 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
   }
 
   String _formatDateTime(DateTime dt) {
-    final local = dt.toLocal();
+    final local = TenantClock.wallOf(dt);
     final mm = local.month.toString().padLeft(2, '0');
     final dd = local.day.toString().padLeft(2, '0');
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final minute = local.minute.toString().padLeft(2, '0');
-    final period = local.hour >= 12 ? 'PM' : 'AM';
-    return '$mm/$dd/${local.year} $hour:$minute $period';
+    final time = TenantClock.formatTime(dt)
+        .replaceAll(' am', ' AM')
+        .replaceAll(' pm', ' PM');
+    return '$mm/$dd/${local.year} $time';
   }
 
   String _orDash(String value) => value.isEmpty ? '—' : value;

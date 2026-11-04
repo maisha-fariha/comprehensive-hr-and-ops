@@ -331,13 +331,9 @@ abstract final class StaffTasksMessagesMapper {
     );
   }
 
-  /// Web task dialog: `dd/MM/yyyy HH:mm` in local time.
-  static String _webDateTime(DateTime value) {
-    final local = TenantClock.wallOf(value);
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} '
-        '${two(local.hour)}:${two(local.minute)}';
-  }
+  /// Settings → General date + time (organisation zone, every role).
+  static String _webDateTime(DateTime value) =>
+      TenantClock.formatDateTime(value);
 
   static String _assigneeNames(Map<String, dynamic> json) {
     final names = <String>[];
