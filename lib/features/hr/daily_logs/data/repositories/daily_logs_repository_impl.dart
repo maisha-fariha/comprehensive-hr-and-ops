@@ -189,8 +189,12 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
       'wellnessCheckCompleted',
       'bedCheckCompleted',
     ]) {
-      if (payload.containsKey(key)) {
-        final value = payload[key];
+      if (!payload.containsKey(key)) continue;
+      final value = payload[key];
+      // Web tri-state: Done / Not done / Not said (null).
+      if (value == null) {
+        payload[key] = null;
+      } else {
         payload[key] = value == true || value == 'true' || value == 1;
       }
     }

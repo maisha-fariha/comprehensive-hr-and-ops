@@ -2197,11 +2197,12 @@ void main() {
       expect(find.textContaining('Care note'), findsWidgets);
       expect(find.byKey(const ValueKey('dl-new-entry')), findsOneWidget);
 
-      // Advance to the notes step where for-next-shift lives.
-      await _tap(tester, find.byKey(const ValueKey('dl-new-next')));
-      await _tap(tester, find.byKey(const ValueKey('dl-new-next')));
+      // Single-panel web form: toggles are on the main scroll, not behind Next.
       expect(find.byKey(const ValueKey('dl-new-for-next-shift')), findsOneWidget);
       expect(find.byKey(const ValueKey('dl-new-flag')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-new-save')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-new-next')), findsNothing);
+      expect(find.text('DAILY LOG WORKFLOW'), findsNothing);
     });
 
     testWidgets('opening a resident shows The day feed, stats, and Record menu', (tester) async {

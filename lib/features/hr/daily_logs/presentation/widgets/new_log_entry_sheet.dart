@@ -33,7 +33,7 @@ Future<List<(String, String)>> _pickWithFilePicker() async {
   ];
 }
 
-/// Web care-note slide-over (body, kind chips, for next shift, flag, more details).
+/// Web care-note slide-over: single panel (no stepped workflow).
 Future<void> showNewLogEntrySheet(
   BuildContext context, {
   required DailyLogsController controller,
@@ -59,21 +59,6 @@ Future<void> showNewLogEntrySheet(
         pickFiles: pickFiles ?? _pickWithFilePicker,
       ),
     );
-
-enum _Step { context, careDetails, notesChecklist }
-
-const _steps = [
-  (_Step.context, 'Context', 'Who this is about, and when', Icons.home_outlined),
-  (_Step.careDetails, 'Care Details', 'What happened, and how they were', Icons.favorite_border_rounded),
-  (_Step.notesChecklist, 'Notes & Checklist', 'Checks, attachments and flags', Icons.check_box_outlined),
-];
-
-const _fieldStep = {
-  'body': _Step.careDetails,
-  'outingNotes': _Step.careDetails,
-  'flagCategory': _Step.notesChecklist,
-  'flagNote': _Step.notesChecklist,
-};
 
 class NewLogEntrySheet extends StatefulWidget {
   final DailyLogsController controller;
@@ -108,9 +93,8 @@ class NewLogEntrySheet extends StatefulWidget {
 }
 
 class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
-  _Step _step = _Step.context;
-
-  late DateTime? _occurredAt = NewLogEntrySheet.defaultOccurredAt(widget.logDate);
+  late DateTime? _occurredAt =
+      NewLogEntrySheet.defaultOccurredAt(widget.logDate);
   String _shift = '';
   String _logType = 'care_note';
   final _body = TextEditingController();
@@ -125,8 +109,10 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
   final _outingNotes = TextEditingController();
   final _behaviorNotes = TextEditingController();
   final _appointmentNotes = TextEditingController();
-  bool _wellness = false;
-  bool _bed = false;
+
+  /// Web tri-state: true Done, false Not done, null Not said.
+  bool? _wellness;
+  bool? _bed;
   DateTime? _remindAt;
   final List<DailyLogUpload> _attachments = [];
   bool _uploading = false;
@@ -135,6 +121,7 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
   String _flagCategory = '';
   final _flagNote = TextEditingController();
   bool? _aiEnabled;
+  bool _moreOpen = false;
 
   Map<String, String> _errors = {};
   String? _formError;
@@ -165,22 +152,20 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
     super.dispose();
   }
 
-  bool _complete(_Step step) => switch (step) {
-        _Step.context => _occurredAt != null && _shift.isNotEmpty,
-        _Step.careDetails => _body.text.isNotEmpty,
-        _Step.notesChecklist => _behaviorNotes.text.isNotEmpty && _wellness && _bed,
-      };
-
   Map<String, String> _validate() => {
         if (_body.text.trim().isEmpty) 'body': 'Write what happened',
         if (_outing && _outingNotes.text.trim().isEmpty)
-          'outingNotes': 'Say where they went — the switch on its own records nothing',
-        if (_flag && _flagCategory.isEmpty) 'flagCategory': 'Say what kind of concern this is',
-        if (_flag && _flagNote.text.trim().isEmpty) 'flagNote': 'Say what needs attention',
+          'outingNotes':
+              'Say where they went — the switch on its own records nothing',
+        if (_flag && _flagCategory.isEmpty)
+          'flagCategory': 'Say what kind of concern this is',
+        if (_flag && _flagNote.text.trim().isEmpty)
+          'flagNote': 'Say what needs attention',
       };
 
   Map<String, dynamic> _requestBody() {
-    String? text(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+    String? text(TextEditingController c) =>
+        c.text.trim().isEmpty ? null : c.text.trim();
     final observations = <String, dynamic>{
       if (_mood.isNotEmpty) 'mood': _mood,
       if (_sleep.isNotEmpty) 'sleep': _sleep,
@@ -192,7 +177,8 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
       'behaviorNotes': ?text(_behaviorNotes),
       'appointmentNotes': ?text(_appointmentNotes),
     };
-    final occurred = _occurredAt ?? NewLogEntrySheet.defaultOccurredAt(widget.logDate);
+    final occurred =
+        _occurredAt ?? NewLogEntrySheet.defaultOccurredAt(widget.logDate);
     return {
       'clientId': widget.clientId,
       'residenceId': widget.residenceId,
@@ -203,17 +189,21 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
       if (_logType.isNotEmpty) 'logType': _logType,
       if (observations.isNotEmpty || _outing)
         'observations': {...observations, 'communityOuting': _outing},
-      // API requires JSON booleans (strings → VALIDATION_ERROR).
-      'wellnessCheckCompleted': _wellness == true,
-      'bedCheckCompleted': _bed == true,
+      // Nullable booleans — web default is "Not said" (null).
+      'wellnessCheckCompleted': _wellness,
+      'bedCheckCompleted': _bed,
       if (_remindAt case final r?) 'remindAt': r.toUtc().toIso8601String(),
       if (_attachments.isNotEmpty)
         'attachments': [
-          for (final a in _attachments) {'fileUrl': a.fileUrl, 'fileType': ?a.fileType},
+          for (final a in _attachments)
+            {'fileUrl': a.fileUrl, 'fileType': ?a.fileType},
         ],
       if (_forNextShift) 'forNextShift': true,
       if (_flag && _flagCategory.isNotEmpty)
-        'flagForAttention': {'category': _flagCategory, 'note': ?text(_flagNote)},
+        'flagForAttention': {
+          'category': _flagCategory,
+          'note': ?text(_flagNote),
+        },
     };
   }
 
@@ -222,12 +212,13 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
     setState(() {
       _errors = errors;
       _formError = null;
+      if (errors.containsKey('outingNotes') ||
+          errors.containsKey('flagCategory') ||
+          errors.containsKey('flagNote')) {
+        _moreOpen = true;
+      }
     });
-    if (errors.isNotEmpty) {
-      final owners = errors.keys.map((k) => _fieldStep[k]).toSet();
-      setState(() => _step = _Step.values.firstWhere(owners.contains));
-      return;
-    }
+    if (errors.isNotEmpty) return;
     setState(() => _saving = true);
     try {
       await widget.controller.createEntry(_requestBody());
@@ -303,8 +294,10 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
       if ((draft.outingNotes ?? '').isNotEmpty && _outingNotes.text.isEmpty) {
         _outingNotes.text = draft.outingNotes!;
       }
-      if (draft.wellnessCheckCompleted == true) _wellness = true;
-      if (draft.bedCheckCompleted == true) _bed = true;
+      if (draft.wellnessCheckCompleted != null) {
+        _wellness = draft.wellnessCheckCompleted;
+      }
+      if (draft.bedCheckCompleted != null) _bed = draft.bedCheckCompleted;
       if ((draft.shift ?? '').isNotEmpty && _shift.isEmpty) {
         _shift = draft.shift!;
       }
@@ -319,16 +312,16 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
       final flag = draft.flag;
       if (flag != null && flag.category.isNotEmpty) {
         _flag = true;
+        _forNextShift = true;
         _flagCategory = flag.category;
         if (flag.note.isNotEmpty) _flagNote.text = flag.note;
       }
+      _moreOpen = true;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final index = _step.index;
-    final last = index == _steps.length - 1;
     return DailyLogSheet(
       key: const ValueKey('dl-new-entry'),
       icon: Icons.edit_note_rounded,
@@ -336,15 +329,6 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
       description: widget.residenceName.isEmpty
           ? 'What happened on ${widget.logDate}.'
           : widget.residenceName,
-      footerLeading: Text.rich(
-        const TextSpan(
-          children: [
-            TextSpan(text: '*', style: TextStyle(color: AppColors.criticalRed)),
-            TextSpan(text: ' Required fields'),
-          ],
-        ),
-        style: handoverText(context, 12, color: AppColors.textMuted),
-      ),
       footer: [
         HandoverButton(
           key: const ValueKey('dl-new-cancel'),
@@ -352,172 +336,454 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
           compact: true,
           onPressed: () => Navigator.of(context).pop(),
         ),
-        if (index > 0)
-          HandoverButton(
-            key: const ValueKey('dl-new-back'),
-            label: 'Back',
-            compact: true,
-            onPressed: () => setState(() => _step = _Step.values[index - 1]),
-          ),
-        if (!last)
-          HandoverButton(
-            key: const ValueKey('dl-new-next'),
-            label: 'Next',
-            filled: true,
-            compact: true,
-            onPressed: () => setState(() => _step = _Step.values[index + 1]),
-          )
-        else
-          HandoverButton(
-            key: const ValueKey('dl-new-save'),
-            label: _saving ? 'Saving…' : 'Save note',
-            filled: true,
-            compact: true,
-            onPressed: _saving ? null : _save,
-          ),
+        HandoverButton(
+          key: const ValueKey('dl-new-save'),
+          label: _saving ? 'Saving…' : 'Save note',
+          filled: true,
+          compact: true,
+          onPressed: _saving ? null : _save,
+        ),
       ],
       children: [
-        _workflow(context),
         if (_formError != null) DailyLogFormError(_formError!),
-        ...switch (_step) {
-          _Step.context => _contextStep(context),
-          _Step.careDetails => _careStep(context),
-          _Step.notesChecklist => _notesStep(context),
-        },
-        _summary(context),
+        if (_aiEnabled == true) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AiAssistButton(
+              buttonKey: const ValueKey('dl-tidy-my-note'),
+              label: 'Tidy my note',
+              onPressed: _tidyNote,
+            ),
+          ),
+        ],
+        _area(
+          'dl-new-body',
+          'What happened',
+          _body,
+          'e.g. Ate half of lunch. Said their tummy hurt — quiet for the afternoon.',
+          required: true,
+          error: _errors['body'],
+        ),
+        _kindChips(context),
+        _whenAndShift(context),
+        CheckSwitchTile(
+          key: const ValueKey('dl-new-for-next-shift'),
+          label: 'The next shift needs to know',
+          description: 'Shows on Today and goes into the handover.',
+          value: _forNextShift,
+          onChanged: (v) => setState(() => _forNextShift = v),
+        ),
+        _flagBlock(context),
+        _moreDetails(context),
       ],
     );
   }
 
-  Widget _workflow(BuildContext context) {
-    final done = _steps.where((s) => _complete(s.$1)).length;
-    final percent = (done / _steps.length * 100).round();
+  Widget _kindChips(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'DAILY LOG WORKFLOW',
-          style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.textMuted),
+          'Kind',
+          style: handoverText(context, 12.5, weight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
-        for (final (step, label, description, icon) in _steps)
-          _StepTile(
-            key: ValueKey('dl-step-${step.name}'),
-            label: label,
-            description: description,
-            icon: icon,
-            active: step == _step,
-            completed: _complete(step),
-            onTap: () => setState(() => _step = step),
-          ),
-        const SizedBox(height: 8),
-        Container(
-          key: const ValueKey('dl-completion'),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.cardBorder),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'COMPLETION',
-                style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.textMuted),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final (value, label) in DailyLogLabels.logTypes)
+              CheckToggleChip(
+                key: ValueKey('dl-new-kind-$value'),
+                label: label,
+                selected: _logType == value,
+                onTap: () => setState(() => _logType = value),
               ),
-              const SizedBox(height: 4),
-              Row(
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _whenAndShift(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 560;
+    final when = CheckPickerField(
+      key: const ValueKey('dl-new-occurred'),
+      label: 'When',
+      value: DailyLogLabels.dateTime(_occurredAt),
+      icon: Icons.calendar_month_rounded,
+      onTap: () async {
+        final picked = await pickDailyLogDateTime(context, _occurredAt);
+        if (picked != null) setState(() => _occurredAt = picked);
+      },
+    );
+    final shift = DailyLogSelect(
+      key: const ValueKey('dl-new-shift'),
+      label: 'Shift',
+      value: DailyLogLabels.labelOf(DailyLogLabels.shifts, _shift),
+      placeholder: 'Which shift wrote this?',
+      onTap: () =>
+          _select('Shift', DailyLogLabels.shifts, _shift, (v) => _shift = v),
+    );
+    if (!wide) {
+      return Column(
+        children: [
+          when,
+          const SizedBox(height: 16),
+          shift,
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: when),
+        const SizedBox(width: 12),
+        Expanded(child: shift),
+      ],
+    );
+  }
+
+  Widget _flagBlock(BuildContext context) {
+    return Container(
+      key: const ValueKey('dl-new-flag-block'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.urgentBackground.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.urgentAmber.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CheckSwitchTile(
+            key: const ValueKey('dl-new-flag'),
+            label: 'Flag for a manager',
+            description: 'Stays open in Review until somebody resolves it.',
+            value: _flag,
+            activeColor: AppColors.urgentAmber,
+            onChanged: (v) => setState(() {
+              _flag = v;
+              // Web: flagging for a manager also marks it for the next shift.
+              if (v) _forNextShift = true;
+            }),
+          ),
+          if (_flag) ...[
+            const SizedBox(height: 12),
+            DailyLogSelect(
+              key: const ValueKey('dl-new-flag-category'),
+              label: 'Category',
+              required: true,
+              value: DailyLogLabels.labelOf(
+                DailyLogLabels.flagCategories,
+                _flagCategory,
+              ),
+              placeholder: 'What kind of concern is this?',
+              error: _errors['flagCategory'],
+              onTap: () => _select(
+                'Category',
+                DailyLogLabels.flagCategories,
+                _flagCategory,
+                (v) => _flagCategory = v,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _area(
+              'dl-new-flag-note',
+              'What needs attention',
+              _flagNote,
+              'The line somebody reads on the board before deciding to act…',
+              required: true,
+              error: _errors['flagNote'],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _moreDetails(BuildContext context) {
+    return Container(
+      key: const ValueKey('dl-new-more'),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            key: const ValueKey('dl-new-more-toggle'),
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(() => _moreOpen = !_moreOpen),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'Step $done of ${_steps.length}',
-                      style: handoverText(context, 13, weight: FontWeight.w600),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'More details',
+                          style: handoverText(
+                            context,
+                            13.5,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Mood, sleep, meals, the checks, a reminder, files.',
+                          style: handoverText(
+                            context,
+                            12,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Text(
-                    '$percent% complete',
-                    style: handoverText(context, 12, color: AppColors.textMuted),
+                  Icon(
+                    _moreOpen
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: AppColors.textMuted,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(99),
-                child: LinearProgressIndicator(
-                  value: done / _steps.length,
-                  minHeight: 6,
-                  color: AppColors.secondaryTeal,
-                  backgroundColor: AppColors.filterButtonBackground,
-                ),
+            ),
+          ),
+          if (_moreOpen) ...[
+            const Divider(height: 1, color: AppColors.cardBorder),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ..._moreFields(context),
+                ],
               ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _moreFields(BuildContext context) {
+    final wide = MediaQuery.sizeOf(context).width >= 560;
+    Widget pair(Widget a, Widget b) {
+      if (!wide) {
+        return Column(
+          children: [
+            a,
+            const SizedBox(height: 14),
+            b,
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: a),
+          const SizedBox(width: 12),
+          Expanded(child: b),
+        ],
+      );
+    }
+
+    return [
+      pair(
+        DailyLogSelect(
+          key: const ValueKey('dl-new-mood'),
+          label: 'Mood',
+          value: DailyLogLabels.labelOf(DailyLogLabels.moods, _mood),
+          placeholder: 'Select mood',
+          onTap: () =>
+              _select('Mood', DailyLogLabels.moods, _mood, (v) => _mood = v),
+        ),
+        DailyLogSelect(
+          key: const ValueKey('dl-new-sleep'),
+          label: 'Sleep',
+          value: DailyLogLabels.labelOf(DailyLogLabels.sleeps, _sleep),
+          placeholder: 'Select sleep quality',
+          onTap: () =>
+              _select('Sleep', DailyLogLabels.sleeps, _sleep, (v) => _sleep = v),
+        ),
+      ),
+      const SizedBox(height: 14),
+      pair(
+        DailyLogSelect(
+          key: const ValueKey('dl-new-hygiene'),
+          label: 'Hygiene',
+          value: DailyLogLabels.labelOf(DailyLogLabels.hygiene, _hygiene),
+          placeholder: 'Select support given',
+          onTap: () => _select(
+            'Hygiene',
+            DailyLogLabels.hygiene,
+            _hygiene,
+            (v) => _hygiene = v,
+          ),
+        ),
+        CheckInput(
+          key: const ValueKey('dl-new-meals'),
+          label: 'Meals',
+          controller: _meals,
+          placeholder: 'e.g. Breakfast completed, lunch…',
+        ),
+      ),
+      const SizedBox(height: 14),
+      CheckInput(
+        key: const ValueKey('dl-new-wellness-notes'),
+        label: 'Wellness',
+        controller: _wellnessNotes,
+        placeholder:
+            'How they seemed — e.g. No concerns, a bit off colour',
+      ),
+      const SizedBox(height: 14),
+      _area(
+        'dl-new-activities',
+        'Activities',
+        _activities,
+        'Describe activities completed during the shift…',
+      ),
+      const SizedBox(height: 14),
+      _area(
+        'dl-new-behaviour',
+        'Behaviour',
+        _behaviorNotes,
+        'Anything about how the resident presented…',
+      ),
+      const SizedBox(height: 14),
+      _area(
+        'dl-new-appointments',
+        'Appointments',
+        _appointmentNotes,
+        'Appointments attended, booked, or missed…',
+      ),
+      const SizedBox(height: 14),
+      CheckSwitchTile(
+        key: const ValueKey('dl-new-outing'),
+        label: 'Community outing',
+        description: 'The resident went out of the home.',
+        value: _outing,
+        onChanged: (v) => setState(() => _outing = v),
+      ),
+      if (_outing) ...[
+        const SizedBox(height: 12),
+        _area(
+          'dl-new-outing-notes',
+          'Outing notes',
+          _outingNotes,
+          'Where they went, who went with them, how it went…',
+          required: true,
+          error: _errors['outingNotes'],
+        ),
+      ],
+      const SizedBox(height: 16),
+      Text(
+        'Checks',
+        style: handoverText(context, 13, weight: FontWeight.w600),
+      ),
+      const SizedBox(height: 10),
+      _triStateCheck(
+        key: 'dl-new-wellness',
+        label: 'Wellness check',
+        value: _wellness,
+        onChanged: (v) => setState(() => _wellness = v),
+      ),
+      const SizedBox(height: 10),
+      _triStateCheck(
+        key: 'dl-new-bed',
+        label: 'Bed check',
+        value: _bed,
+        onChanged: (v) => setState(() => _bed = v),
+      ),
+      const SizedBox(height: 14),
+      CheckPickerField(
+        key: const ValueKey('dl-new-remind'),
+        label: 'Remind me at',
+        value: DailyLogLabels.dateTime(_remindAt),
+        icon: Icons.calendar_month_rounded,
+        helper:
+            "A time, not a task — 'check the dressing at 14:00'.",
+        onTap: () async {
+          final picked = await pickDailyLogDateTime(context, _remindAt);
+          if (picked != null) setState(() => _remindAt = picked);
+        },
+        onClear: () => setState(() => _remindAt = null),
+      ),
+      const SizedBox(height: 14),
+      _attachmentsField(context),
+    ];
+  }
+
+  Widget _triStateCheck({
+    required String key,
+    required String label,
+    required bool? value,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    Widget chip(String text, bool? option) {
+      final selected = value == option;
+      return Expanded(
+        child: InkWell(
+          key: ValueKey('$key-${option ?? 'null'}'),
+          onTap: () => onChanged(option),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppColors.secondaryTeal.withValues(alpha: 0.1)
+                  : AppColors.surfaceWhite,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color:
+                    selected ? AppColors.secondaryTeal : AppColors.searchBorder,
+              ),
+            ),
+            child: Text(
+              text,
+              style: handoverText(
+                context,
+                12.5,
+                weight: FontWeight.w600,
+                color: selected
+                    ? AppColors.secondaryTeal
+                    : AppColors.textHeading,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: handoverText(context, 13),
+          ),
+        ),
+        Expanded(
+          child: Row(
+            children: [
+              chip('Done', true),
+              const SizedBox(width: 6),
+              chip('Not done', false),
+              const SizedBox(width: 6),
+              chip('Not said', null),
             ],
           ),
         ),
       ],
     );
   }
-
-  Widget _heading(BuildContext context, String title, String description) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: handoverText(context, 16, weight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(description, style: handoverText(context, 13, color: AppColors.textMuted)),
-        ],
-      );
-
-  Widget _readOnly(BuildContext context, String label, String value) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          CheckFieldLabel(label),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.filterButtonBackground,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.cardBorder),
-            ),
-            child: Text(value.isEmpty ? '—' : value, style: handoverText(context, 13)),
-          ),
-        ],
-      );
-
-  List<Widget> _contextStep(BuildContext context) => [
-        _heading(
-          context,
-          'Context',
-          'The resident and day this entry belongs to, and when it happened.',
-        ),
-        _readOnly(context, 'Residence', widget.residenceName),
-        _readOnly(context, 'Resident', widget.clientName),
-        _readOnly(context, 'Log date', widget.logDate),
-        CheckPickerField(
-          key: const ValueKey('dl-new-occurred'),
-          label: 'Occurred at',
-          value: DailyLogLabels.dateTime(_occurredAt),
-          icon: Icons.schedule_rounded,
-          helper: 'Defaults to now for today, and midday for a day being filled in.',
-          onTap: () async {
-            final picked = await pickDailyLogDateTime(context, _occurredAt);
-            if (picked != null) setState(() => _occurredAt = picked);
-          },
-        ),
-        DailyLogSelect(
-          key: const ValueKey('dl-new-shift'),
-          label: 'Shift',
-          value: DailyLogLabels.labelOf(DailyLogLabels.shifts, _shift),
-          placeholder: 'Which shift wrote this?',
-          onTap: () => _select('Shift', DailyLogLabels.shifts, _shift, (v) => _shift = v),
-        ),
-        DailyLogSelect(
-          key: const ValueKey('dl-new-log-type'),
-          label: 'Log type',
-          value: DailyLogLabels.labelOf(DailyLogLabels.logTypes, _logType),
-          placeholder: 'What kind of note is this?',
-          onTap: () => _select('Log type', DailyLogLabels.logTypes, _logType, (v) => _logType = v),
-        ),
-      ];
 
   Widget _area(
     String key,
@@ -542,213 +808,52 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
         ],
       );
 
-  List<Widget> _careStep(BuildContext context) => [
-        _heading(
-          context,
-          'Care Details',
-          'Record what happened and how the resident was through the shift.',
-        ),
-        if (_aiEnabled == true) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AiAssistButton(
-              buttonKey: const ValueKey('dl-tidy-my-note'),
-              label: 'Tidy my note',
-              onPressed: _tidyNote,
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-        _area(
-          'dl-new-body',
-          'What happened',
-          _body,
-          'e.g. Ate a full breakfast and joined the morning music session.',
-          required: true,
-          error: _errors['body'],
-        ),
-        DailyLogSelect(
-          key: const ValueKey('dl-new-mood'),
-          label: 'Mood',
-          value: DailyLogLabels.labelOf(DailyLogLabels.moods, _mood),
-          placeholder: 'Select mood',
-          onTap: () => _select('Mood', DailyLogLabels.moods, _mood, (v) => _mood = v),
-        ),
-        DailyLogSelect(
-          key: const ValueKey('dl-new-sleep'),
-          label: 'Sleep',
-          value: DailyLogLabels.labelOf(DailyLogLabels.sleeps, _sleep),
-          placeholder: 'Select sleep quality',
-          onTap: () => _select('Sleep', DailyLogLabels.sleeps, _sleep, (v) => _sleep = v),
-        ),
-        DailyLogSelect(
-          key: const ValueKey('dl-new-hygiene'),
-          label: 'Hygiene',
-          value: DailyLogLabels.labelOf(DailyLogLabels.hygiene, _hygiene),
-          placeholder: 'Select support given',
-          onTap: () => _select('Hygiene', DailyLogLabels.hygiene, _hygiene, (v) => _hygiene = v),
-        ),
-        CheckInput(
-          key: const ValueKey('dl-new-meals'),
-          label: 'Meals',
-          controller: _meals,
-          placeholder: 'e.g. Breakfast completed, lunch partial',
-        ),
-        CheckInput(
-          key: const ValueKey('dl-new-wellness-notes'),
-          label: 'Wellness',
-          controller: _wellnessNotes,
-          placeholder:
-              'How they seemed in themselves — e.g. No concerns, a bit off colour.',
-        ),
-        _area(
-          'dl-new-activities',
-          'Activities',
-          _activities,
-          'Describe activities completed during the shift…',
-        ),
-        CheckSwitchTile(
-          key: const ValueKey('dl-new-outing'),
-          label: 'Community outing',
-          description: 'The resident went out of the home today.',
-          value: _outing,
-          onChanged: (v) => setState(() => _outing = v),
-        ),
-        if (_outing)
-          _area(
-            'dl-new-outing-notes',
-            'Outing notes',
-            _outingNotes,
-            'Where they went, who went with them, how it went…',
-            required: true,
-            error: _errors['outingNotes'],
-          ),
-      ];
-
-  Widget _checkbox(String key, String label, bool value, ValueChanged<bool> set) => InkWell(
-        key: ValueKey(key),
-        onTap: () => setState(() => set(!value)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Checkbox(
-              value: value,
-              activeColor: AppColors.secondaryTeal,
-              onChanged: (v) => setState(() => set(v ?? false)),
-            ),
-            Text(label, style: handoverText(context, 13)),
-          ],
-        ),
-      );
-
-  List<Widget> _notesStep(BuildContext context) => [
-        _heading(
-          context,
-          'Notes & Checklist',
-          'Observations, the checks this shift completed, and anything to pick up later.',
-        ),
-        _area(
-          'dl-new-behaviour',
-          'Behaviour notes',
-          _behaviorNotes,
-          'Anything about how the resident presented…',
-        ),
-        _area(
-          'dl-new-appointments',
-          'Appointment notes',
-          _appointmentNotes,
-          'Appointments attended, booked, or missed…',
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const CheckFieldLabel('Shift checks'),
-            Wrap(
-              children: [
-                _checkbox('dl-new-wellness', 'Wellness check completed', _wellness, (v) => _wellness = v),
-                _checkbox('dl-new-bed', 'Bed check completed', _bed, (v) => _bed = v),
-              ],
-            ),
-          ],
-        ),
-        CheckPickerField(
-          key: const ValueKey('dl-new-remind'),
-          label: 'Remind me at',
-          value: DailyLogLabels.dateTime(_remindAt),
-          icon: Icons.alarm_rounded,
-          helper: 'A time, not a task — “check the dressing at 14:00”. '
-              'Work that needs an owner belongs in Tasks.',
-          onTap: () async {
-            final picked = await pickDailyLogDateTime(context, _remindAt);
-            if (picked != null) setState(() => _remindAt = picked);
-          },
-          onClear: () => setState(() => _remindAt = null),
-        ),
-        _attachmentsField(context),
-        CheckSwitchTile(
-          key: const ValueKey('dl-new-for-next-shift'),
-          label: 'The next shift needs to know',
-          description: 'Shows on Today and goes into the handover.',
-          value: _forNextShift,
-          onChanged: (v) => setState(() => _forNextShift = v),
-        ),
-        CheckSwitchTile(
-          key: const ValueKey('dl-new-flag'),
-          label: 'Flag for a manager',
-          description: 'Stays open in Review until somebody resolves it.',
-          value: _flag,
-          activeColor: AppColors.urgentAmber,
-          onChanged: (v) => setState(() => _flag = v),
-        ),
-        if (_flag) ...[
-          DailyLogSelect(
-            key: const ValueKey('dl-new-flag-category'),
-            label: 'Category',
-            required: true,
-            value: DailyLogLabels.labelOf(DailyLogLabels.flagCategories, _flagCategory),
-            placeholder: 'What kind of concern is this?',
-            error: _errors['flagCategory'],
-            onTap: () => _select(
-              'Category',
-              DailyLogLabels.flagCategories,
-              _flagCategory,
-              (v) => _flagCategory = v,
-            ),
-          ),
-          _area(
-            'dl-new-flag-note',
-            'What needs attention',
-            _flagNote,
-            'The line somebody reads on the board before deciding to act…',
-            required: true,
-            error: _errors['flagNote'],
-          ),
-        ],
-      ];
-
   Widget _attachmentsField(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const CheckFieldLabel('Attachments'),
+          Text(
+            'Files',
+            style: handoverText(context, 13, weight: FontWeight.w600),
+          ),
           const SizedBox(height: 6),
           InkWell(
             key: const ValueKey('dl-new-attach'),
             onTap: _uploading ? null : _addFiles,
             borderRadius: BorderRadius.circular(10),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.searchBorder),
+                border: Border.all(
+                  color: AppColors.searchBorder,
+                  style: BorderStyle.solid,
+                ),
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.upload_file_rounded, color: AppColors.textSecondary),
-                  const SizedBox(height: 4),
+                  const Icon(
+                    Icons.cloud_upload_outlined,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(height: 6),
                   Text(
-                    'A photo, a letter, a chart. Image, PDF or document · up to 15MB each',
+                    'Click to upload or drag & drop',
                     textAlign: TextAlign.center,
-                    style: handoverText(context, 12, color: AppColors.textMuted),
+                    style: handoverText(
+                      context,
+                      13,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'A photo, a letter, a chart — up to 25MB each',
+                    textAlign: TextAlign.center,
+                    style: handoverText(
+                      context,
+                      12,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -756,7 +861,10 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
           ),
           if (_uploading) ...[
             const SizedBox(height: 6),
-            Text('Uploading…', style: handoverText(context, 12, color: AppColors.textMuted)),
+            Text(
+              'Uploading…',
+              style: handoverText(context, 12, color: AppColors.textMuted),
+            ),
           ],
           if (_uploadError != null) DailyLogFieldError(_uploadError!),
           for (var i = 0; i < _attachments.length; i++) ...[
@@ -769,21 +877,31 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.description_outlined, size: 14, color: AppColors.textMuted),
+                  const Icon(
+                    Icons.description_outlined,
+                    size: 14,
+                    color: AppColors.textMuted,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _attachments[i].fileName ?? _attachments[i].fileUrl.split('/').last,
+                      _attachments[i].fileName ??
+                          _attachments[i].fileUrl.split('/').last,
                       overflow: TextOverflow.ellipsis,
                       style: handoverText(context, 13),
                     ),
                   ),
                   IconButton(
                     key: ValueKey('dl-new-attach-remove-$i'),
-                    tooltip: 'Remove ${_attachments[i].fileName ?? 'file'}',
+                    tooltip:
+                        'Remove ${_attachments[i].fileName ?? 'file'}',
                     visualDensity: VisualDensity.compact,
                     onPressed: () => setState(() => _attachments.removeAt(i)),
-                    icon: const Icon(Icons.close_rounded, size: 14, color: AppColors.textMuted),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -791,129 +909,4 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
           ],
         ],
       );
-
-  Widget _summary(BuildContext context) {
-    final checks = [if (_wellness) 'Wellness', if (_bed) 'Bed'].join(' · ');
-    final category = DailyLogLabels.labelOf(DailyLogLabels.flagCategories, _flagCategory);
-    return Container(
-      key: const ValueKey('dl-entry-summary'),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'ENTRY SUMMARY',
-            style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 10),
-          DailyLogDetail('Residence', widget.residenceName),
-          const SizedBox(height: 10),
-          DailyLogDetail('Resident', widget.clientName),
-          const SizedBox(height: 10),
-          DailyLogDetail('Log date', widget.logDate),
-          const SizedBox(height: 10),
-          DailyLogDetail('Shift', DailyLogLabels.labelOf(DailyLogLabels.shifts, _shift)),
-          const SizedBox(height: 10),
-          DailyLogDetail('Checks', checks.isEmpty ? 'None recorded' : checks),
-          const SizedBox(height: 10),
-          Text(
-            'FLAG',
-            style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 2),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _flag
-                ? DailyLogPill(
-                    (category.isEmpty ? 'Category needed' : category).toUpperCase(),
-                    tone: DailyLogTone.danger,
-                  )
-                : const DailyLogPill('NONE'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StepTile extends StatelessWidget {
-  final String label;
-  final String description;
-  final IconData icon;
-  final bool active;
-  final bool completed;
-  final VoidCallback onTap;
-
-  const _StepTile({
-    super.key,
-    required this.label,
-    required this.description,
-    required this.icon,
-    required this.active,
-    required this.completed,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final (bg, fg) = active
-        ? (AppColors.primaryNavy, AppColors.surfaceWhite)
-        : completed
-            ? (const Color(0xFFE9F5EE), const Color(0xFF2E8C58))
-            : (const Color(0xFFEEF1F5), const Color(0xFF6B7C93));
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(9)),
-                  child: Icon(icon, size: 16, color: fg),
-                ),
-                if (completed && !active)
-                  const Positioned(
-                    top: -5,
-                    right: -2,
-                    child: CircleAvatar(
-                      radius: 6.5,
-                      backgroundColor: Color(0xFF3FA66D),
-                      child: Icon(Icons.check_rounded, size: 9, color: AppColors.surfaceWhite),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: handoverText(
-                      context,
-                      13,
-                      weight: active ? FontWeight.w700 : FontWeight.w600,
-                      color: active ? AppColors.primaryNavy : AppColors.textHeading,
-                    ),
-                  ),
-                  Text(description, style: handoverText(context, 11.5, color: AppColors.textMuted)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
