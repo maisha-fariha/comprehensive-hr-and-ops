@@ -182,7 +182,13 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
 
   StaffMedResidenceOption? _residence;
   StaffMedClientOption? _client;
-  final List<_MedicineDraft> _medicines = [_MedicineDraft()];
+
+  /// Separate drafts so Medicine ↔ PRN tabs do not share typed fields.
+  final List<_MedicineDraft> _scheduledMedicines = [_MedicineDraft()];
+  final List<_MedicineDraft> _prnMedicines = [_MedicineDraft()];
+
+  List<_MedicineDraft> get _medicines =>
+      _isPrn ? _prnMedicines : _scheduledMedicines;
 
   bool get _editingMode => widget.editing != null;
 
@@ -214,14 +220,16 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
           : (widget.initialPrn ? 1 : 0),
     );
     _tabs.addListener(() {
-      if (!_tabs.indexIsChanging) setState(() => _banner = null);
+      if (_tabs.indexIsChanging) return;
+      // Rebuild so the active list (_scheduled vs _prn) swaps in.
+      setState(() => _banner = null);
     });
     if (editing != null) _prefill(editing);
     _loadOptions();
   }
 
   void _prefill(StaffClientMedicationItem m) {
-    final draft = _medicines.first;
+    final draft = (m.isPrn ? _prnMedicines : _scheduledMedicines).first;
     draft.name.text = m.name;
     draft.dose.text = m.dose == '—' ? '' : m.dose;
     draft.route.text = m.route;
@@ -262,7 +270,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   void dispose() {
     _tabs.dispose();
     _scroll.dispose();
-    for (final m in _medicines) {
+    for (final m in [..._scheduledMedicines, ..._prnMedicines]) {
       m.dispose();
     }
     super.dispose();
@@ -303,7 +311,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     final list = [...?checks.value];
     // A dropdown value must be one of its items: a correction keeps the
     // record's check, a new medicine drops one that is no longer offered.
-    for (final m in _medicines) {
+    for (final m in [..._scheduledMedicines, ..._prnMedicines]) {
       final id = m.requiresCheckScheduleId;
       if (id == null || list.any((c) => c.id == id)) continue;
       if (_editingMode) {
@@ -782,6 +790,11 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                         ),
                         for (var i = 0; i < _medicines.length; i++)
                           _MedicineCard(
+                            // Key by kind so TextFields remount with that
+                            // tab's controllers instead of leaking Medicine → PRN.
+                            key: ValueKey(
+                              'staff-med-${_isPrn ? 'prn' : 'sched'}-$i',
+                            ),
                             index: i,
                             draft: _medicines[i],
                             isPrn: _isPrn,
@@ -1041,6 +1054,7 @@ class _MedicineCard extends StatelessWidget {
   final String Function(DateTime?) formatDate;
 
   const _MedicineCard({
+    super.key,
     required this.index,
     required this.draft,
     required this.isPrn,

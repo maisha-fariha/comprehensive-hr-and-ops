@@ -64,6 +64,28 @@ String _costText(num? value) {
   return value.toString();
 }
 
+/// Per-kind (Medicine vs PRN) draft so switching the tab does not leak fields.
+class _KindBuffer {
+  List<MarMedicineDraft> list = [];
+  String name = '';
+  String dose = '';
+  String timeInput = '';
+  String route = '';
+  String stock = '';
+  String cost = '';
+  String gap = '';
+  String instructions = '';
+  String within = '60';
+  String frequency = 'daily';
+  List<String> times = [];
+  Set<int> weekdays = {};
+  String starts = '';
+  String ends = '';
+  bool controlled = false;
+  String check = '';
+  String? error;
+}
+
 class _MarMedicineFormState extends State<MarMedicineForm> {
   late bool _prn = widget.editing?.isPrn ?? widget.prn;
   final List<MarMedicineDraft> _list = [];
@@ -90,7 +112,65 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   String? _error;
   bool _saving = false;
 
+  /// Separate Medicine / PRN working copies while the sheet is open.
+  final _KindBuffer _scheduledBuf = _KindBuffer();
+  final _KindBuffer _prnBuf = _KindBuffer();
+
   bool get _editingMode => widget.editing != null;
+
+  void _captureKind(bool prn) {
+    final buf = prn ? _prnBuf : _scheduledBuf;
+    buf.list = List<MarMedicineDraft>.from(_list);
+    buf.name = _name.text;
+    buf.dose = _dose.text;
+    buf.timeInput = _timeInput.text;
+    buf.route = _route.text;
+    buf.stock = _stock.text;
+    buf.cost = _cost.text;
+    buf.gap = _gap.text;
+    buf.instructions = _instructions.text;
+    buf.within = _within.text;
+    buf.frequency = _frequency;
+    buf.times = List<String>.from(_times);
+    buf.weekdays = Set<int>.from(_weekdays);
+    buf.starts = _starts;
+    buf.ends = _ends;
+    buf.controlled = _controlled;
+    buf.check = _check;
+    buf.error = _error;
+  }
+
+  void _restoreKind(bool prn) {
+    final buf = prn ? _prnBuf : _scheduledBuf;
+    _list
+      ..clear()
+      ..addAll(buf.list);
+    _name.text = buf.name;
+    _dose.text = buf.dose;
+    _timeInput.text = buf.timeInput;
+    _route.text = buf.route;
+    _stock.text = buf.stock;
+    _cost.text = buf.cost;
+    _gap.text = buf.gap;
+    _instructions.text = buf.instructions;
+    _within.text = buf.within.isEmpty ? '60' : buf.within;
+    _frequency = buf.frequency;
+    _times = List<String>.from(buf.times);
+    _weekdays = Set<int>.from(buf.weekdays);
+    _starts = buf.starts;
+    _ends = buf.ends;
+    _controlled = buf.controlled;
+    _check = buf.check;
+    _error = buf.error;
+  }
+
+  void _switchKind(bool prn) {
+    if (_prn == prn || _editingMode) return;
+    _commitTime();
+    _captureKind(_prn);
+    _prn = prn;
+    _restoreKind(prn);
+  }
 
   @override
   void initState() {
@@ -430,10 +510,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
         child: InkWell(
           key: ValueKey(prn ? 'mar-form-kind-prn' : 'mar-form-kind-prescribed'),
           borderRadius: BorderRadius.circular(8),
-          onTap: () => setState(() {
-            _prn = prn;
-            _list.clear();
-          }),
+          onTap: () => setState(() => _switchKind(prn)),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 9),
             alignment: Alignment.center,
