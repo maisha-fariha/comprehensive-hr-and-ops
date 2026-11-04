@@ -454,14 +454,32 @@ abstract final class SchedulingMapper {
   static List<StaffRosteredHours> _staffRosteredHours(
     List<Map<String, dynamic>> rows,
   ) {
-    final totals = <String, ({String name, double hours, int shifts})>{};
+    final totals = <String, ({
+      String name,
+      double hours,
+      int shifts,
+      List<StaffRosteredShiftLine> lines,
+    })>{};
     for (final json in rows) {
       final start = _startOf(json);
       final end = _endOf(json);
       if (start == null || end == null) continue;
       final minutes = end.difference(start).inMinutes;
       if (minutes <= 0) continue;
-      final hours = minutes / 60.0;
+      // Web rostered hours subtract breakMinutes from the window.
+      final breakMins = JsonCodec.integer(json['breakMinutes']) ?? 0;
+      final hours = ((minutes - breakMins).clamp(0, minutes)) / 60.0;
+      if (hours <= 0) continue;
+      final residenceName = JsonCodec.string(json['residenceName']) ??
+          JsonCodec.string(JsonCodec.mapAt(json, 'residence')?['name']);
+      final wallStart = _wall(start) ?? start;
+      final wallEnd = _wall(end) ?? end;
+      final line = StaffRosteredShiftLine(
+        startsAt: wallStart,
+        endsAt: wallEnd,
+        hours: hours,
+        residenceName: residenceName,
+      );
       for (final person in _assignedPeople(json)) {
         if (person is! Map) continue;
         final map = JsonCodec.asMap(person);
@@ -473,6 +491,7 @@ abstract final class SchedulingMapper {
           name: name.isNotEmpty ? name : (prev?.name ?? 'Staff'),
           hours: (prev?.hours ?? 0) + hours,
           shifts: (prev?.shifts ?? 0) + 1,
+          lines: [...?prev?.lines, line],
         );
       }
     }
@@ -483,6 +502,9 @@ abstract final class SchedulingMapper {
           name: entry.value.name,
           hours: entry.value.hours,
           shiftCount: entry.value.shifts,
+          shifts: [
+            ...entry.value.lines,
+          ]..sort((a, b) => a.startsAt.compareTo(b.startsAt)),
         ),
     ]..sort((a, b) => b.hours.compareTo(a.hours));
     return rowsOut;

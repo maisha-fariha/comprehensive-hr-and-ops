@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/portal_notification.dart';
 import '../../domain/entities/portal_search_hit.dart';
 
@@ -43,10 +44,11 @@ abstract final class PortalInboxMapper {
     );
     final metaRaw = json['metaJson'] ?? json['meta'];
     final meta = _metaMap(metaRaw);
-    final body = JsonCodec.stringOr(
+    final rawBody = JsonCodec.stringOr(
       json['body'] ?? json['message'] ?? json['text'],
       '',
     );
+    final eventKey = JsonCodec.string(json['eventKey'] ?? meta['eventKey']);
     return PortalNotification(
       id: JsonCodec.stringOr(
         json['id'] ?? json['notificationId'],
@@ -56,16 +58,52 @@ abstract final class PortalInboxMapper {
         json['title'] ?? json['subject'] ?? json['type'],
         'Notification',
       ),
-      body: body,
+      // Web rebuilds shift time bodies with Settings → General timeFormat.
+      body: _shiftWhenBody(meta, eventKey) ?? rawBody,
       timeLabel: at == null ? '' : IsoDateRange.dateTimeLabel(at),
       isRead: isNotificationRead(json),
       createdAt: at,
       entityType: JsonCodec.string(json['entityType']),
       entityId: JsonCodec.string(json['entityId']),
-      eventKey: JsonCodec.string(json['eventKey'] ?? meta['eventKey']),
+      eventKey: eventKey,
       eventLabel: JsonCodec.string(json['eventLabel']),
       meta: meta,
     );
+  }
+
+  /// Web bell: `Wed 04/11/2026, 01:00 pm—03:00 pm` (12h/24h from tenant settings).
+  static String? _shiftWhenBody(Map<String, dynamic> meta, String? eventKey) {
+    final start = JsonCodec.dateTime(meta['shiftStartsAt']);
+    final end = JsonCodec.dateTime(meta['shiftEndsAt']);
+    if (start == null || end == null) return null;
+    if (meta['shiftWhenBody'] != true &&
+        !(eventKey ?? '').startsWith('scheduling.shift_')) {
+      return null;
+    }
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final wall = TenantClock.wallOf(start);
+    final day = weekdays[wall.weekday - 1];
+    final date = TenantClock.formatDate(start);
+    final startLabel = _paddedTenantTime(start);
+    final endLabel = _paddedTenantTime(end);
+    final when = '$day $date, $startLabel—$endLabel';
+    if ((eventKey ?? '').contains('changed') ||
+        (eventKey ?? '').contains('updated')) {
+      return 'Now $when';
+    }
+    return when;
+  }
+
+  static String _paddedTenantTime(DateTime instant) {
+    final wall = TenantClock.wallOf(instant);
+    if (TenantClock.timeFormat == '24h') {
+      return '${wall.hour.toString().padLeft(2, '0')}:'
+          '${wall.minute.toString().padLeft(2, '0')}';
+    }
+    final h = wall.hour % 12 == 0 ? 12 : wall.hour % 12;
+    final ampm = wall.hour >= 12 ? 'pm' : 'am';
+    return '${h.toString().padLeft(2, '0')}:'
+        '${wall.minute.toString().padLeft(2, '0')} $ampm';
   }
 
   /// Shared read-state parser used by list + dashboard badge counts.

@@ -376,7 +376,7 @@ class StaffRosteredHoursRail extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                '${_fmt(total)} hrs total',
+                '${_fmtTotal(total)} hrs total',
                 style: const TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
@@ -410,7 +410,7 @@ class StaffRosteredHoursRail extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${_fmt(row.hours)} hrs',
+                        '${_fmtRow(row.hours)} hrs',
                         style: const TextStyle(
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w600,
@@ -452,10 +452,20 @@ class StaffRosteredHoursRail extends StatelessWidget {
     );
   }
 
-  static String _fmt(double hours) {
+  /// Web modal Total Rostered uses one decimal (`26.2 hrs`).
+  static String _fmtTotal(double hours) {
     if ((hours - hours.roundToDouble()).abs() < 0.05) {
       return hours.round().toString();
     }
     return hours.toStringAsFixed(1);
+  }
+
+  static String _fmtRow(double hours) {
+    if ((hours - hours.roundToDouble()).abs() < 0.005) {
+      return hours.round().toString();
+    }
+    final two = hours.toStringAsFixed(2);
+    if (two.endsWith('0')) return hours.toStringAsFixed(1);
+    return two;
   }
 }

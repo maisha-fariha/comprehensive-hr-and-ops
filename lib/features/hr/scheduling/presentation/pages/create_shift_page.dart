@@ -557,9 +557,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     final result = await _repository.updateShift(
       shiftId: widget.editShiftId!,
       payload: _draft.toUpdateBody(),
-      staffIds: _draft.isOpenShift
-          ? const <String>[]
-          : [for (final staff in _draft.assignedStaff) staff.staffId],
+      staffIds: [for (final staff in _draft.assignedStaff) staff.staffId],
     );
     if (!mounted) return;
     result.when(
@@ -898,7 +896,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         if (_expandedStaffId == option.id) _expandedStaffId = null;
       } else {
         _draft.assignedStaff.add(AssignedShiftStaff.fromOption(option));
-        _expandedStaffId = option.id;
+        // Web does not auto-open Task Assignment after picking staff.
+        _expandedStaffId = null;
       }
     });
   }

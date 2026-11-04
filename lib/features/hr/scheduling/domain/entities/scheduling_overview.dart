@@ -52,6 +52,22 @@ class SchedulingOverview {
   }
 }
 
+/// One assigned shift line under web Staff Rostered Hours → SHIFT BREAKDOWN.
+@immutable
+class StaffRosteredShiftLine {
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final double hours;
+  final String? residenceName;
+
+  const StaffRosteredShiftLine({
+    required this.startsAt,
+    required this.endsAt,
+    required this.hours,
+    this.residenceName,
+  });
+}
+
 /// One row in the web "Staff Rostered Hours" sidebar / modal.
 @immutable
 class StaffRosteredHours {
@@ -62,11 +78,15 @@ class StaffRosteredHours {
   /// Assigned shifts contributing to [hours].
   final int shiftCount;
 
+  /// Per-shift breakdown shown when the staff row is expanded (web modal).
+  final List<StaffRosteredShiftLine> shifts;
+
   const StaffRosteredHours({
     required this.staffId,
     required this.name,
     required this.hours,
     this.shiftCount = 0,
+    this.shifts = const [],
   });
 
   /// Web weekly FTE baseline used for capacity % and overtime.

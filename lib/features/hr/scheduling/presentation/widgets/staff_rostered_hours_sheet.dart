@@ -3,10 +3,29 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/repositories/scheduling_repository.dart';
+
+/// Web modal summary totals use one decimal (`26.2 hrs`); per-shift rows keep
+/// up to two (`9.75 hrs` / `0.25 hrs`).
+String _fmtSummaryHours(double hours) {
+  if ((hours - hours.roundToDouble()).abs() < 0.05) {
+    return hours.round().toString();
+  }
+  return hours.toStringAsFixed(1);
+}
+
+String _fmtDetailHours(double hours) {
+  if ((hours - hours.roundToDouble()).abs() < 0.005) {
+    return hours.round().toString();
+  }
+  final two = hours.toStringAsFixed(2);
+  if (two.endsWith('0')) return hours.toStringAsFixed(1);
+  return two;
+}
 
 /// Web "Staff Hours" → "Staff Rostered Hours" breakdown modal.
 Future<void> showStaffRosteredHoursSheet({
@@ -57,6 +76,7 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
   String? _monthError;
   List<StaffRosteredHours> _monthRows = const [];
   final _search = TextEditingController();
+  final Set<String> _expandedIds = {};
 
   @override
   void dispose() {
@@ -225,7 +245,7 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
                     Expanded(
                       child: _SummaryCard(
                         label: 'Total Rostered',
-                        value: '${_fmt(total)} hrs',
+                        value: '${_fmtSummaryHours(total)} hrs',
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -239,7 +259,7 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
                     Expanded(
                       child: _SummaryCard(
                         label: 'Total Overtime',
-                        value: '${_fmt(overtime)} hrs',
+                        value: '${_fmtSummaryHours(overtime)} hrs',
                       ),
                     ),
                   ],
@@ -290,42 +310,101 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
                                     const SizedBox(height: 10),
                                 itemBuilder: (context, index) {
                                   final row = rows[index];
+                                  final expanded =
+                                      _expandedIds.contains(row.staffId);
                                   final fraction = row.capacityFraction(
                                     monthly: _monthly,
                                     daysInMonth: _daysInMonth,
                                   );
                                   final pct = (fraction * 100).round();
                                   final capacityLabel = _monthly
-                                      ? '${_fmt(StaffRosteredHours.weeklyCapacityHours * (_daysInMonth / 7.0))}h'
+                                      ? '${_fmtSummaryHours(StaffRosteredHours.weeklyCapacityHours * (_daysInMonth / 7.0))}h'
                                       : '${StaffRosteredHours.weeklyCapacityHours.round()}h';
-                                  return DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      color: AppColors.filterButtonBackground,
+                                  return Material(
+                                    color: AppColors.surfaceWhite,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: InkWell(
+                                      key: ValueKey(
+                                        'staff-rostered-row-${row.staffId}',
+                                      ),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: AppColors.cardBorder,
-                                      ),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        14,
-                                        12,
-                                        10,
-                                        12,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Column(
+                                      onTap: () => setState(() {
+                                        if (expanded) {
+                                          _expandedIds.remove(row.staffId);
+                                        } else {
+                                          _expandedIds.add(row.staffId);
+                                        }
+                                      }),
+                                      child: Container(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          12,
+                                          12,
+                                          10,
+                                          12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: AppColors.cardBorder,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(0xFF102A43)
+                                                  .withValues(alpha: 0.04),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                _StaffInitialsAvatar(
+                                                  name: row.name,
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        row.name,
+                                                        style: const TextStyle(
+                                                          fontFamily: 'Outfit',
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          fontSize: 15,
+                                                          color: AppColors
+                                                              .textHeading,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        '${row.shiftCount} shift${row.shiftCount == 1 ? '' : 's'}',
+                                                        style: const TextStyle(
+                                                          fontFamily: 'Outfit',
+                                                          fontSize: 12.5,
+                                                          color: AppColors
+                                                              .textSecondary,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                Column(
                                                   crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
+                                                      CrossAxisAlignment.end,
                                                   children: [
                                                     Text(
-                                                      row.name,
+                                                      '${_fmtDetailHours(row.hours)} hrs',
                                                       style: const TextStyle(
                                                         fontFamily: 'Outfit',
                                                         fontWeight:
@@ -337,64 +416,43 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
                                                     ),
                                                     const SizedBox(height: 2),
                                                     Text(
-                                                      '${row.shiftCount} shift${row.shiftCount == 1 ? '' : 's'}',
+                                                      '$pct% of $capacityLabel capacity',
                                                       style: const TextStyle(
                                                         fontFamily: 'Outfit',
-                                                        fontSize: 12.5,
+                                                        fontSize: 12,
                                                         color: AppColors
-                                                            .textSecondary,
+                                                            .textMuted,
                                                       ),
                                                     ),
                                                   ],
                                                 ),
-                                              ),
-                                              Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.end,
-                                                children: [
-                                                  Text(
-                                                    '${_fmt(row.hours)} hrs',
-                                                    style: const TextStyle(
-                                                      fontFamily: 'Outfit',
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      fontSize: 15,
-                                                      color: AppColors
-                                                          .textHeading,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    '$pct% of $capacityLabel capacity',
-                                                    style: const TextStyle(
-                                                      fontFamily: 'Outfit',
-                                                      fontSize: 12,
-                                                      color: AppColors
-                                                          .textMuted,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(width: 4),
-                                              const Icon(
-                                                Icons.chevron_right_rounded,
-                                                color: AppColors.textMuted,
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 10),
-                                          ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                            child: LinearProgressIndicator(
-                                              value: fraction,
-                                              minHeight: 4,
-                                              backgroundColor:
-                                                  AppColors.cardBorder,
-                                              color: AppColors.secondaryTeal,
+                                                const SizedBox(width: 4),
+                                                Icon(
+                                                  expanded
+                                                      ? Icons
+                                                          .expand_more_rounded
+                                                      : Icons
+                                                          .chevron_right_rounded,
+                                                  color: AppColors.textMuted,
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(height: 10),
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              child: LinearProgressIndicator(
+                                                value: fraction,
+                                                minHeight: 4,
+                                                backgroundColor:
+                                                    AppColors.cardBorder,
+                                                color: AppColors.primaryNavy,
+                                              ),
+                                            ),
+                                            if (expanded)
+                                              _ShiftBreakdownPanel(row: row),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   );
@@ -405,13 +463,6 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
           ),
         ),
     );
-  }
-
-  static String _fmt(double hours) {
-    if ((hours - hours.roundToDouble()).abs() < 0.05) {
-      return hours.round().toString();
-    }
-    return hours.toStringAsFixed(1);
   }
 
   static const _months = [
@@ -448,6 +499,202 @@ class _StaffRosteredHoursSheetState extends State<_StaffRosteredHoursSheet> {
 
   static String _monthLabel(DateTime d) =>
       '${_fullMonths[d.month - 1]} ${d.year}';
+}
+
+class _StaffInitialsAvatar extends StatelessWidget {
+  final String name;
+
+  const _StaffInitialsAvatar({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = IsoDateRange.initials(name);
+    return Container(
+      width: 40,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: AppColors.filterButtonBackground,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        initials,
+        style: const TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+/// Web expand panel under a staff row: labelled SHIFT BREAKDOWN + per-shift
+/// cards (date · time · home, hours).
+class _ShiftBreakdownPanel extends StatelessWidget {
+  final StaffRosteredHours row;
+
+  const _ShiftBreakdownPanel({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.filterButtonBackground,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'SHIFT BREAKDOWN',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        letterSpacing: 0.45,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${_fmtDetailHours(row.hours)} hrs total',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (row.shifts.isEmpty)
+                const Text(
+                  'No shift details for this period.',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                  ),
+                )
+              else
+                for (var i = 0; i < row.shifts.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 8),
+                  _ShiftBreakdownLine(shift: row.shifts[i]),
+                ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShiftBreakdownLine extends StatelessWidget {
+  final StaffRosteredShiftLine shift;
+
+  const _ShiftBreakdownLine({required this.shift});
+
+  @override
+  Widget build(BuildContext context) {
+    final date =
+        '${shift.startsAt.day.toString().padLeft(2, '0')}/'
+        '${shift.startsAt.month.toString().padLeft(2, '0')}/'
+        '${shift.startsAt.year}';
+    final range =
+        '${TenantClock.formatTime(shift.startsAt)} – ${TenantClock.formatTime(shift.endsAt)}';
+    final home = (shift.residenceName ?? '').trim();
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 3,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryNavy,
+                borderRadius: BorderRadius.horizontal(
+                  left: Radius.circular(8),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            date,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.5,
+                              color: AppColors.textHeading,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            range,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12.5,
+                              color: AppColors.textSecondary,
+                              height: 1.3,
+                            ),
+                          ),
+                          if (home.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              home,
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_fmtDetailHours(shift.hours)} hrs',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _PeriodChip extends StatelessWidget {

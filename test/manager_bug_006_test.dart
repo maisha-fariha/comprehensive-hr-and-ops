@@ -370,6 +370,13 @@ void main() {
 
     expect(find.text('Assigned Staff (1)'), findsOneWidget);
     expect(find.text('Care Worker · Elm House'), findsOneWidget);
+    // Web does not auto-expand Task Assignment after picking staff.
+    expect(find.text('Task Assignment'), findsNothing);
+
+    await _tap(
+      tester,
+      find.byKey(const ValueKey('assigned-staff-toggle-staff-shakib')),
+    );
     expect(find.text('Task Assignment'), findsOneWidget);
     expect(_label('Task Title'), findsOneWidget);
     expect(_label('Task Description'), findsOneWidget);
@@ -505,6 +512,11 @@ void main() {
     );
     await _tap(tester, _tab('Staff Assignment'));
     await _addStaff(tester, 'Shakib Hasan');
+    // Task fields are collapsed until the staff card is expanded (web parity).
+    await _tap(
+      tester,
+      find.byKey(const ValueKey('assigned-staff-toggle-staff-shakib')),
+    );
     await tester.enterText(
       find.byKey(const ValueKey('task-title-staff-shakib')),
       'Morning medication round',
@@ -536,7 +548,8 @@ void main() {
       'oneToOneClientId': null,
       'startsAt': DateTime(2026, 10, 5, 7).toUtc().toIso8601String(),
       'endsAt': DateTime(2026, 10, 5, 15).toUtc().toIso8601String(),
-      'staffIds': <String>[],
+      // Web keeps pre-assigned staff on open shifts.
+      'staffIds': <String>['staff-shakib'],
       'shiftType': 'morning',
       'breakMinutes': 30,
       'open': true,
