@@ -340,7 +340,11 @@ class ResidencesController extends BaseController<List<ResidenceSummary>> {
   }
 
   @override
-  Future<void> refresh() => loadResidences();
+  Future<void> refresh() async {
+    // Pick up Residences / Scheduling grants the tenant admin just saved.
+    await _session?.refreshProfile();
+    await loadResidences();
+  }
 
   @override
   void onClose() {

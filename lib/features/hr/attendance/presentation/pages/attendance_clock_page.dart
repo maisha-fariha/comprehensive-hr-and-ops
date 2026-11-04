@@ -141,6 +141,50 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
     return _shift?.residenceId ?? widget.defaultResidenceId;
   }
 
+  /// Web clock-in "Where" still works without `residences:read`: the rostered
+  /// shift (and open attendance) supply the home. `GET /residences` only fills
+  /// the picker when that permission is granted.
+  List<ManualEntryResidenceOption> get _residenceOptions {
+    final byId = <String, ManualEntryResidenceOption>{
+      for (final row in widget.residences)
+        if (row.id.isNotEmpty) row.id: row,
+    };
+    void put(String? id, String? name) {
+      if (id == null || id.isEmpty) return;
+      final label = (name ?? '').trim();
+      byId.putIfAbsent(
+        id,
+        () => ManualEntryResidenceOption(
+          id: id,
+          name: label.isEmpty ? 'Residence' : label,
+        ),
+      );
+    }
+
+    put(_shift?.residenceId, _shift?.residenceName);
+    put(_open?.residenceId, _open?.residenceName);
+    put(widget.defaultResidenceId, null);
+    put(_session.residenceId, _session.residenceName);
+    return byId.values.toList();
+  }
+
+  String? get _selectedResidenceName {
+    final id = _effectiveResidenceId;
+    if (id == null || id.isEmpty) return null;
+    for (final row in _residenceOptions) {
+      if (row.id == id) return row.name;
+    }
+    final shiftName = _shift?.residenceName?.trim();
+    if (_shift?.residenceId == id && shiftName != null && shiftName.isNotEmpty) {
+      return shiftName;
+    }
+    final openName = _open?.residenceName?.trim();
+    if (_open?.residenceId == id && openName != null && openName.isNotEmpty) {
+      return openName;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -162,7 +206,15 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
     final result = await _repository.getMyShiftWindow(_staffId);
     if (!mounted) return;
     result.when(
-      success: (shift) => setState(() => _shift = shift),
+      success: (shift) => setState(() {
+        _shift = shift;
+        final shiftResidence = shift?.residenceId;
+        if ((_residenceId == null || _residenceId!.isEmpty) &&
+            shiftResidence != null &&
+            shiftResidence.isNotEmpty) {
+          _residenceId = shiftResidence;
+        }
+      }),
       failure: (_) {},
     );
   }
@@ -258,10 +310,7 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
     final title = widget.clockOut ? 'Clock out' : 'Clock in';
     final shift = _shift;
     final open = _open;
-    final residenceName = widget.residences
-        .where((r) => r.id == _effectiveResidenceId)
-        .map((r) => r.name)
-        .firstOrNull;
+    final residenceName = _selectedResidenceName;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceWhite,
@@ -461,10 +510,21 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
   }
 
   Future<void> _pickResidence() async {
+    final options = _residenceOptions;
+    if (options.isEmpty) {
+      AppSnackbar.show(
+        'Attendance',
+        _session.can('residences:read')
+            ? 'No residences are available.'
+            : 'No rostered residence yet. Ask a manager to add you to a shift, '
+                'or grant Residences read so every home is listed.',
+      );
+      return;
+    }
     final picked = await showAttendanceOptionSheet<ManualEntryResidenceOption>(
       context,
       title: 'Where',
-      options: widget.residences,
+      options: options,
       labelOf: (r) => r.name,
     );
     if (picked != null) setState(() => _residenceId = picked.value.id);

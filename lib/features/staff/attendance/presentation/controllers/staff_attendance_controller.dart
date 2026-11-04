@@ -100,11 +100,14 @@ class StaffAttendanceController
     final context = Get.context;
     if (context == null || !context.mounted) return;
     final current = overview;
+    // Without `residences:read`, GET /residences is empty — still offer the
+    // home from /mobile/home (same as web clock-in with a rostered shift).
+    final residences = _clockResidenceOptions(current);
 
     final saved = await StaffClockActionSheet.show(
       context,
       isCheckIn: isCheckIn,
-      residences: residenceOptions.toList(),
+      residences: residences,
       initialResidenceId: current?.residenceId,
       shiftId: current?.shiftId,
       shiftEndsAt: current?.shiftEndsAt,
@@ -221,6 +224,41 @@ class StaffAttendanceController
     );
   }
 
+  List<ManualEntryResidenceOption> _clockResidenceOptions(
+    StaffAttendanceOverview? current,
+  ) {
+    final byId = <String, ManualEntryResidenceOption>{
+      for (final row in residenceOptions)
+        if (row.id.isNotEmpty) row.id: row,
+    };
+    final id = current?.residenceId;
+    final name = (current?.shiftLocationName ?? '').trim();
+    if (id != null && id.isNotEmpty) {
+      byId.putIfAbsent(
+        id,
+        () => ManualEntryResidenceOption(
+          id: id,
+          name: name.isEmpty ? 'Residence' : name,
+        ),
+      );
+    }
+    final session = Get.isRegistered<UserSession>()
+        ? Get.find<UserSession>()
+        : null;
+    final sessionId = session?.residenceId;
+    final sessionName = (session?.residenceName ?? '').trim();
+    if (sessionId != null && sessionId.isNotEmpty) {
+      byId.putIfAbsent(
+        sessionId,
+        () => ManualEntryResidenceOption(
+          id: sessionId,
+          name: sessionName.isEmpty ? 'Residence' : sessionName,
+        ),
+      );
+    }
+    return byId.values.toList();
+  }
+
   Future<void> showManualEntryDialog() async {
     if (Get.isRegistered<UserSession>() &&
         !Get.find<UserSession>().can('attendance:manage')) {
@@ -296,6 +334,9 @@ class StaffAttendanceController
 
   @override
   Future<void> refresh() async {
+    if (Get.isRegistered<UserSession>()) {
+      await Get.find<UserSession>().refreshProfile();
+    }
     await Future.wait([
       loadOverview(),
       _loadResidences(),

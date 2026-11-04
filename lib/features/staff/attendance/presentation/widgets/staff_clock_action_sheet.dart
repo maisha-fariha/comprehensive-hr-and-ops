@@ -169,9 +169,9 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   void initState() {
     super.initState();
     final initial = widget.initialResidenceId;
-    if (initial != null &&
-        initial.isNotEmpty &&
-        widget.residences.any((r) => r.id == initial)) {
+    if (initial != null && initial.isNotEmpty) {
+      // Keep the rostered / session home even when GET /residences was empty
+      // (no `residences:read`) — the sheet list already merges that option.
       _residenceId = initial;
     } else if (widget.residences.length == 1) {
       _residenceId = widget.residences.first.id;
