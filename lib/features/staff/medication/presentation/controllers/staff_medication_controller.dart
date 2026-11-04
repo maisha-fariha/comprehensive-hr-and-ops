@@ -534,7 +534,10 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       );
       return;
     }
-    final created = await StaffAddMedicineSheet.show(context);
+    final created = await StaffAddMedicineSheet.show(
+      context,
+      initialPrn: selectedTab.value == StaffMedicationTab.prn,
+    );
     if (created == true) await loadOverview();
   }
 

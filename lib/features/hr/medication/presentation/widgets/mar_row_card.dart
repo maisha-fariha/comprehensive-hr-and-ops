@@ -90,8 +90,12 @@ class MarRowCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Divider(height: 1, color: AppColors.cardBorder),
             const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            // Web order: View → Chart → Delete → Edit → Discontinue.
+            // Wrap so narrow cards never clip trailing actions.
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 0,
+              runSpacing: 0,
               children: [
                 _Action(
                   key: ValueKey('mar-view-${r.id}'),

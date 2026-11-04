@@ -176,13 +176,51 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       _error = null;
       if (_name.text.trim().isEmpty) {
         _error = 'What is the medicine called?';
-      } else if (_house.isEmpty || (!_prn && _resident.isEmpty)) {
-        _error = _prn
-            ? 'Which house is this held at?'
-            : 'A prescription is for one resident — choose who, and where.';
+      } else if (_house.isEmpty) {
+        _error = 'Which house is this held at?';
+      } else if (!_prn && _resident.isEmpty) {
+        _error = 'A prescription is for one resident — choose who.';
+      } else if (!_prn && _dose.text.trim().isEmpty) {
+        _error = 'What dose is prescribed?';
+      } else if (_route.text.trim().isEmpty) {
+        _error = 'How is it given — the route?';
+      } else if (_stock.text.trim().isEmpty) {
+        _error = 'How many stock units does one dose use?';
+      } else if (!_prn && _times.isEmpty && _timeInput.text.trim().isEmpty) {
+        _error = 'A scheduled medication needs at least one time of day';
+      } else if (!_prn && _frequency == 'weekly' && _weekdays.isEmpty) {
+        _error = 'A weekly medicine has to say which days it falls on.';
       } else {
+        _commitTime();
         _list.add(_current());
         _resetMedicine();
+      }
+    });
+  }
+
+  void _syncStockFromDose(String doseText) {
+    final match = RegExp(r'^(\d+(?:\.\d+)?)').firstMatch(doseText.trim());
+    if (match == null) return;
+    final next = match.group(1)!;
+    if (_stock.text == next) return;
+    _stock.text = next;
+  }
+
+  Future<void> _pickClockTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child ?? const SizedBox.shrink(),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final t =
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    setState(() {
+      if (!_times.contains(t)) {
+        _times = [..._times, t]..sort();
       }
     });
   }
@@ -196,8 +234,18 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       error = 'Which house is this held at?';
     } else if (!_prn && _resident.isEmpty) {
       error = 'A prescription is for one resident — choose who.';
+    } else if (!_prn && _dose.text.trim().isEmpty) {
+      error = 'What dose is prescribed?';
+    } else if (_route.text.trim().isEmpty) {
+      error = 'How is it given — the route?';
+    } else if (_stock.text.trim().isEmpty) {
+      error = 'How many stock units does one dose use?';
     } else if (!_prn && _times.isEmpty && _timeInput.text.trim().isEmpty) {
       error = 'A scheduled medication needs at least one time of day';
+    } else if (!_prn &&
+        _frequency == 'weekly' &&
+        _weekdays.isEmpty) {
+      error = 'A weekly medicine has to say which days it falls on.';
     } else if (_starts.isNotEmpty && _ends.isNotEmpty && _ends.compareTo(_starts) < 0) {
       error = 'A course cannot end before it starts';
     }
@@ -497,8 +545,10 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       MarTextField(
         key: const ValueKey('mar-form-dose'),
         label: 'Dose',
+        required: !_prn,
         controller: _dose,
-        placeholder: '1 tablet',
+        placeholder: _prn ? '1 tablet' : '1 tablet',
+        onChanged: (v) => setState(() => _syncStockFromDose(v)),
       ),
       gap,
       if (_prn)
@@ -525,6 +575,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       MarTextField(
         key: const ValueKey('mar-form-route'),
         label: 'Route',
+        required: true,
         controller: _route,
         placeholder: 'Oral, topical, inhaled…',
       ),
@@ -532,10 +583,12 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       MarTextField(
         key: const ValueKey('mar-form-stock'),
         label: 'Units of stock per dose',
+        required: true,
         controller: _stock,
         numeric: true,
-        placeholder: 'Leave blank to count stock by hand',
-        helper: 'Only set this where a dose maps cleanly onto the stock unit.',
+        placeholder: 'e.g. 1',
+        helper:
+            'Units deducted automatically from stock when each dose is given.',
       ),
       gap,
       MarTextField(
@@ -615,57 +668,137 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
     ];
   }
 
+  static const _timePresets = [
+    '08:00',
+    '12:00',
+    '14:00',
+    '18:00',
+    '20:00',
+    '22:00',
+  ];
+
   Widget _timesField(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const MarLabel('At what times', required: true),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceWhite,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.searchBorder),
-          ),
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              for (final t in _times)
-                Chip(
-                  label: Text(t, style: handoverText(context, 12, weight: FontWeight.w600)),
-                  visualDensity: VisualDensity.compact,
-                  backgroundColor: AppColors.filterButtonBackground,
-                  side: BorderSide.none,
-                  deleteIcon: const Icon(Icons.close_rounded, size: 12),
-                  onDeleted: () => setState(() => _times = _times.where((x) => x != t).toList()),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceWhite,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.searchBorder),
                 ),
-              SizedBox(
-                width: 140,
-                child: TextField(
-                  key: const ValueKey('mar-form-time-input'),
-                  controller: _timeInput,
-                  style: handoverText(context, 13),
-                  onSubmitted: (_) => setState(_commitTime),
-                  onTapOutside: (_) {
-                    if (_timeInput.text.trim().isNotEmpty) setState(_commitTime);
-                  },
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintText: _times.isEmpty ? 'Type and press Enter…' : '',
-                    hintStyle: handoverText(context, 13, color: AppColors.textMuted),
-                  ),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (final t in _times)
+                      Chip(
+                        label: Text(
+                          t,
+                          style: handoverText(context, 12, weight: FontWeight.w600),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: AppColors.filterButtonBackground,
+                        side: BorderSide.none,
+                        deleteIcon: const Icon(Icons.close_rounded, size: 12),
+                        onDeleted: () => setState(
+                          () => _times = _times.where((x) => x != t).toList(),
+                        ),
+                      ),
+                    SizedBox(
+                      width: 120,
+                      child: TextField(
+                        key: const ValueKey('mar-form-time-input'),
+                        controller: _timeInput,
+                        style: handoverText(context, 13),
+                        onSubmitted: (_) => setState(_commitTime),
+                        onTapOutside: (_) {
+                          if (_timeInput.text.trim().isNotEmpty) {
+                            setState(_commitTime);
+                          }
+                        },
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          hintText: _times.isEmpty ? '08:00' : '',
+                          hintStyle: handoverText(
+                            context,
+                            13,
+                            color: AppColors.textMuted,
+                          ),
+                          suffixIcon: IconButton(
+                            key: const ValueKey('mar-form-time-clock'),
+                            tooltip: 'Pick a time',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            onPressed: _pickClockTime,
+                            icon: const Icon(
+                              Icons.access_time_rounded,
+                              size: 18,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            HandoverButton(
+              key: const ValueKey('mar-form-add-time'),
+              label: 'Add time',
+              icon: Icons.add_rounded,
+              compact: true,
+              onPressed: () {
+                if (_timeInput.text.trim().isEmpty) {
+                  _pickClockTime();
+                } else {
+                  setState(_commitTime);
+                }
+              },
+            ),
+          ],
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 8),
         Text(
-          '24-hour, one per entry — 08:00, 14:00, 20:00',
-          style: handoverText(context, 12, color: AppColors.textMuted),
+          'Presets',
+          style: handoverText(context, 12, weight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final t in _timePresets)
+              ActionChip(
+                key: ValueKey('mar-form-time-preset-$t'),
+                label: Text(
+                  '+ $t',
+                  style: handoverText(context, 12, weight: FontWeight.w600),
+                ),
+                backgroundColor: AppColors.filterButtonBackground,
+                side: BorderSide.none,
+                onPressed: () => setState(() {
+                  if (!_times.contains(t)) {
+                    _times = [..._times, t]..sort();
+                  }
+                }),
+              ),
+          ],
         ),
       ],
     );
