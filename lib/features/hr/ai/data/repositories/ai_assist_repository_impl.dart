@@ -139,6 +139,28 @@ class AiAssistRepositoryImpl implements AiAssistRepository {
   }
 
   @override
+  Future<Result<AiHandoverDraft>> draftHandover({
+    required String residenceId,
+    String? since,
+    String? until,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.aiHandoversDraft,
+      data: {
+        'residenceId': residenceId,
+        if (since != null && since.isNotEmpty) 'since': since,
+        if (until != null && until.isNotEmpty) 'until': until,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AiAssistMapper.handoverDraftFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<AiDraftResult>> reviewGoals({
     required String clientId,
     required int days,

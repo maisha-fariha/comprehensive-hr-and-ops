@@ -103,6 +103,7 @@ abstract final class CreateShiftField {
   static const biddingDeadline = 'biddingDeadlineDate';
   static const endDate = 'endDate';
   static const occurrenceCount = 'occurrenceCount';
+  static const restOverrideReason = 'restOverrideReason';
 }
 
 class ShiftChecklistItem {
@@ -213,6 +214,9 @@ class CreateShiftDraft {
   /// New shifts remind 2 hours before (web `reminderTiming: "120"`).
   int? reminderMinutes = 120;
   String notificationMessage = '';
+
+  /// Required when `POST /shifts/conflicts` returns `rest[]` (web audit field).
+  String restOverrideReason = '';
 
   CreateShiftDraft({String? residenceId, DateTime? shiftDate})
       : residenceId = residenceId ?? '',
@@ -452,6 +456,8 @@ class CreateShiftDraft {
       if (message.isNotEmpty) 'notificationMessage': message,
       if (trimmedTitle.isNotEmpty) 'title': trimmedTitle,
       if (trimmedNotes.isNotEmpty) 'notes': trimmedNotes,
+      if (restOverrideReason.trim().isNotEmpty)
+        'restOverrideReason': restOverrideReason.trim(),
       if (!asDraft) 'biddingConfig': biddingConfig,
       if (!asDraft && isRecurring)
         'recurrence': {
@@ -512,6 +518,7 @@ class CreateShiftDraft {
         'notify': notifyAssignedStaff,
         'reminder': reminderMinutes,
         'message': notificationMessage,
+        'restOverrideReason': restOverrideReason,
       });
 
   static DateTime _at(DateTime date, int minutes) =>

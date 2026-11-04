@@ -113,6 +113,22 @@ class HandoverCard extends StatelessWidget {
               style: handoverText(context, 12.5, color: AppColors.criticalRed),
             ),
           ],
+          if (h.notesForNextShift.isNotEmpty) ...[
+            gap,
+            _NotesForNextShift(
+              notes: h.notesForNextShift,
+              compact: true,
+            ),
+          ],
+          if (h.handedOverTasks.isNotEmpty) ...[
+            gap,
+            Text(
+              'Unfinished tasks handed over',
+              style: handoverText(context, 12.5, weight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            for (final task in h.handedOverTasks) _HandedTaskRow(task: task),
+          ],
           if (h.tasks.isNotEmpty) ...[
             gap,
             for (final task in h.tasks) _TaskRow(task: task),
@@ -173,6 +189,96 @@ class HandoverCard extends StatelessWidget {
             AttendancePill(
               label: 'Flagged: ${WebFormat.humanise(h.flagCategory)}',
               tone: AttendanceTone.warning,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NotesForNextShift extends StatelessWidget {
+  final List<HandoverNextNote> notes;
+  final bool compact;
+
+  const _NotesForNextShift({required this.notes, this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = compact ? notes.take(3).toList() : notes;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.secondaryTeal.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.secondaryTeal.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Notes for the next shift (${notes.length})',
+            style: handoverText(context, 12.5, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          for (final note in shown) ...[
+            Text(
+              [
+                if ((note.clientName ?? '').isNotEmpty) '${note.clientName}: ',
+                note.body,
+              ].join(),
+              style: handoverText(context, 13),
+            ),
+            if (note.occurredAt != null || (note.author ?? '').isNotEmpty)
+              Text(
+                [
+                  if (note.occurredAt != null) WebFormat.time(note.occurredAt),
+                  if ((note.author ?? '').isNotEmpty) note.author!,
+                ].join(' · '),
+                style: handoverText(context, 11.5, color: AppColors.textMuted),
+              ),
+            const SizedBox(height: 4),
+          ],
+          if (compact && notes.length > 3)
+            Text(
+              'and ${notes.length - 3} more',
+              style: handoverText(context, 12, color: AppColors.textMuted),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HandedTaskRow extends StatelessWidget {
+  final HandoverHandedTask task;
+
+  const _HandedTaskRow({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    final who = task.transferredToName ??
+        (task.assigneeNames.isEmpty ? null : task.assigneeNames.join(', '));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(task.title, style: handoverText(context, 13)),
+          ),
+          if (task.overdue)
+            const AttendancePill(label: 'Overdue', tone: AttendanceTone.danger),
+          if (who != null) ...[
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                'With $who',
+                style: handoverText(context, 11.5, color: AppColors.textMuted),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ],

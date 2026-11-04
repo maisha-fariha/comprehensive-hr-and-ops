@@ -195,6 +195,100 @@ abstract final class AiAssistMapper {
     );
   }
 
+  static const _jobPriorities = {'normal', 'important', 'urgent'};
+  static const _clientStatuses = {'stable', 'needs_attention', 'urgent'};
+  static const _careCompleted = {
+    'personal_care',
+    'feeding',
+    'mobility_assistance',
+    'hygiene',
+  };
+
+  /// Web `POST /ai/handovers/draft`.
+  static AiHandoverDraft handoverDraftFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final actions = <AiHandoverDraftAction>[];
+    final actionsRaw = json['actions'];
+    if (actionsRaw is List && actionsRaw.isNotEmpty) {
+      for (final item in actionsRaw) {
+        if (item is! Map) continue;
+        final map = JsonCodec.asMap(item);
+        final title = JsonCodec.string(map['title'])?.trim() ?? '';
+        if (title.isEmpty) continue;
+        final priority = JsonCodec.stringOr(map['priority'], 'normal');
+        actions.add(
+          AiHandoverDraftAction(
+            title: title,
+            priority: _jobPriorities.contains(priority) ? priority : 'normal',
+          ),
+        );
+      }
+    } else {
+      for (final title in _strings(json['pendingActions'])) {
+        actions.add(AiHandoverDraftAction(title: title));
+      }
+    }
+    final flagRaw = JsonCodec.mapAt(json, 'flag');
+    final flagCategory = flagRaw == null
+        ? null
+        : JsonCodec.string(flagRaw['category'])?.trim();
+    final clientUpdates = <AiHandoverClientUpdate>[];
+    final clientsRaw = json['clientUpdates'];
+    if (clientsRaw is List) {
+      for (final item in clientsRaw) {
+        if (item is! Map) continue;
+        final map = JsonCodec.asMap(item);
+        final clientId = JsonCodec.string(map['clientId'])?.trim() ?? '';
+        if (clientId.isEmpty) continue;
+        final status = JsonCodec.stringOr(map['status'], 'stable');
+        final careRaw = JsonCodec.mapAt(map, 'care') ?? const {};
+        final completed = <String>[
+          for (final value in _strings(careRaw['completed']))
+            if (_careCompleted.contains(value)) value,
+        ];
+        clientUpdates.add(
+          AiHandoverClientUpdate(
+            clientId: clientId,
+            clientName: JsonCodec.stringOr(map['clientName'], 'Resident'),
+            status: _clientStatuses.contains(status) ? status : 'stable',
+            health: _stringMap(JsonCodec.mapAt(map, 'health')),
+            medication: _stringMap(JsonCodec.mapAt(map, 'medication')),
+            careCompleted: completed,
+            care: {
+              for (final key in const [
+                'otherCompleted',
+                'pending',
+                'followUpRequired',
+              ])
+                if ((JsonCodec.string(careRaw[key]) ?? '').trim().isNotEmpty)
+                  key: JsonCodec.string(careRaw[key])!.trim(),
+            },
+          ),
+        );
+      }
+    }
+    return AiHandoverDraft(
+      summary: JsonCodec.stringOr(json['summary'], ''),
+      actions: actions,
+      flagCategory:
+          flagCategory == null || flagCategory.isEmpty ? null : flagCategory,
+      flagNote: flagRaw == null ? null : JsonCodec.string(flagRaw['note']),
+      clientUpdates: clientUpdates,
+      model: JsonCodec.string(json['model']),
+    );
+  }
+
+  static Map<String, String> _stringMap(Map<String, dynamic>? raw) {
+    if (raw == null || raw.isEmpty) return const {};
+    final out = <String, String>{};
+    for (final entry in raw.entries) {
+      final value = JsonCodec.string(entry.value)?.trim() ?? '';
+      if (value.isEmpty) continue;
+      out[entry.key] = value;
+    }
+    return out;
+  }
+
   static AiDailyLogDraftEntry dailyLogDraftFrom(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
     final obsRaw = JsonCodec.mapAt(json, 'observations') ?? const {};

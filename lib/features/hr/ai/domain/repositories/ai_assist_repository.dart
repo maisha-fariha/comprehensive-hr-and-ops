@@ -42,6 +42,13 @@ abstract class AiAssistRepository {
     String? hygiene,
   });
 
+  /// Web "Draft handover note" (`POST /ai/handovers/draft`).
+  Future<Result<AiHandoverDraft>> draftHandover({
+    required String residenceId,
+    String? since,
+    String? until,
+  });
+
   /// Web "Draft outcome review" (`POST /ai/client-goals/:id/review`).
   Future<Result<AiDraftResult>> reviewGoals({
     required String clientId,

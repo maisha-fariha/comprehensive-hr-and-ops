@@ -138,11 +138,14 @@ class StaffSchedulePage extends StatelessWidget {
                         shifts: selectedShifts,
                         onShiftTap: controller.openShiftDetail,
                         onRequestSwap: canBid
-                            ? (shift) => showStaffSwapRequestSheet(
+                            ? (shift) {
+                                if (!shift.canRequestSwap) return;
+                                showStaffSwapRequestSheet(
                                   context,
                                   controller,
                                   shift,
-                                )
+                                );
+                              }
                             : null,
                       ),
                       if (selectedShifts.isEmpty) ...[

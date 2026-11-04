@@ -63,6 +63,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   late final TextEditingController _noteToBiddersController;
   late final TextEditingController _occurrenceController;
   late final TextEditingController _messageController;
+  late final TextEditingController _restOverrideReasonController;
   final ScrollController _scrollController = ScrollController();
 
   CreateShiftStep _step = CreateShiftStep.shiftInformation;
@@ -104,6 +105,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         TextEditingController(text: _draft.occurrenceCount);
     _messageController =
         TextEditingController(text: _draft.notificationMessage);
+    _restOverrideReasonController =
+        TextEditingController(text: _draft.restOverrideReason);
     _initialSnapshot = _draft.snapshot();
     _clockReady = _bootstrap();
   }
@@ -185,6 +188,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     _noteToBiddersController.dispose();
     _occurrenceController.dispose();
     _messageController.dispose();
+    _restOverrideReasonController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -343,7 +347,52 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     setState(() {
       _staffWithOverlappingShifts = hasShift;
       _conflicts = nextConflicts;
+      if (nextConflicts.rest.isEmpty &&
+          _draft.restOverrideReason.isNotEmpty) {
+        _draft.restOverrideReason = '';
+        _restOverrideReasonController.clear();
+        _errors = {
+          for (final entry in _errors.entries)
+            if (entry.key != CreateShiftField.restOverrideReason)
+              entry.key: entry.value,
+        };
+      }
     });
+  }
+
+  bool _validateRestOverrideReason() {
+    if (_draft.isOpenShift || _conflicts.rest.isEmpty) {
+      if (_errors.containsKey(CreateShiftField.restOverrideReason)) {
+        setState(() {
+          _errors = {
+            for (final entry in _errors.entries)
+              if (entry.key != CreateShiftField.restOverrideReason)
+                entry.key: entry.value,
+          };
+        });
+      }
+      return true;
+    }
+    if (_draft.restOverrideReason.trim().isNotEmpty) {
+      if (_errors.containsKey(CreateShiftField.restOverrideReason)) {
+        setState(() {
+          _errors = {
+            for (final entry in _errors.entries)
+              if (entry.key != CreateShiftField.restOverrideReason)
+                entry.key: entry.value,
+          };
+        });
+      }
+      return true;
+    }
+    setState(() {
+      _errors = {
+        ..._errors,
+        CreateShiftField.restOverrideReason:
+            'Say why you are rostering them with less rest',
+      };
+    });
+    return false;
   }
 
   void _onTextChanged(String _) {
@@ -404,6 +453,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       setState(() => _errors = {..._errors, ...stepErrors});
       return;
     }
+    if (_step == CreateShiftStep.staffAssignment &&
+        !_validateRestOverrideReason()) {
+      return;
+    }
     if (_step == CreateShiftStep.staffAssignment && _staffingBlocked) {
       AppSnackbar.show('Staff assignment', _staffingBlockedToast);
       return;
@@ -424,6 +477,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     final leavingStaff =
         _step == CreateShiftStep.staffAssignment &&
         step != CreateShiftStep.staffAssignment;
+    if (leavingStaff && !_validateRestOverrideReason()) {
+      return;
+    }
     if (leavingStaff && _staffingBlocked) {
       AppSnackbar.show('Staff assignment', _staffingBlockedToast);
       return;
@@ -447,6 +503,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
       _goTo(CreateShiftDraft.stepOf(errors.keys.first));
+      return;
+    }
+    if (!asDraft && !_validateRestOverrideReason()) {
+      _goTo(CreateShiftStep.staffAssignment);
       return;
     }
     if (!asDraft && _staffingBlocked) {
@@ -570,13 +630,16 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   }
 
   bool _isStaffingConflictCode(String? code) =>
-      code == 'SHIFT_OVERLAP' || code == 'STAFF_ON_LEAVE';
+      code == 'SHIFT_OVERLAP' ||
+      code == 'STAFF_ON_LEAVE' ||
+      code == 'INSUFFICIENT_REST';
 
   Future<void> _saveEdit() async {
     final result = await _repository.updateShift(
       shiftId: widget.editShiftId!,
       payload: _draft.toUpdateBody(),
       staffIds: [for (final staff in _draft.assignedStaff) staff.staffId],
+      restOverrideReason: _draft.restOverrideReason,
     );
     if (!mounted) return;
     result.when(
@@ -1125,6 +1188,14 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           isOpenShift: _draft.isOpenShift,
           scheduleConflicts: _conflicts.conflicts,
           leaveConflicts: _conflicts.leave,
+          restConflicts: _conflicts.rest,
+          minimumRestHours: _conflicts.minimumRestHours,
+          restOverrideReasonController: _restOverrideReasonController,
+          restOverrideReasonError:
+              _errors[CreateShiftField.restOverrideReason],
+          onRestOverrideReasonChanged: (value) => _update(() {
+            _draft.restOverrideReason = value;
+          }),
           residenceName: _residenceLabel,
           onOpenShiftChanged: (value) => _update(() {
             // Keep assigned staff while toggling methods so switching back

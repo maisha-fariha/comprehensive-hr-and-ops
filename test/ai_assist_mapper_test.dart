@@ -175,4 +175,38 @@ void main() {
     expect(stock.items.single.item, 'Gloves');
     expect(stock.items.single.suggestedOrder, 5);
   });
+
+  test('handoverDraftFrom maps summary, actions, flag and clients', () {
+    final draft = AiAssistMapper.handoverDraftFrom({
+      'data': {
+        'summary': 'Quiet evening; R1 settled.',
+        'actions': [
+          {'title': 'Chase PRN reasons', 'priority': 'important'},
+          {'title': 'Unknown prio', 'priority': 'critical'},
+        ],
+        'flag': {'category': 'medication', 'note': 'Late doses'},
+        'clientUpdates': [
+          {
+            'clientId': 'c1',
+            'clientName': 'Client One',
+            'status': 'needs_attention',
+            'health': {'generalCondition': 'Settled'},
+            'medication': {'prnGiven': 'Napa'},
+            'care': {
+              'completed': ['personal_care', 'unknown_task'],
+              'pending': 'Review chart',
+            },
+          },
+        ],
+      },
+    });
+    expect(draft.summary, 'Quiet evening; R1 settled.');
+    expect(draft.actions, hasLength(2));
+    expect(draft.actions.first.priority, 'important');
+    expect(draft.actions.last.priority, 'normal');
+    expect(draft.flagCategory, 'medication');
+    expect(draft.clientUpdates.single.status, 'needs_attention');
+    expect(draft.clientUpdates.single.careCompleted, ['personal_care']);
+    expect(draft.clientUpdates.single.care['pending'], 'Review chart');
+  });
 }

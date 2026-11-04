@@ -252,11 +252,12 @@ abstract final class SchedulingMapper {
     return rows;
   }
 
-  /// Parse `POST /shifts/conflicts` into roster + leave banners.
+  /// Parse `POST /shifts/conflicts` into roster + leave + rest banners.
   static ShiftConflictsResult shiftConflictsFrom(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
     final conflicts = <ShiftScheduleConflict>[];
     final leave = <ShiftLeaveConflict>[];
+    final rest = <ShiftRestConflict>[];
     final conflictSource = json['conflicts'];
     if (conflictSource is List) {
       for (final item in conflictSource) {
@@ -299,13 +300,45 @@ abstract final class SchedulingMapper {
         );
       }
     }
+    final restSource = json['rest'];
+    if (restSource is List) {
+      for (final item in restSource) {
+        if (item is! Map) continue;
+        final row = JsonCodec.asMap(item);
+        final staffId = JsonCodec.string(row['staffId']);
+        final staffName = JsonCodec.string(row['staffName']) ?? 'Staff';
+        final label = JsonCodec.string(row['label']) ?? '';
+        if (staffId == null || staffId.isEmpty) continue;
+        final hours = row['restHours'];
+        final restHours = hours is num
+            ? hours
+            : num.tryParse('$hours') ?? 0;
+        rest.add(
+          ShiftRestConflict(
+            staffId: staffId,
+            staffName: staffName,
+            label: label,
+            restHours: restHours,
+          ),
+        );
+      }
+    }
+    final minimumRaw = json['minimumRestHours'];
+    final minimumRestHours = minimumRaw is int
+        ? minimumRaw
+        : (minimumRaw is num
+            ? minimumRaw.toInt()
+            : int.tryParse('$minimumRaw'));
     final hasConflict = JsonCodec.boolean(json['hasConflict']) == true ||
         conflicts.isNotEmpty ||
-        leave.isNotEmpty;
+        leave.isNotEmpty ||
+        rest.isNotEmpty;
     return ShiftConflictsResult(
       hasConflict: hasConflict,
       conflicts: conflicts,
       leave: leave,
+      rest: rest,
+      minimumRestHours: minimumRestHours,
     );
   }
 

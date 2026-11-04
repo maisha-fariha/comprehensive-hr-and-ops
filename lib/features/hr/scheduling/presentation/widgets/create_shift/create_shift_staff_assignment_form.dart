@@ -28,6 +28,11 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
   final VoidCallback onChanged;
   final List<ShiftScheduleConflict> scheduleConflicts;
   final List<ShiftLeaveConflict> leaveConflicts;
+  final List<ShiftRestConflict> restConflicts;
+  final int? minimumRestHours;
+  final TextEditingController? restOverrideReasonController;
+  final String? restOverrideReasonError;
+  final ValueChanged<String>? onRestOverrideReasonChanged;
   final String? residenceName;
 
   const CreateShiftStaffAssignmentForm({
@@ -44,6 +49,11 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
     this.isLoadingStaff = false,
     this.scheduleConflicts = const [],
     this.leaveConflicts = const [],
+    this.restConflicts = const [],
+    this.minimumRestHours,
+    this.restOverrideReasonController,
+    this.restOverrideReasonError,
+    this.onRestOverrideReasonChanged,
     this.residenceName,
   });
 
@@ -85,6 +95,67 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
               onTap: onAddStaff,
               onRemove: onRemoveStaff,
             ),
+            // Web order: rest → leave → overlap (`data-testid` shift-rest / leave / conflicts).
+            if (restConflicts.isNotEmpty) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              _ShiftConflictBanner(
+                key: const ValueKey('shift-rest'),
+                title:
+                    "Less than ${minimumRestHours ?? "the minimum"} hours' rest",
+                lines: [
+                  for (final row in restConflicts)
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                          color: AppColors.textHeading,
+                          height: 1.35,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: row.staffName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(
+                            text:
+                                ' would have only ${row.restHoursLabel} hours between this shift and ${row.label}.',
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                footer: restOverrideReasonController == null
+                    ? null
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 10),
+                          const CreateShiftFieldLabel(
+                            'Reason to roster anyway',
+                            required: true,
+                          ),
+                          CreateShiftTextField(
+                            key: const ValueKey('shift-rest-override-reason'),
+                            controller: restOverrideReasonController!,
+                            hint:
+                                'e.g. Emergency cover — two carers off sick, no one else available',
+                            maxLines: 3,
+                            keyboardType: TextInputType.multiline,
+                            hasError: restOverrideReasonError != null,
+                            onChanged: onRestOverrideReasonChanged,
+                          ),
+                          if (restOverrideReasonError != null)
+                            CreateShiftErrorText(restOverrideReasonError!)
+                          else
+                            const CreateShiftHelperText(
+                              'Saved with the shift and kept in the audit log. Or choose someone else.',
+                            ),
+                        ],
+                      ),
+              ),
+            ],
             if (leaveConflicts.isNotEmpty) ...[
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
               _ShiftConflictBanner(
@@ -760,11 +831,13 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
 class _ShiftConflictBanner extends StatelessWidget {
   final String title;
   final List<Widget> lines;
+  final Widget? footer;
 
   const _ShiftConflictBanner({
     super.key,
     required this.title,
     required this.lines,
+    this.footer,
   });
 
   @override
@@ -790,13 +863,16 @@ class _ShiftConflictBanner extends StatelessWidget {
                 color: AppColors.urgentAmber,
               ),
               const SizedBox(width: 6),
-              Text(
-                title,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: AppColors.urgentAmber,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    color: AppColors.urgentAmber,
+                  ),
                 ),
               ),
             ],
@@ -805,6 +881,7 @@ class _ShiftConflictBanner extends StatelessWidget {
             const SizedBox(height: 6),
             line,
           ],
+          ?footer,
         ],
       ),
     );

@@ -86,11 +86,13 @@ abstract class SchedulingRepository {
   Future<Result<CreateShiftDraft>> getShiftDraft(String shiftId);
 
   /// Saves an edited shift like the web: `PATCH /shifts/{id}` with
-  /// [payload], then `PUT /shifts/{id}/assignments` with [staffIds].
+  /// [payload], then `PUT /shifts/{id}/assignments` with [staffIds]
+  /// (and optional [restOverrideReason] for short-rest audits).
   Future<Result<void>> updateShift({
     required String shiftId,
     required Map<String, dynamic> payload,
     required List<String> staffIds,
+    String? restOverrideReason,
   });
 
   /// Manager decision on a pending shift-swap request.

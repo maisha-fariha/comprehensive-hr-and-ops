@@ -242,6 +242,73 @@ class AiDailyLogDraftObservations {
   });
 }
 
+/// One outstanding job from web "Draft handover note".
+@immutable
+class AiHandoverDraftAction {
+  final String title;
+
+  /// `normal` | `important` | `urgent`.
+  final String priority;
+
+  const AiHandoverDraftAction({
+    required this.title,
+    this.priority = 'normal',
+  });
+}
+
+/// Resident block from web "Draft handover note".
+@immutable
+class AiHandoverClientUpdate {
+  final String clientId;
+  final String clientName;
+
+  /// `stable` | `needs_attention` | `urgent`.
+  final String status;
+  final Map<String, String> health;
+  final Map<String, String> medication;
+  final List<String> careCompleted;
+  final Map<String, String> care;
+
+  const AiHandoverClientUpdate({
+    required this.clientId,
+    required this.clientName,
+    this.status = 'stable',
+    this.health = const {},
+    this.medication = const {},
+    this.careCompleted = const [],
+    this.care = const {},
+  });
+}
+
+/// Web "Draft handover note" (`POST /ai/handovers/draft`).
+@immutable
+class AiHandoverDraft {
+  final String summary;
+  final List<AiHandoverDraftAction> actions;
+  final String? flagCategory;
+  final String? flagNote;
+  final List<AiHandoverClientUpdate> clientUpdates;
+  final String? model;
+
+  const AiHandoverDraft({
+    required this.summary,
+    this.actions = const [],
+    this.flagCategory,
+    this.flagNote,
+    this.clientUpdates = const [],
+    this.model,
+  });
+
+  AiHandoverDraft copyWith({String? summary}) => AiHandoverDraft(
+        summary: summary ?? this.summary,
+        actions: actions,
+        flagCategory: flagCategory,
+        flagNote: flagNote,
+        clientUpdates: clientUpdates,
+        model: model,
+      );
+}
+
 /// Web "Tidy my note" (`POST /ai/daily-logs/draft-entry`).
 @immutable
 class AiDailyLogDraftEntry {

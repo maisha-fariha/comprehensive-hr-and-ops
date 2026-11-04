@@ -51,17 +51,45 @@ class ShiftLeaveConflict {
   });
 }
 
+/// Short rest between shifts from `POST /shifts/conflicts` → `rest[]`.
+/// Soft warning: staff can still be rostered with [restOverrideReason].
+class ShiftRestConflict {
+  final String staffId;
+  final String staffName;
+  final String label;
+  final num restHours;
+
+  const ShiftRestConflict({
+    required this.staffId,
+    required this.staffName,
+    required this.label,
+    required this.restHours,
+  });
+
+  /// Web shows `4.5` / `5` without trailing zeros.
+  String get restHoursLabel {
+    final value = restHours;
+    if (value == value.roundToDouble()) return '${value.toInt()}';
+    return '$value';
+  }
+}
+
 /// Result of `POST /shifts/conflicts`.
 class ShiftConflictsResult {
   final bool hasConflict;
   final List<ShiftScheduleConflict> conflicts;
   final List<ShiftLeaveConflict> leave;
+  final List<ShiftRestConflict> rest;
+  final int? minimumRestHours;
 
   const ShiftConflictsResult({
     this.hasConflict = false,
     this.conflicts = const [],
     this.leave = const [],
+    this.rest = const [],
+    this.minimumRestHours,
   });
 
+  /// Overlap / leave block Next; short rest only requires an override reason.
   bool get blocksStaffing => conflicts.isNotEmpty || leave.isNotEmpty;
 }

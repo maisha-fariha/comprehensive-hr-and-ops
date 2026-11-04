@@ -210,4 +210,11 @@ class HandoversRepositoryImpl implements HandoversRepository {
       },
     );
   }
+
+  @override
+  Future<Result<HandoverPrepare>> prepare(String shiftId) => _get(
+        ApiEndpoints.shiftHandoverPrepare,
+        {'shiftId': shiftId},
+        (body) => HandoversMapper.prepareFrom(body, shiftId: shiftId),
+      );
 }

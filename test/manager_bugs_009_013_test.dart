@@ -378,6 +378,14 @@ class _FakeHandoversRepo implements HandoversRepository {
     incomingAfter.add(after);
     return Result.success([_nightShift]);
   }
+
+  HandoverPrepare? prepareResult;
+
+  @override
+  Future<Result<HandoverPrepare>> prepare(String shiftId) async =>
+      Result.success(
+        prepareResult ?? HandoverPrepare(shiftId: shiftId),
+      );
 }
 
 Future<_FakeHandoversRepo> _openHandovers(

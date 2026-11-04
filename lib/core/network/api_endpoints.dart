@@ -71,6 +71,8 @@ abstract final class ApiEndpoints {
   static const String residenceActivity = '/residence-activity';
   static const String careFlags = '/care-flags';
   static const String shiftHandovers = '/shift-handovers';
+  /// `GET /shift-handovers/prepare?shiftId=` — notes, unfinished tasks, incidents.
+  static const String shiftHandoverPrepare = '/shift-handovers/prepare';
   static const String clientActivities = '/client-activities';
   /// Web resident day feed (`GET /clients/:id/daily-activity-feed?date=`).
   static String clientDailyActivityFeed(String clientId) =>
@@ -96,6 +98,8 @@ abstract final class ApiEndpoints {
   static const String aiDailyLogsAskDay = '/ai/daily-logs/ask-day';
   /// Web "Tidy my note" (`POST /ai/daily-logs/draft-entry`).
   static const String aiDailyLogsDraftEntry = '/ai/daily-logs/draft-entry';
+  /// Web "Draft handover note" (`POST /ai/handovers/draft`).
+  static const String aiHandoversDraft = '/ai/handovers/draft';
   static const String aiSchedulingReview = '/ai/scheduling/review';
   static const String aiTrainingGaps = '/ai/training/gaps';
   static const String aiInventoryReorder = '/ai/inventory/reorder';

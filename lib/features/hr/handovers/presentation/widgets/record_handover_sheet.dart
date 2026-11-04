@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/formatting/web_formats.dart';
+import '../../../ai/domain/entities/ai_assist.dart';
+import '../../../ai/presentation/widgets/ai_draft_sheet.dart';
+import '../../../ai/presentation/widgets/ai_feature_sheets.dart';
 import '../../../attendance/presentation/widgets/attendance_record_card.dart';
 import '../../domain/entities/handover_options.dart';
+import '../../domain/entities/shift_handover.dart';
 import '../controllers/handovers_controller.dart';
 import '../handover_labels.dart';
+import 'draft_handover_note_sheet.dart';
 import 'handover_common.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
@@ -63,8 +68,17 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
   final List<HandoverJobDraft> _jobs = [];
   final List<HandoverClientDraft> _updates = [];
 
+  /// Web `GET /shift-handovers/prepare` — dynamic notes / tasks / incidents.
+  HandoverPrepare? _prepare;
+  bool _prepareLoading = false;
+  final Set<String> _excludedNoteIds = {};
+  final Set<String> _excludedTaskIds = {};
+  final Set<String> _excludedIncidentIds = {};
+
   String? _incomingKey;
   String? _clientsKey;
+  String? _prepareKey;
+  bool? _aiDraftingEnabled;
 
   HandoversController get _c => widget.controller;
 
@@ -84,6 +98,10 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
     _residenceId = _c.residenceId.value ?? '';
     _loadMyShifts();
     _loadResidenceShifts();
+    aiDraftingEnabled().then((enabled) {
+      if (!mounted) return;
+      setState(() => _aiDraftingEnabled = enabled);
+    });
   }
 
   @override
@@ -130,7 +148,77 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
       _clientsKey = residence;
       _loadClients(residence);
     }
+    final shiftId = _shiftId;
+    if (shiftId != _prepareKey) {
+      _prepareKey = shiftId;
+      _loadPrepare(shiftId);
+    }
   }
+
+  Future<void> _loadPrepare(String shiftId) async {
+    if (shiftId.isEmpty) {
+      setState(() {
+        _prepare = null;
+        _prepareLoading = false;
+        _excludedNoteIds.clear();
+        _excludedTaskIds.clear();
+        _excludedIncidentIds.clear();
+      });
+      return;
+    }
+    setState(() {
+      _prepareLoading = true;
+      _excludedNoteIds.clear();
+      _excludedTaskIds.clear();
+      _excludedIncidentIds.clear();
+    });
+    final result = await _c.repository.prepare(shiftId);
+    if (!mounted || shiftId != _prepareKey) return;
+    result.when(
+      success: (data) => setState(() {
+        _prepare = data;
+        _prepareLoading = false;
+        // Prefer prepare's incoming list when the API returns it (web).
+        if (data.incomingShifts.isNotEmpty) {
+          _incoming = [
+            for (final s in data.incomingShifts)
+              HandoverShift(
+                id: s.id,
+                residenceId: s.residenceId ?? _effectiveResidence,
+                residenceName: s.residenceName,
+                title: s.title,
+                shiftType: s.shiftType,
+                startsAt: s.startsAt,
+                endsAt: s.endsAt,
+                staff: s.staff,
+              ),
+          ];
+        }
+      }),
+      failure: (_) => setState(() {
+        _prepare = null;
+        _prepareLoading = false;
+      }),
+    );
+  }
+
+  List<String> get _selectedEntryIds => [
+        for (final n in _prepare?.notesForNextShift ?? const <HandoverNextNote>[])
+          if (!_excludedNoteIds.contains(n.id)) n.id,
+      ];
+
+  List<String> get _selectedTaskIds => [
+        for (final t in _prepare?.unfinishedTasks ?? const <HandoverHandedTask>[])
+          if (t.suggested
+              ? !_excludedTaskIds.contains(t.id)
+              : _excludedTaskIds.contains(t.id))
+            t.id,
+      ];
+
+  List<String> get _selectedIncidentIds => [
+        for (final i in _prepare?.incidents ?? const <HandoverIncident>[])
+          if (!_excludedIncidentIds.contains(i.id)) i.id,
+      ];
 
   Future<void> _loadIncoming(String residence, DateTime? after, String key) async {
     if (!_canReadShifts || residence.isEmpty) {
@@ -163,6 +251,9 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
       return;
     }
     setState(() => _saving = true);
+    final entryIds = _selectedEntryIds;
+    final taskIds = _selectedTaskIds;
+    final incidentIds = _selectedIncidentIds;
     final result = await _c.repository.create({
       'residenceId': residence,
       'summary': summary,
@@ -172,6 +263,9 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
       'status': draft ? 'draft' : 'submitted',
       if (_shiftId.isNotEmpty) 'fromShiftId': _shiftId,
       if (_toShiftId.isNotEmpty) 'toShiftId': _toShiftId,
+      if (entryIds.isNotEmpty) 'entryIds': entryIds,
+      if (taskIds.isNotEmpty) 'taskIds': taskIds,
+      if (incidentIds.isNotEmpty) 'incidentIds': incidentIds,
       if (_flag.isNotEmpty) 'flagForAttention': {'category': _flag},
     });
     if (!mounted) return;
@@ -202,6 +296,99 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
       _jobs.add(HandoverJobDraft(title: title, priority: _jobPriority));
       _jobTitle.clear();
       _jobPriority = 'normal';
+    });
+  }
+
+  Future<void> _draftHandoverNote() async {
+    final residence = _effectiveResidence;
+    if (residence.isEmpty) {
+      AppSnackbar.show(
+        'Residence required',
+        'Choose a shift or residence before drafting.',
+        force: true,
+      );
+      return;
+    }
+    final draft = await showDraftHandoverNoteSheet(
+      context,
+      residenceId: residence,
+      shiftStartsAt: _shift?.startsAt,
+      shiftEndsAt: _shift?.endsAt,
+    );
+    if (!mounted || draft == null) return;
+    _applyAiDraft(draft);
+  }
+
+  void _applyAiDraft(AiHandoverDraft draft) {
+    const statusRank = ['stable', 'needs_attention', 'urgent'];
+    int rank(String status) {
+      final i = statusRank.indexOf(status);
+      return i < 0 ? 0 : i;
+    }
+
+    void fillEmpty(Map<String, String> target, Map<String, String> source) {
+      for (final entry in source.entries) {
+        final next = entry.value.trim();
+        if (next.isEmpty) continue;
+        final current = target[entry.key]?.trim() ?? '';
+        if (current.isEmpty) target[entry.key] = next;
+      }
+    }
+
+    setState(() {
+      _summary.text = draft.summary;
+      for (final action in draft.actions) {
+        final title = action.title.trim();
+        if (title.isEmpty) continue;
+        final exists = _jobs.any(
+          (job) => job.title.trim().toLowerCase() == title.toLowerCase(),
+        );
+        if (!exists) {
+          _jobs.add(
+            HandoverJobDraft(title: title, priority: action.priority),
+          );
+        }
+      }
+      if (_toShiftId.isEmpty && _incoming.isNotEmpty) {
+        _toShiftId = _incoming.first.id;
+      }
+      final flag = draft.flagCategory?.trim() ?? '';
+      if (flag.isNotEmpty && _flag.isEmpty) {
+        final known = HandoverLabels.flagCategories.any((o) => o.$1 == flag);
+        if (known) _flag = flag;
+      }
+      for (final incoming in draft.clientUpdates) {
+        final existingIndex = _updates.indexWhere(
+          (u) => u.clientId == incoming.clientId,
+        );
+        if (existingIndex >= 0) {
+          final current = _updates[existingIndex];
+          if (rank(incoming.status) > rank(current.status)) {
+            current.status = incoming.status;
+          }
+          fillEmpty(current.health, incoming.health);
+          fillEmpty(current.medication, incoming.medication);
+          fillEmpty(current.care, incoming.care);
+          for (final item in incoming.careCompleted) {
+            if (!current.careCompleted.contains(item)) {
+              current.careCompleted.add(item);
+            }
+          }
+        } else {
+          final created = HandoverClientDraft(
+            clientId: incoming.clientId,
+            clientName: incoming.clientName,
+          )..status = incoming.status;
+          created.health.addAll(incoming.health);
+          created.medication.addAll(incoming.medication);
+          created.care.addAll(incoming.care);
+          created.careCompleted.addAll(incoming.careCompleted);
+          _updates.add(created);
+        }
+      }
+      if (draft.clientUpdates.isNotEmpty) {
+        _expandedClientId = draft.clientUpdates.first.clientId;
+      }
     });
   }
 
@@ -351,6 +538,103 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
                       ),
                     ),
                   ],
+                  if (_prepareLoading) ...[
+                    gap,
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: CircularProgressIndicator(
+                          color: AppColors.secondaryTeal,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_prepare != null) ...[
+                    if (_prepare!.incidents.isNotEmpty) ...[
+                      gap,
+                      _SelectableBundle(
+                        key: const ValueKey('record-handover-incidents'),
+                        title: 'Incidents on this shift',
+                        helper:
+                            'Linked to the handover so the incoming shift sees them. Untick any that do not need handing over.',
+                        borderColor: AppColors.urgentAmber.withValues(alpha: 0.45),
+                        background: AppColors.urgentBackground,
+                        children: [
+                          for (final incident in _prepare!.incidents)
+                            _BundleCheck(
+                              key: ValueKey('record-handover-incident-${incident.id}'),
+                              selected: !_excludedIncidentIds.contains(incident.id),
+                              label: [
+                                if ((incident.reference ?? '').isNotEmpty)
+                                  '${incident.reference} · ',
+                                incident.title ?? 'Untitled incident',
+                              ].join(),
+                              badge: incident.severity,
+                              onToggle: () => setState(() {
+                                if (!_excludedIncidentIds.remove(incident.id)) {
+                                  _excludedIncidentIds.add(incident.id);
+                                }
+                              }),
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (_prepare!.notesForNextShift.isNotEmpty) ...[
+                      gap,
+                      _SelectableBundle(
+                        key: const ValueKey('record-handover-next-notes'),
+                        title: 'Notes for the next shift',
+                        helper:
+                            'Marked by the carers who wrote them. They go with this handover as written; untick one only if you say it yourself above.',
+                        borderColor: AppColors.secondaryTeal.withValues(alpha: 0.35),
+                        background: AppColors.secondaryTeal.withValues(alpha: 0.06),
+                        children: [
+                          for (final note in _prepare!.notesForNextShift)
+                            _BundleCheck(
+                              key: ValueKey('record-handover-note-${note.id}'),
+                              selected: !_excludedNoteIds.contains(note.id),
+                              label: [
+                                if ((note.clientName ?? '').isNotEmpty)
+                                  '${note.clientName}: ',
+                                note.body,
+                              ].join(),
+                              onToggle: () => setState(() {
+                                if (!_excludedNoteIds.remove(note.id)) {
+                                  _excludedNoteIds.add(note.id);
+                                }
+                              }),
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (_prepare!.unfinishedTasks.isNotEmpty) ...[
+                      gap,
+                      _SelectableBundle(
+                        key: const ValueKey('record-handover-unfinished'),
+                        title: 'Unfinished tasks',
+                        helper:
+                            "Handed on with this handover — whoever takes it becomes their assignee. Untick any that are not the next shift's to do.",
+                        borderColor: AppColors.infoBlue.withValues(alpha: 0.4),
+                        background: AppColors.infoBackground,
+                        children: [
+                          for (final task in _prepare!.unfinishedTasks)
+                            _BundleCheck(
+                              key: ValueKey('record-handover-task-${task.id}'),
+                              selected: task.suggested
+                                  ? !_excludedTaskIds.contains(task.id)
+                                  : _excludedTaskIds.contains(task.id),
+                              label: task.title,
+                              badge: task.overdue ? 'Overdue' : null,
+                              onToggle: () => setState(() {
+                                if (!_excludedTaskIds.remove(task.id)) {
+                                  _excludedTaskIds.add(task.id);
+                                }
+                              }),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
                   gap,
                   HandoverSelect(
                     key: const ValueKey('record-handover-applies'),
@@ -375,6 +659,19 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
                           },
                   ),
                   gap,
+                  if (_aiDraftingEnabled == true) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: AiAssistButton(
+                        buttonKey: const ValueKey('record-handover-draft-ai'),
+                        label: 'Draft handover note',
+                        onPressed: _effectiveResidence.isEmpty
+                            ? null
+                            : _draftHandoverNote,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   HandoverTextArea(
                     key: const ValueKey('record-handover-summary'),
                     label: 'Summary',
@@ -929,4 +1226,95 @@ class _GroupTitle extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 10),
         child: Text(text, style: handoverText(context, 12.5, weight: FontWeight.w700)),
       );
+}
+
+/// Web prepare bundle (notes / tasks / incidents) with opt-out checkboxes.
+class _SelectableBundle extends StatelessWidget {
+  final String title;
+  final String helper;
+  final Color borderColor;
+  final Color background;
+  final List<Widget> children;
+
+  const _SelectableBundle({
+    super.key,
+    required this.title,
+    required this.helper,
+    required this.borderColor,
+    required this.background,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: handoverText(context, 12.5, weight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(helper, style: handoverText(context, 12, color: AppColors.textMuted)),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _BundleCheck extends StatelessWidget {
+  final bool selected;
+  final String label;
+  final String? badge;
+  final VoidCallback onToggle;
+
+  const _BundleCheck({
+    super.key,
+    required this.selected,
+    required this.label,
+    required this.onToggle,
+    this.badge,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onToggle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: selected,
+                onChanged: (_) => onToggle(),
+                activeColor: AppColors.secondaryTeal,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(label, style: handoverText(context, 13)),
+            ),
+            if ((badge ?? '').isNotEmpty) ...[
+              const SizedBox(width: 6),
+              AttendancePill(
+                label: badge!,
+                tone: AttendanceTone.danger,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }

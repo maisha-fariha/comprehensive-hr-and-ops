@@ -302,6 +302,7 @@ abstract final class StaffScheduleMapper {
         'Staff',
       ),
       statusLabel: statusLabel,
+      apiStatus: statusRaw,
       staffingLevel: ratio >= 0.9
           ? StaffingLevel.high
           : ratio >= 0.7
