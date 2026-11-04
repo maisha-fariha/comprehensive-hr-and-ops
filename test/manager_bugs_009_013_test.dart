@@ -404,7 +404,12 @@ class _CheckSession extends _Session {
   _CheckSession({this.denied = const {}});
 
   @override
-  bool can(String permission) => !denied.contains(permission);
+  bool can(String permission) {
+    // Touch reactive permission state so HrBottomNavBar's Obx can track.
+    permissionsReady;
+    permissions;
+    return !denied.contains(permission);
+  }
 }
 
 final _halfHourly = CheckSchedule(
@@ -962,6 +967,117 @@ class _FakeDailyLogsRepo implements DailyLogsRepository {
       fileName: fileName,
     ));
   }
+
+  DailyLogBoard boardData = const DailyLogBoard(
+    residenceId: 'elm',
+    date: '2026-11-04',
+    counts: DailyLogBoardCounts(notesMissing: 1, openFlags: 1),
+    residents: [
+      DailyLogBoardResident(
+        clientId: 'c1',
+        name: 'Ayaan Karim',
+        room: '101',
+        notes: 0,
+        gaps: [DailyLogBoardGap(type: 'no_entries', detail: 'Nothing written for the day')],
+      ),
+      DailyLogBoardResident(
+        clientId: 'c2',
+        name: 'Nadia Islam',
+        room: '102',
+        notes: 1,
+        lastNoteBy: 'Jamal U.',
+      ),
+    ],
+  );
+
+  @override
+  Future<Result<DailyLogBoard>> board({
+    required String residenceId,
+    required String date,
+  }) async {
+    return Result.success(
+      DailyLogBoard(
+        residenceId: residenceId,
+        date: date,
+        counts: boardData.counts,
+        residents: boardData.residents,
+        forNextShift: boardData.forNextShift,
+        notHandedOver: boardData.notHandedOver,
+        shifts: [
+          DailyLogBoardShift(
+            id: 'sh1',
+            title: 'First Shift of day',
+            startsAt: DateTime(2026, 11, 4, 12, 30),
+            endsAt: DateTime(2026, 11, 4, 14, 30),
+            onDuty: const [
+              DailyLogBoardOnDuty(staffId: 's1', name: 'Jamal U.', late: false),
+            ],
+          ),
+        ],
+        handovers: const [
+          DailyLogBoardHandover(
+            id: 'h1',
+            status: 'submitted',
+            givenBy: 'Jamal U.',
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<Result<DailyActivityFeed>> activityFeed({
+    required String clientId,
+    required String date,
+  }) async =>
+      Result.success(
+        DailyActivityFeed(
+          clientId: clientId,
+          date: date,
+          counts: const {'mar': 1, 'tasks': 1},
+          items: [
+            DailyActivityFeedItem(
+              id: 'f1',
+              module: 'mar',
+              type: 'administered',
+              title: 'Paracetamol',
+              detail: 'Given',
+              occurredAt: DateTime(2026, 11, 4, 13, 15),
+              staffName: 'Jamal Uddin',
+            ),
+          ],
+        ),
+      );
+
+  @override
+  Future<Result<DailySummary?>> daySummary({
+    required String clientId,
+    required String day,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<DailySummary?>> generateDaySummary({
+    required String clientId,
+    required String day,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<DailySummary>> updateDaySummary(
+    String id, {
+    required String summary,
+    String? familySummary,
+  }) async =>
+      Result.failure(const ApiError(message: 'not stubbed'));
+
+  @override
+  Future<Result<DailySummary>> shareDaySummary(String id) async =>
+      Result.failure(const ApiError(message: 'not stubbed'));
+
+  @override
+  Future<Result<DailySummary>> unshareDaySummary(String id) async =>
+      Result.failure(const ApiError(message: 'not stubbed'));
 }
 
 /// Backs the bottom-nav alerts badge on pages that show [HrBottomNavBar].
@@ -1912,12 +2028,6 @@ void main() {
   });
 
   group('BUG13 Daily Logs', () {
-    final now = DateTime.now();
-    final today = DailyLogsController.dayKey(now);
-    String shown(String key) => WebFormat.date(DateTime.parse(key));
-    Finder inKey(String key, Finder matching) =>
-        find.descendant(of: find.byKey(ValueKey(key)), matching: matching);
-
     test('mapper reads the live payloads; window label and default time match the web', () {
       expect(DailyLogsMapper.dayFrom({'success': true, 'data': null}), isNull);
       final day = DailyLogsMapper.dayFrom({
@@ -1982,7 +2092,54 @@ void main() {
       expect(NewLogEntrySheet.defaultOccurredAt('2026-09-29', now: clock), clock);
       expect(NewLogEntrySheet.defaultOccurredAt('2026-08-27', now: clock), DateTime(2026, 8, 27, 12));
 
-      // Web `aw()` defaults From/To to today (daily view), not last 7 days.
+      final board = DailyLogsMapper.boardFrom({
+        'data': {
+          'residenceId': 'elm',
+          'date': '2026-11-04',
+          'counts': {'notesMissing': 2, 'dosesMissing': 0, 'checksMissing': 0, 'openFlags': 1},
+          'residents': [
+            {
+              'clientId': 'c1',
+              'name': 'Client One',
+              'room': '102',
+              'notes': 0,
+              'gaps': [
+                {'type': 'no_entries', 'detail': 'Nothing written for the day'},
+              ],
+              'flags': [],
+            },
+          ],
+          'forNextShift': [],
+          'notHandedOver': [],
+          'shifts': [],
+          'handovers': [],
+        },
+      });
+      expect(board.residents.single.name, 'Client One');
+      expect(board.counts.notesMissing, 2);
+      expect(board.residents.single.needsSomething, isTrue);
+
+      final feed = DailyLogsMapper.activityFeedFrom({
+        'data': {
+          'clientId': 'c1',
+          'date': '2026-11-04',
+          'counts': {'mar': 5, 'tasks': 1},
+          'items': [
+            {
+              'id': 'm1',
+              'module': 'mar',
+              'type': 'administered',
+              'title': 'Callppp',
+              'detail': 'Given',
+              'occurredAt': '2026-11-04T07:15:00.000Z',
+            },
+          ],
+        },
+      });
+      expect(feed.counts['mar'], 5);
+      expect(feed.items.single.detail, 'Given');
+
+      // Web defaults From/To to today (daily view), not last 7 days.
       final today = DailyLogsController.dayKey(DateTime.now());
       final defaults = DailyLogsController(
         repository: _FakeDailyLogsRepo(),
@@ -1990,581 +2147,161 @@ void main() {
       );
       expect(defaults.from.value, today);
       expect(defaults.to.value, today);
+      expect(defaults.tab.value, DailyLogsTab.today);
       defaults.dispose();
     });
 
-    testWidgets('starts on the operational logbook for all residences, with All staff '
-        'and From / To defaulting to today (web daily view)', (tester) async {
-      final (repo, _) = await _openLogs(tester);
+    testWidgets('opens on Today with home picker, tabs, and board residents', (tester) async {
+      final (repo, c) = await _openLogs(tester);
 
-      expect(find.text('Daily Logs & Operations'), findsOneWidget);
-      expect(find.text('All residences'), findsOneWidget);
-      expect(find.text('All staff'), findsOneWidget);
-      expect(find.text('Residence *'), findsNothing);
-      expect(inKey('dl-from', find.text(shown(today))), findsOneWidget);
-      expect(inKey('dl-to', find.text(shown(today))), findsOneWidget);
-      for (final tab in [
-        'Daily Log',
-        'Resident Activity',
-        'Operational Logbook',
-        'Missing Logs',
-        'Shift Sign-Off',
-      ]) {
+      expect(find.text('Daily Logs'), findsWidgets);
+      expect(
+        find.text('What each resident needs today, and the notes written about them.'),
+        findsOneWidget,
+      );
+      expect(c.tab.value, DailyLogsTab.today);
+      for (final tab in ['Today', 'Review', 'Activities']) {
         expect(find.text(tab), findsOneWidget);
       }
-      expect(find.text('Choose a residence to begin'), findsNothing);
-      expect(find.byKey(const ValueKey('dl-kpi-entries')), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-shift-docs')), findsNothing);
-      expect(repo.clientQueries, [null]);
-      expect(repo.activityQueries, [
-        {
-          'residenceId': null,
-          'staffId': null,
-          'from': today,
-          'to': today,
-          'page': 1,
-          'limit': 20,
-        },
-      ]);
-      Map<String, Object?> wide(String status, String residence) => {
-            'status': status,
-            'residenceId': residence,
-            'clientId': null,
-            'from': today,
-            'to': today,
-            'page': 1,
-            'limit': 100,
-          };
-      expect(repo.queueQueries, [
-        wide('review', 'elm'),
-        wide('review', 'oak'),
-        wide('missing', 'elm'),
-        wide('missing', 'oak'),
-      ]);
-      expect(repo.flagQueries, [null]);
+      expect(find.text('Choose a home'), findsWidgets);
+      expect(find.byKey(const ValueKey('dl-tab-today')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-tab-review')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-tab-activities')), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('dl-from')));
-      await tester.pumpAndSettle();
-      expect(find.byType(DatePickerDialog), findsOneWidget);
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-    });
-
-    testWidgets('choosing a residence loads both queues, the KPIs and the resident list; '
-        'Resident filters and a new residence clears it', (tester) async {
-      final (repo, _) = await _openLogs(tester);
       await _pickResidence(tester);
-
-      Map<String, Object?> q(
-        String status, {
-        String r = 'elm',
-        String? c,
-        int limit = 20,
-      }) =>
-          {
-            'status': status,
-            'residenceId': r,
-            'clientId': c,
-            'from': today,
-            'to': today,
-            'page': 1,
-            'limit': limit,
-          };
-      expect(repo.queueQueries.sublist(repo.queueQueries.length - 2), [
-        q('review'),
-        q('missing'),
-      ]);
-      expect(repo.clientQueries, [null, 'elm']);
-      expect(repo.shiftQueries, [
-        {'residenceId': 'elm', 'logDate': today},
-      ]);
-      expect(repo.flagQueries, [null, 'elm']);
-
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      String md(String key) {
-        final d = DateTime.parse(key);
-        return '${months[d.month - 1]} ${d.day}';
-      }
-
-      expect(inKey('dl-kpi-entries', find.text('5')), findsOneWidget);
-      expect(inKey('dl-kpi-entries', find.text('ENTRIES TO SIGN OFF')), findsOneWidget);
-      expect(inKey('dl-kpi-entries', find.text(md(today))), findsOneWidget);
-      expect(inKey('dl-kpi-review', find.text('7')), findsOneWidget);
-      expect(inKey('dl-kpi-review', find.text('Finished shifts not yet signed off')), findsOneWidget);
-      expect(inKey('dl-kpi-missing', find.text('4')), findsOneWidget);
-      expect(inKey('dl-kpi-missing', find.text('A dose, a check or a note owed')), findsOneWidget);
-      expect(inKey('dl-kpi-flags', find.text('2')), findsOneWidget);
-      expect(inKey('dl-kpi-flags', find.text('Raised and not yet resolved')), findsOneWidget);
-
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
-      expect(inKey('dl-review-c1-2026-08-27', find.text('Ayaan Karim')), findsOneWidget);
-      expect(inKey('dl-review-c1-2026-08-27', find.text('2026-08-27')), findsOneWidget);
-      expect(inKey('dl-review-c1-2026-08-27', find.text('2')), findsOneWidget);
-      expect(find.text('Open day'), findsNWidgets(2));
-
-      await _choose(tester, find.byKey(const ValueKey('dl-resident')), 'Nadia Islam');
-      expect(repo.queueQueries.sublist(repo.queueQueries.length - 2), [
-        q('review', c: 'c2'),
-        q('missing', c: 'c2'),
-      ]);
-
-      await _pickResidence(tester, 'Oak Lodge');
-      expect(find.text('All residents'), findsOneWidget);
-      expect(repo.queueQueries.sublist(repo.queueQueries.length - 2), [
-        q('review', r: 'oak'),
-        q('missing', r: 'oak'),
-      ]);
-      expect(repo.clientQueries, [null, 'elm', 'oak']);
+      await tester.pumpAndSettle();
+      expect(c.residenceId.value, 'elm');
+      expect(find.text('Ayaan Karim'), findsOneWidget);
+      expect(find.text('Nadia Islam'), findsOneWidget);
+      expect(find.text('No note yet'), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-write-c1')), findsOneWidget);
+      expect(find.text('For the next shift'), findsOneWidget);
+      expect(repo.flagQueries, isNotEmpty);
     });
 
-    testWidgets('From after To (or To before From) collapses both, as the web does', (tester) async {
+    testWidgets('Write note opens care note sheet with for-next-shift toggle', (tester) async {
       final (repo, c) = await _openLogs(tester);
       await _pickResidence(tester);
-
-      c.setFrom('2099-01-01');
-      expect((c.from.value, c.to.value), ('2099-01-01', '2099-01-01'));
-      c.setTo('2000-01-01');
-      expect((c.from.value, c.to.value), ('2000-01-01', '2000-01-01'));
-      c.setFrom('2026-09-17');
-      c.setTo('2026-09-23');
       await tester.pumpAndSettle();
-      expect((c.from.value, c.to.value), ('2026-09-17', '2026-09-23'));
-      expect(repo.queueQueries.last['from'], '2026-09-17');
-      expect(repo.queueQueries.last['to'], '2026-09-23');
-      expect(inKey('dl-kpi-entries', find.text('Sep 17 – Sep 23')), findsOneWidget);
-      expect(inKey('dl-from', find.text('17/09/2026')), findsOneWidget);
-      expect(inKey('dl-to', find.text('23/09/2026')), findsOneWidget);
+
+      await _tap(tester, find.byKey(const ValueKey('dl-write-c1')));
+      expect(c.clientId.value, 'c1');
+      expect(find.textContaining('Care note'), findsWidgets);
+      expect(find.byKey(const ValueKey('dl-new-entry')), findsOneWidget);
+
+      // Advance to the notes step where for-next-shift lives.
+      await _tap(tester, find.byKey(const ValueKey('dl-new-next')));
+      await _tap(tester, find.byKey(const ValueKey('dl-new-next')));
+      expect(find.byKey(const ValueKey('dl-new-for-next-shift')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-new-flag')), findsOneWidget);
     });
 
-    testWidgets('Missing tab "Write entry" opens that resident-day with a Date picker and '
-        'Add Care Note', (tester) async {
+    testWidgets('opening a resident shows The day feed, stats, and Record menu', (tester) async {
+      final (_, c) = await _openLogs(tester);
+      await _pickResidence(tester);
+      await tester.pumpAndSettle();
+
+      await _tap(tester, find.byKey(const ValueKey('dl-board-c1')));
+      await tester.pumpAndSettle();
+      expect(c.viewingResidentDay, isTrue);
+      expect(find.byKey(const ValueKey('dl-back-today')), findsOneWidget);
+      expect(find.text('Today so far'), findsOneWidget);
+      expect(find.text('The day'), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-record-menu')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-feed-filter-all')), findsOneWidget);
+
+      await _tap(tester, find.byKey(const ValueKey('dl-back-today')));
+      expect(c.viewingResidentDay, isFalse);
+      expect(find.text('Ayaan Karim'), findsOneWidget);
+    });
+
+    testWidgets('Review tab shows open flags; Activities loads house activity', (tester) async {
       final (repo, c) = await _openLogs(tester);
       await _pickResidence(tester);
+      await tester.pumpAndSettle();
 
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-day')));
-      expect(find.text('A day view is one resident on one date.'), findsOneWidget);
-      // Web keeps "+ Add Care Note" on Resident Activity even before a resident
-      // is chosen; tapping it asks for residence + resident.
-      expect(find.byKey(const ValueKey('dl-add-care-note')), findsOneWidget);
-
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-section-log')));
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-missing')));
-      expect(find.text('DAY WITH NO LOG'), findsOneWidget);
-      expect(inKey('dl-missing-c2-2026-08-28', find.text('2026-08-28')), findsOneWidget);
-
-      await _tap(tester, find.byKey(const ValueKey('dl-write-c2-2026-08-28')));
-      expect(c.tab.value, DailyLogsTab.day);
-      expect(repo.dayQueries.last, {'clientId': 'c2', 'residenceId': 'elm', 'logDate': '2026-08-28'});
-      expect(repo.shiftQueries.last, {'residenceId': 'elm', 'logDate': '2026-08-28'});
-      expect(inKey('dl-date', find.text('28/08/2026')), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-from')), findsNothing);
-      expect(find.byKey(const ValueKey('dl-kpi-entries')), findsNothing);
-      expect(inKey('dl-resident', find.text('Nadia Islam')), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-add-care-note')), findsOneWidget);
-    });
-
-    testWidgets('BUG14: Missing rows offer only "Write entry" - no Send Reminder or '
-        'Contact Staff', (tester) async {
-      await _openLogs(tester);
-      await _pickResidence(tester);
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-missing')));
-
-      expect(find.byKey(const ValueKey('dl-write-c2-2026-08-28')), findsOneWidget);
-      expect(find.text('Write entry'), findsWidgets);
-      for (final removed in ['Send Reminder', 'Contact Staff', 'Remind', 'Contact']) {
-        expect(find.textContaining(removed), findsNothing);
-      }
-    });
-
-    testWidgets('a resident outside the client list keeps the queue row name', (tester) async {
-      final repo = _FakeDailyLogsRepo()..clientRows = const [];
-      await _openLogs(tester, repo: repo);
-      await _pickResidence(tester);
       await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
+      expect(c.tab.value, DailyLogsTab.review);
+      expect(find.byKey(const ValueKey('dl-priority-notes')), findsOneWidget);
+      expect(find.text('Waiting for sign-off'), findsOneWidget);
+      expect(find.text('Needs a note'), findsOneWidget);
 
-      await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
-      expect(inKey('dl-resident', find.text('Ayaan Karim')), findsOneWidget);
-
-      await _tap(tester, find.byKey(const ValueKey('dl-add-care-note')));
-      expect(find.text('Care documentation for Ayaan Karim on 2026-08-27.'), findsOneWidget);
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-activities')));
+      expect(c.tab.value, DailyLogsTab.activities);
+      expect(repo.activityQueries, isNotEmpty);
+      expect(find.byKey(const ValueKey('dl-record-activity')), findsOneWidget);
+      expect(find.textContaining('Handover acknowledged'), findsWidgets);
     });
 
-    testWidgets('day timeline: entries and checks by time with every web pill', (tester) async {
-      final (repo, _) = await _openLogs(tester);
-      await _pickResidence(tester);
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
-      await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
-      expect(repo.dayQueries.last, {'clientId': 'c1', 'residenceId': 'elm', 'logDate': '2026-08-27'});
-
-      double top(String key) => tester.getTopLeft(find.byKey(ValueKey(key))).dy;
-      expect(top('dl-entry-e1') < top('dl-entry-e2'), isTrue);
-      expect(top('dl-entry-e2') < top('dl-check-k1'), isTrue);
-      expect(top('dl-check-k1') < top('dl-entry-e3'), isTrue);
-
-      Finder e3(String text) => inKey('dl-entry-e3', find.text(text));
-      expect(e3('Maya Rahman'), findsOneWidget);
-      expect(e3('27/08/2026 14:05'), findsOneWidget);
-      expect(e3('afternoon'), findsOneWidget);
-      expect(e3('medical · flagged'), findsOneWidget);
-      expect(e3('Mood: settled'), findsOneWidget);
-      expect(e3('Community outing: yes'), findsOneWidget);
-      expect(e3('Outing notes: Park'), findsOneWidget);
-      expect(e3('Wellness check done'), findsOneWidget);
-      expect(e3('Bed check not done'), findsOneWidget);
-      expect(e3('Reminder 27/08/2026 18:00'), findsOneWidget);
-      expect(e3('chart.pdf'), findsOneWidget);
-
-      expect(inKey('dl-entry-e1', find.text('Superseded')), findsOneWidget);
-      final struck = tester.widget<Text>(inKey('dl-entry-e1', find.text('Left for school on time.')));
-      expect(struck.style!.decoration, TextDecoration.lineThrough);
-      expect(find.byKey(const ValueKey('dl-entry-amend-e1')), findsNothing);
-      expect(find.byKey(const ValueKey('dl-entry-delete-e1')), findsOneWidget);
-
-      expect(inKey('dl-entry-e2', find.text('Correction')), findsOneWidget);
-      expect(
-        inKey('dl-entry-e2', find.text('Reason for correction: Time was recorded incorrectly.')),
-        findsOneWidget,
-      );
-      expect(inKey('dl-entry-e2', find.textContaining('Wellness check')), findsNothing);
-
-      Finder k1(String text) => inKey('dl-check-k1', find.text(text));
-      expect(k1('Check'), findsOneWidget);
-      expect(k1('Blood pressure'), findsOneWidget);
-      expect(k1('27/08/2026 10:00 · Jamal Uddin'), findsOneWidget);
-      expect(k1('needs review'), findsOneWidget);
-      expect(k1('Slightly high'), findsOneWidget);
-      expect(k1('systolic: 150 mmHg'), findsOneWidget);
-    });
-
-    testWidgets('View opens the entry with its correction history; Amend and Delete call '
-        'the API', (tester) async {
-      final (repo, _) = await _openLogs(tester);
-      await _pickResidence(tester);
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
-      await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
-
-      await _tap(tester, find.byKey(const ValueKey('dl-entry-view-e2')));
-      expect(find.text('Log entry'), findsOneWidget);
-      expect(find.text('27/08/2026 08:33'), findsWidgets);
-      expect(find.text('Sleep_mood'), findsOneWidget);
-      for (final text in [
-        'AUTHOR',
-        'OCCURRED AT',
-        'WRITTEN AT',
-        'REMINDER',
-        'REASON FOR CORRECTION',
-        'Observations',
-        'MOOD',
-        'Settled',
-        'COMMUNITY OUTING',
-        'Yes',
-        'Wellness check completed',
-        'Bed check not completed',
-        'Correction history',
-        'Original',
-        'Correction 1',
-        'This entry',
-        'Reason: Time was recorded incorrectly.',
-      ]) {
-        expect(find.text(text), findsWidgets, reason: text);
-      }
-      expect(find.byKey(const ValueKey('dl-detail-close')), findsOneWidget);
-
-      await tester.tap(find.byKey(const ValueKey('dl-detail-amend')));
-      await tester.pumpAndSettle();
-      expect(find.text('Amend entry'), findsOneWidget);
-      expect(find.text('The original stays on the record; this correction is added beside it.'),
-          findsOneWidget);
-      expect(find.text('ORIGINAL ENTRY'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('dl-amend-save')));
-      await tester.pumpAndSettle();
-      expect(find.text('Both the corrected entry and a reason are required.'), findsOneWidget);
-      expect(repo.amended, isEmpty);
-
-      await _enter(tester, const ValueKey('dl-amend-body'), 'Left 25 minutes late.');
-      await _enter(tester, const ValueKey('dl-amend-reason'), 'Checked the transport log.');
-      final dayLoads = repo.dayQueries.length;
-      await tester.tap(find.byKey(const ValueKey('dl-amend-save')));
-      await tester.pumpAndSettle();
-      expect(repo.amended, [
-        ['e2', 'Left 25 minutes late.', 'Checked the transport log.'],
-      ]);
-      expect(find.text('Correction recorded'), findsOneWidget);
-      expect(repo.dayQueries.length, greaterThan(dayLoads));
-
-      await _tap(tester, find.byKey(const ValueKey('dl-entry-delete-e3')));
-      expect(find.text('Delete this entry?'), findsOneWidget);
-      expect(
-        find.text("It leaves the day's log. A correction to a note is an amendment, not this — "
-            'what was written is kept either way, so it can be restored.'),
-        findsOneWidget,
-      );
-      await tester.tap(find.byKey(const ValueKey('dl-delete-confirm')));
-      await tester.pumpAndSettle();
-      expect(repo.deleted, ['e3']);
-      expect(find.text('Entry deleted'), findsOneWidget);
-    });
-
-    testWidgets('Add Care Note wizard: 3 steps, completion, summary, validation that jumps to '
-        'the failing step, attachments and the web request body', (tester) async {
-      final (repo, _) = await _openLogs(
+    testWidgets('permissions hide Review, Write note, and Resolve', (tester) async {
+      await _openLogs(
         tester,
-        pickFiles: () async => [('/tmp/chart.png', 'chart.png'), ('/tmp/letter.png', 'letter.png')],
+        denied: {
+          'daily-logs:review',
+          'daily-logs:write',
+          'care-flags:resolve',
+          'client-activities:write',
+        },
       );
       await _pickResidence(tester);
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
-      await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
-      await _tap(tester, find.byKey(const ValueKey('dl-add-care-note')));
+      await tester.pumpAndSettle();
 
-      expect(find.text('New Log Entry'), findsOneWidget);
-      expect(find.text('Care documentation for Ayaan Karim on 2026-08-27.'), findsOneWidget);
-      expect(find.text('DAILY LOG WORKFLOW'), findsOneWidget);
-      for (final text in [
-        'Who this is about, and when',
-        'What happened, and how they were',
-        'Checks, attachments and flags',
-      ]) {
-        expect(find.text(text), findsOneWidget);
-      }
-      Finder completion(String text) => inKey('dl-completion', find.text(text));
-      expect(completion('Step 0 of 3'), findsOneWidget);
-      expect(completion('0% complete'), findsOneWidget);
-      expect(inKey('dl-new-occurred', find.text('27/08/2026 12:00')), findsOneWidget);
-      expect(find.text('Defaults to now for today, and midday for a day being filled in.'),
-          findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-new-back')), findsNothing);
-      expect(inKey('dl-entry-summary', find.text('None recorded')), findsOneWidget);
-      expect(inKey('dl-entry-summary', find.text('NONE')), findsOneWidget);
-
-      await _chooseInSheet(tester, find.byKey(const ValueKey('dl-new-shift')), 'Morning');
-      await _chooseInSheet(tester, find.byKey(const ValueKey('dl-new-log-type')), 'Behaviour');
-      expect(completion('Step 1 of 3'), findsOneWidget);
-      expect(completion('33% complete'), findsOneWidget);
-      expect(inKey('dl-entry-summary', find.text('Morning')), findsOneWidget);
-
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-step-notesChecklist')));
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-save')));
-      expect(find.text('Write what happened'), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-new-body')), findsOneWidget);
-      expect(repo.created, isEmpty);
-
-      await _enter(tester, const ValueKey('dl-new-body'), 'Ate breakfast');
-      await _chooseInSheet(tester, find.byKey(const ValueKey('dl-new-mood')), 'Settled');
-      await _enter(tester, const ValueKey('dl-new-meals'), 'Full');
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-outing')));
-      expect(find.byKey(const ValueKey('dl-new-outing-notes')), findsOneWidget);
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-next')));
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-flag')));
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-save')));
-      expect(find.text('Say where they went — the switch on its own records nothing'),
-          findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-new-outing-notes')), findsOneWidget);
-
-      await _enter(tester, const ValueKey('dl-new-outing-notes'), 'Park');
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-next')));
-      await _enter(tester, const ValueKey('dl-new-behaviour'), 'Calm');
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-wellness')));
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-bed')));
-      expect(completion('Step 3 of 3'), findsOneWidget);
-      expect(completion('100% complete'), findsOneWidget);
-      expect(inKey('dl-entry-summary', find.text('Wellness · Bed')), findsOneWidget);
-      expect(inKey('dl-entry-summary', find.text('CATEGORY NEEDED')), findsOneWidget);
-
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-save')));
-      expect(find.text('Say what kind of concern this is'), findsOneWidget);
-      expect(find.text('Say what needs attention'), findsOneWidget);
-      await _chooseInSheet(tester, find.byKey(const ValueKey('dl-new-flag-category')), 'Medical');
-      expect(inKey('dl-entry-summary', find.text('MEDICAL')), findsOneWidget);
-      await _enter(tester, const ValueKey('dl-new-flag-note'), 'Cough');
-
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-attach')));
-      expect(repo.uploads, ['/tmp/chart.png', '/tmp/letter.png']);
-      expect(find.text('letter.png'), findsOneWidget);
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-attach-remove-1')));
-      expect(find.text('letter.png'), findsNothing);
-
-      await _tapInSheet(tester, find.byKey(const ValueKey('dl-new-save')));
-      expect(repo.created, [
-        {
-          'clientId': 'c1',
-          'residenceId': 'elm',
-          'logDate': '2026-08-27',
-          'body': 'Ate breakfast',
-          'occurredAt': DateTime(2026, 8, 27, 12).toUtc().toIso8601String(),
-          'shift': 'morning',
-          'logType': 'behaviour',
-          'observations': {
-            'mood': 'settled',
-            'meals': 'Full',
-            'outingNotes': 'Park',
-            'behaviorNotes': 'Calm',
-            'communityOuting': true,
-          },
-          'wellnessCheckCompleted': true,
-          'bedCheckCompleted': true,
-          'attachments': [
-            {'fileUrl': 'https://files/uploads/chart.png', 'fileType': 'image/png'},
-          ],
-          'flagForAttention': {'category': 'medical', 'note': 'Cough'},
-        },
-      ]);
-      expect(find.text('Entry added'), findsOneWidget);
-      expect(find.text('New Log Entry'), findsNothing);
+      expect(find.byKey(const ValueKey('dl-tab-review')), findsNothing);
+      expect(find.byKey(const ValueKey('dl-write-c1')), findsNothing);
+      expect(find.byKey(const ValueKey('dl-record-activity')), findsNothing);
     });
 
-    testWidgets('Shift documentation saves, completes and signs off like the web', (tester) async {
-      final (repo, _) = await _openLogs(tester);
-      await _pickResidence(tester);
-
-      Finder docs(String text) => inKey('dl-shift-docs', find.text(text));
-      expect(docs('Shift documentation'), findsOneWidget);
-      expect(docs('1 not started'), findsOneWidget);
-      expect(inKey('dl-shift-sl1', find.text('Day shift')), findsOneWidget);
-      expect(inKey('dl-shift-sl1', find.text('Not started')), findsOneWidget);
-      expect(inKey('dl-shift-sl2', find.text('morning · 07:00–15:00')), findsOneWidget);
-      expect(inKey('dl-shift-sl2', find.text('Completed')), findsOneWidget);
-      expect(inKey('dl-shift-sl2', find.text('Completed by Jamal Uddin')), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-shift-complete-sl2')), findsNothing);
-
-      HandoverButton button(String key) => tester.widget<HandoverButton>(find.byKey(ValueKey(key)));
-      expect(button('dl-shift-save-sl1').onPressed, isNull);
-      expect(button('dl-shift-complete-sl1').onPressed, isNull);
-
-      await _enter(tester, const ValueKey('dl-shift-summary-sl1'), 'All calm');
-      await _tap(tester, find.byKey(const ValueKey('dl-shift-save-sl1')));
-      expect(find.text('Summary saved'), findsOneWidget);
-      await _tap(tester, find.byKey(const ValueKey('dl-shift-complete-sl1')));
-      expect(find.text('Shift completed'), findsOneWidget);
-      await _tap(tester, find.byKey(const ValueKey('dl-shift-signoff-sl2')));
-      expect(find.text('Shift signed off'), findsOneWidget);
-      expect(repo.shiftUpdates, [
-        ['sl1', {'summary': 'All calm'}],
-        ['sl1', {'summary': 'All calm', 'status': 'completed'}],
-        ['sl2', {'status': 'locked'}],
-      ]);
-    });
-
-    testWidgets('Shift documentation without write or review shows the summary read-only',
+    testWidgets('care-flags:read gates open flags; care-flags:resolve gates Resolve',
         (tester) async {
-      await _openLogs(tester, denied: {'daily-logs:write', 'daily-logs:review'});
+      await _openLogs(tester, denied: {'care-flags:read', 'care-flags:resolve'});
       await _pickResidence(tester);
-
-      expect(find.byKey(const ValueKey('dl-shift-summary-sl2')), findsNothing);
-      expect(inKey('dl-shift-sl2', find.text('Settled day.')), findsOneWidget);
-      for (final key in ['dl-shift-save-sl1', 'dl-shift-complete-sl1', 'dl-shift-signoff-sl2']) {
-        expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
-      }
-    });
-
-    testWidgets('Priority Notes list the open flags and Resolve records the note', (tester) async {
-      final (repo, _) = await _openLogs(tester);
-      await _pickResidence(tester);
-
-      Finder f1(String text) => inKey('dl-flag-f1', find.text(text));
-      expect(inKey('dl-priority-notes', find.text('2 open')), findsOneWidget);
-      expect(f1('Medical'), findsOneWidget);
-      expect(f1('29 Sep, 08:15'), findsOneWidget);
-      expect(f1('Handover · 2026-09-29'), findsOneWidget);
-      expect(f1('Coughing through the night'), findsOneWidget);
-      expect(f1('Rafi Ahmed · Elm House'), findsOneWidget);
-      expect(inKey('dl-flag-f2', find.text('Unsettled after the evening visit')), findsOneWidget);
-
-      await _tap(tester, find.byKey(const ValueKey('dl-flag-resolve-f1')));
-      expect(find.text('Resolve flag'), findsWidgets);
-      expect(find.text('Say what was done about it — the flag stays on the record with your note.'),
-          findsOneWidget);
-      expect(find.text('MEDICAL'), findsOneWidget);
-      expect(find.text('Coughing through the night'), findsNWidgets(2));
-      await _enter(tester, const ValueKey('dl-resolve-note'), 'GP called');
-      final flagLoads = repo.flagQueries.length;
-      await tester.tap(find.byKey(const ValueKey('dl-resolve-save')));
       await tester.pumpAndSettle();
-      expect(find.text('Flag resolved'), findsOneWidget);
-
-      await _tap(tester, find.byKey(const ValueKey('dl-flag-resolve-f2')));
-      await tester.tap(find.byKey(const ValueKey('dl-resolve-save')));
-      await tester.pumpAndSettle();
-      expect(repo.resolved, [
-        ['f1', 'GP called'],
-        ['f2', null],
-      ]);
-      expect(repo.flagQueries.length, flagLoads + 2);
-    });
-
-    testWidgets('no care-flags:resolve hides Resolve; no daily-logs:write hides Add Care Note, '
-        'Amend and Delete', (tester) async {
-      await _openLogs(tester, denied: {'care-flags:resolve', 'daily-logs:write'});
-      await _pickResidence(tester);
-      expect(find.byKey(const ValueKey('dl-flag-resolve-f1')), findsNothing);
 
       await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
-      await _tap(tester, find.byKey(const ValueKey('dl-open-day-c1-2026-08-27')));
-      expect(find.byKey(const ValueKey('dl-add-care-note')), findsNothing);
-      expect(find.byKey(const ValueKey('dl-entry-view-e3')), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-entry-amend-e3')), findsNothing);
-      expect(find.byKey(const ValueKey('dl-entry-delete-e3')), findsNothing);
+      expect(find.byKey(const ValueKey('dl-priority-notes')), findsNothing);
+      expect(find.text('Waiting for sign-off'), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-flag-resolve-f1')), findsNothing);
     });
 
-    testWidgets('House activity: module pills, staff · residence and Open only where the '
-        'app has that module', (tester) async {
-      final (repo, _) = await _openLogs(tester);
+    testWidgets('daily-logs:write false keeps Review open-day but not Write entry',
+        (tester) async {
+      final (_, c) = await _openLogs(tester, denied: {'daily-logs:write'});
       await _pickResidence(tester);
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-activity')));
+      await tester.pumpAndSettle();
 
-      expect(repo.activityQueries.last, {
-        'residenceId': 'elm',
-        'staffId': null,
-        'from': today,
-        'to': today,
-        'page': 1,
-        'limit': 20,
-      });
-      expect(find.byKey(const ValueKey('dl-kpi-entries')), findsOneWidget);
-      Finder a1(String text) => inKey('dl-activity-a1', find.text(text));
-      expect(a1('16:20'), findsOneWidget);
-      expect(a1('28/09/2026'), findsOneWidget);
-      expect(a1('Handover acknowledged'), findsOneWidget);
-      expect(a1('Ayaan Karim'), findsOneWidget);
-      expect(a1('Handover acknowledged by Priya'), findsOneWidget);
-      expect(a1('Priya Das · Elm House'), findsOneWidget);
-      expect(inKey('dl-activity-a2', find.text('Stock low')), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-activity-open-a1')), findsOneWidget);
-      expect(find.byKey(const ValueKey('dl-activity-open-a2')), findsNothing);
+      expect(find.byKey(const ValueKey('dl-write-c1')), findsNothing);
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
+      expect(c.canWrite, isFalse);
+      expect(find.byKey(const ValueKey('dl-priority-notes')), findsOneWidget);
+      // Missing rows still open the day; write CTA is relabelled.
+      expect(find.text('Write entry'), findsNothing);
     });
 
-    testWidgets('empty states match the web', (tester) async {
+    testWidgets('empty board and empty activities show helpful empty states', (tester) async {
       final repo = _FakeDailyLogsRepo()
+        ..boardData = const DailyLogBoard(
+          residenceId: 'elm',
+          date: '2026-11-04',
+          residents: [],
+        )
+        ..activityRows = []
+        ..flagRows = []
         ..reviewRows = const []
         ..missingRows = const []
-        ..activityRows = const []
-        ..flagRows = const []
-        ..shiftRows = const []
-        ..dayData = null;
+        ..shiftRows = [];
       await _openLogs(tester, repo: repo);
       await _pickResidence(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('No residents match'), findsOneWidget);
 
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
-      expect(find.text('No finished shift is waiting to be signed off.'), findsOneWidget);
-      expect(
-        find.text('No shift is running for this home today, so there is nothing to document '
-            'yet. A record appears for each resident when a shift starts.'),
-        findsOneWidget,
-      );
-      expect(find.text('No priority notes right now.'), findsOneWidget);
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-missing')));
-      expect(find.text('Nothing owed and not done in this period.'), findsOneWidget);
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-activity')));
+      await _tap(tester, find.byKey(const ValueKey('dl-tab-activities')));
       expect(find.text('Nothing recorded in the period chosen.'), findsOneWidget);
-      await _tap(tester, find.byKey(const ValueKey('dl-tab-day')));
-      await _choose(tester, find.byKey(const ValueKey('dl-resident')), 'Ayaan Karim');
-      expect(find.text('Nothing recorded for this day'), findsOneWidget);
-      expect(find.text('Entries added for this resident and date will appear here.'), findsOneWidget);
     });
 
     test('the Manager menu keeps Daily Logs', () {
       Get.put<UserSession>(_Session());
       final logs = managerDestinations().firstWhere((d) => d.title == 'Daily Logs');
-      expect(logs.subtitle, 'Review queue, missing logs & resident days');
+      expect(logs.subtitle, 'Today’s board, review & resident notes');
     });
   });
 }

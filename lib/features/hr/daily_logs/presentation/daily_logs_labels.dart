@@ -30,7 +30,7 @@ extension DailyLogToneColors on DailyLogTone {
 
 /// Option lists, pill tones and formatting from the web Daily Logs page.
 abstract final class DailyLogLabels {
-  static const tabs = ['To review', 'Missing', 'Resident day view', 'House activity'];
+  static const tabs = ['Today', 'Review', 'Activities'];
 
   /// Web `GAP_LABELS` on the Missing Logs column "What is missing".
   static const gapLabels = {

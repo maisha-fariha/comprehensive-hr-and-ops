@@ -33,7 +33,7 @@ Future<List<(String, String)>> _pickWithFilePicker() async {
   ];
 }
 
-/// Web "New Log Entry": Context, Care Details and Notes & Checklist.
+/// Web care-note slide-over (body, kind chips, for next shift, flag, more details).
 Future<void> showNewLogEntrySheet(
   BuildContext context, {
   required DailyLogsController controller,
@@ -112,8 +112,9 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
 
   late DateTime? _occurredAt = NewLogEntrySheet.defaultOccurredAt(widget.logDate);
   String _shift = '';
-  String _logType = '';
+  String _logType = 'care_note';
   final _body = TextEditingController();
+  bool _forNextShift = false;
   String _mood = '';
   String _sleep = '';
   String _hygiene = '';
@@ -210,6 +211,7 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
         'attachments': [
           for (final a in _attachments) {'fileUrl': a.fileUrl, 'fileType': ?a.fileType},
         ],
+      if (_forNextShift) 'forNextShift': true,
       if (_flag && _flagCategory.isNotEmpty)
         'flagForAttention': {'category': _flagCategory, 'note': ?text(_flagNote)},
     };
@@ -329,9 +331,11 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
     final last = index == _steps.length - 1;
     return DailyLogSheet(
       key: const ValueKey('dl-new-entry'),
-      icon: Icons.home_outlined,
-      title: 'New Log Entry',
-      description: 'Care documentation for ${widget.clientName} on ${widget.logDate}.',
+      icon: Icons.edit_note_rounded,
+      title: 'Care note · ${widget.clientName}',
+      description: widget.residenceName.isEmpty
+          ? 'What happened on ${widget.logDate}.'
+          : widget.residenceName,
       footerLeading: Text.rich(
         const TextSpan(
           children: [
@@ -366,7 +370,7 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
         else
           HandoverButton(
             key: const ValueKey('dl-new-save'),
-            label: _saving ? 'Saving…' : 'Save Entry',
+            label: _saving ? 'Saving…' : 'Save note',
             filled: true,
             compact: true,
             onPressed: _saving ? null : _save,
@@ -682,9 +686,16 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
         ),
         _attachmentsField(context),
         CheckSwitchTile(
+          key: const ValueKey('dl-new-for-next-shift'),
+          label: 'The next shift needs to know',
+          description: 'Shows on Today and goes into the handover.',
+          value: _forNextShift,
+          onChanged: (v) => setState(() => _forNextShift = v),
+        ),
+        CheckSwitchTile(
           key: const ValueKey('dl-new-flag'),
-          label: 'Flag for attention',
-          description: 'Raises this on the Priority Notes board until somebody resolves it.',
+          label: 'Flag for a manager',
+          description: 'Stays open in Review until somebody resolves it.',
           value: _flag,
           activeColor: AppColors.urgentAmber,
           onChanged: (v) => setState(() => _flag = v),

@@ -221,6 +221,8 @@ class MissingLogsList extends StatelessWidget {
   final bool loading;
   final String? error;
   final void Function(DailyLogMissingRow) onWrite;
+  /// Web: Write entry requires `daily-logs:write`.
+  final bool canWrite;
 
   const MissingLogsList({
     super.key,
@@ -228,6 +230,7 @@ class MissingLogsList extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onWrite,
+    this.canWrite = true,
   });
 
   @override
@@ -248,8 +251,12 @@ class MissingLogsList extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: DailyLogPill(r.logDate, tone: DailyLogTone.danger),
             ),
-            action: 'Write entry',
-            actionKey: ValueKey('dl-write-${r.clientId}-${r.logDate}'),
+            action: canWrite ? 'Write entry' : 'Open day',
+            actionKey: ValueKey(
+              canWrite
+                  ? 'dl-write-${r.clientId}-${r.logDate}'
+                  : 'dl-open-missing-${r.clientId}-${r.logDate}',
+            ),
             onAction: () => onWrite(r),
             footer: _MissingGaps(gaps: r.gaps),
           ),

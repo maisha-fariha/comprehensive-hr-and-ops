@@ -64,12 +64,17 @@ abstract final class ApiEndpoints {
 
   // ── Daily logs ──────────────────────────────────────────────────────────
   static const String dailyLogs = '/daily-logs';
+  /// Web Today hub (`GET /daily-logs/board?residenceId&date`).
+  static const String dailyLogsBoard = '/daily-logs/board';
   static const String dailyLogEntries = '/daily-logs/entries';
   static const String dailyLogShifts = '/daily-logs/shifts';
   static const String residenceActivity = '/residence-activity';
   static const String careFlags = '/care-flags';
   static const String shiftHandovers = '/shift-handovers';
   static const String clientActivities = '/client-activities';
+  /// Web resident day feed (`GET /clients/:id/daily-activity-feed?date=`).
+  static String clientDailyActivityFeed(String clientId) =>
+      '/clients/$clientId/daily-activity-feed';
 
   // ── Incidents ───────────────────────────────────────────────────────────
   static const String incidents = '/incidents';

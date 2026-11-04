@@ -246,4 +246,141 @@ abstract final class DailyLogsMapper {
       fileName: JsonCodec.string(map['originalName']) ?? fileName,
     );
   }
+
+  static DailyLogBoardNextNote _boardNoteFrom(Map<String, dynamic> row) =>
+      DailyLogBoardNextNote(
+        id: JsonCodec.stringOr(row['id'], ''),
+        clientId: JsonCodec.stringOr(row['clientId'], ''),
+        clientName: JsonCodec.stringOr(row['clientName'], ''),
+        body: JsonCodec.stringOr(row['body'], ''),
+        occurredAt:
+            JsonCodec.dateTime(row['occurredAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+        author: JsonCodec.string(row['author']),
+        inHandover: JsonCodec.boolean(row['inHandover']) ?? false,
+      );
+
+  static DailyLogBoard boardFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final counts = JsonCodec.mapAt(json, 'counts') ?? const {};
+    return DailyLogBoard(
+      residenceId: JsonCodec.stringOr(json['residenceId'], ''),
+      date: _day(json['date']),
+      forNextShift: [
+        for (final row in JsonCodec.listAt(json, 'forNextShift').whereType<Map>())
+          _boardNoteFrom(JsonCodec.asMap(row)),
+      ],
+      notHandedOver: [
+        for (final row in JsonCodec.listAt(json, 'notHandedOver').whereType<Map>())
+          _boardNoteFrom(JsonCodec.asMap(row)),
+      ],
+      counts: DailyLogBoardCounts(
+        notesMissing: JsonCodec.integerOr(counts['notesMissing'], 0),
+        dosesMissing: JsonCodec.integerOr(counts['dosesMissing'], 0),
+        checksMissing: JsonCodec.integerOr(counts['checksMissing'], 0),
+        openFlags: JsonCodec.integerOr(counts['openFlags'], 0),
+      ),
+      residents: [
+        for (final row in JsonCodec.listAt(json, 'residents').whereType<Map>())
+          DailyLogBoardResident(
+            clientId: JsonCodec.stringOr(row['clientId'], ''),
+            name: JsonCodec.stringOr(row['name'], ''),
+            room: JsonCodec.string(row['room']),
+            photoUrl: JsonCodec.string(row['photoUrl']),
+            notes: JsonCodec.integerOr(row['notes'], 0),
+            lastNoteAt: JsonCodec.dateTime(row['lastNoteAt']),
+            lastNoteBy: JsonCodec.string(row['lastNoteBy']),
+            gaps: [
+              for (final gap in JsonCodec.listAt(JsonCodec.asMap(row), 'gaps').whereType<Map>())
+                DailyLogBoardGap(
+                  type: JsonCodec.stringOr(gap['type'], 'no_entries'),
+                  detail: JsonCodec.stringOr(gap['detail'], ''),
+                ),
+            ],
+            flags: [
+              for (final flag in JsonCodec.listAt(JsonCodec.asMap(row), 'flags').whereType<Map>())
+                DailyLogBoardFlag(
+                  id: JsonCodec.stringOr(flag['id'], ''),
+                  category: JsonCodec.stringOr(flag['category'], 'other'),
+                ),
+            ],
+          ),
+      ],
+      shifts: [
+        for (final row in JsonCodec.listAt(json, 'shifts').whereType<Map>())
+          DailyLogBoardShift(
+            id: JsonCodec.stringOr(row['id'], ''),
+            title: JsonCodec.string(row['title']),
+            shiftType: JsonCodec.string(row['shiftType']),
+            startsAt:
+                JsonCodec.dateTime(row['startsAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+            endsAt: JsonCodec.dateTime(row['endsAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+            onDuty: [
+              for (final s in JsonCodec.listAt(JsonCodec.asMap(row), 'onDuty').whereType<Map>())
+                DailyLogBoardOnDuty(
+                  staffId: JsonCodec.stringOr(s['staffId'], ''),
+                  name: JsonCodec.stringOr(s['name'], ''),
+                  clockedInAt: JsonCodec.dateTime(s['clockedInAt']),
+                  clockedOutAt: JsonCodec.dateTime(s['clockedOutAt']),
+                  late: JsonCodec.boolean(s['late']) ?? false,
+                ),
+            ],
+          ),
+      ],
+      handovers: [
+        for (final row in JsonCodec.listAt(json, 'handovers').whereType<Map>())
+          DailyLogBoardHandover(
+            id: JsonCodec.stringOr(row['id'], ''),
+            status: JsonCodec.stringOr(row['status'], ''),
+            submittedAt: JsonCodec.dateTime(row['submittedAt']),
+            from: JsonCodec.string(row['from']),
+            to: JsonCodec.string(row['to']),
+            givenBy: JsonCodec.string(row['givenBy']),
+            takenAt: JsonCodec.dateTime(row['takenAt']),
+            takenBy: [
+              for (final name in JsonCodec.listAt(JsonCodec.asMap(row), 'takenBy'))
+                if ('$name'.trim().isNotEmpty) '$name'.trim(),
+            ],
+            tasks: JsonCodec.integerOr(row['tasks'], 0),
+            tasksWaiting: JsonCodec.integerOr(row['tasksWaiting'], 0),
+          ),
+      ],
+    );
+  }
+
+  static DailyActivityFeed activityFeedFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final countsRaw = json['counts'];
+    final counts = <String, int>{};
+    if (countsRaw is Map) {
+      for (final entry in countsRaw.entries) {
+        final key = '${entry.key}';
+        final value = entry.value;
+        final count = value is int
+            ? value
+            : value is num
+                ? value.toInt()
+                : int.tryParse('$value') ?? 0;
+        if (key.isNotEmpty) counts[key] = count;
+      }
+    }
+    return DailyActivityFeed(
+      clientId: JsonCodec.stringOr(json['clientId'], ''),
+      date: _day(json['date']),
+      items: [
+        for (final row in JsonCodec.listAt(json, 'items').whereType<Map>())
+          DailyActivityFeedItem(
+            id: JsonCodec.stringOr(row['id'], ''),
+            module: JsonCodec.stringOr(row['module'], ''),
+            type: JsonCodec.stringOr(row['type'], ''),
+            title: JsonCodec.stringOr(row['title'], ''),
+            detail: JsonCodec.stringOr(row['detail'], ''),
+            occurredAt:
+                JsonCodec.dateTime(row['occurredAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+            staffName: JsonCodec.string(row['staffName'] ?? row['authorName']),
+            status: JsonCodec.string(row['status'] ?? row['detail']),
+          ),
+      ],
+      counts: counts,
+    );
+  }
 }

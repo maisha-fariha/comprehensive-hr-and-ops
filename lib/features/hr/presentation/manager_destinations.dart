@@ -202,7 +202,7 @@ List<ManagerDestination> managerDestinations() {
     if (can('daily-logs:read'))
       ManagerDestination(
         title: 'Daily Logs',
-        subtitle: 'Review queue, missing logs & resident days',
+        subtitle: 'Today’s board, review & resident notes',
         icon: Icons.assignment_outlined,
         iconBackground: AppColors.infoBackground,
         iconColor: AppColors.infoBlue,

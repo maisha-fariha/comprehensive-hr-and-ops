@@ -58,6 +58,28 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
         DailyLogsMapper.staffFrom,
       );
 
+  @override
+  Future<Result<DailyLogBoard>> board({
+    required String residenceId,
+    required String date,
+  }) =>
+      _get(
+        ApiEndpoints.dailyLogsBoard,
+        {'residenceId': residenceId, 'date': date},
+        DailyLogsMapper.boardFrom,
+      );
+
+  @override
+  Future<Result<DailyActivityFeed>> activityFeed({
+    required String clientId,
+    required String date,
+  }) =>
+      _get(
+        ApiEndpoints.clientDailyActivityFeed(clientId),
+        {'date': date},
+        DailyLogsMapper.activityFeedFrom,
+      );
+
   Map<String, dynamic> _queue({
     required String status,
     required String residenceId,

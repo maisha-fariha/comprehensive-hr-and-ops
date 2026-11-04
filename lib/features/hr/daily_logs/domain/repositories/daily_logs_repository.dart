@@ -11,6 +11,18 @@ abstract class DailyLogsRepository {
   /// `GET /staff` — the logbook "All staff" filter.
   Future<Result<List<DailyLogOption>>> staff();
 
+  /// Web Today hub: `GET /daily-logs/board?residenceId&date`.
+  Future<Result<DailyLogBoard>> board({
+    required String residenceId,
+    required String date,
+  });
+
+  /// Web resident day feed: `GET /clients/:id/daily-activity-feed?date=`.
+  Future<Result<DailyActivityFeed>> activityFeed({
+    required String clientId,
+    required String date,
+  });
+
   Future<Result<DailyLogPage<DailyLogReviewRow>>> reviewQueue({
     required String residenceId,
     String? clientId,
