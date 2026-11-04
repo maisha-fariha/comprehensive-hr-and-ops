@@ -3,6 +3,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('settings:read only keeps General read-only (Residence Manager)',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OrgSettingsPage(
+          showShell: false,
+          load: () async => const OrgSettingsSnapshot(
+            canWrite: false,
+            settings: {
+              'general': {
+                'timezone': 'Asia/Dhaka',
+                'dateFormat': 'DD/MM/YYYY',
+                'timeFormat': '12h',
+                'itemsPerPage': 20,
+              },
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Asia/Dhaka'), findsOneWidget);
+    expect(find.byType(DropdownButton<String>), findsNothing);
+    final save = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Save changes'),
+    );
+    expect(save.onPressed, isNull);
+  });
+
   testWidgets('settings tabs open and scroll on a phone', (tester) async {
     tester.view.physicalSize = const Size(390, 640);
     tester.view.devicePixelRatio = 1;
@@ -14,6 +49,7 @@ void main() {
         home: OrgSettingsPage(
           showShell: false,
           load: () async => const OrgSettingsSnapshot(
+            canWrite: true,
             defaultBreakMinutes: 30,
             settings: {
               'general': {

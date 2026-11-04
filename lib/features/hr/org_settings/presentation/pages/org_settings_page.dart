@@ -15,9 +15,11 @@ import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 
 /// Organisation Settings — the web `/dashboard/settings` tabs.
 ///
-/// Anyone with `settings:read` can open this portal (Manager, HR Admin, and
-/// staff roles that receive the permission). General matches the web editor
-/// (`PATCH /settings/general` with a `value` wrapper).
+/// - `settings:read` — open the portal (Residence Manager included).
+/// - `settings:write` — edit/save (web `canWrite`; PATCH requires this).
+///
+/// General matches the web editor (`PATCH /settings/general` with a `value`
+/// wrapper).
 class OrgSettingsPage extends StatefulWidget {
   final Future<OrgSettingsSnapshot> Function()? load;
 
@@ -86,12 +88,11 @@ Future<OrgSettingsSnapshot> loadOrgSettings() async {
     );
   }
 
-  // Web Settings is editable for accounts that can open it (`settings:read`).
-  // `settings:write` is not issued on this tenant.
-  var canWrite = true;
+  // Web: page opens with `settings:read`; forms save only with `settings:write`.
+  // Residence Manager has read only — PATCH /settings/general returns 403.
+  var canWrite = false;
   if (Get.isRegistered<UserSession>()) {
-    final session = Get.find<UserSession>();
-    canWrite = session.can('settings:read') || session.can('settings:write');
+    canWrite = Get.find<UserSession>().can('settings:write');
   }
   return OrgSettingsSnapshot(
     settings: map,
