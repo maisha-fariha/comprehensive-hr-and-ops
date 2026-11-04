@@ -16,12 +16,14 @@ class TodayBoardSection extends StatelessWidget {
   final DailyLogsController controller;
   final VoidCallback? onWriteNote;
   final ValueChanged<DailyLogBoardResident>? onOpenResident;
+  final VoidCallback? onOpenHandover;
 
   const TodayBoardSection({
     super.key,
     required this.controller,
     this.onWriteNote,
     this.onOpenResident,
+    this.onOpenHandover,
   });
 
   @override
@@ -53,13 +55,14 @@ class TodayBoardSection extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ShiftsStrip(board: board),
+          _ShiftsStrip(board: board, onOpenHandover: onOpenHandover),
           const SizedBox(height: 14),
           _ResidentFilterChips(controller: c),
           const SizedBox(height: 10),
           _ResidentsTable(
             controller: c,
             residents: c.filteredResidents,
+            forNextShift: board.forNextShift,
             canWrite: c.canWrite,
             onOpen: onOpenResident,
             onWrite: (r) {
@@ -77,8 +80,9 @@ class TodayBoardSection extends StatelessWidget {
 
 class _ShiftsStrip extends StatelessWidget {
   final DailyLogBoard board;
+  final VoidCallback? onOpenHandover;
 
-  const _ShiftsStrip({required this.board});
+  const _ShiftsStrip({required this.board, this.onOpenHandover});
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +109,8 @@ class _ShiftsStrip extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          if (handover != null) _HandoverRow(handover: handover),
+          if (handover != null)
+            _HandoverRow(handover: handover, onOpen: onOpenHandover),
         ],
       ),
     );
@@ -192,8 +197,9 @@ class _StaffChip extends StatelessWidget {
 
 class _HandoverRow extends StatelessWidget {
   final DailyLogBoardHandover handover;
+  final VoidCallback? onOpen;
 
-  const _HandoverRow({required this.handover});
+  const _HandoverRow({required this.handover, this.onOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -228,6 +234,13 @@ class _HandoverRow extends StatelessWidget {
               style: handoverText(context, 12.5, color: AppColors.textSecondary),
             ),
           ),
+          if (onOpen != null)
+            HandoverButton(
+              key: const ValueKey('dl-board-handover-open'),
+              label: 'Open',
+              compact: true,
+              onPressed: onOpen,
+            ),
         ],
       ),
     );
@@ -288,6 +301,7 @@ class _ResidentFilterChips extends StatelessWidget {
 class _ResidentsTable extends StatelessWidget {
   final DailyLogsController controller;
   final List<DailyLogBoardResident> residents;
+  final List<DailyLogBoardNextNote> forNextShift;
   final bool canWrite;
   final ValueChanged<DailyLogBoardResident>? onOpen;
   final ValueChanged<DailyLogBoardResident>? onWrite;
@@ -295,6 +309,7 @@ class _ResidentsTable extends StatelessWidget {
   const _ResidentsTable({
     required this.controller,
     required this.residents,
+    required this.forNextShift,
     required this.canWrite,
     this.onOpen,
     this.onWrite,
@@ -315,6 +330,9 @@ class _ResidentsTable extends StatelessWidget {
             if (i > 0) const Divider(height: 1, color: AppColors.cardBorder),
             _ResidentRow(
               resident: residents[i],
+              nextShiftCount: forNextShift
+                  .where((n) => n.clientId == residents[i].clientId)
+                  .length,
               canWrite: canWrite,
               onOpen: onOpen,
               onWrite: onWrite,
@@ -328,12 +346,14 @@ class _ResidentsTable extends StatelessWidget {
 
 class _ResidentRow extends StatelessWidget {
   final DailyLogBoardResident resident;
+  final int nextShiftCount;
   final bool canWrite;
   final ValueChanged<DailyLogBoardResident>? onOpen;
   final ValueChanged<DailyLogBoardResident>? onWrite;
 
   const _ResidentRow({
     required this.resident,
+    required this.nextShiftCount,
     required this.canWrite,
     this.onOpen,
     this.onWrite,
@@ -403,16 +423,22 @@ class _ResidentRow extends StatelessWidget {
                       ],
                     ),
                   ],
-                  if (resident.flags.isNotEmpty) ...[
+                  if (resident.flags.isNotEmpty || nextShiftCount > 0) ...[
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 6,
+                      runSpacing: 4,
                       children: [
                         for (final flag in resident.flags)
                           DailyLogPill(
-                            DailyLogLabels.capitalise(flag.category),
+                            'Flag - ${DailyLogLabels.capitalise(flag.category).toLowerCase()}',
                             tone: DailyLogLabels.flagTones[flag.category] ??
-                                DailyLogTone.warning,
+                                DailyLogTone.danger,
+                          ),
+                        if (nextShiftCount > 0)
+                          DailyLogPill(
+                            '$nextShiftCount for next shift',
+                            tone: DailyLogTone.warning,
                           ),
                       ],
                     ),
@@ -420,7 +446,7 @@ class _ResidentRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (canWrite && noNote)
+            if (canWrite)
               HandoverButton(
                 key: ValueKey('dl-write-${resident.clientId}'),
                 label: 'Write note',
@@ -457,15 +483,23 @@ class _NextShiftPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'For the next shift',
-            style: handoverText(context, 14, weight: FontWeight.w700),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  notes.isEmpty
+                      ? 'For the next shift'
+                      : 'For the next shift · ${notes.length}',
+                  style: handoverText(context, 14, weight: FontWeight.w700),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
             notes.isEmpty
                 ? 'Nothing marked for the next shift.'
-                : '${notes.length} stay${notes.length == 1 ? 's' : ''} here until the handover is taken.',
+                : 'Stays here until the handover holding it is taken.',
             style: handoverText(context, 12.5, color: AppColors.textMuted),
           ),
           if (notes.isNotEmpty) ...[
@@ -492,13 +526,31 @@ class _NextShiftPanel extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: handoverText(context, 12.5, color: AppColors.textSecondary),
                     ),
-                    if (note.author != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        note.author!,
-                        style: handoverText(context, 11, color: AppColors.textMuted),
-                      ),
-                    ],
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          [
+                            WebFormat.time(TenantClock.wallOf(note.occurredAt)),
+                            if ((note.author ?? '').isNotEmpty) note.author!,
+                          ].join(' · '),
+                          style: handoverText(
+                            context,
+                            11.5,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        DailyLogPill(
+                          note.inHandover ? 'In handover' : 'Not in a handover',
+                          tone: note.inHandover
+                              ? DailyLogTone.neutral
+                              : DailyLogTone.warning,
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

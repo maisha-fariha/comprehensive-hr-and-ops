@@ -8,10 +8,11 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../hr/handovers/presentation/controllers/handovers_controller.dart';
+import '../../../../hr/handovers/presentation/widgets/record_handover_sheet.dart';
 import '../../domain/entities/staff_residence.dart';
 import '../../domain/entities/staff_shift_handover.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
-import '../widgets/staff_record_handover_dialog.dart';
 import '../widgets/staff_shift_handover_card.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
@@ -147,9 +148,19 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
     await _load();
   }
 
+  /// Same web Record Handover sheet managers use. Role differences come from
+  /// my-shifts vs residence shifts (`on behalf`), not a separate form.
   Future<void> _createHandover() async {
-    final saved = await StaffRecordHandoverDialog.show();
-    if (saved == true) _load();
+    const tag = 'staff-record-handover';
+    final owned = !Get.isRegistered<HandoversController>(tag: tag);
+    final controller = owned
+        ? Get.put(GetIt.instance<HandoversController>(), tag: tag)
+        : Get.find<HandoversController>(tag: tag);
+    await showRecordHandoverSheet(context, controller: controller);
+    if (owned && Get.isRegistered<HandoversController>(tag: tag)) {
+      Get.delete<HandoversController>(tag: tag);
+    }
+    if (mounted) await _load();
   }
 
   Future<void> _acknowledge(StaffShiftHandover handover) async {

@@ -255,10 +255,22 @@ class DailyLogsController extends GetxController {
     if (value == DailyLogsTab.activities) loadActivity();
     if (value == DailyLogsTab.today) loadBoard();
     if (value == DailyLogsTab.review) {
+      // Web Review: sign-off queue is the last 7 days ending on the board date.
+      _alignReviewRange();
       loadQueues();
       loadFlags();
       loadShiftLogs();
+      loadBoard();
+      loadActivity();
     }
+  }
+
+  /// Web `Waiting for sign-off` window: board date and the six days before it.
+  void _alignReviewRange() {
+    final end = DateTime.tryParse(logDate.value) ?? DateTime.now();
+    final start = end.subtract(const Duration(days: 6));
+    from.value = dayKey(start);
+    to.value = dayKey(end);
   }
 
   void setResidence(String id) {
@@ -295,6 +307,11 @@ class DailyLogsController extends GetxController {
     staffId.value = id;
     page.value = 1;
     loadActivity();
+  }
+
+  /// Care-given staff filter on Review (same `/residence-activity` feed).
+  Future<void> pickCareGivenStaff(String id) async {
+    setStaff(id);
   }
 
   void setFrom(String value) => _setRange(value, to.value, value);
@@ -560,11 +577,15 @@ class DailyLogsController extends GetxController {
   Future<void> loadActivity() async {
     final serial = ++_activitySerial;
     activityLoading.value = true;
+    // Review "Care given" is the selected board day only; Activities keeps
+    // the filter range. Sign-off uses a 7-day `from`/`to` that must not widen
+    // this feed.
+    final dayScoped = tab.value == DailyLogsTab.review;
     final result = await repository.activity(
       residenceId: hasResidence ? residenceId.value : null,
       staffId: staffId.value.isEmpty ? null : staffId.value,
-      from: from.value,
-      to: to.value,
+      from: dayScoped ? logDate.value : from.value,
+      to: dayScoped ? logDate.value : to.value,
       page: page.value,
       limit: limit.value,
     );
@@ -725,6 +746,8 @@ class DailyLogsController extends GetxController {
       success: (_) {
         AppSnackbar.show(success, '');
         loadShiftLogs();
+        loadQueues();
+        loadBoard();
       },
       failure: (error) => AppSnackbar.show(error.message, ''),
     );

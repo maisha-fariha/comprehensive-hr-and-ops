@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/formatting/web_formats.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../controllers/daily_logs_controller.dart';
 import 'daily_log_common.dart';
 
-/// Residence + date (+ search on Today, staff on Activities).
+/// Residence + date (+ resident search on Today).
 class DailyLogsFilters extends StatelessWidget {
   final DailyLogsController controller;
 
@@ -100,72 +99,9 @@ class DailyLogsFilters extends StatelessWidget {
                 ),
               ),
             ],
-            if (c.tab.value == DailyLogsTab.activities) ...[
-              const SizedBox(height: 10),
-              DailyLogSelect(
-                key: const ValueKey('dl-staff'),
-                label: 'Staff member',
-                value: c.staffName,
-                placeholder: 'All staff',
-                onTap: () async {
-                  final picked = await pickDailyLogOption(
-                    context,
-                    'Staff member',
-                    [
-                      ('', 'All staff'),
-                      for (final person in c.staff) (person.id, person.label),
-                    ],
-                    c.staffId.value,
-                  );
-                  if (picked != null && picked != c.staffId.value) c.setStaff(picked);
-                },
-                onClear: c.staffId.value.isEmpty ? null : () => c.setStaff(''),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: DailyLogSelect(
-                      key: const ValueKey('dl-from'),
-                      label: 'From',
-                      value: WebFormat.date(DateTime.tryParse(c.from.value), empty: ''),
-                      placeholder: 'From',
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.tryParse(c.from.value) ?? DateTime.now(),
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (picked != null) {
-                          c.setFrom(DailyLogsController.dayKey(picked));
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DailyLogSelect(
-                      key: const ValueKey('dl-to'),
-                      label: 'To',
-                      value: WebFormat.date(DateTime.tryParse(c.to.value), empty: ''),
-                      placeholder: 'To',
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: DateTime.tryParse(c.to.value) ?? DateTime.now(),
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (picked != null) {
-                          c.setTo(DailyLogsController.dayKey(picked));
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            // Activities uses the board Home + date above; staff/type/status
+            // search live on the Client Activity Registry strip (web
+            // hideDuplicateFilters). Do not show a second From/To here.
           ],
         ),
       );

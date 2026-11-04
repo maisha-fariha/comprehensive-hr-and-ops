@@ -9,6 +9,7 @@ abstract class DailyActivityRepository {
     required int limit,
     String? search,
     String? clientId,
+    String? residenceId,
     String? recordedByStaffId,
     String? activityType,
     String? status,

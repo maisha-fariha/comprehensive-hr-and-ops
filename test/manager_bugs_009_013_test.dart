@@ -2223,8 +2223,11 @@ void main() {
       await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       expect(c.tab.value, DailyLogsTab.review);
       expect(find.byKey(const ValueKey('dl-priority-notes')), findsOneWidget);
+      expect(find.text('Open flags'), findsOneWidget);
       expect(find.text('Waiting for sign-off'), findsOneWidget);
-      expect(find.text('Needs a note'), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-not-handed-over')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-care-given')), findsOneWidget);
+      expect(find.text('Needs a note'), findsNothing);
 
       await _tap(tester, find.byKey(const ValueKey('dl-tab-activities')));
       expect(c.tab.value, DailyLogsTab.activities);

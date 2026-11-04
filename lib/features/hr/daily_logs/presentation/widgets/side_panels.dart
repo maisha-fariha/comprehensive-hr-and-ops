@@ -268,8 +268,10 @@ class PriorityNotesPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _PanelHeader(
-            'Priority Notes',
-            flags.isEmpty ? null : DailyLogPill('${flags.length} open', tone: DailyLogTone.danger),
+            'Open flags',
+            flags.isEmpty
+                ? null
+                : DailyLogPill('${flags.length}', tone: DailyLogTone.danger),
           ),
           const SizedBox(height: 14),
           for (final f in flags) ...[
@@ -285,7 +287,9 @@ class PriorityNotesPanel extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Text(
-                loading ? 'Loading flags…' : error ?? 'No priority notes right now.',
+                loading
+                    ? 'Loading flags…'
+                    : error ?? 'Nothing flagged at this home.',
                 textAlign: TextAlign.center,
                 style: handoverText(context, 12.5, color: AppColors.textMuted),
               ),
@@ -389,6 +393,243 @@ class _FlagCard extends StatelessWidget {
                 ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Web Review right column: notes marked for next shift that never entered a
+/// handover (`board.notHandedOver`).
+class NotHandedOverPanel extends StatelessWidget {
+  final List<DailyLogBoardNextNote> notes;
+  final ValueChanged<DailyLogBoardNextNote>? onOpenDay;
+
+  const NotHandedOverPanel({
+    super.key,
+    required this.notes,
+    this.onOpenDay,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return HandoverPanel(
+      key: const ValueKey('dl-not-handed-over'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PanelHeader(
+            'Not in a handover',
+            notes.isEmpty
+                ? null
+                : DailyLogPill('${notes.length}', tone: DailyLogTone.warning),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Marked for the next shift but missed when a handover was posted.',
+            style: handoverText(context, 12.5, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 12),
+          if (notes.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Every next-shift note is in a handover.',
+                style: handoverText(context, 12.5, color: AppColors.textMuted),
+              ),
+            )
+          else
+            for (final note in notes) ...[
+              InkWell(
+                key: ValueKey('dl-not-ho-${note.id}'),
+                onTap: onOpenDay == null ? null : () => onOpenDay!(note),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.filterButtonBackground,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.urgentAmber.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        note.clientName,
+                        style: handoverText(context, 13, weight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        note.body,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: handoverText(
+                          context,
+                          12.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            [
+                              WebFormat.time(note.occurredAt),
+                              if ((note.author ?? '').isNotEmpty) note.author!,
+                            ].join(' · '),
+                            style: handoverText(
+                              context,
+                              11.5,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          DailyLogPill(
+                            'Not in a handover',
+                            tone: DailyLogTone.warning,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Web Review "Care given, by carer" — `/residence-activity` for the day.
+class CareGivenPanel extends StatelessWidget {
+  final List<ResidenceActivityRow> rows;
+  final bool loading;
+  final String? staffFilterLabel;
+  final VoidCallback? onFilterStaff;
+  final VoidCallback? Function(String? entityType, String? entityId)? openFor;
+
+  const CareGivenPanel({
+    super.key,
+    required this.rows,
+    required this.loading,
+    this.staffFilterLabel,
+    this.onFilterStaff,
+    this.openFor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return HandoverPanel(
+      key: const ValueKey('dl-care-given'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PanelHeader('Care given, by carer', null),
+          const SizedBox(height: 4),
+          Text(
+            'Everything recorded at this home on this day, and by whom.',
+            style: handoverText(context, 12.5, color: AppColors.textMuted),
+          ),
+          if (onFilterStaff != null) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              key: const ValueKey('dl-care-given-staff'),
+              onTap: onFilterStaff,
+              borderRadius: BorderRadius.circular(9),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.cardBorder),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        staffFilterLabel?.isNotEmpty == true
+                            ? staffFilterLabel!
+                            : 'Everyone',
+                        style: handoverText(context, 13),
+                      ),
+                    ),
+                    const Icon(Icons.unfold_more_rounded, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (loading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'Loading…',
+                style: handoverText(context, 12.5, color: AppColors.textMuted),
+              ),
+            )
+          else if (rows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                staffFilterLabel?.isNotEmpty == true
+                    ? 'Nothing recorded by $staffFilterLabel on this day.'
+                    : 'Nothing recorded on this day.',
+                style: handoverText(context, 12.5, color: AppColors.textMuted),
+              ),
+            )
+          else
+            for (final row in rows) ...[
+              Padding(
+                key: ValueKey('dl-care-${row.id}'),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 64,
+                      child: Text(
+                        WebFormat.time(row.occurredAt),
+                        style: handoverText(
+                          context,
+                          12.5,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            row.summary,
+                            style: handoverText(context, 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            [
+                              if ((row.staffName ?? '').isNotEmpty) row.staffName!,
+                              if ((row.clientName ?? '').isNotEmpty) row.clientName!,
+                            ].join(' · '),
+                            style: handoverText(
+                              context,
+                              12,
+                              color: AppColors.secondaryTeal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
         ],
       ),
     );

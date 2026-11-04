@@ -94,6 +94,7 @@ abstract final class DailyLogsMapper {
           entriesCount: JsonCodec.integerOr(row['entriesCount'], 0),
           shiftLabel: JsonCodec.string(row['shiftLabel']),
           summary: JsonCodec.string(row['summary']),
+          shiftLogId: JsonCodec.string(row['shiftLogId']),
         ),
       );
 

@@ -6,18 +6,28 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/user_role.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../daily_activity/presentation/controllers/daily_activity_controller.dart';
 import '../../../daily_activity/presentation/widgets/daily_activity_form_sheet.dart';
 import '../../../daily_activity/presentation/widgets/daily_activity_group_sheet.dart';
+import '../../../handovers/presentation/pages/handovers_page.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../hr_shell.dart';
 import '../../../presentation/manager_destinations.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
+import '../../../../staff/extras/presentation/pages/staff_shift_handovers_page.dart';
+import '../../../../staff/presentation/widgets/staff_bottom_nav_bar.dart';
+import '../../../../staff/search/presentation/pages/staff_search_page.dart';
+import '../../../../staff/staff_shell.dart';
+import '../../domain/entities/daily_log.dart';
 import '../controllers/daily_logs_controller.dart';
+import '../widgets/daily_log_common.dart';
+import '../widgets/daily_logs_activities_section.dart';
 import '../widgets/daily_logs_filters.dart';
 import '../widgets/daily_logs_lists.dart';
 import '../widgets/entry_sheets.dart';
@@ -43,14 +53,26 @@ const _entityDestinations = {
   'conversation': 'Communication',
 };
 
-/// Manager Daily Logs — mirrors web `/dashboard/daily-logs`
+/// Manager / Staff Daily Logs — mirrors web `/dashboard/daily-logs`
 /// (Today / Review / Activities + resident day).
 class DailyLogsPage extends StatefulWidget {
   final DailyLogFilePicker? pickFiles;
 
-  const DailyLogsPage({super.key, this.pickFiles});
+  /// When false, omit the bottom nav (e.g. embedded in [StaffShell]).
+  final bool showBottomNav;
+
+  /// Staff portal chrome (search + back → Staff home). Managers use HR chrome.
+  final bool staffPortal;
+
+  const DailyLogsPage({
+    super.key,
+    this.pickFiles,
+    this.showBottomNav = true,
+    this.staffPortal = false,
+  });
 
   static const int _moreTabIndex = 4;
+  static const int _staffDailyLogsTab = 2;
 
   @override
   State<DailyLogsPage> createState() => _DailyLogsPageState();
@@ -74,13 +96,15 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
   VoidCallback? _openFor(String? entityType, String? _) {
     final title = _entityDestinations[entityType];
     if (title == null) return null;
+    if (widget.staffPortal) return null;
     final destination =
         managerDestinations().firstWhereOrNull((d) => d.title == title);
     return destination?.open;
   }
 
-  VoidCallback? _openModule(String title) =>
-      managerDestinations().firstWhereOrNull((d) => d.title == title)?.open;
+  VoidCallback? _openModule(String title) => widget.staffPortal
+      ? null
+      : managerDestinations().firstWhereOrNull((d) => d.title == title)?.open;
 
   Future<(DailyActivityController, bool owned)> _activityController(
     String tag,
@@ -104,6 +128,13 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
     return (controller, owned);
   }
 
+  Future<void> _refreshActivitiesRegistry() async {
+    const tag = 'dl-activities-registry';
+    if (Get.isRegistered<DailyActivityController>(tag: tag)) {
+      await Get.find<DailyActivityController>(tag: tag).load();
+    }
+  }
+
   Future<void> _recordActivity() async {
     const tag = 'dl-record-activity';
     final (controller, owned) = await _activityController(tag);
@@ -112,6 +143,7 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
     if (owned && Get.isRegistered<DailyActivityController>(tag: tag)) {
       Get.delete<DailyActivityController>(tag: tag);
     }
+    await _refreshActivitiesRegistry();
   }
 
   Future<void> _groupActivity() async {
@@ -122,6 +154,7 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
     if (owned && Get.isRegistered<DailyActivityController>(tag: tag)) {
       Get.delete<DailyActivityController>(tag: tag);
     }
+    await _refreshActivitiesRegistry();
   }
 
   void _addCareNote() {
@@ -138,6 +171,32 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
       controller: _c,
       pickFiles: widget.pickFiles,
     );
+  }
+
+  void _openHandovers() {
+    if (widget.staffPortal ||
+        (Get.isRegistered<UserSession>() &&
+            Get.find<UserSession>().role == UserRole.staff)) {
+      Get.to(() => const StaffShiftHandoversPage());
+      return;
+    }
+    Get.to(() => const HandoversPage());
+  }
+
+  void _onBack() {
+    if (widget.staffPortal) {
+      Get.offAll(() => const StaffShell(initialIndex: 0));
+      return;
+    }
+    Navigator.of(context).maybePop();
+  }
+
+  void _onSearch() {
+    if (widget.staffPortal) {
+      StaffSearchPage.open();
+      return;
+    }
+    openManagerPortalSearch();
   }
 
   @override
@@ -166,6 +225,7 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
                   _c.missing.value,
                   _c.activity.value,
                   _c.activityLoading.value,
+                  _c.staffId.value,
                   _c.flags.toList(),
                   _c.shiftLogs.toList(),
                 );
@@ -180,13 +240,19 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
           ),
         ],
       ),
-      bottomNavigationBar: Builder(
-        builder: (_) => HrBottomNavBar(
-          currentIndex: DailyLogsPage._moreTabIndex,
-          onTap: (index) => Get.offAll(() => HrShell(initialIndex: index)),
-          alertsBadgeCount: hrAlertsBadgeCount(),
-        ),
-      ),
+      bottomNavigationBar: widget.showBottomNav
+          ? (widget.staffPortal
+              ? StaffBottomNavBar(
+                  currentIndex: DailyLogsPage._staffDailyLogsTab,
+                  onTap: (index) =>
+                      Get.offAll(() => StaffShell(initialIndex: index)),
+                )
+              : HrBottomNavBar(
+                  currentIndex: DailyLogsPage._moreTabIndex,
+                  onTap: (index) => Get.offAll(() => HrShell(initialIndex: index)),
+                  alertsBadgeCount: hrAlertsBadgeCount(),
+                ))
+          : null,
     );
   }
 
@@ -201,7 +267,7 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
           child: Row(
             children: [
               IconButton(
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: _onBack,
                 icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textHeading),
               ),
               Expanded(
@@ -224,7 +290,7 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
                 ),
               ),
               GestureDetector(
-                onTap: openManagerPortalSearch,
+                onTap: _onSearch,
                 behavior: HitTestBehavior.opaque,
                 child: Container(
                   width: buttonSize,
@@ -302,6 +368,7 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
           TodayBoardSection(
             controller: _c,
             onWriteNote: _addCareNote,
+            onOpenHandover: _openHandovers,
             onOpenResident: (r) => _c.openDay(
               r.clientId,
               _c.logDate.value,
@@ -311,7 +378,8 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
         ];
       case DailyLogsTab.review:
         final reviewRows = _c.review.value?.items ?? const [];
-        final missingRows = _c.missing.value?.items ?? const [];
+        final notHanded = _c.board.value?.notHandedOver ?? const [];
+        final careRows = _c.activity.value?.items ?? const [];
         return [
           // Web "Open flags" — `care-flags:read` (resolve = `care-flags:resolve`).
           if (_c.canReadFlags) ...[
@@ -331,7 +399,7 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Finished shifts from the selected dates. Signing off locks the notes.',
+            'Finished shifts from the last 7 days. Signing off locks the notes.',
             style: handoverText(context, 12.5, color: AppColors.textMuted),
           ),
           const SizedBox(height: 8),
@@ -345,28 +413,62 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
               name: r.clientName,
               residence: r.residenceId,
             ),
+            onSignOff: _c.canReview
+                ? (r) async {
+                    final id = r.shiftLogId;
+                    if (id == null || id.isEmpty) return;
+                    // Prefer an already-loaded shift row; otherwise lock by id.
+                    final row = _c.shiftLogs.firstWhereOrNull((s) => s.id == id);
+                    if (row != null) {
+                      await _c.updateShiftLog(
+                        row,
+                        const {'status': 'locked'},
+                        'Signed off',
+                      );
+                      return;
+                    }
+                    await _c.updateShiftLog(
+                      DailyLogShiftRow(
+                        id: id,
+                        status: 'completed',
+                        clientName: r.clientName,
+                        shiftTitle: r.shiftLabel,
+                        summary: r.summary,
+                      ),
+                      const {'status': 'locked'},
+                      'Signed off',
+                    );
+                  }
+                : null,
           ),
           if (reviewRows.isNotEmpty) _pagination(),
           const SizedBox(height: 14),
-          Text(
-            'Needs a note',
-            style: handoverText(context, 14, weight: FontWeight.w700),
+          NotHandedOverPanel(
+            notes: notHanded,
+            onOpenDay: (n) => _c.openDay(
+              n.clientId,
+              _c.logDate.value,
+              name: n.clientName,
+            ),
           ),
-          const SizedBox(height: 8),
-          MissingLogsList(
-            rows: missingRows,
-            loading: _c.missingLoading.value,
-            error: _c.missingError.value,
-            canWrite: _c.canWrite,
-            onWrite: (r) {
-              _c.openDay(
-                r.clientId,
-                r.logDate,
-                name: r.clientName,
-                residence: r.residenceId,
+          const SizedBox(height: 14),
+          CareGivenPanel(
+            rows: careRows,
+            loading: _c.activityLoading.value,
+            staffFilterLabel: _c.staffName,
+            onFilterStaff: () async {
+              final picked = await pickDailyLogOption(
+                context,
+                'Carer',
+                [
+                  ('', 'Everyone'),
+                  for (final person in _c.staff) (person.id, person.label),
+                ],
+                _c.staffId.value,
               );
-              if (_c.canWrite) _addCareNote();
+              if (picked != null) _c.setStaff(picked);
             },
+            openFor: _openFor,
           ),
           if (_c.hasResidence) ...[
             const SizedBox(height: 14),
@@ -381,41 +483,13 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
           ],
         ];
       case DailyLogsTab.activities:
-        final rows = _c.activity.value?.items ?? const [];
         return [
-          if (_c.canRecordActivity)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.end,
-                children: [
-                  HandoverButton(
-                    key: const ValueKey('dl-group-activity'),
-                    label: 'Group activity',
-                    icon: Icons.groups_rounded,
-                    compact: true,
-                    onPressed: _groupActivity,
-                  ),
-                  HandoverButton(
-                    key: const ValueKey('dl-record-activity'),
-                    label: 'Record activity',
-                    icon: Icons.add_rounded,
-                    filled: true,
-                    compact: true,
-                    onPressed: _recordActivity,
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 12),
-          HouseActivityList(
-            rows: rows,
-            loading: _c.activityLoading.value,
+          DailyLogsActivitiesSection(
+            controller: _c,
             openFor: _openFor,
+            onRecordActivity: _c.canRecordActivity ? _recordActivity : null,
+            onGroupActivity: _c.canRecordActivity ? _groupActivity : null,
           ),
-          if (rows.isNotEmpty) _pagination(),
         ];
     }
   }

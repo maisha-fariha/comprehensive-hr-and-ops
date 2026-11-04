@@ -24,6 +24,7 @@ class DailyLogReviewRow {
   final String? shiftLabel;
   final String? summary;
   final String? residenceId;
+  final String? shiftLogId;
 
   const DailyLogReviewRow({
     required this.id,
@@ -34,6 +35,7 @@ class DailyLogReviewRow {
     this.shiftLabel,
     this.summary,
     this.residenceId,
+    this.shiftLogId,
   });
 
   DailyLogReviewRow atResidence(String residenceId) => DailyLogReviewRow(
@@ -45,6 +47,7 @@ class DailyLogReviewRow {
         shiftLabel: shiftLabel,
         summary: summary,
         residenceId: residenceId,
+        shiftLogId: shiftLogId,
       );
 }
 

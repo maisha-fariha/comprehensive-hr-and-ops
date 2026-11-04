@@ -176,7 +176,9 @@ class ReviewQueueList extends StatelessWidget {
   final List<DailyLogReviewRow> rows;
   final bool loading;
   final String? error;
+  final String emptyMessage;
   final void Function(DailyLogReviewRow) onOpen;
+  final void Function(DailyLogReviewRow)? onSignOff;
 
   const ReviewQueueList({
     super.key,
@@ -184,14 +186,15 @@ class ReviewQueueList extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onOpen,
+    this.onSignOff,
+    this.emptyMessage =
+        'No finished shift is waiting to be signed off this week.',
   });
 
   @override
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
-      return _ListMessage(
-        loading ? 'Loading…' : error ?? 'No finished shift is waiting to be signed off.',
-      );
+      return _ListMessage(loading ? 'Loading…' : error ?? emptyMessage);
     }
     return Column(
       children: _spaced([
@@ -201,7 +204,7 @@ class ReviewQueueList extends StatelessWidget {
             client: r.clientName,
             dayLabel: 'Day',
             day: Text(r.logDate, style: handoverText(context, 13.5)),
-            extraLabel: 'Entries',
+            extraLabel: 'Notes',
             extra: Align(
               alignment: Alignment.centerLeft,
               child: DailyLogPill('${r.entriesCount}', tone: DailyLogTone.info),
@@ -209,7 +212,26 @@ class ReviewQueueList extends StatelessWidget {
             action: 'Open day',
             actionKey: ValueKey('dl-open-day-${r.clientId}-${r.logDate}'),
             onAction: () => onOpen(r),
-            footer: _ShiftSummary(label: r.shiftLabel, summary: r.summary),
+            footer: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ShiftSummary(label: r.shiftLabel, summary: r.summary),
+                if (onSignOff != null &&
+                    (r.shiftLogId ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: HandoverButton(
+                      key: ValueKey('dl-sign-off-${r.shiftLogId}'),
+                      label: 'Sign off',
+                      filled: true,
+                      compact: true,
+                      onPressed: () => onSignOff!(r),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
       ]),
     );
