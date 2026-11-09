@@ -47,24 +47,8 @@ abstract final class HrProfileMapper {
       linkedItems: residences,
       preferenceItems: const [
         HrPreferenceItem(
-          type: HrPreferenceType.notifications,
-          label: 'Notification Preferences',
-        ),
-        HrPreferenceItem(
           type: HrPreferenceType.changePassword,
           label: 'Change Password',
-        ),
-        HrPreferenceItem(
-          type: HrPreferenceType.helpCenter,
-          label: 'Help Center & FAQs',
-        ),
-        HrPreferenceItem(
-          type: HrPreferenceType.contactSupport,
-          label: 'Contact Support',
-        ),
-        HrPreferenceItem(
-          type: HrPreferenceType.privacySecurity,
-          label: 'Privacy & Security',
         ),
       ],
       pushNotificationsEnabled: pushNotificationsEnabled,

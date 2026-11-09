@@ -777,8 +777,12 @@ abstract final class SchedulingMapper {
   }
 
   static List<ShiftRequest> _requests(dynamic body, RequestStatus status) {
-    return JsonCodec.unwrapList(body).whereType<Map>().map((item) {
+    final seen = <String>{};
+    final out = <ShiftRequest>[];
+    for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
       final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id']);
+      if (id != null && !seen.add(id)) continue;
       final requester = json['requester'] ??
           json['fromStaff'] ??
           json['staff'] ??
@@ -788,21 +792,25 @@ abstract final class SchedulingMapper {
       final giving = json['fromShift'] ?? json['givingShift'] ?? json['currentShift'];
       final receiving =
           json['toShift'] ?? json['receivingShift'] ?? json['requestedShift'];
+      final target = json['target'] ?? json['targetStaff'] ?? json['toStaff'];
       final apiStatus = JsonCodec.string(json['status'])?.toLowerCase() ?? '';
-      return ShiftRequest(
-        id: JsonCodec.stringOr(json['id'], name),
-        staffName: name,
-        staffInitials: IsoDateRange.initials(name),
-        status: status,
-        timingLabel: created == null
-            ? JsonCodec.stringOr(json['status'], '')
-            : IsoDateRange.timeAgo(created),
-        givingLabel: _swapShiftLabel(giving),
-        receivingLabel: _swapShiftLabel(receiving),
-        canManagerDecide:
-            status == RequestStatus.pending && apiStatus == 'awaiting_manager',
+      out.add(
+        ShiftRequest(
+          id: id ?? name,
+          staffName: name,
+          staffInitials: IsoDateRange.initials(name),
+          status: status,
+          timingLabel: created == null
+              ? JsonCodec.stringOr(json['status'], '')
+              : IsoDateRange.timeAgo(created),
+          givingLabel: _swapShiftLabel(giving),
+          receivingLabel: _swapReceivingLabel(receiving, target),
+          canManagerDecide:
+              status == RequestStatus.pending && apiStatus == 'awaiting_manager',
+        ),
       );
-    }).toList();
+    }
+    return out;
   }
 
   static String _swapShiftLabel(dynamic value) {
@@ -816,6 +824,16 @@ abstract final class SchedulingMapper {
       return name ?? 'Shift';
     }
     return IsoDateRange.stringOr(value, 'Shift');
+  }
+
+  /// One-way handovers often have no `toShift` — show the target peer instead
+  /// of a bare "Shift" placeholder.
+  static String _swapReceivingLabel(dynamic receiving, dynamic target) {
+    if (receiving is Map) return _swapShiftLabel(receiving);
+    final peer = IsoDateRange.personName(target);
+    if (peer.isNotEmpty && peer != 'Unknown') return 'Handover to $peer';
+    if (receiving != null) return IsoDateRange.stringOr(receiving, 'Shift');
+    return 'Awaiting peer response';
   }
 
   static int _filled(Map<String, dynamic> json) {

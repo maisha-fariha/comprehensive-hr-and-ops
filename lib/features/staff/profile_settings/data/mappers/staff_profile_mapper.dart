@@ -53,24 +53,8 @@ abstract final class StaffProfileMapper {
       linkedItems: clients,
       preferenceItems: const [
         StaffPreferenceItem(
-          type: StaffPreferenceType.notifications,
-          label: 'Notification Preferences',
-        ),
-        StaffPreferenceItem(
           type: StaffPreferenceType.changePassword,
           label: 'Change Password',
-        ),
-        StaffPreferenceItem(
-          type: StaffPreferenceType.helpCenter,
-          label: 'Help Center & FAQs',
-        ),
-        StaffPreferenceItem(
-          type: StaffPreferenceType.contactSupport,
-          label: 'Contact Support',
-        ),
-        StaffPreferenceItem(
-          type: StaffPreferenceType.privacySecurity,
-          label: 'Privacy & Security',
         ),
       ],
       pushNotificationsEnabled: true,

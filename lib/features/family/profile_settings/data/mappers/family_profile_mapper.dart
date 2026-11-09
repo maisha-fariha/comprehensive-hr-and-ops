@@ -66,24 +66,8 @@ abstract final class FamilyProfileMapper {
       linkedClients: clients,
       preferenceItems: const [
         FamilyPreferenceItem(
-          type: FamilyPreferenceType.notifications,
-          label: 'Notification Preferences',
-        ),
-        FamilyPreferenceItem(
           type: FamilyPreferenceType.changePassword,
           label: 'Change Password',
-        ),
-        FamilyPreferenceItem(
-          type: FamilyPreferenceType.helpCenter,
-          label: 'Help Center & FAQs',
-        ),
-        FamilyPreferenceItem(
-          type: FamilyPreferenceType.contactSupport,
-          label: 'Contact Support',
-        ),
-        FamilyPreferenceItem(
-          type: FamilyPreferenceType.privacySecurity,
-          label: 'Privacy & Security',
         ),
       ],
       pushNotificationsEnabled: true,

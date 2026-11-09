@@ -105,11 +105,14 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
           if (mine) 'mine': true,
         },
       ),
+      // Web "Swap Requests" / pending queue is manager-actionable only
+      // (`awaiting_manager`). `awaiting_peer` handovers are peer-owned and
+      // must not appear as pending manager cards (empty on web).
       _api.get(
         ApiEndpoints.shiftSwaps,
         query: {
           ...swapBase,
-          'status': 'awaiting_peer,awaiting_manager',
+          'status': 'awaiting_manager',
           'page': 1,
           'limit': _pageSize,
         },
