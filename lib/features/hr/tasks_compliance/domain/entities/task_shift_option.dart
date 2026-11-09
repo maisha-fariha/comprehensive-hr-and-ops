@@ -7,6 +7,16 @@ class TaskShiftOption {
   final String id;
   final String label;
   final DateTime? startsAt;
+  final DateTime? endsAt;
 
-  const TaskShiftOption({required this.id, required this.label, this.startsAt});
+  /// Web prefixes the in-progress shift with `[Active]` and lists it first.
+  final bool isActive;
+
+  const TaskShiftOption({
+    required this.id,
+    required this.label,
+    this.startsAt,
+    this.endsAt,
+    this.isActive = false,
+  });
 }

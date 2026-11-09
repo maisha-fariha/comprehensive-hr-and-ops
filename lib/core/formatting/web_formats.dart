@@ -48,6 +48,7 @@ abstract final class WebFormat {
   /// `Morning — Day shift · Elm House · Tue 29/09/2026 07:00–15:00 · Jamal +1`.
   ///
   /// [staffNames] must already exclude declined and bid-pending assignments.
+  /// New Task’s shift dropdown on web omits staff — pass [includeStaff]: false.
   static String describeShift({
     String? shiftType,
     String? title,
@@ -56,6 +57,7 @@ abstract final class WebFormat {
     List<String> staffNames = const [],
     String? residenceName,
     bool withResidence = false,
+    bool includeStaff = true,
   }) {
     final type = shiftType == null || shiftType.isEmpty
         ? null
@@ -74,7 +76,7 @@ abstract final class WebFormat {
       if (withResidence && residenceName != null && residenceName.isNotEmpty)
         residenceName,
       '${date(startsAt, weekday: true, empty: '')} ${time(startsAt)}–${time(endsAt)}',
-      who,
+      if (includeStaff) who,
     ].join(' · ');
   }
 }

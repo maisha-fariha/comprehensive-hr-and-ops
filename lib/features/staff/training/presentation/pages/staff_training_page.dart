@@ -14,7 +14,7 @@ import '../widgets/staff_training_course_cards.dart';
 import '../widgets/staff_training_courses_table.dart';
 import '../widgets/staff_training_metrics_strip.dart';
 import '../../../extras/presentation/pages/staff_training_quiz_page.dart';
-import 'staff_training_course_page.dart';
+import '../../../../hr/training/presentation/pages/hr_training_course_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Training — web `/dashboard/training` parity.
@@ -43,12 +43,10 @@ class _StaffTrainingPageState extends State<StaffTrainingPage> {
   }
 
   void _openCourse(String courseId, {String? title}) {
-    Get.to(
-      () => StaffTrainingCoursePage(
-        courseId: courseId,
-        courseTitle: title,
-      ),
-    );
+    // Web `/dashboard/training/[id]` (Sittings, History, …) — same course
+    // chrome for Caregiver `training:read` as for managers. Manage actions
+    // stay gated on `training:manage` inside HrTrainingCoursePage.
+    Get.to(() => HrTrainingCoursePage(courseId: courseId));
   }
 
   @override

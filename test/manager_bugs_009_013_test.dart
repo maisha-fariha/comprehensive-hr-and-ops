@@ -93,7 +93,7 @@ Future<void> _choose(WidgetTester tester, Finder field, String option) async {
 
 // ---------------------------------------------------------------- BUG12 ----
 
-const _morningLabel = 'Morning · Tue 29/09/2026 07:00–15:00 · Maya Rahman +1';
+const _morningLabel = 'Morning · Tue 29/09/2026 7:00 am–3:00 pm';
 
 class _FakeTasksRepo implements TasksComplianceRepository {
   final List<CreateTaskRequest> created = [];
@@ -128,7 +128,7 @@ class _FakeTasksRepo implements TasksComplianceRepository {
               TaskShiftOption(id: 'shift-am', label: _morningLabel),
               TaskShiftOption(
                 id: 'shift-pm',
-                label: 'Evening · Tue 29/09/2026 15:00–23:00 · nobody rostered',
+                label: 'Evening · Tue 29/09/2026 3:00 pm–11:00 pm',
               ),
             ]
           : const [],
@@ -1136,8 +1136,8 @@ void main() {
   });
 
   group('BUG12 New Task shift', () {
-    test('shift options use the web describeShift label, skip cancelled '
-        'shifts and declined staff, soonest first', () {
+    test('shift options use the web New Task label (no staff), skip cancelled '
+        'shifts, soonest first', () {
       final options = TasksComplianceMapper.shiftOptionsFrom({
         'data': [
           {
@@ -1170,11 +1170,11 @@ void main() {
       expect(options.map((o) => o.id), ['early', 'late']);
       expect(
         options.first.label,
-        'Morning — Day shift · Tue 29/09/2026 07:00–15:00 · Jamal Uddin +1',
+        'Morning — Day shift · Tue 29/09/2026 7:00 am–3:00 pm',
       );
       expect(
         options.last.label,
-        'Evening · Tue 29/09/2026 15:00–23:00 · nobody rostered',
+        'Evening · Tue 29/09/2026 3:00 pm–11:00 pm',
       );
       expect(
         WebFormat.describeShift(
@@ -1184,7 +1184,17 @@ void main() {
           residenceName: 'Elm House',
           withResidence: true,
         ),
-        'Shift · Elm House · Tue 29/09/2026 07:00–15:00 · Maya',
+        'Shift · Elm House · Tue 29/09/2026 7:00 am–3:00 pm · Maya',
+      );
+      expect(
+        WebFormat.describeShift(
+          shiftType: 'custom',
+          title: 'Draft probe',
+          startsAt: DateTime(2026, 11, 10, 9),
+          endsAt: DateTime(2026, 11, 10, 10),
+          includeStaff: false,
+        ),
+        'Custom — Draft probe · Tue 10/11/2026 9:00 am–10:00 am',
       );
     });
 

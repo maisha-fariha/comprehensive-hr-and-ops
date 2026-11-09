@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'tasks_compliance_enums.dart';
 
-/// A single tile in the "Tasks" tab's 2x2 stat grid, e.g. "8 Due Today".
+/// A single tile in the Task Management KPI row.
 @immutable
 class TaskStat {
   final String id;
@@ -10,10 +10,14 @@ class TaskStat {
   final String value;
   final String label;
 
+  /// Optional soft badge under/beside the value (e.g. "Nothing due", "Open").
+  final String? badge;
+
   const TaskStat({
     required this.id,
     required this.tag,
     required this.value,
     required this.label,
+    this.badge,
   });
 }

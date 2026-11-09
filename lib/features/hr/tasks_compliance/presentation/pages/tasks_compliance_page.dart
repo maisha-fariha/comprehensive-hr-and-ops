@@ -209,20 +209,22 @@ class TasksCompliancePage extends StatelessWidget {
                     onMenuTap: openManagerMenu,
                     onSearchTap: openManagerPortalSearch,
                   ),
-                  Padding(
-                    padding: ResponsiveHelper.getResponsivePadding(
-                      context,
-                      horizontal: 16,
-                      top: 4,
-                      bottom: 12,
+                  // Web Task Management has no lone “Tasks” pill under the title.
+                  if (tabs.length > 1)
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 16,
+                        top: 4,
+                        bottom: 12,
+                      ),
+                      child: TasksComplianceTabBar(
+                        selectedTab: selected,
+                        onTabSelected: controller.selectTab,
+                        complianceAlertCount: overview.complianceAlertCount,
+                        tabs: tabs,
+                      ),
                     ),
-                    child: TasksComplianceTabBar(
-                      selectedTab: selected,
-                      onTabSelected: controller.selectTab,
-                      complianceAlertCount: overview.complianceAlertCount,
-                      tabs: tabs.isEmpty ? null : tabs,
-                    ),
-                  ),
                 ],
               ),
             ),

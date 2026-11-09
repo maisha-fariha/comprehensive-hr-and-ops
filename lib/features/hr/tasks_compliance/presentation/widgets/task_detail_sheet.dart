@@ -7,7 +7,9 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/formatting/web_formats.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
@@ -148,31 +150,6 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
       },
       failure: (error) {
         AppSnackbar.show('Could not save progress', error.message, force: true);
-      },
-    );
-  }
-
-  Future<void> _complete() async {
-    if (_busy || !_canMutate()) return;
-    final detail = _load.detail ?? const <String, dynamic>{};
-    setState(() => _busy = true);
-    final result = await _repository.updateTask(
-      taskId: widget.task.id,
-      body: {
-        ..._progressBody(status: 'completed'),
-        if (detail['requiresSignOff'] == true) 'signOff': true,
-      },
-    );
-    if (!mounted) return;
-    setState(() => _busy = false);
-    result.when(
-      success: (_) {
-        AppSnackbar.show('Task completed', widget.task.title, force: true);
-        widget.onChanged?.call();
-        Navigator.of(context).pop();
-      },
-      failure: (error) {
-        AppSnackbar.show('Could not complete task', error.message, force: true);
       },
     );
   }
@@ -406,11 +383,9 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                     }
 
                     final detail = _load.detail ?? const <String, dynamic>{};
-                    final description = JsonCodec.string(
-                      detail['description'] ?? detail['body'],
-                    );
                     final statusRaw = _statusRaw(detail);
                     final completed = _isCompleted(statusRaw);
+                    final statusLabel = _statusLabel(statusRaw, detail);
                     final files = [
                       for (final raw in JsonCodec.unwrapList(detail['evidence']))
                         if (raw is Map)
@@ -422,6 +397,21 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                           ),
                     ];
                     final doneCount = _checks.where((step) => step.done).length;
+                    final checklistPercent = _checks.isEmpty
+                        ? 0
+                        : ((doneCount / _checks.length) * 100).round();
+                    final assignee = _primaryAssignee(detail);
+                    final typePriority = [
+                      _typeLabel(
+                        JsonCodec.stringOr(
+                          detail['taskType'] ?? detail['type'],
+                          '',
+                        ),
+                      ),
+                      _priorityLabel(
+                        JsonCodec.stringOr(detail['priority'], ''),
+                      ),
+                    ].where((part) => part.isNotEmpty).join(' · ');
 
                     return ListView(
                       padding: ResponsiveHelper.getResponsivePadding(
@@ -430,66 +420,54 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                         bottom: 16,
                       ),
                       children: [
-                        _SectionCard(
-                          title: 'Task details',
-                          child: Column(
-                            children: [
-                              _MetaRow(
-                                label: 'Status',
-                                value: _statusLabel(statusRaw, detail),
-                              ),
-                              _MetaRow(
-                                label: 'Type',
-                                value: () {
-                                  final line = [
-                                    _typeLabel(JsonCodec.stringOr(
-                                      detail['taskType'] ?? detail['type'],
-                                      '',
-                                    )),
-                                    _priorityLabel(JsonCodec.stringOr(detail['priority'], '')),
-                                  ].where((part) => part.isNotEmpty).join(' · ');
-                                  return line.isEmpty ? '—' : line;
-                                }(),
-                              ),
-                              _MetaRow(label: 'Assigned', value: _assigned(detail)),
-                              _MetaRow(label: 'Residence', value: _residence(detail)),
-                              _MetaRow(label: 'Due', value: _due(detail)),
-                              _MetaRow(
-                                label: 'Review',
-                                value: _reviewValue(detail),
-                              ),
-                              _MetaRow(
-                                label: 'Sign-off',
-                                value: detail['requiresSignOff'] == true
-                                    ? 'Required'
-                                    : 'Not required',
-                              ),
-                              if (description != null && description.trim().isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    description.trim(),
-                                    style: const TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 13,
-                                      color: AppColors.textBody,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                        _DetailsCard(
+                          statusLabel: statusLabel,
+                          awaitingReview: _awaitingReview(detail, statusRaw),
+                          completed: completed && !_awaitingReview(detail, statusRaw),
+                          assigneeName: assignee.name,
+                          assigneeInitials: assignee.initials,
+                          residence: _residence(detail),
+                          client: _client(detail),
+                          due: _due(detail),
+                          typePriority:
+                              typePriority.isEmpty ? null : typePriority,
+                          reviewTitle: _reviewTitle(detail),
+                          reviewNote: _reviewNote(detail),
+                          signOffTitle: _signOffTitle(detail),
+                          signOffTime: _signOffTime(detail),
                         ),
                         const SizedBox(height: 12),
                         _SectionCard(
-                          title: 'Checklist',
+                          title: 'Checklist Progress',
+                          trailing: Text(
+                            '$checklistPercent%',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppColors.textHeading,
+                            ),
+                          ),
                           subtitle: _checks.isEmpty
                               ? '0 of 0 items complete'
                               : '$doneCount of ${_checks.length} items complete',
-                          child: _checks.isEmpty
-                              ? const Text(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Divider(height: 1, color: AppColors.cardBorder),
+                              const SizedBox(height: 10),
+                              const Text(
+                                'Checklist',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: AppColors.textHeading,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              if (_checks.isEmpty)
+                                const Text(
                                   'This task has no checklist.',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
@@ -497,28 +475,28 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                     color: AppColors.textMuted,
                                   ),
                                 )
-                              : Column(
-                                  children: [
-                                    for (var i = 0; i < _checks.length; i++)
-                                      CheckboxListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        dense: true,
-                                        value: _checks[i].done,
-                                        onChanged: completed || !canMutate
-                                            ? null
-                                            : (value) => setState(
-                                                  () => _checks[i].done = value ?? false,
-                                                ),
-                                        title: Text(
-                                          _checks[i].label,
-                                          style: const TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: 13,
-                                          ),
-                                        ),
+                              else
+                                for (var i = 0; i < _checks.length; i++)
+                                  CheckboxListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    dense: true,
+                                    value: _checks[i].done,
+                                    onChanged: completed || !canMutate
+                                        ? null
+                                        : (value) => setState(
+                                              () => _checks[i].done =
+                                                  value ?? false,
+                                            ),
+                                    title: Text(
+                                      _checks[i].label,
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 13,
                                       ),
-                                  ],
-                                ),
+                                    ),
+                                  ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 12),
                         _SectionCard(
@@ -526,7 +504,8 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              if (canMutate) _UploadZone(busy: _busy, onTap: _upload),
+                              if (canMutate)
+                                _UploadZone(busy: _busy, onTap: _upload),
                               for (final name in files)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
@@ -544,7 +523,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                         ),
                         const SizedBox(height: 12),
                         _SectionCard(
-                          title: 'Notes / Reminders',
+                          title: 'Notes',
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -563,13 +542,17 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                   child: OutlinedButton.icon(
                                     key: const Key('task-add-note'),
                                     onPressed: _busy ? null : _addNote,
-                                    icon: const Icon(Icons.note_add_outlined, size: 16),
+                                    icon: const Icon(
+                                      Icons.note_add_outlined,
+                                      size: 16,
+                                    ),
                                     label: const Text('Add Note'),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                               ],
-                              if (_load.notes.isEmpty)
+                              if (_load.notes.isEmpty &&
+                                  _completion.text.trim().isEmpty)
                                 const Text(
                                   'Nothing written yet.',
                                   style: TextStyle(
@@ -578,13 +561,27 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                     color: AppColors.textMuted,
                                   ),
                                 )
-                              else
+                              else ...[
+                                if (_completion.text.trim().isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Text(
+                                      _completion.text.trim(),
+                                      style: const TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: 13,
+                                        color: AppColors.textBody,
+                                      ),
+                                    ),
+                                  ),
                                 for (final note in _load.notes)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
                                     child: Text(
                                       JsonCodec.stringOr(
-                                        note['body'] ?? note['text'] ?? note['note'],
+                                        note['body'] ??
+                                            note['text'] ??
+                                            note['note'],
                                         'Note',
                                       ),
                                       style: const TextStyle(
@@ -594,49 +591,12 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                       ),
                                     ),
                                   ),
+                              ],
                             ],
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        _SectionCard(
-                          title: 'Finishing up',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'Completion notes',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                  color: AppColors.textHeading,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              if (canMutate)
-                                TextField(
-                                  controller: _completion,
-                                  minLines: 3,
-                                  maxLines: 5,
-                                  decoration: _fieldDecoration(
-                                    'What was done, and anything the next person should know...',
-                                  ),
-                                )
-                              else
-                                Text(
-                                  _completion.text.trim().isEmpty
-                                      ? 'No completion notes.'
-                                      : _completion.text.trim(),
-                                  style: const TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize: 13,
-                                    color: AppColors.textBody,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        if (_canReview(detail, statusRaw)) ..._reviewBox(context),
+                        if (_canReview(detail, statusRaw))
+                          ..._reviewBox(context),
                       ],
                     );
                   },
@@ -648,8 +608,6 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                 onClose: () => Navigator.of(context).pop(),
                 onEdit: canMutate && _load.detail != null ? _edit : null,
                 onSave: canMutate && _load.detail != null ? _saveProgress : null,
-                onComplete:
-                    canMutate && _load.detail != null ? _complete : null,
               ),
             ],
           ),
@@ -686,32 +644,40 @@ InputDecoration _fieldDecoration(String hint) {
   );
 }
 
-String _assigned(Map<String, dynamic> detail) {
-  final names = <String>[];
+({String name, String initials}) _primaryAssignee(Map<String, dynamic> detail) {
   for (final raw in JsonCodec.unwrapList(detail['assignees'])) {
     if (raw is! Map) continue;
     final map = JsonCodec.asMap(raw);
     final staff = JsonCodec.mapAt(map, 'staff') ?? map;
-    final name = JsonCodec.string(staff['name'] ?? staff['fullName']);
-    if (name != null && name.trim().isNotEmpty) {
-      names.add(name.trim());
-      continue;
-    }
-    final both = [
-      JsonCodec.string(staff['firstName']),
-      JsonCodec.string(staff['lastName']),
-    ].whereType<String>().join(' ').trim();
-    if (both.isNotEmpty) names.add(both);
+    final name = IsoDateRange.personName(staff).trim();
+    if (name.isEmpty || name == '—') continue;
+    return (
+      name: name,
+      initials: IsoDateRange.initials(name, fallback: ''),
+    );
   }
-  return names.isEmpty ? 'Unassigned' : names.join(', ');
+  return (name: 'Unassigned', initials: '');
 }
 
 String _residence(Map<String, dynamic> detail) {
   final residence = JsonCodec.mapAt(detail, 'residence');
-  return JsonCodec.stringOr(
+  final room = JsonCodec.string(detail['roomArea']);
+  final name = JsonCodec.stringOr(
     residence?['name'] ?? detail['residenceName'],
     '—',
   );
+  if (room == null || room.trim().isEmpty) return name;
+  if (name == '—') return room.trim();
+  return '$name $room'.trim();
+}
+
+String _client(Map<String, dynamic> detail) {
+  final client = JsonCodec.mapAt(detail, 'client');
+  if (client == null) {
+    return JsonCodec.stringOr(detail['clientName'], '');
+  }
+  final name = IsoDateRange.personName(client).trim();
+  return name == '—' ? '' : name;
 }
 
 String _statusLabel(String raw, Map<String, dynamic> detail) {
@@ -751,10 +717,7 @@ String _priorityLabel(String raw) {
 String _due(Map<String, dynamic> detail) {
   final due = JsonCodec.dateTime(detail['dueAt'] ?? detail['dueDate']);
   if (due == null) return 'No due date';
-  final local = due.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${two(local.day)}/${two(local.month)}/${local.year} '
-      '${two(local.hour)}:${two(local.minute)}';
+  return WebFormat.dateTime(due);
 }
 
 /// Web review box: finished (or already in a review status), a review is
@@ -775,13 +738,32 @@ bool _awaitingReview(Map<String, dynamic> detail, String status) {
   return finished && detail['requiresReview'] == true;
 }
 
-String _reviewValue(Map<String, dynamic> detail) {
+String _reviewTitle(Map<String, dynamic> detail) {
   if (detail['requiresReview'] != true) return 'Not required';
-  final reviewed = detail['reviewedAt'];
-  if (reviewed == null || (reviewed is String && reviewed.trim().isEmpty)) {
-    return 'Waiting on a reviewer';
+  final reviewed = JsonCodec.dateTime(detail['reviewedAt']);
+  if (reviewed == null) return 'Waiting on a reviewer';
+  return 'Reviewed ${WebFormat.dateTime(reviewed)}';
+}
+
+String? _reviewNote(Map<String, dynamic> detail) {
+  final note = JsonCodec.string(detail['reviewNotes']);
+  if (note == null || note.trim().isEmpty) return null;
+  return note.trim();
+}
+
+String _signOffTitle(Map<String, dynamic> detail) {
+  if (detail['requiresSignOff'] != true) return 'Not required';
+  final name = JsonCodec.string(detail['signedOffName']);
+  if (name == null || name.trim().isEmpty) {
+    return detail['signedOffAt'] == null ? 'Required' : 'Signed off';
   }
-  return 'Reviewed';
+  return 'Signed off by ${name.trim()}';
+}
+
+String? _signOffTime(Map<String, dynamic> detail) {
+  final at = JsonCodec.dateTime(detail['signedOffAt']);
+  if (at == null) return null;
+  return WebFormat.dateTime(at);
 }
 
 bool _canReview(Map<String, dynamic> detail, String status) {
@@ -903,12 +885,271 @@ class _SheetHeader extends StatelessWidget {
   }
 }
 
+class _DetailsCard extends StatelessWidget {
+  final String statusLabel;
+  final bool awaitingReview;
+  final bool completed;
+  final String assigneeName;
+  final String assigneeInitials;
+  final String residence;
+  final String client;
+  final String due;
+  final String? typePriority;
+  final String reviewTitle;
+  final String? reviewNote;
+  final String signOffTitle;
+  final String? signOffTime;
+
+  const _DetailsCard({
+    required this.statusLabel,
+    required this.awaitingReview,
+    required this.completed,
+    required this.assigneeName,
+    required this.assigneeInitials,
+    required this.residence,
+    required this.client,
+    required this.due,
+    required this.typePriority,
+    required this.reviewTitle,
+    required this.reviewNote,
+    required this.signOffTitle,
+    required this.signOffTime,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = awaitingReview
+        ? const Color(0xFF0284C7)
+        : completed
+            ? const Color(0xFF2E8C58)
+            : const Color(0xFFB36B21);
+    final statusBg = awaitingReview
+        ? const Color(0xFFE0F2FE)
+        : completed
+            ? const Color(0xFFEAF6F0)
+            : const Color(0xFFFCF5ED);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.searchBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusBg,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                statusLabel,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.5,
+                  color: statusColor,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 18,
+            runSpacing: 14,
+            children: [
+              _DetailBlock(
+                label: 'Assigned Staff',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: const Color(0xFFE2E8F0),
+                      child: Text(
+                        assigneeInitials.isEmpty ? '?' : assigneeInitials,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        assigneeName,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _DetailBlock(
+                label: 'Residence',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      residence,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    if (client.isNotEmpty)
+                      Text(
+                        client,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              _DetailBlock(
+                label: 'Due',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      due,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    if (typePriority != null)
+                      Text(
+                        typePriority!,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              _DetailBlock(
+                label: 'Review',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reviewTitle,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    if (reviewNote != null)
+                      Text(
+                        reviewNote!,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: Color(0xFFD64545),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              _DetailBlock(
+                label: 'Sign-Off',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      signOffTitle,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    if (signOffTime != null)
+                      Text(
+                        signOffTime!,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailBlock extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _DetailBlock({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: ResponsiveHelper.getResponsiveWidth(context, 150),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w500,
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final String? subtitle;
+  final Widget? trailing;
   final Widget child;
 
-  const _SectionCard({required this.title, required this.child, this.subtitle});
+  const _SectionCard({
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -922,14 +1163,21 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-              color: AppColors.textHeading,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing!,
+            ],
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
@@ -970,7 +1218,7 @@ class _UploadZone extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFD5DEE6)),
+            border: Border.all(color: const Color(0xFFB7C4CE), width: 1.2),
           ),
           child: const Column(
             children: [
@@ -1010,7 +1258,6 @@ class _ActionBar extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback? onEdit;
   final VoidCallback? onSave;
-  final VoidCallback? onComplete;
 
   const _ActionBar({
     required this.busy,
@@ -1018,7 +1265,6 @@ class _ActionBar extends StatelessWidget {
     required this.onClose,
     required this.onEdit,
     required this.onSave,
-    required this.onComplete,
   });
 
   @override
@@ -1044,12 +1290,6 @@ class _ActionBar extends StatelessWidget {
                 label: 'Save progress',
                 onTap: busy || completed ? null : onSave,
               ),
-              _BarButton(
-                key: const Key('task-complete'),
-                label: 'Complete task',
-                filled: true,
-                onTap: busy || completed ? null : onComplete,
-              ),
             ],
           ),
         ),
@@ -1061,21 +1301,17 @@ class _ActionBar extends StatelessWidget {
 class _BarButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
-  final bool filled;
 
   const _BarButton({
     super.key,
     required this.label,
     required this.onTap,
-    this.filled = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = filled ? AppColors.primaryNavy : AppColors.surfaceWhite;
-    final textColor = filled ? Colors.white : AppColors.textHeading;
     return Material(
-      color: onTap == null && filled ? AppColors.primaryNavy.withValues(alpha: 0.4) : color,
+      color: AppColors.surfaceWhite,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -1084,7 +1320,7 @@ class _BarButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            border: filled ? null : Border.all(color: AppColors.searchBorder),
+            border: Border.all(color: AppColors.searchBorder),
           ),
           child: Text(
             label,
@@ -1092,53 +1328,12 @@ class _BarButton extends StatelessWidget {
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w700,
               fontSize: 13,
-              color: textColor,
+              color: onTap == null
+                  ? AppColors.textMuted
+                  : AppColors.textHeading,
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MetaRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _MetaRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: ResponsiveHelper.getResponsiveHeight(context, 6),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: ResponsiveHelper.getResponsiveWidth(context, 80),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                color: AppColors.textHeading,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

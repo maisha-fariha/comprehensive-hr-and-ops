@@ -65,20 +65,27 @@ class TasksComplianceHeader extends StatelessWidget {
                         height: 1.2,
                       ),
                     ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                    Text(
-                      subtitle,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w400,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                        color: AppColors.textMuted,
-                        height: 1.2,
+                    if (subtitle.trim().isNotEmpty) ...[
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 2),
                       ),
-                    ),
+                      Text(
+                        subtitle,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w400,
+                          fontSize: ResponsiveHelper.getResponsiveFontSize(
+                            context,
+                            12,
+                          ),
+                          color: AppColors.textMuted,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

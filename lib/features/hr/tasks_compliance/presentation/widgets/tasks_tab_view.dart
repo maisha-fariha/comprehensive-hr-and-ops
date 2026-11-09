@@ -2,16 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../domain/entities/expiring_certificate.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/entities/tasks_compliance_enums.dart';
 import '../../domain/entities/tasks_compliance_overview.dart';
+import 'task_analytics_section.dart';
 import 'task_list_tile.dart';
 import 'task_stats_grid.dart';
 import 'tasks_list_segment_bar.dart';
 
-/// Body content of the "Tasks" tab: stats grid, list segment bar
-/// (Tasks Due / Review Queue / Recurring), list + expiring certificates.
+/// Body content of Task Management: KPIs, charts, tabs, filters, list.
 class TasksTabView extends StatefulWidget {
   final TasksComplianceOverview overview;
   final VoidCallback? onNewTaskTap;
@@ -37,39 +36,141 @@ class TasksTabView extends StatefulWidget {
 }
 
 class _TasksTabViewState extends State<TasksTabView> {
-  static const Color _badgeSoft = Color(0xFFEAF0F9);
-  static const Color _badgeFg = Color(0xFF2A5DA6);
-
   TasksListSegment _segment = TasksListSegment.tasksDue;
+  final _search = TextEditingController();
+  String _staff = 'All Staff';
+  String _residence = 'All Residences';
+  String _status = 'All Status';
+  String _priority = 'All Priorities';
+  String _type = 'All Types';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   String get _sectionTitle => switch (_segment) {
-        TasksListSegment.tasksDue => 'Tasks Due',
+        TasksListSegment.tasksDue => 'All Tasks',
         TasksListSegment.reviewQueue => 'Review Queue',
         TasksListSegment.recurring => 'Recurring',
       };
 
-  List<TaskItem> get _tasks => switch (_segment) {
+  List<TaskItem> get _source => switch (_segment) {
         TasksListSegment.tasksDue => widget.overview.taskItems,
         TasksListSegment.reviewQueue => widget.overview.reviewQueueItems,
         TasksListSegment.recurring => widget.overview.recurringItems,
       };
 
-  int get _count => switch (_segment) {
-        TasksListSegment.tasksDue => widget.overview.tasksDueCount,
-        TasksListSegment.reviewQueue =>
-          widget.overview.reviewQueueItems.length,
-        TasksListSegment.recurring => widget.overview.recurringItems.length,
-      };
+  List<TaskItem> get _tasks {
+    final q = _search.text.trim().toLowerCase();
+    return [
+      for (final task in _source)
+        if (_matches(task, q)) task,
+    ];
+  }
+
+  bool get _filtersActive =>
+      _search.text.trim().isNotEmpty ||
+      _staff != 'All Staff' ||
+      _residence != 'All Residences' ||
+      _status != 'All Status' ||
+      _priority != 'All Priorities' ||
+      _type != 'All Types';
+
+  bool _matches(TaskItem task, String q) {
+    if (q.isNotEmpty) {
+      final hay = [
+        task.title,
+        task.assigneeName,
+        task.residenceName,
+        task.clientName,
+        task.typeLabel,
+      ].join(' ').toLowerCase();
+      if (!hay.contains(q)) return false;
+    }
+    if (_staff != 'All Staff' && task.assigneeName != _staff) return false;
+    if (_residence != 'All Residences' &&
+        _residenceLabel(task) != _residence) {
+      return false;
+    }
+    if (_priority != 'All Priorities' && task.priorityLabel != _priority) {
+      return false;
+    }
+    if (_type != 'All Types' && task.typeLabel != _type) return false;
+    if (_status != 'All Status') {
+      final label = task.awaitingReview
+          ? 'Awaiting review'
+          : switch (task.status) {
+              TaskStatus.completed => 'Completed',
+              TaskStatus.overdue => 'Overdue',
+              _ => 'Pending',
+            };
+      if (label != _status) return false;
+    }
+    return true;
+  }
+
+  String _residenceLabel(TaskItem task) =>
+      task.residenceName.trim().isEmpty ? '—' : task.residenceName.trim();
+
+  List<String> _unique(Iterable<String> values, String allLabel) {
+    final set = <String>{};
+    for (final value in values) {
+      final trimmed = value.trim();
+      if (trimmed.isNotEmpty) set.add(trimmed);
+    }
+    final sorted = set.toList()..sort();
+    return [allLabel, ...sorted];
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _search.clear();
+      _staff = 'All Staff';
+      _residence = 'All Residences';
+      _status = 'All Status';
+      _priority = 'All Priorities';
+      _type = 'All Types';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final overview = widget.overview;
     final tasks = _tasks;
-    final moreCount = _segment == TasksListSegment.tasksDue
-        ? overview.tasksDueCount - overview.taskItems.length
-        : 0;
     final cardGap = ResponsiveHelper.getResponsiveHeight(context, 10);
-    final sectionGap = ResponsiveHelper.getResponsiveHeight(context, 18);
+    final sectionGap = ResponsiveHelper.getResponsiveHeight(context, 16);
+    final staffOptions = _unique(
+      overview.taskItems.map((t) => t.assigneeName),
+      'All Staff',
+    );
+    final residenceOptions = _unique(
+      overview.taskItems.map(_residenceLabel),
+      'All Residences',
+    );
+    final statusOptions = const [
+      'All Status',
+      'Pending',
+      'Completed',
+      'Overdue',
+      'Awaiting review',
+    ];
+    final priorityOptions = _unique(
+      overview.taskItems.map((t) => t.priorityLabel),
+      'All Priorities',
+    );
+    final typeOptions = _unique(
+      overview.taskItems.map((t) => t.typeLabel),
+      'All Types',
+    );
+
+    final pendingBadge = switch (_segment) {
+      TasksListSegment.tasksDue => '${overview.tasksDueCount} pending',
+      TasksListSegment.reviewQueue =>
+        '${overview.reviewQueueCount} awaiting',
+      TasksListSegment.recurring => '${overview.recurringCount} active',
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -82,9 +183,34 @@ class _TasksTabViewState extends State<TasksTabView> {
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         TaskStatsGrid(stats: overview.taskStats),
         SizedBox(height: sectionGap),
+        TaskAnalyticsSection(analytics: overview.taskAnalytics),
+        SizedBox(height: sectionGap),
         TasksListSegmentBar(
           selected: _segment,
+          reviewQueueCount: overview.reviewQueueCount,
+          recurringCount: overview.recurringCount,
           onSelected: (segment) => setState(() => _segment = segment),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+        _FilterBar(
+          search: _search,
+          onSearchChanged: (_) => setState(() {}),
+          staff: _staff,
+          residence: _residence,
+          status: _status,
+          priority: _priority,
+          type: _type,
+          staffOptions: staffOptions,
+          residenceOptions: residenceOptions,
+          statusOptions: statusOptions,
+          priorityOptions: priorityOptions,
+          typeOptions: typeOptions,
+          onStaff: (v) => setState(() => _staff = v),
+          onResidence: (v) => setState(() => _residence = v),
+          onStatus: (v) => setState(() => _status = v),
+          onPriority: (v) => setState(() => _priority = v),
+          onType: (v) => setState(() => _type = v),
+          onClear: _filtersActive ? _clearFilters : null,
         ),
         SizedBox(height: sectionGap),
         Row(
@@ -103,14 +229,20 @@ class _TasksTabViewState extends State<TasksTabView> {
                 ),
               ),
             ),
-            _SoftCountBadge(
-              count: _count,
-              background: _badgeSoft,
-              foreground: _badgeFg,
-            ),
+            _PendingBadge(label: pendingBadge),
           ],
         ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+        Text(
+          'Track progress across residences and staff',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w400,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+            color: AppColors.textMuted,
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         if (tasks.isEmpty)
           Padding(
             padding: ResponsiveHelper.getResponsivePadding(
@@ -119,7 +251,7 @@ class _TasksTabViewState extends State<TasksTabView> {
             ),
             child: Text(
               _segment == TasksListSegment.tasksDue
-                  ? 'No tasks due right now.'
+                  ? 'No tasks yet.'
                   : _segment == TasksListSegment.reviewQueue
                       ? 'No tasks waiting for review.'
                       : 'No recurring tasks yet.',
@@ -168,55 +300,195 @@ class _TasksTabViewState extends State<TasksTabView> {
               ),
             ],
           ],
-        if (moreCount > 0) ...[
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '+ $moreCount more tasks',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+      ],
+    );
+  }
+}
+
+class _PendingBadge extends StatelessWidget {
+  final String label;
+
+  const _PendingBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.w600,
+          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11.5),
+          color: const Color(0xFF64748B),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterBar extends StatelessWidget {
+  final TextEditingController search;
+  final ValueChanged<String> onSearchChanged;
+  final String staff;
+  final String residence;
+  final String status;
+  final String priority;
+  final String type;
+  final List<String> staffOptions;
+  final List<String> residenceOptions;
+  final List<String> statusOptions;
+  final List<String> priorityOptions;
+  final List<String> typeOptions;
+  final ValueChanged<String> onStaff;
+  final ValueChanged<String> onResidence;
+  final ValueChanged<String> onStatus;
+  final ValueChanged<String> onPriority;
+  final ValueChanged<String> onType;
+  final VoidCallback? onClear;
+
+  const _FilterBar({
+    required this.search,
+    required this.onSearchChanged,
+    required this.staff,
+    required this.residence,
+    required this.status,
+    required this.priority,
+    required this.type,
+    required this.staffOptions,
+    required this.residenceOptions,
+    required this.statusOptions,
+    required this.priorityOptions,
+    required this.typeOptions,
+    required this.onStaff,
+    required this.onResidence,
+    required this.onStatus,
+    required this.onPriority,
+    required this.onType,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextField(
+          controller: search,
+          onChanged: onSearchChanged,
+          decoration: InputDecoration(
+            hintText: 'Search tasks...',
+            hintStyle: const TextStyle(
+              fontFamily: 'Outfit',
+              color: AppColors.textMuted,
+            ),
+            prefixIcon: const Icon(Icons.search_rounded, size: 20),
+            filled: true,
+            fillColor: AppColors.surfaceWhite,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.searchBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.searchBorder),
+            ),
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _FilterMenu(
+              value: staff,
+              options: staffOptions,
+              onChanged: onStaff,
+            ),
+            _FilterMenu(
+              value: residence,
+              options: residenceOptions,
+              onChanged: onResidence,
+            ),
+            _FilterMenu(
+              value: status,
+              options: statusOptions,
+              onChanged: onStatus,
+            ),
+            _FilterMenu(
+              value: priority,
+              options: priorityOptions,
+              onChanged: onPriority,
+            ),
+            _FilterMenu(
+              value: type,
+              options: typeOptions,
+              onChanged: onType,
+            ),
+            if (onClear != null)
+              TextButton(
+                onPressed: onClear,
+                child: const Text(
+                  'Clear Filters',
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w500,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              Text(
-                'View all →',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                  color: AppColors.secondaryTeal,
-                ),
-              ),
-            ],
-          ),
-        ],
-        if (overview.expiringCertificates.isNotEmpty) ...[
-          SizedBox(height: sectionGap),
-          Text(
-            'Expiring Staff Certifications',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15.5),
-              color: AppColors.textHeading,
-            ),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-          for (var i = 0; i < overview.expiringCertificates.length; i++) ...[
-            if (i > 0) SizedBox(height: cardGap),
-            _CertificateTile(certificate: overview.expiringCertificates[i]),
           ],
-        ],
+        ),
       ],
+    );
+  }
+}
+
+class _FilterMenu extends StatelessWidget {
+  final String value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+
+  const _FilterMenu({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.searchBorder),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: options.contains(value) ? value : options.first,
+          isDense: true,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w500,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+            color: AppColors.textHeading,
+          ),
+          items: [
+            for (final option in options)
+              DropdownMenuItem(value: option, child: Text(option)),
+          ],
+          onChanged: (next) {
+            if (next != null) onChanged(next);
+          },
+        ),
+      ),
     );
   }
 }
@@ -342,61 +614,6 @@ class _ActionChip extends StatelessWidget {
   }
 }
 
-class _CertificateTile extends StatelessWidget {
-  final ExpiringCertificate certificate;
-
-  const _CertificateTile({required this.certificate});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
-        ),
-        border: Border.all(color: AppColors.searchBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            certificate.title,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-              color: AppColors.textHeading,
-            ),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
-          Text(
-            certificate.staffName,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w500,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-              color: AppColors.textSecondary,
-            ),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-          Text(
-            certificate.expiryLabel,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-              color: AppColors.urgentAmber,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _NewTaskButton extends StatelessWidget {
   final VoidCallback? onTap;
 
@@ -406,7 +623,7 @@ class _NewTaskButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
     return Material(
-      color: AppColors.secondaryTeal,
+      color: AppColors.primaryNavy,
       borderRadius: BorderRadius.circular(radius),
       child: InkWell(
         onTap: onTap,
@@ -427,7 +644,7 @@ class _NewTaskButton extends StatelessWidget {
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
               Text(
-                'New Task',
+                'New task',
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
@@ -438,39 +655,6 @@ class _NewTaskButton extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SoftCountBadge extends StatelessWidget {
-  final int count;
-  final Color background;
-  final Color foreground;
-
-  const _SoftCountBadge({
-    required this.count,
-    required this.background,
-    required this.foreground,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final size = ResponsiveHelper.getResponsiveSize(context, 22);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: background, shape: BoxShape.circle),
-      alignment: Alignment.center,
-      child: Text(
-        '$count',
-        style: TextStyle(
-          fontFamily: 'Outfit',
-          fontWeight: FontWeight.w700,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-          color: foreground,
-          height: 1,
         ),
       ),
     );

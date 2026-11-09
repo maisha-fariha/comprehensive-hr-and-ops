@@ -5,8 +5,8 @@ enum TasksComplianceTab { tasks, compliance, corrective }
 /// Sub-tabs under the main "Tasks" tab (below the stats grid).
 enum TasksListSegment { tasksDue, reviewQueue, recurring }
 
-/// Semantic tag for a tile in the "Tasks" tab's 2x2 stat grid.
-enum TaskStatTag { dueToday, thisWeek, upcoming, completed }
+/// Semantic tag for a tile in the Task Management KPI row (web labels).
+enum TaskStatTag { todayCompletion, pending, overdue, recurringActive }
 
 /// Which category a task belongs to; drives both the list tile's icon and
 /// the small category tag chip shown under the task title.

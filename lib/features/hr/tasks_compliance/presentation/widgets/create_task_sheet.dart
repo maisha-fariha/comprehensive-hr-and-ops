@@ -431,6 +431,13 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     return '$day/$month/${value.year}, $time';
   }
 
+  void _onResidentFocus() {
+    // Web shows the resident list as soon as the search box is focused.
+    if (_showResidentSuggestions && _residentSuggestions.isNotEmpty) return;
+    setState(() => _showResidentSuggestions = true);
+    _searchResidents(_residentController.text.trim());
+  }
+
   void _onResidentQueryChanged(String value) {
     final selected = _selectedResident;
     if (selected != null && value.trim() != selected.name) {
@@ -439,17 +446,6 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
 
     _residentSearchDebounce?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _residentSearchRequestId++;
-      setState(() {
-        _searchingResidents = false;
-        _residentSuggestions = const [];
-        _showResidentSuggestions = false;
-        _residentSearchError = '';
-      });
-      return;
-    }
-
     setState(() => _showResidentSuggestions = true);
     _residentSearchDebounce = Timer(
       const Duration(milliseconds: 320),
@@ -516,20 +512,16 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     }
   }
 
+  void _onStaffFocus() {
+    // Web shows the staff list as soon as Add staff is focused.
+    if (_showStaffSuggestions && _staffSuggestions.isNotEmpty) return;
+    setState(() => _showStaffSuggestions = true);
+    _searchStaff(_staffController.text.trim());
+  }
+
   void _onStaffQueryChanged(String value) {
     _staffSearchDebounce?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _staffSearchRequestId++;
-      setState(() {
-        _searchingStaff = false;
-        _staffSuggestions = const [];
-        _showStaffSuggestions = false;
-        _staffSearchError = '';
-      });
-      return;
-    }
-
     setState(() => _showStaffSuggestions = true);
     _staffSearchDebounce = Timer(
       const Duration(milliseconds: 320),
@@ -906,6 +898,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                       residentSearchError: _residentSearchError,
                       residentSuggestions: _residentSuggestions,
                       selectedResidentId: _selectedResident?.id,
+                      onResidentFocus: _onResidentFocus,
                       onResidentQueryChanged: _onResidentQueryChanged,
                       onResidentSelected: _selectResident,
                       residenceError: _errors['residenceId'],
@@ -957,6 +950,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                           controller: _staffController,
                           selected: _selectedStaff,
                           hint: 'Add staff',
+                          onFocus: _onStaffFocus,
                           onChanged: _onStaffQueryChanged,
                           onRemove: _removeStaff,
                         ),
@@ -1397,6 +1391,7 @@ class _ResidenceCard extends StatelessWidget {
   final String residentSearchError;
   final List<TaskClientOption> residentSuggestions;
   final String? selectedResidentId;
+  final VoidCallback onResidentFocus;
   final ValueChanged<String> onResidentQueryChanged;
   final ValueChanged<TaskClientOption> onResidentSelected;
   final VoidCallback onPickResidence;
@@ -1416,6 +1411,7 @@ class _ResidenceCard extends StatelessWidget {
     required this.residentSearchError,
     required this.residentSuggestions,
     required this.selectedResidentId,
+    required this.onResidentFocus,
     required this.onResidentQueryChanged,
     required this.onResidentSelected,
     required this.onPickResidence,
@@ -1484,6 +1480,7 @@ class _ResidenceCard extends StatelessWidget {
           WizardSearchField(
             controller: residentController,
             hint: 'Search resident (optional)...',
+            onTap: onResidentFocus,
             onChanged: onResidentQueryChanged,
           ),
           if (showResidentSuggestions) ...[
@@ -1510,6 +1507,7 @@ class _AssignedStaffSearchField extends StatelessWidget {
   final TextEditingController controller;
   final List<TaskStaffOption> selected;
   final String hint;
+  final VoidCallback onFocus;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onRemove;
 
@@ -1517,6 +1515,7 @@ class _AssignedStaffSearchField extends StatelessWidget {
     required this.controller,
     required this.selected,
     required this.hint,
+    required this.onFocus,
     required this.onChanged,
     required this.onRemove,
   });
@@ -1574,6 +1573,7 @@ class _AssignedStaffSearchField extends StatelessWidget {
                   ),
                   child: TextField(
                     controller: controller,
+                    onTap: onFocus,
                     onChanged: onChanged,
                     style: TextStyle(
                       fontFamily: 'Outfit',
@@ -1635,64 +1635,68 @@ class _StaffSuggestionsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      constraints: BoxConstraints(
-        maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    return Material(
+      color: AppColors.surfaceWhite,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+        side: const BorderSide(color: AppColors.searchBorder),
       ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 12),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
         ),
-        border: Border.all(color: AppColors.searchBorder),
-      ),
-      child: searching
-          ? const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.secondaryTeal),
-              ),
-            )
-          : error.isNotEmpty && suggestions.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    error,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize:
-                          ResponsiveHelper.getResponsiveFontSize(context, 13),
-                      color: AppColors.textSecondary,
-                    ),
+        child: searching
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.secondaryTeal,
                   ),
-                )
-              : suggestions.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No staff found.',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            13,
-                          ),
-                          color: AppColors.textSecondary,
+                ),
+              )
+            : error.isNotEmpty && suggestions.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      error,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          13,
                         ),
+                        color: AppColors.textSecondary,
                       ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemCount: suggestions.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final option = suggestions[index];
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            option.name,
+                    ),
+                  )
+                : suggestions.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'No staff found.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              13,
+                            ),
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final option = suggestions[index];
+                          return ListTile(
+                            dense: true,
+                            title: Text(
+                              option.name,
                             style: TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w600,
@@ -1719,8 +1723,9 @@ class _StaffSuggestionsPanel extends StatelessWidget {
                                 ),
                           onTap: () => onSelected(option),
                         );
-                      },
-                    ),
+                        },
+                      ),
+      ),
     );
   }
 }
@@ -1742,65 +1747,69 @@ class _ResidentSuggestionsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      constraints: BoxConstraints(
-        maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    return Material(
+      color: AppColors.surfaceWhite,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+        side: const BorderSide(color: AppColors.searchBorder),
       ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 12),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
         ),
-        border: Border.all(color: AppColors.searchBorder),
-      ),
-      child: searching
-          ? const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.secondaryTeal),
-              ),
-            )
-          : error.isNotEmpty && suggestions.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    error,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize:
-                          ResponsiveHelper.getResponsiveFontSize(context, 13),
-                      color: AppColors.textSecondary,
-                    ),
+        child: searching
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.secondaryTeal,
                   ),
-                )
-              : suggestions.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No residents found.',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            13,
-                          ),
-                          color: AppColors.textSecondary,
+                ),
+              )
+            : error.isNotEmpty && suggestions.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      error,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          13,
                         ),
+                        color: AppColors.textSecondary,
                       ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemCount: suggestions.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final option = suggestions[index];
-                        final selected = selectedId == option.id;
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            option.name,
+                    ),
+                  )
+                : suggestions.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'No residents found.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              13,
+                            ),
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final option = suggestions[index];
+                          final selected = selectedId == option.id;
+                          return ListTile(
+                            dense: true,
+                            title: Text(
+                              option.name,
                             style: TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w600,
@@ -1833,8 +1842,9 @@ class _ResidentSuggestionsPanel extends StatelessWidget {
                               : null,
                           onTap: () => onSelected(option),
                         );
-                      },
-                    ),
+                        },
+                      ),
+      ),
     );
   }
 }

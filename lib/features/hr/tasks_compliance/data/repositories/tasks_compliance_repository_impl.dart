@@ -5,6 +5,7 @@ import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_task_request.dart';
 import '../../domain/entities/task_client_option.dart';
 import '../../domain/entities/task_residence_option.dart';
@@ -47,7 +48,8 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
         ApiEndpoints.tasks,
         query: {
           'page': 1,
-          'limit': 20,
+          // Web All Tasks lists the full page set; 20 truncated real workloads.
+          'limit': 100,
           ...residenceQuery,
         },
         silent: true,
@@ -185,10 +187,8 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     required String search,
     String? residenceId,
   }) async {
+    // Web opens the resident list on focus with an empty query.
     final trimmed = search.trim();
-    if (trimmed.isEmpty) {
-      return Result.success(<TaskClientOption>[]);
-    }
 
     final scopedResidence = residenceId?.trim().isNotEmpty == true
         ? residenceId!.trim()
@@ -197,7 +197,7 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     final result = await _api.get(
       ApiEndpoints.clients,
       query: {
-        'search': trimmed,
+        if (trimmed.isNotEmpty) 'search': trimmed,
         'page': 1,
         'limit': 20,
         if (scopedResidence != null && scopedResidence.isNotEmpty)
@@ -217,10 +217,8 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     required String search,
     String? residenceId,
   }) async {
+    // Web opens the staff list on focus with an empty query.
     final trimmed = search.trim();
-    if (trimmed.isEmpty) {
-      return Result.success(<TaskStaffOption>[]);
-    }
 
     final scopedResidence = residenceId?.trim().isNotEmpty == true
         ? residenceId!.trim()
@@ -239,7 +237,7 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       result = await _api.get(
         ApiEndpoints.staff,
         query: {
-          'search': trimmed,
+          if (trimmed.isNotEmpty) 'search': trimmed,
           'page': 1,
           'limit': 20,
           if (scopedResidence != null && scopedResidence.isNotEmpty)
@@ -255,8 +253,10 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     }
 
     final needle = trimmed.toLowerCase();
-    final matches = TasksComplianceMapper.staffFrom(result.value)
-        .where((option) => option.name.toLowerCase().contains(needle))
+    final all = TasksComplianceMapper.staffFrom(result.value);
+    final matches = (needle.isEmpty
+            ? all
+            : all.where((option) => option.name.toLowerCase().contains(needle)))
         .take(20)
         .toList(growable: false);
     return Result.success(matches);
@@ -481,14 +481,25 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
   Future<Result<List<TaskShiftOption>>> getShiftOptions(
     String residenceId,
   ) async {
-    final now = DateTime.now().toUtc();
+    // Web New Task shift menu: yesterday → 7 days ahead (tenant calendar),
+    // not a wide past window that floods the picker with old shifts.
+    final today = TenantClock.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final from = TenantClock.at(
+      start.subtract(const Duration(days: 1)),
+      0,
+    ).toUtc().toIso8601String();
+    final to = TenantClock.at(
+      start.add(const Duration(days: 8)),
+      0,
+    ).toUtc().toIso8601String();
     final result = await _api.get(
       ApiEndpoints.shifts,
       query: {
         'residenceId': residenceId,
         'limit': 50,
-        'from': now.subtract(const Duration(days: 1)).toIso8601String(),
-        'to': now.add(const Duration(days: 7)).toIso8601String(),
+        'from': from,
+        'to': to,
       },
       silent: true,
     );
@@ -644,27 +655,12 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     );
   }
 
+  /// Web Task Management defaults to **All Residences**. Only scope when the
+  /// signed-in session already has a home — never invent the first GET
+  /// /residences row (that hid tasks and polluted the header subtitle).
   Future<String?> _resolveResidenceId() async {
     final sessionId = _session.residenceId?.trim();
     if (sessionId != null && sessionId.isNotEmpty) return sessionId;
-
-    final result = await _api.get(
-      ApiEndpoints.residences,
-      query: const {'page': 1, 'limit': 50},
-      silent: true,
-    );
-    if (result.isFailure) return null;
-
-    final rows = JsonCodec.unwrapList(result.value);
-    for (final row in rows) {
-      if (row is! Map) continue;
-      final map = JsonCodec.asMap(row);
-      final id = JsonCodec.string(map['id'] ?? map['residenceId'])?.trim();
-      if (id == null || id.isEmpty) continue;
-      final name = JsonCodec.string(map['name'] ?? map['residenceName']);
-      _session.applyStaffContext(residenceId: id, residenceName: name);
-      return id;
-    }
     return null;
   }
 }

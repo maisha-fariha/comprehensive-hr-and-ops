@@ -10,6 +10,7 @@ import '../../domain/entities/compliance_summary.dart';
 import '../../domain/entities/corrective_action.dart';
 import '../../domain/entities/corrective_stat.dart';
 import '../../domain/entities/expiring_certificate.dart';
+import '../../domain/entities/task_analytics.dart';
 import '../../domain/entities/task_client_option.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/entities/task_residence_option.dart';
@@ -53,19 +54,59 @@ abstract final class TasksComplianceMapper {
       forceCompleted: true,
     );
 
-    final dueToday = JsonCodec.integerOr(
-      stats['dueToday'] ?? stats['due'],
-      tasks.where((item) => item.isToday).length,
+    final today = JsonCodec.mapAt(stats, 'today') ?? const <String, dynamic>{};
+    final statusMap =
+        JsonCodec.mapAt(stats, 'status') ?? const <String, dynamic>{};
+    final todayDue = JsonCodec.integerOr(today['due'], 0);
+    final todayCompleted = JsonCodec.integerOr(today['completed'], 0);
+    final todayPercent = JsonCodec.integer(today['percent']) ??
+        JsonCodec.number(today['percent'])?.round();
+    final statusPending = JsonCodec.integerOr(
+      statusMap['pending'],
+      tasks
+          .where(
+            (item) =>
+                item.status != TaskStatus.completed && !item.awaitingReview,
+          )
+          .length,
     );
-    final thisWeek = JsonCodec.integerOr(stats['thisWeek'], 0);
-    final upcoming = JsonCodec.integerOr(
-      stats['upcoming'],
-      tasks.where((item) => item.status == TaskStatus.upcoming).length,
+    final statusOverdue = JsonCodec.integerOr(
+      statusMap['overdue'],
+      tasks.where((item) => item.status == TaskStatus.overdue).length,
     );
-    final completed = JsonCodec.integerOr(
-      stats['completed'],
-      tasks.where((item) => item.status == TaskStatus.completed).length,
+    final statusCompleted = JsonCodec.integerOr(
+      statusMap['completed'],
+      tasks
+          .where(
+            (item) => item.status == TaskStatus.completed && !item.awaitingReview,
+          )
+          .length,
     );
+    final recurringActive = JsonCodec.integerOr(
+      stats['recurringActive'],
+      recurringItems
+          .where((item) => item.status != TaskStatus.completed)
+          .length,
+    );
+    final reviewMeta = JsonCodec.metaOf(reviewBody) ?? const <String, dynamic>{};
+    final reviewQueueCount = JsonCodec.integerOr(
+      reviewMeta['total'],
+      reviewItems.length,
+    );
+    final recurringMeta =
+        JsonCodec.metaOf(recurringBody) ?? const <String, dynamic>{};
+    final recurringCount = JsonCodec.integerOr(
+      recurringMeta['total'],
+      recurringItems.length,
+    );
+    final byType = _byType(stats);
+    final trend = _trendPoints(stats);
+    final trendChangePercent = JsonCodec.integer(stats['trendChangePercent']) ??
+        JsonCodec.number(stats['trendChangePercent'])?.round();
+    final todayValue = todayPercent == null ? '—' : '$todayPercent%';
+    final todayBadge = todayDue == 0 && todayCompleted == 0
+        ? 'Nothing due'
+        : (todayDue > 0 ? '$todayDue due' : null);
 
     final percent = JsonCodec.integer(
           scoreJson['percent'] ??
@@ -135,20 +176,55 @@ abstract final class TasksComplianceMapper {
       completedActions.length,
     );
 
+    // Web Task Management has no “Residence · Today” chrome under the title.
+    // Only show a subtitle when the session is actually scoped to a home.
+    final scopedName = (residenceName ?? '').trim();
     return TasksComplianceOverview(
-      headerSubtitle: [
-        ?residenceName,
-        'Today',
-      ].join(' · '),
+      headerSubtitle: scopedName,
       taskStats: [
-        TaskStat(id: 'due-today', tag: TaskStatTag.dueToday, value: '$dueToday', label: 'Due Today'),
-        TaskStat(id: 'this-week', tag: TaskStatTag.thisWeek, value: '$thisWeek', label: 'This Week'),
-        TaskStat(id: 'upcoming', tag: TaskStatTag.upcoming, value: '$upcoming', label: 'Upcoming'),
-        TaskStat(id: 'completed', tag: TaskStatTag.completed, value: '$completed', label: 'Completed'),
+        TaskStat(
+          id: 'today-completion',
+          tag: TaskStatTag.todayCompletion,
+          value: todayValue,
+          label: "Today's Completion",
+          badge: todayBadge,
+        ),
+        TaskStat(
+          id: 'pending',
+          tag: TaskStatTag.pending,
+          value: '$statusPending',
+          label: 'Pending Tasks',
+          badge: 'Open',
+        ),
+        TaskStat(
+          id: 'overdue',
+          tag: TaskStatTag.overdue,
+          value: '$statusOverdue',
+          label: 'Overdue Tasks',
+          badge: 'Overdue',
+        ),
+        TaskStat(
+          id: 'recurring-active',
+          tag: TaskStatTag.recurringActive,
+          value: '$recurringActive',
+          label: 'Recurring Tasks Active',
+        ),
       ],
-      tasksDueCount: tasks
-          .where((item) => item.status != TaskStatus.completed)
-          .length,
+      taskAnalytics: TaskAnalytics(
+        statusCompleted: statusCompleted,
+        statusPending: statusPending,
+        statusOverdue: statusOverdue,
+        todayPercent: todayPercent,
+        todayDue: todayDue,
+        todayCompleted: todayCompleted,
+        trendChangePercent: trendChangePercent,
+        byType: byType,
+        trend: trend,
+      ),
+      // Web “All Tasks” badge uses status.pending (“0 pending”), not list length.
+      tasksDueCount: statusPending,
+      reviewQueueCount: reviewQueueCount,
+      recurringCount: recurringCount,
       taskItems: tasks,
       reviewQueueItems: reviewItems,
       recurringItems: recurringItems,
@@ -385,29 +461,44 @@ abstract final class TasksComplianceMapper {
   }
 
   static List<TaskShiftOption> shiftOptionsFrom(dynamic body) {
+    final now = DateTime.now();
     final options = <TaskShiftOption>[];
     for (final row in JsonCodec.unwrapList(body).whereType<Map>()) {
       final json = JsonCodec.asMap(row);
       final id = JsonCodec.string(json['id']);
       if (id == null || JsonCodec.string(json['status']) == 'cancelled') continue;
       final startsAt = JsonCodec.dateTime(json['startsAt']);
+      final endsAt = JsonCodec.dateTime(json['endsAt']);
+      final active = startsAt != null &&
+          endsAt != null &&
+          !now.isBefore(startsAt) &&
+          !now.isAfter(endsAt);
+      // Web New Task shift menu: "Morning — Title · Mon 09/11/2026 07:00 am–03:00 pm"
+      // (no staff names, no “[Active]” prefix).
+      final label = WebFormat.describeShift(
+        shiftType: JsonCodec.string(json['shiftType']),
+        title: JsonCodec.string(json['title']),
+        startsAt: startsAt,
+        endsAt: endsAt,
+        includeStaff: false,
+      );
       options.add(
         TaskShiftOption(
           id: id,
           startsAt: startsAt,
-          label: WebFormat.describeShift(
-            shiftType: JsonCodec.string(json['shiftType']),
-            title: JsonCodec.string(json['title']),
-            startsAt: startsAt,
-            endsAt: JsonCodec.dateTime(json['endsAt']),
-            staffNames: rosteredNames(json),
-          ),
+          endsAt: endsAt,
+          isActive: active,
+          label: label,
         ),
       );
     }
+    // Web: current/active shift first, then soonest-starting.
     options.sort((a, b) {
+      if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
       final x = a.startsAt, y = b.startsAt;
-      if (x == null || y == null) return 0;
+      if (x == null && y == null) return 0;
+      if (x == null) return 1;
+      if (y == null) return -1;
       return x.compareTo(y);
     });
     return options;
@@ -528,21 +619,136 @@ abstract final class TasksComplianceMapper {
         isToday ? TaskStatus.due : TaskStatus.upcoming,
       _ => isToday ? TaskStatus.due : TaskStatus.upcoming,
     };
+    final typeRaw = JsonCodec.stringOr(
+      json['taskType'] ?? json['type'] ?? json['category'],
+      '',
+    );
+    final priorityRaw = JsonCodec.stringOr(json['priority'], '');
+    final assignees = _assignees(json);
+    final residence = JsonCodec.mapAt(json, 'residence');
+    final client = JsonCodec.mapAt(json, 'client');
+    final room = JsonCodec.string(json['roomArea']);
+    final residenceName = [
+      JsonCodec.string(residence?['name'] ?? json['residenceName']),
+      if (room != null && room.trim().isNotEmpty) room.trim(),
+    ].whereType<String>().where((part) => part.isNotEmpty).join(' ');
+    final checklist = JsonCodec.unwrapList(json['checklist']);
+    var checklistDone = 0;
+    for (final raw in checklist) {
+      if (raw is! Map) continue;
+      final step = JsonCodec.asMap(raw);
+      if (step['done'] == true ||
+          step['completed'] == true ||
+          step['checked'] == true) {
+        checklistDone++;
+      }
+    }
     return TaskItem(
       id: JsonCodec.stringOr(json['id'], 'task'),
       title: JsonCodec.stringOr(json['title'] ?? json['name'], 'Task'),
-      category: _category(
-        json['category'] ?? json['taskType'] ?? json['type'],
-      ),
+      category: _category(typeRaw),
       timeLabel: due == null
           ? JsonCodec.stringOr(json['timeLabel'] ?? json['completedAtLabel'], '')
-          : isToday
-              ? 'Today, ${IsoDateRange.timeLabel(due)}'
-              : IsoDateRange.formatShortDate(TenantClock.wallOf(due)),
+          : WebFormat.dateTime(due),
       isToday: isToday,
       status: status,
       awaitingReview: awaitingReview,
+      typeLabel: _humanType(typeRaw),
+      priorityLabel: _humanPriority(priorityRaw),
+      assigneeName: assignees.name,
+      assigneeInitials: assignees.initials,
+      extraAssigneeCount: assignees.extra,
+      residenceName: residenceName,
+      clientName: client == null
+          ? JsonCodec.stringOr(json['clientName'], '')
+          : IsoDateRange.personName(client),
+      checklistDone: checklistDone,
+      checklistTotal: checklist.length,
     );
+  }
+
+  static ({String name, String initials, int extra}) _assignees(
+    Map<String, dynamic> json,
+  ) {
+    final names = <String>[];
+    for (final raw in JsonCodec.unwrapList(json['assignees'])) {
+      if (raw is! Map) continue;
+      final map = JsonCodec.asMap(raw);
+      final staff = JsonCodec.mapAt(map, 'staff') ?? map;
+      final name = IsoDateRange.personName(staff);
+      if (name.trim().isNotEmpty && name != '—') names.add(name.trim());
+    }
+    if (names.isEmpty) {
+      final fallback = JsonCodec.string(json['assigneeName'] ?? json['staffName']);
+      if (fallback != null && fallback.trim().isNotEmpty) {
+        names.add(fallback.trim());
+      }
+    }
+    if (names.isEmpty) {
+      return (name: '', initials: '', extra: 0);
+    }
+    return (
+      name: names.first,
+      initials: IsoDateRange.initials(names.first, fallback: ''),
+      extra: names.length - 1,
+    );
+  }
+
+  static List<TaskTypeBreakdown> _byType(Map<String, dynamic> stats) {
+    final out = <TaskTypeBreakdown>[];
+    for (final raw in JsonCodec.unwrapList(stats['byType'])) {
+      if (raw is! Map) continue;
+      final map = JsonCodec.asMap(raw);
+      final type = JsonCodec.stringOr(map['type'], 'other');
+      final total = JsonCodec.integerOr(map['total'], 0);
+      final completed = JsonCodec.integerOr(map['completed'], 0);
+      final percent = JsonCodec.integer(map['percent']) ??
+          (total <= 0 ? 0 : ((completed / total) * 100).round());
+      out.add(
+        TaskTypeBreakdown(
+          type: type,
+          label: _humanType(type),
+          total: total,
+          completed: completed,
+          percent: percent,
+        ),
+      );
+    }
+    return out;
+  }
+
+  static List<TaskTrendPoint> _trendPoints(Map<String, dynamic> stats) {
+    final out = <TaskTrendPoint>[];
+    for (final raw in JsonCodec.unwrapList(stats['trend'])) {
+      if (raw is! Map) continue;
+      final map = JsonCodec.asMap(raw);
+      final week = JsonCodec.dateTime(map['weekStart']);
+      if (week == null) continue;
+      out.add(
+        TaskTrendPoint(
+          weekStart: week,
+          completed: JsonCodec.integerOr(map['completed'], 0),
+        ),
+      );
+    }
+    return out;
+  }
+
+  static String _humanType(String raw) {
+    final text = raw.trim().replaceAll('_', ' ');
+    if (text.isEmpty) return '';
+    return text
+        .split(RegExp(r'\s+'))
+        .map((part) => part.isEmpty
+            ? part
+            : '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}')
+        .join(' ');
+  }
+
+  static String _humanPriority(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return '';
+    return '${text[0].toUpperCase()}${text.substring(1).toLowerCase()}';
   }
 
   /// Web list: a finished task that still needs a reviewer is “Awaiting review”,
@@ -794,6 +1000,10 @@ abstract final class TasksComplianceMapper {
         return TaskCategory.medication;
       case 'audit':
       case 'admin':
+      case 'administrative':
+      case 'follow_up':
+      case 'follow-up':
+      case 'other':
         return TaskCategory.audit;
       default:
         return TaskCategory.safety;
