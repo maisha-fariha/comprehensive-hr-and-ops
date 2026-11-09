@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/roles/permission_gate.dart';
 import '../../../core/roles/user_session.dart';
-import '../admissions/presentation/pages/admissions_page.dart';
+// import '../admissions/presentation/pages/admissions_page.dart'; // Admissions UI hidden
 import '../ai_alerts/presentation/pages/ai_alerts_page.dart';
 import '../appointments/presentation/pages/hr_appointments_page.dart';
 import '../clients/presentation/pages/clients_page.dart';
@@ -139,20 +139,21 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['residents', 'directory', 'care plan'],
       ),
-    if (can('admissions:read'))
-      ManagerDestination(
-        title: 'Admissions',
-        subtitle: 'Referrals, waitlist, intake forms and admitting',
-        icon: Icons.person_add_alt_1_outlined,
-        iconBackground: AppColors.quickActionCreateShiftBg,
-        iconColor: AppColors.secondaryTeal,
-        open: () => openPermittedPage(
-          title: 'Admissions',
-          anyOf: const ['admissions:read'],
-          builder: () => const AdmissionsPage(),
-        ),
-        keywords: const ['admissions', 'admission', 'referral', 'referrals', 'waitlist', 'intake', 'admit'],
-      ),
+    // Admissions UI temporarily hidden for all roles (code kept).
+    // if (can('admissions:read'))
+    //   ManagerDestination(
+    //     title: 'Admissions',
+    //     subtitle: 'Referrals, waitlist, intake forms and admitting',
+    //     icon: Icons.person_add_alt_1_outlined,
+    //     iconBackground: AppColors.quickActionCreateShiftBg,
+    //     iconColor: AppColors.secondaryTeal,
+    //     open: () => openPermittedPage(
+    //       title: 'Admissions',
+    //       anyOf: const ['admissions:read'],
+    //       builder: () => const AdmissionsPage(),
+    //     ),
+    //     keywords: const ['admissions', 'admission', 'referral', 'referrals', 'waitlist', 'intake', 'admit'],
+    //   ),
     if (can('scheduling:read'))
       ManagerDestination(
         title: 'Scheduling',

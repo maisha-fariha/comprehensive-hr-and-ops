@@ -8,7 +8,7 @@ import '../../../hr/finance/presentation/pages/finance_page.dart';
 import '../../../hr/org_settings/presentation/pages/org_settings_page.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
-import '../../extras/presentation/pages/staff_admissions_page.dart';
+// import '../../extras/presentation/pages/staff_admissions_page.dart'; // Admissions UI hidden
 import '../../extras/presentation/pages/staff_appointments_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
 import '../../extras/presentation/pages/staff_documents_page.dart';
@@ -86,14 +86,15 @@ List<StaffSearchDestination> staffSearchDestinations() {
       iconColor: AppColors.infoBlue,
       open: () => Get.to(() => const StaffClientsPage()),
     ),
-    StaffSearchDestination(
-      label: 'Admissions',
-      permissions: const ['admissions:read'],
-      icon: Icons.how_to_reg_outlined,
-      iconBackground: AppColors.infoBackground,
-      iconColor: AppColors.infoBlue,
-      open: () => Get.to(() => const StaffAdmissionsPage()),
-    ),
+    // Admissions UI temporarily hidden for all roles (code kept).
+    // StaffSearchDestination(
+    //   label: 'Admissions',
+    //   permissions: const ['admissions:read'],
+    //   icon: Icons.how_to_reg_outlined,
+    //   iconBackground: AppColors.infoBackground,
+    //   iconColor: AppColors.infoBlue,
+    //   open: () => Get.to(() => const StaffAdmissionsPage()),
+    // ),
     StaffSearchDestination(
       label: 'Users & Access',
       permissions: const ['users:read', 'roles:read'],

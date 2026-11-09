@@ -52,6 +52,14 @@ class _ResidenceFormPageState extends State<ResidenceFormPage> {
   ResidencesController get _controller => widget.controller;
   bool get _limitReached => !_isEdit && _controller.limitReached;
 
+  /// Teal setup chip: selected residence name, then id (web shows id only).
+  String get _setupBadgeLabel {
+    final id = widget.editing!.id.toUpperCase();
+    final name = _values.name.trim();
+    if (name.isEmpty) return 'Residence Setup · #$id';
+    return '$name · #$id';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -229,7 +237,9 @@ class _ResidenceFormPageState extends State<ResidenceFormPage> {
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
-                'Residence Setup · #${widget.editing!.id.toUpperCase()}',
+                _setupBadgeLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.secondaryTeal),
               ),
             ),

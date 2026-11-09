@@ -1053,7 +1053,7 @@ class _ResidenceScheduleTabState extends State<ResidenceScheduleTab> {
                 const Icon(Icons.calendar_month_outlined, size: 20, color: AppColors.textMuted),
                 const SizedBox(height: 4),
                 Text(
-                  _error != null ? 'The rota could not be loaded' : 'Nothing rostered this week',
+                  _error != null ? 'The rota could not be loaded' : 'Nothing on roster for this week',
                   textAlign: TextAlign.center,
                   style: handoverText(context, 15, weight: FontWeight.w600),
                 ),

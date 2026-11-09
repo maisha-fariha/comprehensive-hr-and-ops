@@ -758,7 +758,7 @@ void main() {
       expect(_key('residence-create-schedule'), findsOneWidget);
 
       await _tap(tester, _key('residence-week-next'));
-      expect(find.text('Nothing rostered this week'), findsOneWidget);
+      expect(find.text('Nothing on roster for this week'), findsOneWidget);
       expect(_key('residence-week-this'), findsOneWidget);
     });
 
@@ -822,6 +822,19 @@ void main() {
       final r = page.items.single;
       expect(r.status, 'active');
       expect(r.gpsRadiusMeters, 120);
+      // Top-level geofenceRadiusMeters wins when nested geofence disagrees (web form).
+      final withTopLevel = ResidencesMapper.pageFrom({
+        'data': [
+          {
+            'id': 'r2',
+            'name': 'Oak House',
+            'geofence': {'radiusMeters': 150},
+            'geofenceRadiusMeters': 50,
+          },
+        ],
+        'meta': {'total': 1, 'totalPages': 1},
+      });
+      expect(withTopLevel.items.single.gpsRadiusMeters, 50);
       expect(r.outOfPocketEnabled, isTrue);
       expect(r.mileageEnabled, isFalse);
       expect(r.primaryManager!.name, 'Rafi Ahmed');

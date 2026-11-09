@@ -9,7 +9,7 @@ import '../../../../core/roles/permission_gate.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
-import '../../extras/presentation/pages/staff_admissions_page.dart';
+// import '../../extras/presentation/pages/staff_admissions_page.dart'; // Admissions UI hidden
 import '../../extras/presentation/pages/staff_appointments_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
 import '../../extras/presentation/pages/staff_documents_page.dart';
@@ -138,14 +138,15 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Inventory',
                 subtitle: 'Stock on hand at your residence',
               ),
-            if (session.can('admissions:read'))
-              const StaffMenuEntry(
-                icon: Icons.how_to_reg_outlined,
-                iconBackground: AppColors.infoBackground,
-                iconColor: AppColors.infoBlue,
-                title: 'Admissions',
-                subtitle: 'Referrals and assessments',
-              ),
+            // Admissions UI temporarily hidden for all roles (code kept).
+            // if (session.can('admissions:read'))
+            //   const StaffMenuEntry(
+            //     icon: Icons.how_to_reg_outlined,
+            //     iconBackground: AppColors.infoBackground,
+            //     iconColor: AppColors.infoBlue,
+            //     title: 'Admissions',
+            //     subtitle: 'Referrals and assessments',
+            //   ),
             if (session.can('attendance:read'))
               const StaffMenuEntry(
                 icon: Icons.access_time_rounded,
@@ -270,12 +271,12 @@ class StaffMoreMenuPage extends StatelessWidget {
           anyOf: const ['inventory:read'],
           builder: () => const StaffInventoryPage(),
         );
-      case 'Admissions':
-        openPermittedPage(
-          title: title,
-          anyOf: const ['admissions:read'],
-          builder: () => const StaffAdmissionsPage(),
-        );
+      // case 'Admissions':
+      //   openPermittedPage(
+      //     title: title,
+      //     anyOf: const ['admissions:read'],
+      //     builder: () => const StaffAdmissionsPage(),
+      //   );
       case 'Attendance':
         openPermittedPage(
           title: title,
