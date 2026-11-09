@@ -771,15 +771,7 @@ class IncidentCreationController extends GetxController {
 
     _clientSearchDebounceTimer?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _clientSearchRequestId++;
-      isSearchingClients.value = false;
-      clientSuggestions.clear();
-      showClientSuggestions.value = false;
-      clientSearchError.value = '';
-      return;
-    }
-
+    // Empty query still loads the client directory (web / create-task pattern).
     showClientSuggestions.value = true;
     _clientSearchDebounceTimer = Timer(
       _clientSearchDebounce,

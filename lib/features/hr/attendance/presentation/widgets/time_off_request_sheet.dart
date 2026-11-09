@@ -152,15 +152,18 @@ class _TimeOffRequestSheetState extends State<_TimeOffRequestSheet> {
     });
   }
 
+  void _onStaffFocus() {
+    if (_staff != null) return;
+    if (_staffHits.isNotEmpty || _searching) return;
+    _searchStaff(_staffSearch.text);
+  }
+
   Future<void> _searchStaff(String query) async {
     final repo = widget.repository;
+    if (repo == null) return;
     final q = query.trim();
-    if (repo == null || q.length < 2) {
-      setState(() {
-        _staffHits = const [];
-        if (q.isEmpty) _staff = null;
-      });
-      return;
+    if (q.isEmpty && _staff != null) {
+      // Keep the chosen person; still refresh the directory for re-picks.
     }
     setState(() => _searching = true);
     final result = await repo.searchStaff(search: q);
@@ -285,6 +288,7 @@ class _TimeOffRequestSheetState extends State<_TimeOffRequestSheet> {
                   controller: _staffSearch,
                   hint: 'Search staff…',
                   onChanged: _searchStaff,
+                  onFocus: _onStaffFocus,
                 ),
                 if (_searching)
                   const Padding(

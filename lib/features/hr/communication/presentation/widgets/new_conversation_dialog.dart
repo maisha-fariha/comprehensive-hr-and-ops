@@ -382,6 +382,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
             controller: _staffSearch,
             hint: 'Search by name or role...',
             prefixIcon: Icons.search_rounded,
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 8),
           _ContactList(
@@ -435,6 +436,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
             controller: _membersSearch,
             hint: 'Add people to this group...',
             prefixIcon: Icons.search_rounded,
+            onChanged: (_) => setState(() {}),
           ),
           if (_groupMemberIds.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -549,6 +551,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
             hint: 'Search this resident\'s family...',
             prefixIcon: Icons.search_rounded,
             enabled: _familyClientId != null,
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 8),
           if (_loadingFamily)
@@ -1047,6 +1050,7 @@ class _OutlinedField extends StatelessWidget {
   final int minLines;
   final int maxLines;
   final bool enabled;
+  final ValueChanged<String>? onChanged;
 
   const _OutlinedField({
     required this.controller,
@@ -1055,6 +1059,7 @@ class _OutlinedField extends StatelessWidget {
     this.minLines = 1,
     this.maxLines = 1,
     this.enabled = true,
+    this.onChanged,
   });
 
   @override
@@ -1064,6 +1069,7 @@ class _OutlinedField extends StatelessWidget {
       enabled: enabled,
       minLines: minLines,
       maxLines: maxLines,
+      onChanged: onChanged,
       style: const TextStyle(
         fontFamily: 'Outfit',
         fontWeight: FontWeight.w500,

@@ -70,6 +70,7 @@ class CreateIncidentPeopleLocationSection extends StatelessWidget {
             controller: controller.clientSearchController,
             hint: 'Search related client...',
             onChanged: controller.onClientQueryChanged,
+            onFocus: controller.openClientSuggestions,
           ),
           Obx(() {
             if (!controller.showClientSuggestions.value) {

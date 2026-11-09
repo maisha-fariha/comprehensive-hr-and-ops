@@ -38,6 +38,7 @@ class HrAppointmentFormSheet extends StatefulWidget {
 
 class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
   final _location = TextEditingController();
   final _purpose = TextEditingController();
   final _notes = TextEditingController();
@@ -56,6 +57,11 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
   @override
   void initState() {
     super.initState();
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus && _client == null) {
+        setState(() => _pickerOpen = true);
+      }
+    });
     final now = DateTime.now();
     _type = 'family_visit';
     _date = DateTime(now.year, now.month, now.day);
@@ -87,6 +93,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
 
   @override
   void dispose() {
+    _searchFocus.dispose();
     for (final c in [_search, _location, _purpose, _notes]) {
       c.dispose();
     }
@@ -468,6 +475,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
         TextField(
           key: const ValueKey('appointment-form-resident-search'),
           controller: _search,
+          focusNode: _searchFocus,
           onTap: () => setState(() => _pickerOpen = true),
           onChanged: (_) => setState(() => _pickerOpen = true),
           style: handoverText(context, 13.5),
@@ -552,7 +560,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
           ),
         const SizedBox(height: 5),
         Text(
-          error ?? 'Type to search clients or family contacts',
+          error ?? 'Tap to browse or type to filter',
           style: handoverText(context, 12, color: error != null ? AppColors.criticalRed : AppColors.textMuted),
         ),
       ],

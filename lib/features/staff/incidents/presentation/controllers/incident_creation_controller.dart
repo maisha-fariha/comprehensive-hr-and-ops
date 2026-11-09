@@ -753,18 +753,19 @@ class IncidentCreationController extends GetxController {
     }
     _clientSearchDebounce?.cancel();
     final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      _clientSearchRequestId++;
-      isSearchingClients.value = false;
-      clientSuggestions.clear();
-      showClientSuggestions.value = false;
-      return;
-    }
+    // Empty query still loads clients (web / create-task pattern).
     showClientSuggestions.value = true;
     _clientSearchDebounce = Timer(
       const Duration(milliseconds: 320),
       () => _searchClients(trimmed),
     );
+  }
+
+  void openClientSuggestions() {
+    if (selectedClient.value != null) return;
+    _clientSearchDebounce?.cancel();
+    showClientSuggestions.value = true;
+    _searchClients(clientSearchController.text.trim());
   }
 
   Future<void> _searchClients(String query) async {

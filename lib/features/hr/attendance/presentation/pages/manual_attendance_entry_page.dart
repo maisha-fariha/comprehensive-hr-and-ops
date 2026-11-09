@@ -351,16 +351,17 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     );
   }
 
+  void _onStaffSearchFocus() {
+    // Web shows the staff directory as soon as the field is focused.
+    if (_selectedStaff != null) return;
+    if (_staffResults.isNotEmpty || _isLoadingStaff) return;
+    _searchStaff(_staffSearchController.text.trim());
+  }
+
   void _onStaffSearchChanged(String query) {
     _staffSearchDebounce?.cancel();
     final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      setState(() {
-        _staffResults.clear();
-        _isLoadingStaff = false;
-      });
-      return;
-    }
+    // Empty query still loads the directory (same as New Task staff picker).
     _staffSearchDebounce = Timer(const Duration(milliseconds: 350), () {
       _searchStaff(trimmed);
     });
@@ -872,6 +873,7 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
           onResidenceTap: _pickResidence,
           staffSearchController: _staffSearchController,
           onStaffSearchChanged: _onStaffSearchChanged,
+          onStaffSearchFocus: _onStaffSearchFocus,
           staffResults: List.unmodifiable(_staffResults),
           isLoadingStaff: _isLoadingStaff,
           selectedStaff: _selectedStaff,

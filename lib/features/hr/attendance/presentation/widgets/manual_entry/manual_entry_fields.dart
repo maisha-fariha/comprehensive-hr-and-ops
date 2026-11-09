@@ -142,17 +142,42 @@ class ManualEntryDropdownField extends StatelessWidget {
   }
 }
 
-class ManualEntrySearchField extends StatelessWidget {
+/// Searchable dropdown field. [onFocus] runs on tap and keyboard focus so
+/// options open without requiring the user to type first.
+class ManualEntrySearchField extends StatefulWidget {
   final TextEditingController controller;
   final String hint;
   final ValueChanged<String>? onChanged;
+  final VoidCallback? onFocus;
 
   const ManualEntrySearchField({
     super.key,
     required this.controller,
     required this.hint,
     this.onChanged,
+    this.onFocus,
   });
+
+  @override
+  State<ManualEntrySearchField> createState() => _ManualEntrySearchFieldState();
+}
+
+class _ManualEntrySearchFieldState extends State<ManualEntrySearchField> {
+  late final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (_focus.hasFocus) widget.onFocus?.call();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -163,13 +188,15 @@ class ManualEntrySearchField extends StatelessWidget {
         color: AppColors.textFaint,
       ),
       child: TextField(
-        controller: controller,
-        onChanged: onChanged,
+        controller: widget.controller,
+        focusNode: _focus,
+        onChanged: widget.onChanged,
+        onTap: widget.onFocus,
         style: _fieldStyle(context, placeholder: false),
         decoration: InputDecoration(
           isDense: true,
           border: InputBorder.none,
-          hintText: hint,
+          hintText: widget.hint,
           hintStyle: _fieldStyle(context, placeholder: true),
         ),
       ),

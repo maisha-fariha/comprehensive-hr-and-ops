@@ -144,7 +144,10 @@ class WizardTextField extends StatelessWidget {
 
 /// An outlined text field with a trailing search icon, e.g.
 /// "Search client..." / "Search staff...".
-class WizardSearchField extends StatelessWidget {
+///
+/// [onTap] also fires when the field gains keyboard focus so option lists
+/// open without requiring typing.
+class WizardSearchField extends StatefulWidget {
   final TextEditingController controller;
   final String hint;
   final ValueChanged<String>? onChanged;
@@ -161,19 +164,41 @@ class WizardSearchField extends StatelessWidget {
   });
 
   @override
+  State<WizardSearchField> createState() => _WizardSearchFieldState();
+}
+
+class _WizardSearchFieldState extends State<WizardSearchField> {
+  late final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (_focus.hasFocus) widget.onTap?.call();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return _WizardFieldShell(
       trailing: const AppSvgIcon(AppAssets.search, size: 17, color: AppColors.textFaint),
       child: TextField(
-        controller: controller,
-        readOnly: readOnly,
-        onTap: onTap,
-        onChanged: onChanged,
+        controller: widget.controller,
+        focusNode: _focus,
+        readOnly: widget.readOnly,
+        onTap: widget.onTap,
+        onChanged: widget.onChanged,
         style: _fieldTextStyle(context, isPlaceholder: false),
         decoration: InputDecoration(
           isDense: true,
           border: InputBorder.none,
-          hintText: hint,
+          hintText: widget.hint,
           hintStyle: _fieldTextStyle(context, isPlaceholder: true),
         ),
       ),

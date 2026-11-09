@@ -71,7 +71,7 @@ class Step2PeopleForm extends StatelessWidget {
                     if (controller.showClientSuggestions.value)
                       _RelatedClientSuggestions(controller: controller)
                     else
-                      const WizardHelperText('Type to search client'),
+                      const WizardHelperText('Tap to browse or type to filter'),
                   ],
                 );
               }),
@@ -97,7 +97,9 @@ class Step2PeopleForm extends StatelessWidget {
                     if (controller.showInvolvedClientSuggestions.value)
                       _InvolvedClientSuggestions(controller: controller)
                     else
-                      const WizardHelperText('Type to search involved client'),
+                      const WizardHelperText(
+                        'Tap to browse or type to filter',
+                      ),
                   ],
                 );
               }),
