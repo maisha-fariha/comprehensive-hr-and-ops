@@ -51,7 +51,7 @@ class AttendanceHeader extends StatelessWidget {
           if (onManualEntryTap != null) ...[
             HrHeaderPrimaryAction(
               actionKey: const ValueKey('attendance-manual-entry'),
-              label: 'Entry',
+              label: 'Manual Entry',
               onTap: onManualEntryTap!,
             ),
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
