@@ -261,6 +261,7 @@ abstract final class StaffScheduleMapper {
     final statusRaw = (JsonCodec.string(json['status']) ?? 'Confirmed')
         .toLowerCase();
     final statusLabel = switch (statusRaw) {
+      'draft' => 'DRAFT',
       'published' || 'confirmed' || 'assigned' => 'Confirmed',
       'open' => 'Open',
       'cancelled' || 'canceled' => 'Cancelled',

@@ -129,7 +129,7 @@ class _StaffResidenceEditPageState extends State<StaffResidenceEditPage> {
     _serviceType = r.serviceType.trim().isEmpty
         ? 'Residential Care'
         : r.serviceType.trim();
-    _gpsEnabled = r.gpsTrackingEnabled || (r.geofenceRadiusMeters ?? 0) > 0;
+    _gpsEnabled = r.gpsTrackingEnabled;
     _primaryManagerId = r.primaryManager?.id;
     _assistantManagerId = r.assistantManager?.id;
     _assignedStaff = List.of(r.assignedStaff);
@@ -209,15 +209,12 @@ class _StaffResidenceEditPageState extends State<StaffResidenceEditPage> {
       if (capacity != null) 'bedCapacity': capacity,
       if (lat != null) 'latitude': lat,
       if (lng != null) 'longitude': lng,
-      'geofence': _gpsEnabled
-          ? {
-              'radiusMeters': radius ?? 0,
-              'enabled': true,
-            }
-          : {
-              'radiusMeters': radius,
-              'enabled': false,
-            },
+      // Match web: top-level flag + nested geofence.enabled.
+      'geofenceEnabled': _gpsEnabled,
+      'geofence': {
+        'radiusMeters': radius ?? 0,
+        'enabled': _gpsEnabled,
+      },
       'primaryManagerId': _primaryManagerId,
       'assistantManagerId': _assistantManagerId,
       'assignedStaffIds': _assignedStaff.map((e) => e.id).toList(),
@@ -1053,11 +1050,14 @@ class _Footer extends StatelessWidget {
                   onPressed: onCancel,
                   child: const Text('Cancel'),
                 ),
-              OutlinedButton(
-                key: const Key('staff-residence-edit-save'),
-                onPressed: saving ? null : onSave,
-                child: const Text('Save Changes'),
-              ),
+              // Web residence edit footer: one primary Save on the last step
+              // (not a second "Save Changes" beside Next).
+              if (!isLast)
+                OutlinedButton(
+                  key: const Key('staff-residence-edit-save'),
+                  onPressed: saving ? null : onSave,
+                  child: const Text('Save Changes'),
+                ),
               FilledButton(
                 onPressed: saving ? null : (isLast ? onFinish : onNext),
                 style: FilledButton.styleFrom(

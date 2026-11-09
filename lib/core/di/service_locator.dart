@@ -8,6 +8,7 @@ import '../../features/common/direct_deposit/data/direct_deposit_repository.dart
 import '../../features/common/inbox/di/portal_inbox_di.dart';
 import '../../features/hr/admissions/di/admissions_di.dart';
 import '../../features/hr/ai/di/ai_assist_di.dart';
+import '../../features/hr/ai_alerts/di/ai_alerts_di.dart';
 import '../../features/hr/appointments/di/hr_appointments_di.dart';
 import '../../features/hr/attendance/di/attendance_di.dart';
 import '../../features/hr/clients/di/clients_di.dart';
@@ -64,6 +65,7 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   );
 
   await setupHrAiAssistDependencies();
+  await setupHrAiAlertsDependencies();
   await setupHrDashboardDependencies();
   await setupHrSchedulingDependencies();
   await setupHrAttendanceDependencies();

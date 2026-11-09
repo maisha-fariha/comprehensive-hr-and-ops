@@ -562,8 +562,11 @@ class ClientGuardianSection extends StatelessWidget {
             onTurnOff: () => _set(() => form.familyPortalAccess = false),
           ),
         ],
-        _gap,
-        ClientPortalVisibilityCard(form: form, onChanged: onChanged),
+        // Web: portal module checkboxes only when Family Portal Access is ON.
+        if (form.familyPortalAccess) ...[
+          _gap,
+          ClientPortalVisibilityCard(form: form, onChanged: onChanged),
+        ],
         _gap,
         _OutlinedCard(
           icon: Icons.groups_outlined,

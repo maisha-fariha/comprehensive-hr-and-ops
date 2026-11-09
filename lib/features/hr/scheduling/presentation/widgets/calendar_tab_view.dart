@@ -638,6 +638,33 @@ class _ShiftCard extends StatelessWidget {
                   ),
                 ),
               ),
+              // Web calendar card: orange "DRAFT" beside the staffing ratio.
+              if (shift.isDraft) ...[
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                Container(
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.urgentBackgroundSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'DRAFT',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 11),
+                      color: AppColors.urgentAmber,
+                      height: 1,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ],
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
               Container(
                 padding: ResponsiveHelper.getResponsivePadding(

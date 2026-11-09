@@ -676,13 +676,15 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final raw = status.trim().isEmpty ? 'scheduled' : status;
-    final label = raw
-        .replaceAll('_', ' ')
-        .replaceFirstMapped(
-          RegExp(r'^.'),
-          (match) => match.group(0)!.toUpperCase(),
-        );
     final key = raw.toLowerCase();
+    final label = key == 'draft'
+        ? 'DRAFT'
+        : raw
+            .replaceAll('_', ' ')
+            .replaceFirstMapped(
+              RegExp(r'^.'),
+              (match) => match.group(0)!.toUpperCase(),
+            );
     final (Color color, Color background) = switch (key) {
       'open' => (AppColors.criticalRed, AppColors.criticalBackgroundSoft),
       'draft' => (AppColors.urgentAmber, AppColors.urgentBackgroundSoft),

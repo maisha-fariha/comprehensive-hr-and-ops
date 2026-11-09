@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/roles/permission_gate.dart';
 import '../../../core/roles/user_session.dart';
 import '../admissions/presentation/pages/admissions_page.dart';
+import '../ai_alerts/presentation/pages/ai_alerts_page.dart';
 import '../appointments/presentation/pages/hr_appointments_page.dart';
 import '../clients/presentation/pages/clients_page.dart';
 import '../communication/presentation/pages/communication_page.dart';
@@ -406,6 +407,28 @@ List<ManagerDestination> managerDestinations() {
           builder: () => const CommunicationPage(),
         ),
         keywords: const ['messages', 'chat', 'announcements'],
+      ),
+    if (can('dashboard:read') || can('notifications:read'))
+      ManagerDestination(
+        title: 'AI Alerts & Insights',
+        subtitle:
+            'Scheduled AI checks — medication, incidents, rotas, stock and more',
+        icon: Icons.auto_awesome_outlined,
+        iconBackground: AppColors.nightBackground,
+        iconColor: AppColors.nightPurple,
+        open: () => openPermittedPage(
+          title: 'AI Alerts & Insights',
+          anyOf: const ['dashboard:read', 'notifications:read'],
+          builder: () => const AiAlertsPage(),
+        ),
+        keywords: const [
+          'ai',
+          'alerts',
+          'insights',
+          'automations',
+          'reorder',
+          'reports',
+        ],
       ),
     if (can('reports:read'))
       ManagerDestination(

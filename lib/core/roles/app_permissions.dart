@@ -148,6 +148,7 @@ abstract final class AppPermissions {
     WebNavItem('Medication MAR', ['mar:read'], module: 'mar'),
     WebNavItem('Inventory', ['inventory:read'], module: 'inventory'),
     WebNavItem('Reports & Analytics', ['reports:read'], module: 'reports'),
+    WebNavItem('AI Alerts & Insights', ['dashboard:read', 'notifications:read']),
     WebNavItem('Compliance & Audit', ['compliance:read'], module: 'compliance'),
     WebNavItem('Finance & Payroll', ['payroll:read', 'finance:read'],
         module: 'payroll'),

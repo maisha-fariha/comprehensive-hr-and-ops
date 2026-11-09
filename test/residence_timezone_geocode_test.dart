@@ -45,7 +45,8 @@ void main() {
     expect(body['email'], 'map@example.com');
     expect(body['latitude'], 45.5152);
     expect(body['longitude'], -122.6784);
-    expect(body['geofence'], {'radiusMeters': 150});
+    expect(body['geofenceEnabled'], true);
+    expect(body['geofence'], {'radiusMeters': 150, 'enabled': true});
   });
 
   test('family portal visibility matches the web edit card', () {

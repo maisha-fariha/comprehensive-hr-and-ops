@@ -87,6 +87,12 @@ abstract final class ApiEndpoints {
   static const String aiIncidentsDraft = '/ai/incidents/draft';
   /// AI drafting availability (`GET /ai`).
   static const String aiStatus = '/ai';
+  /// AI Alerts & Insights list (`GET /ai-reports`).
+  static const String aiReports = '/ai-reports';
+  /// Detail (`GET /ai-reports/:id`) — marks the report read.
+  static String aiReportById(String id) => '/ai-reports/$id';
+  /// Scheduled automations (`GET /ai-reports/automations`).
+  static const String aiReportAutomations = '/ai-reports/automations';
   static String aiMarClientReview(String clientId) =>
       '/ai/mar/clients/$clientId/review';
   static String aiClientGoalsSuggest(String clientId) =>

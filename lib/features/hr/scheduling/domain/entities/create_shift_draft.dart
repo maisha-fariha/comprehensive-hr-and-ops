@@ -218,6 +218,13 @@ class CreateShiftDraft {
   /// Required when `POST /shifts/conflicts` returns `rest[]` (web audit field).
   String restOverrideReason = '';
 
+  /// Loaded from `GET /shifts/{id}` — used to show Publish Shift for drafts.
+  String? loadedStatus;
+
+  /// Staff ids at load time — skip assignment PUT when unchanged (avoids
+  /// duplicate notify on publish/save).
+  List<String> loadedStaffIds = const [];
+
   CreateShiftDraft({String? residenceId, DateTime? shiftDate})
       : residenceId = residenceId ?? '',
         shiftType = ShiftTypeOption.predefined.first.id,
@@ -471,11 +478,24 @@ class CreateShiftDraft {
 
   /// `PATCH /shifts/{id}` body: the create body minus the fields the web
   /// strips on edit (assignments go through `PUT /shifts/{id}/assignments`).
-  Map<String, dynamic> toUpdateBody() => toCreateBody()
-    ..remove('staffIds')
-    ..remove('recurrence')
-    ..remove('tasks')
-    ..remove('notifyAssignedStaff');
+  Map<String, dynamic> toUpdateBody({bool publishDraft = false}) {
+    // Keep draft status on Save changes; only Publish Shift promotes it.
+    final body = toCreateBody(asDraft: !publishDraft && isLoadedDraft)
+      ..remove('staffIds')
+      ..remove('recurrence')
+      ..remove('tasks');
+    if (publishDraft) {
+      // Web "Publish Shift": draft → scheduled (same default as create) + notify.
+      body['status'] = 'scheduled';
+      body['notifyAssignedStaff'] = notifyAssignedStaff;
+    } else {
+      body.remove('notifyAssignedStaff');
+    }
+    return body;
+  }
+
+  bool get isLoadedDraft =>
+      (loadedStatus ?? '').toLowerCase() == 'draft';
 
   /// Every user-editable value; differs from the initial snapshot when the
   /// form has unsaved edits.

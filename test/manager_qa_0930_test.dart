@@ -178,6 +178,7 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     required Map<String, dynamic> payload,
     required List<String> staffIds,
     String? restOverrideReason,
+    bool updateAssignments = true,
   }) async {
     updates.add((shiftId, payload, staffIds));
     return Result.success(null);

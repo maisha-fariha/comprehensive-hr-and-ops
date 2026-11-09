@@ -15,6 +15,12 @@ class StaffAttendanceOverview {
   final bool isWithinGeofence;
   final String geofenceStatusLabel;
   final String geofenceAddress;
+
+  /// When true, clock-in is only allowed inside [geofenceRadiusMeters].
+  final bool geofenceEnabled;
+  final double? geofenceLatitude;
+  final double? geofenceLongitude;
+  final double? geofenceRadiusMeters;
   final bool isSelfieVerified;
   final String selfieVerifiedLabel;
   final String? selfieUrl;
@@ -43,6 +49,10 @@ class StaffAttendanceOverview {
     required this.isWithinGeofence,
     required this.geofenceStatusLabel,
     required this.geofenceAddress,
+    this.geofenceEnabled = false,
+    this.geofenceLatitude,
+    this.geofenceLongitude,
+    this.geofenceRadiusMeters,
     required this.isSelfieVerified,
     required this.selfieVerifiedLabel,
     this.selfieUrl,
@@ -61,6 +71,9 @@ class StaffAttendanceOverview {
     String? elapsedTimeLabel,
     bool? isOnBreak,
     String? breakStatusLabel,
+    bool? isWithinGeofence,
+    String? geofenceStatusLabel,
+    String? geofenceAddress,
   }) {
     return StaffAttendanceOverview(
       isOnShift: isOnShift,
@@ -69,9 +82,13 @@ class StaffAttendanceOverview {
       shiftTimeRange: shiftTimeRange,
       elapsedTimeLabel: elapsedTimeLabel ?? this.elapsedTimeLabel,
       checkInAt: checkInAt,
-      isWithinGeofence: isWithinGeofence,
-      geofenceStatusLabel: geofenceStatusLabel,
-      geofenceAddress: geofenceAddress,
+      isWithinGeofence: isWithinGeofence ?? this.isWithinGeofence,
+      geofenceStatusLabel: geofenceStatusLabel ?? this.geofenceStatusLabel,
+      geofenceAddress: geofenceAddress ?? this.geofenceAddress,
+      geofenceEnabled: geofenceEnabled,
+      geofenceLatitude: geofenceLatitude,
+      geofenceLongitude: geofenceLongitude,
+      geofenceRadiusMeters: geofenceRadiusMeters,
       isSelfieVerified: isSelfieVerified,
       selfieVerifiedLabel: selfieVerifiedLabel,
       selfieUrl: selfieUrl,
@@ -86,4 +103,11 @@ class StaffAttendanceOverview {
       history: history,
     );
   }
+
+  /// True when GPS tracking is on and the residence has a usable fence.
+  bool get requiresGeofence =>
+      geofenceEnabled &&
+      geofenceLatitude != null &&
+      geofenceLongitude != null &&
+      (geofenceRadiusMeters ?? 0) > 0;
 }

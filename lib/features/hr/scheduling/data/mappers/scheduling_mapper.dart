@@ -53,6 +53,7 @@ abstract final class SchedulingMapper {
       residenceId: JsonCodec.string(json['residenceId']),
       shiftDate: startsAt,
     )
+      ..loadedStatus = JsonCodec.string(json['status'])
       ..shiftType = JsonCodec.string(json['shiftType']) ?? 'custom'
       ..startMinutes =
           startsAt == null ? null : startsAt.hour * 60 + startsAt.minute
@@ -93,6 +94,9 @@ abstract final class SchedulingMapper {
         ),
       );
     }
+    draft.loadedStaffIds = [
+      for (final staff in draft.assignedStaff) staff.staffId,
+    ];
     return draft;
   }
 
@@ -725,6 +729,7 @@ abstract final class SchedulingMapper {
       status: status,
       statusLabel:
           status == CoverageStatus.almostFull ? 'Almost Full' : 'Needs Attention',
+      apiStatus: JsonCodec.stringOr(json['status'], ''),
       avatars: avatars.take(3).toList(),
       extraStaffCount: (avatars.length - 3).clamp(0, 99),
       roleChips: _roles(json),

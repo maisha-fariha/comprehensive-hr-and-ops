@@ -18,6 +18,7 @@ import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../pages/staff_manual_attendance_entry_page.dart';
 import '../widgets/staff_clock_action_sheet.dart';
+import 'package:geolocator/geolocator.dart';
 
 /// GetX controller for the "Attendance" screen.
 class StaffAttendanceController
@@ -26,6 +27,9 @@ class StaffAttendanceController
 
   /// Live HH:MM:SS from [StaffAttendanceOverview.checkInAt].
   final RxString liveElapsedLabel = '00:00:00'.obs;
+
+  /// Live GPS check against the residence fence (when enabled).
+  final RxBool geofenceCheckBusy = false.obs;
 
   /// Residence options for filters + clock dialog.
   final RxList<ManualEntryResidenceOption> residenceOptions =
@@ -70,6 +74,10 @@ class StaffAttendanceController
         setSuccess(overview);
         liveElapsedLabel.value = overview.elapsedTimeLabel;
         _restartTicker(overview.checkInAt);
+        // Web: when GPS is on, resolve the device fix before offering Clock In.
+        if (!overview.isOnShift && overview.requiresGeofence) {
+          _refreshLiveGeofence(overview);
+        }
       },
       failure: (error) {
         _ticker?.cancel();
@@ -77,6 +85,53 @@ class StaffAttendanceController
       },
     );
     setLoading(false);
+  }
+
+  /// Haversine check vs residence center — same rule as web clock-in gate.
+  Future<void> _refreshLiveGeofence(StaffAttendanceOverview overview) async {
+    geofenceCheckBusy.value = true;
+    try {
+      final fix = await staffClockDeviceLocation();
+      final current = state.value.data;
+      if (current == null || current.isOnShift) return;
+      final lat = current.geofenceLatitude;
+      final lng = current.geofenceLongitude;
+      final radius = current.geofenceRadiusMeters;
+      if (lat == null || lng == null || radius == null || radius <= 0) return;
+      final distance = Geolocator.distanceBetween(
+        lat,
+        lng,
+        fix.latitude,
+        fix.longitude,
+      );
+      final within = distance <= radius;
+      final feet = (distance * 3.28084).round();
+      setSuccess(
+        current.copyWith(
+          isWithinGeofence: within,
+          geofenceStatusLabel: within
+              ? 'Within Geofence · Accuracy ${fix.accuracyMeters.round()} m'
+              : 'Outside Geofence · $feet ft from center',
+          geofenceAddress: [
+            current.geofenceAddress.split(' · ').first,
+            '${radius.round()} m radius',
+            '$feet ft from center',
+          ].join(' · '),
+        ),
+      );
+    } catch (_) {
+      final current = state.value.data;
+      if (current == null || current.isOnShift) return;
+      setSuccess(
+        current.copyWith(
+          isWithinGeofence: false,
+          geofenceStatusLabel:
+              'Location unavailable — move into the residence GPS area to clock in',
+        ),
+      );
+    } finally {
+      geofenceCheckBusy.value = false;
+    }
   }
 
   void _restartTicker(DateTime? checkInAt) {
@@ -100,6 +155,23 @@ class StaffAttendanceController
     final context = Get.context;
     if (context == null || !context.mounted) return;
     final current = overview;
+    if (isCheckIn && current != null && current.requiresGeofence) {
+      if (geofenceCheckBusy.value) {
+        AppSnackbar.show(
+          'Checking location',
+          'Wait a moment while we confirm you are at the residence.',
+        );
+        await _refreshLiveGeofence(current);
+      }
+      final latest = overview ?? current;
+      if (!latest.isWithinGeofence) {
+        AppSnackbar.show(
+          'Outside residence GPS area',
+          'Move inside the configured geofence radius before clocking in.',
+        );
+        return;
+      }
+    }
     // Without `residences:read`, GET /residences is empty — still offer the
     // home from /mobile/home (same as web clock-in with a rostered shift).
     final residences = _clockResidenceOptions(current);

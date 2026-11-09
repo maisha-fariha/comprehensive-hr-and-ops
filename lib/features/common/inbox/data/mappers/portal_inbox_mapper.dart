@@ -73,22 +73,29 @@ abstract final class PortalInboxMapper {
 
   /// Web bell: `Wed 04/11/2026, 01:00 pm—03:00 pm` (12h/24h from tenant settings).
   static String? _shiftWhenBody(Map<String, dynamic> meta, String? eventKey) {
-    final start = JsonCodec.dateTime(meta['shiftStartsAt']);
-    final end = JsonCodec.dateTime(meta['shiftEndsAt']);
-    if (start == null || end == null) return null;
-    if (meta['shiftWhenBody'] != true &&
-        !(eventKey ?? '').startsWith('scheduling.shift_')) {
-      return null;
-    }
+    final start = JsonCodec.dateTime(
+      meta['shiftStartsAt'] ?? meta['startsAt'] ?? meta['startAt'],
+    );
+    final end = JsonCodec.dateTime(
+      meta['shiftEndsAt'] ?? meta['endsAt'] ?? meta['endAt'],
+    );
+    if (start == null) return null;
+    final key = (eventKey ?? '').toLowerCase();
+    final isShiftEvent = meta['shiftWhenBody'] == true ||
+        key.startsWith('scheduling.shift') ||
+        key.contains('shift_reminder') ||
+        key.contains('shift.reminder') ||
+        key.contains('reminder');
+    if (!isShiftEvent) return null;
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final wall = TenantClock.wallOf(start);
     final day = weekdays[wall.weekday - 1];
     final date = TenantClock.formatDate(start);
     final startLabel = _paddedTenantTime(start);
-    final endLabel = _paddedTenantTime(end);
-    final when = '$day $date, $startLabel—$endLabel';
-    if ((eventKey ?? '').contains('changed') ||
-        (eventKey ?? '').contains('updated')) {
+    final when = end == null
+        ? '$day $date, $startLabel'
+        : '$day $date, $startLabel—${_paddedTenantTime(end)}';
+    if (key.contains('changed') || key.contains('updated')) {
       return 'Now $when';
     }
     return when;

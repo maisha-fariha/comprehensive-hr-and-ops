@@ -634,19 +634,32 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       code == 'STAFF_ON_LEAVE' ||
       code == 'INSUFFICIENT_REST';
 
-  Future<void> _saveEdit() async {
+  Future<void> _saveEdit({bool publishDraft = false}) async {
+    final staffIds = [for (final staff in _draft.assignedStaff) staff.staffId];
+    final staffUnchanged = staffIds.length == _draft.loadedStaffIds.length &&
+        staffIds.toSet().containsAll(_draft.loadedStaffIds);
+    // Publishing a draft notifies via PATCH; skip assignment PUT when staff
+    // list is unchanged so assignees are not notified twice.
+    final skipAssignments = publishDraft
+        ? staffUnchanged
+        : staffUnchanged &&
+            (_draft.restOverrideReason.trim().isEmpty);
     final result = await _repository.updateShift(
       shiftId: widget.editShiftId!,
-      payload: _draft.toUpdateBody(),
-      staffIds: [for (final staff in _draft.assignedStaff) staff.staffId],
+      payload: _draft.toUpdateBody(publishDraft: publishDraft),
+      staffIds: staffIds,
       restOverrideReason: _draft.restOverrideReason,
+      updateAssignments: !skipAssignments,
     );
     if (!mounted) return;
     result.when(
       success: (_) {
         Navigator.of(context).pop(true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          AppSnackbar.show('Shift updated', '');
+          AppSnackbar.show(
+            publishDraft ? 'Shift published' : 'Shift updated',
+            '',
+          );
         });
       },
       failure: (error) {
@@ -660,6 +673,33 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         if (_scrollController.hasClients) _scrollController.jumpTo(0);
       },
     );
+  }
+
+  Future<void> _publishDraft() async {
+    if (_isSubmitting) return;
+    await _clockReady;
+    if (!mounted || _isSubmitting) return;
+    final errors = _draft.validate();
+    if (errors.isNotEmpty) {
+      setState(() => _errors = errors);
+      _goTo(CreateShiftDraft.stepOf(errors.keys.first));
+      return;
+    }
+    if (!_validateRestOverrideReason()) {
+      _goTo(CreateShiftStep.staffAssignment);
+      return;
+    }
+    if (_staffingBlocked) {
+      AppSnackbar.show('Staff assignment', _staffingBlockedToast);
+      _goTo(CreateShiftStep.staffAssignment);
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isSubmitting = true;
+      _submitError = null;
+    });
+    await _saveEdit(publishDraft: true);
   }
 
   Future<void> _requestClose() async {
@@ -1046,7 +1086,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           child: Column(
             children: [
               CreateShiftHeader(
-                title: _isEdit ? 'Edit Shift' : 'Add New Shift',
+                title: _isEdit
+                    ? (_draft.isLoadedDraft ? 'Edit Draft Shift' : 'Edit Shift')
+                    : 'Add New Shift',
                 onClose: _isSubmitting ? null : _requestClose,
               ),
               if (_isLoadingShift || _shiftError != null)
@@ -1093,6 +1135,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                   onNext: _next,
                   onSubmit: () => _submit(),
                   onSaveDraft: _isEdit ? null : () => _submit(asDraft: true),
+                  onPublish: _isEdit && _draft.isLoadedDraft
+                      ? _publishDraft
+                      : null,
                   onDelete: _isEdit ? _deleteShift : null,
                   isEdit: _isEdit,
                 ),

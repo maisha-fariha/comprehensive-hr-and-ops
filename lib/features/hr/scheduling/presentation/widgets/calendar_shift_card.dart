@@ -96,6 +96,39 @@ class CalendarShiftCard extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (shift.isDraft) ...[
+                            Container(
+                              padding: ResponsiveHelper.getResponsivePadding(
+                                context,
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.urgentBackgroundSoft,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'DRAFT',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    11,
+                                  ),
+                                  color: AppColors.urgentAmber,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: ResponsiveHelper.getResponsiveWidth(
+                                context,
+                                6,
+                              ),
+                            ),
+                          ],
                           Container(
                             padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(

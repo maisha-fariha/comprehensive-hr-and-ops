@@ -40,6 +40,8 @@ class CalendarShift {
   /// (true for every row except the last).
   final bool showTimelineDivider;
 
+  bool get isDraft => apiStatus.toLowerCase() == 'draft';
+
   const CalendarShift({
     required this.id,
     this.occursOn,

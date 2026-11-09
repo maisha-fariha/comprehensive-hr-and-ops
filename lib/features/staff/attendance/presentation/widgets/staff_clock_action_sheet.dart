@@ -10,6 +10,9 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
+import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
@@ -261,6 +264,45 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     return (error?.message ?? '').toLowerCase().contains('handover');
   }
 
+  /// When the residence has GPS tracking on, clock-in must be inside the radius.
+  Future<String?> _geofenceBlockReason(
+    String residenceId,
+    StaffClockFix? fix,
+  ) async {
+    if (!GetIt.instance.isRegistered<AppApiClient>()) return null;
+    final result = await GetIt.instance<AppApiClient>().get(
+      ApiEndpoints.residenceById(residenceId),
+      silent: true,
+    );
+    if (result.isFailure) return null;
+    final json = JsonCodec.unwrapMap(result.value);
+    final geofence = JsonCodec.mapAt(json, 'geofence') ?? {};
+    final enabled = JsonCodec.boolean(json['geofenceEnabled']) ??
+        JsonCodec.boolean(geofence['enabled']) ??
+        false;
+    if (!enabled) return null;
+    final lat = JsonCodec.number(json['latitude'])?.toDouble();
+    final lng = JsonCodec.number(json['longitude'])?.toDouble();
+    final radius = JsonCodec.number(
+      geofence['radiusMeters'] ?? geofence['radius'],
+    )?.toDouble();
+    if (lat == null || lng == null || radius == null || radius <= 0) {
+      return null;
+    }
+    if (fix == null) {
+      return 'Location is required to clock in at this residence. Enable GPS and try again.';
+    }
+    final distance = Geolocator.distanceBetween(
+      lat,
+      lng,
+      fix.latitude,
+      fix.longitude,
+    );
+    if (distance <= radius) return null;
+    final feet = (distance * 3.28084).round();
+    return 'You are outside the residence GPS area ($feet ft from center; allowed ${radius.round()} m). Move closer to clock in.';
+  }
+
   Future<void> _submit() async {
     final residenceId = _residenceId;
     if (residenceId == null || residenceId.isEmpty) {
@@ -277,6 +319,15 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     });
     await _locationTask;
     if (!mounted) return;
+
+    final fix = _location;
+    if (widget.isCheckIn) {
+      final gate = await _geofenceBlockReason(residenceId, fix);
+      if (gate != null) {
+        _showSubmitError(gate);
+        return;
+      }
+    }
 
     String? selfieUrl;
     if (_selfiePath != null && _selfiePath!.isNotEmpty) {
@@ -295,7 +346,6 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
       selfieUrl = upload.value;
     }
 
-    final fix = _location;
     final result = widget.isCheckIn
         ? await _repo.checkIn(
             shiftId: widget.shiftId,

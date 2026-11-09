@@ -113,6 +113,12 @@ abstract final class StaffAttendanceMapper {
           residence['geofenceRadiusMeters'] ??
           residence['radiusMeters'],
     );
+    final geofenceLat = JsonCodec.number(residence['latitude'])?.toDouble();
+    final geofenceLng = JsonCodec.number(residence['longitude'])?.toDouble();
+    // Top-level `geofenceEnabled` is source of truth (radius alone ≠ ON).
+    final geofenceEnabled = JsonCodec.boolean(residence['geofenceEnabled']) ??
+        JsonCodec.boolean(geofenceMap['enabled']) ??
+        false;
     final address = JsonCodec.stringOr(
       residence['address'] ??
           geofenceMap['address'] ??
@@ -130,10 +136,28 @@ abstract final class StaffAttendanceMapper {
     final accuracyLabel = accuracyMeters == null
         ? null
         : 'Accuracy ${_metersToFeet(accuracyMeters).round()} ft';
-    final geofenceStatusLabel = [
-      within ? 'Within Geofence' : 'Outside Geofence',
-      if (accuracyLabel != null) accuracyLabel,
-    ].join(' · ');
+    // Before clock-in there is no punch geofenceStatus — leave "checking"
+    // until the controller applies the live device fix when GPS is enabled.
+    final bool resolvedWithin;
+    final String geofenceStatusLabel;
+    if (onShift) {
+      resolvedWithin = within;
+      geofenceStatusLabel = [
+        within ? 'Within Geofence' : 'Outside Geofence',
+        if (accuracyLabel != null) accuracyLabel,
+      ].join(' · ');
+    } else if (geofenceEnabled &&
+        geofenceLat != null &&
+        geofenceLng != null &&
+        (radiusMeters ?? 0) > 0) {
+      resolvedWithin = false;
+      geofenceStatusLabel = 'Checking location…';
+    } else {
+      resolvedWithin = true;
+      geofenceStatusLabel = geofenceEnabled
+          ? 'GPS tracking on'
+          : 'GPS tracking off';
+    }
 
     final historySource = historyRecords.isNotEmpty
         ? historyRecords
@@ -152,9 +176,13 @@ abstract final class StaffAttendanceMapper {
           ? '00:00:00'
           : IsoDateRange.elapsedHms(checkIn),
       checkInAt: (checkIn == null ? null : TenantClock.wallOf(checkIn)),
-      isWithinGeofence: within,
+      isWithinGeofence: resolvedWithin,
       geofenceStatusLabel: geofenceStatusLabel,
       geofenceAddress: geofenceAddress,
+      geofenceEnabled: geofenceEnabled,
+      geofenceLatitude: geofenceLat,
+      geofenceLongitude: geofenceLng,
+      geofenceRadiusMeters: radiusMeters?.toDouble(),
       isSelfieVerified: selfieUrl != null && selfieUrl.isNotEmpty,
       selfieVerifiedLabel: selfieUrl == null || selfieUrl.isEmpty
           ? 'Selfie not captured'

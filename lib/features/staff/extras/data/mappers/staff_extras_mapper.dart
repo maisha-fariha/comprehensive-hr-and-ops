@@ -65,8 +65,10 @@ abstract final class StaffExtrasMapper {
       ),
       latitude: JsonCodec.number(json['latitude'])?.toDouble(),
       longitude: JsonCodec.number(json['longitude'])?.toDouble(),
-      gpsTrackingEnabled: JsonCodec.boolean(geofence?['enabled']) ??
-          (JsonCodec.integer(geofence?['radiusMeters']) ?? 0) > 0,
+      // Top-level `geofenceEnabled` is source of truth (radius alone ≠ ON).
+      gpsTrackingEnabled: JsonCodec.boolean(json['geofenceEnabled']) ??
+          JsonCodec.boolean(geofence?['enabled']) ??
+          false,
       roomCount: JsonCodec.integerOr(json['roomCount'], 0),
       careLevelMix: careLevelMix,
       outOfPocketEnabled:

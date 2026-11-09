@@ -79,12 +79,14 @@ class BoardShiftCard extends StatelessWidget {
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
                     Text(
-                      shift.statusLabel,
+                      shift.isDraft ? 'DRAFT' : shift.statusLabel,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w600,
                         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
-                        color: style.accent,
+                        color: shift.isDraft
+                            ? AppColors.urgentAmber
+                            : style.accent,
                       ),
                     ),
                   ],

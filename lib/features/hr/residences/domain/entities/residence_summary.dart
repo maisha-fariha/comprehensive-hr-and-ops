@@ -29,6 +29,9 @@ class ResidenceSummary {
   final double? latitude;
   final double? longitude;
   final int? gpsRadiusMeters;
+
+  /// Top-level API `geofenceEnabled` (or `geofence.enabled`).
+  final bool gpsTrackingEnabled;
   final String? emergencyPhone;
   final String? addressLine1;
   final String? city;
@@ -71,6 +74,7 @@ class ResidenceSummary {
     this.latitude,
     this.longitude,
     this.gpsRadiusMeters,
+    this.gpsTrackingEnabled = false,
     this.emergencyPhone,
     this.addressLine1,
     this.city,
@@ -143,6 +147,7 @@ class ResidenceSummary {
       latitude: latitude,
       longitude: longitude,
       gpsRadiusMeters: gpsRadiusMeters,
+      gpsTrackingEnabled: gpsTrackingEnabled,
       emergencyPhone: emergencyPhone,
       addressLine1: addressLine1,
       city: city,

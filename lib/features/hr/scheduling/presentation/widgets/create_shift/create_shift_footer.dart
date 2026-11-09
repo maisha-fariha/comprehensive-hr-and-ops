@@ -3,7 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 
-/// Wizard footer: Cancel/Back, optional Draft / Delete, and Next/Create.
+/// Wizard footer: Cancel/Back, optional Draft / Delete / Publish, and Next/Create.
 class CreateShiftFooter extends StatelessWidget {
   final bool isFirstStep;
   final bool isLastStep;
@@ -14,8 +14,11 @@ class CreateShiftFooter extends StatelessWidget {
   final VoidCallback? onNext;
   final VoidCallback? onSubmit;
 
-  /// Create only: web "Save as draft".
+  /// Create only: web "Draft".
   final VoidCallback? onSaveDraft;
+
+  /// Edit draft only: web "Publish Shift".
+  final VoidCallback? onPublish;
 
   /// Edit only: delete this shift.
   final VoidCallback? onDelete;
@@ -34,6 +37,7 @@ class CreateShiftFooter extends StatelessWidget {
     this.onNext,
     this.onSubmit,
     this.onSaveDraft,
+    this.onPublish,
     this.onDelete,
     this.isEdit = false,
   });
@@ -46,7 +50,6 @@ class CreateShiftFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final narrow = MediaQuery.sizeOf(context).width < 420;
     final requiredHint = RichText(
       text: TextSpan(
         style: TextStyle(
@@ -65,28 +68,28 @@ class CreateShiftFooter extends StatelessWidget {
       ),
     );
 
-    Widget secondary({bool expanded = false}) => isFirstStep
+    final secondary = isFirstStep
         ? _FooterButton(
             key: const ValueKey('create-shift-cancel'),
             label: 'Cancel',
             filled: false,
-            expanded: expanded,
+            expanded: true,
             onTap: isSubmitting ? null : onCancel,
           )
         : _FooterButton(
             key: const ValueKey('create-shift-back'),
             label: 'Back',
             filled: false,
-            expanded: expanded,
+            expanded: true,
             onTap: isSubmitting ? null : onBack,
           );
 
-    Widget primary({bool expanded = false}) => isLastStep
+    final primary = isLastStep
         ? _FooterButton(
             key: const ValueKey('create-shift-submit'),
             label: _submitLabel,
             filled: true,
-            expanded: expanded,
+            expanded: true,
             isLoading: isSubmitting,
             onTap: isSubmitting ? null : onSubmit,
           )
@@ -94,16 +97,28 @@ class CreateShiftFooter extends StatelessWidget {
             key: const ValueKey('create-shift-next'),
             label: 'Next',
             filled: true,
-            expanded: expanded,
+            expanded: true,
             onTap: onNext,
           );
 
     final draft = !isEdit && onSaveDraft != null
         ? _FooterButton(
             key: const ValueKey('create-shift-draft'),
-            label: isSubmitting ? 'Saving…' : 'Save as Draft',
+            label: isSubmitting ? 'Saving…' : 'Draft',
             filled: false,
+            expanded: true,
             onTap: isSubmitting ? null : onSaveDraft,
+          )
+        : null;
+
+    // Web Publish is the primary action for drafts (filled teal/navy).
+    final publish = isEdit && onPublish != null
+        ? _FooterButton(
+            key: const ValueKey('create-shift-publish'),
+            label: isSubmitting ? 'Publishing…' : 'Publish Shift',
+            filled: true,
+            expanded: true,
+            onTap: isSubmitting ? null : onPublish,
           )
         : null;
 
@@ -112,15 +127,18 @@ class CreateShiftFooter extends StatelessWidget {
             key: const ValueKey('create-shift-delete'),
             label: 'Delete',
             filled: false,
+            expanded: true,
             danger: true,
             onTap: isSubmitting ? null : onDelete,
           )
         : null;
 
-    final extras = <Widget>[
-      ?delete,
-      ?draft,
-    ];
+    final gap = SizedBox(
+      height: ResponsiveHelper.getResponsiveHeight(context, 10),
+    );
+    final hGap = SizedBox(
+      width: ResponsiveHelper.getResponsiveWidth(context, 10),
+    );
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -136,66 +154,35 @@ class CreateShiftFooter extends StatelessWidget {
             top: 12,
             bottom: 12,
           ),
-          child: narrow
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+          // Always stack on phone — a single Row overflows when Delete +
+          // Publish Shift + Cancel + Next share one line (~147px).
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              requiredHint,
+              gap,
+              if (delete != null || publish != null || draft != null) ...[
+                Row(
                   children: [
-                    requiredHint,
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 12),
-                    ),
-                    if (extras.isNotEmpty) ...[
-                      Row(
-                        children: [
-                          for (var i = 0; i < extras.length; i++) ...[
-                            if (i != 0)
-                              SizedBox(
-                                width: ResponsiveHelper.getResponsiveWidth(
-                                  context,
-                                  10,
-                                ),
-                              ),
-                            Expanded(child: extras[i]),
-                          ],
-                        ],
-                      ),
-                      SizedBox(
-                        height:
-                            ResponsiveHelper.getResponsiveHeight(context, 10),
-                      ),
-                    ],
-                    Row(
-                      children: [
-                        Expanded(child: secondary(expanded: true)),
-                        SizedBox(
-                          width:
-                              ResponsiveHelper.getResponsiveWidth(context, 10),
-                        ),
-                        Expanded(child: primary(expanded: true)),
-                      ],
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    requiredHint,
-                    const Spacer(),
-                    ...[
-                      for (final extra in extras) ...[
-                        extra,
-                        SizedBox(
-                          width:
-                              ResponsiveHelper.getResponsiveWidth(context, 10),
-                        ),
-                      ],
-                    ],
-                    secondary(),
-                    SizedBox(
-                      width: ResponsiveHelper.getResponsiveWidth(context, 10),
-                    ),
-                    primary(),
+                    if (delete != null) Expanded(child: delete),
+                    if (delete != null && (publish != null || draft != null))
+                      hGap,
+                    if (publish != null) Expanded(child: publish),
+                    if (publish != null && draft != null) hGap,
+                    if (draft != null) Expanded(child: draft),
                   ],
                 ),
+                gap,
+              ],
+              Row(
+                children: [
+                  Expanded(child: secondary),
+                  hGap,
+                  Expanded(child: primary),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -253,7 +240,7 @@ class _FooterButton extends StatelessWidget {
           alignment: Alignment.center,
           padding: ResponsiveHelper.getResponsivePadding(
             context,
-            horizontal: 18,
+            horizontal: 14,
             vertical: 12,
           ),
           decoration: BoxDecoration(
@@ -288,6 +275,7 @@ class _FooterButton extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontWeight: FontWeight.w600,

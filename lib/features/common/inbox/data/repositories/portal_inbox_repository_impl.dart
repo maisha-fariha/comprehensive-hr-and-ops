@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/portal_notification.dart';
 import '../../domain/entities/portal_search_hit.dart';
 import '../../domain/repositories/portal_inbox_repository.dart';
@@ -45,6 +46,8 @@ class PortalInboxRepositoryImpl implements PortalInboxRepository {
 
   @override
   Future<Result<List<PortalNotification>>> getNotifications() async {
+    // Force-sync so reminder bodies use Settings → General timeFormat (12h/24h).
+    await TenantClock.syncFromApi(_api, force: true);
     final result = await _api.get(
       ApiEndpoints.notifications,
       query: const {'page': 1, 'limit': 30},

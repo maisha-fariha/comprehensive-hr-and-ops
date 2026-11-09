@@ -105,6 +105,10 @@ abstract class SchedulingRepository {
     required Map<String, dynamic> payload,
     required List<String> staffIds,
     String? restOverrideReason,
+
+    /// When false, skip `PUT …/assignments` (web publish/edit when staff
+    /// unchanged — avoids a second notify).
+    bool updateAssignments = true,
   });
 
   /// Manager decision on a pending shift-swap request.

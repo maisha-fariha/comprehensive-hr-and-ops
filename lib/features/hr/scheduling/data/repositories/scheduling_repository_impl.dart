@@ -382,6 +382,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     required Map<String, dynamic> payload,
     required List<String> staffIds,
     String? restOverrideReason,
+    bool updateAssignments = true,
   }) async {
     final patched = await _api.patch(
       ApiEndpoints.shiftById(shiftId),
@@ -389,6 +390,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       allowQueue: false,
     );
     if (patched.isFailure) return Result.failure(patched.error!);
+    if (!updateAssignments) return Result.success(null);
     final reason = restOverrideReason?.trim();
     final assigned = await _api.put(
       ApiEndpoints.shiftAssignments(shiftId),

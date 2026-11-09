@@ -143,6 +143,7 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     required Map<String, dynamic> payload,
     required List<String> staffIds,
     String? restOverrideReason,
+    bool updateAssignments = true,
   }) =>
       throw UnimplementedError();
 

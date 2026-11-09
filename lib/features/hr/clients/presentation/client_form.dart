@@ -168,7 +168,8 @@ class ClientForm {
   String relationship = '';
   String secondaryRelationship = '';
   bool emergencyContact = true;
-  bool familyPortalAccess = true;
+  /// Web defaults portal access off until the user opts in (Bug Report 002).
+  bool familyPortalAccess = false;
   bool receiveNotifications = true;
   bool emergencyAlerts = true;
   Map<String, bool> portalVisibility = Map.of(_defaultPortalVisibility);

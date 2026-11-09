@@ -107,6 +107,10 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
         // creates or corrects a record and needs `attendance:manage`.
         final canClock = session == null || session.can('attendance:write');
         final canManual = session == null || session.can('attendance:manage');
+        // Web: Clock In is withheld outside an enabled residence geofence.
+        final outsideFence = !overview.isOnShift &&
+            overview.requiresGeofence &&
+            !overview.isWithinGeofence;
         _scrollToTimeOff();
         return Column(
           children: [
@@ -117,7 +121,8 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
                 child: StaffAttendanceHeader(
                   onBackTap: () => Navigator.maybePop(context),
                   isOnShift: overview.isOnShift,
-                  onClockInTap: canClock ? controller.clockIn : null,
+                  onClockInTap:
+                      canClock && !outsideFence ? controller.clockIn : null,
                   onClockOutTap: canClock ? controller.clockOut : null,
                   onManualEntryTap:
                       canManual ? controller.showManualEntryDialog : null,

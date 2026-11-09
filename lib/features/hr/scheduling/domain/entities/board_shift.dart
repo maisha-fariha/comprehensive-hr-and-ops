@@ -13,6 +13,9 @@ class BoardShift {
   final int total;
   final CoverageStatus status;
   final String statusLabel;
+
+  /// Raw API `status` (e.g. `draft`) — used for lifecycle chips.
+  final String apiStatus;
   final List<StaffAvatar> avatars;
   final int extraStaffCount;
   final List<String> roleChips;
@@ -28,9 +31,12 @@ class BoardShift {
     required this.total,
     required this.status,
     required this.statusLabel,
+    this.apiStatus = '',
     required this.avatars,
     required this.extraStaffCount,
     required this.roleChips,
     required this.neededLabel,
   });
+
+  bool get isDraft => apiStatus.toLowerCase() == 'draft';
 }
