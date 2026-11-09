@@ -14,9 +14,11 @@ import '../widgets/admissions_kpi_grid.dart';
 import '../widgets/admit_referral_sheet.dart';
 import '../widgets/decline_referral_sheet.dart';
 import '../widgets/intake_forms_tab.dart';
+import '../widgets/intake_template_form_sheet.dart';
 import '../widgets/referral_card.dart';
 import '../widgets/referral_detail_sheet.dart';
 import '../widgets/referral_form_sheet.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Admissions" — mirrors web `/dashboard/admissions`.
@@ -90,15 +92,23 @@ class _AdmissionsPageState extends State<AdmissionsPage> {
                               handoverText(context, 18, weight: FontWeight.w700),
                         ),
                       ),
-                      if (_c.tab.value == AdmissionsTab.referrals && _c.canWrite)
-                        HandoverButton(
-                          key: const ValueKey('referral-new'),
-                          label: 'New referral',
-                          icon: Icons.add_rounded,
-                          filled: true,
-                          compact: true,
-                          onPressed: () =>
+                      if (_c.canWrite &&
+                          _c.tab.value == AdmissionsTab.referrals)
+                        HrHeaderPrimaryAction(
+                          actionKey: const ValueKey('referral-new'),
+                          label: 'Referral',
+                          onTap: () =>
                               showReferralFormSheet(context, controller: _c),
+                        )
+                      else if (_c.canWrite &&
+                          _c.tab.value == AdmissionsTab.forms)
+                        HrHeaderPrimaryAction(
+                          actionKey: const ValueKey('template-new'),
+                          label: 'Intake form',
+                          onTap: () => showIntakeTemplateFormSheet(
+                            context,
+                            controller: _c,
+                          ),
                         ),
                     ],
                   ),

@@ -17,7 +17,10 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart
 
 /// Web `/dashboard/purchasing`.
 class PurchasingView extends StatefulWidget {
-  const PurchasingView({super.key});
+  /// Parent header CTA depends on orders vs suppliers — notify on mount/tab change.
+  final VoidCallback? onHeaderNeedsRebuild;
+
+  const PurchasingView({super.key, this.onHeaderNeedsRebuild});
 
   @override
   State<PurchasingView> createState() => _PurchasingViewState();
@@ -30,11 +33,17 @@ class _PurchasingViewState extends State<PurchasingView> {
   void initState() {
     super.initState();
     _c = Get.put(GetIt.instance<PurchasingController>());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onHeaderNeedsRebuild?.call();
+    });
   }
 
   @override
   void dispose() {
     Get.delete<PurchasingController>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onHeaderNeedsRebuild?.call();
+    });
     super.dispose();
   }
 
@@ -50,27 +59,6 @@ class _PurchasingViewState extends State<PurchasingView> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
           children: [
-            if ((orders && _c.canWriteOrders) || (!orders && _c.canWriteSuppliers))
-              InventoryToolbar(
-                children: [
-                  if (orders)
-                    HandoverButton(
-                      key: const ValueKey('order-new'),
-                      label: 'New order',
-                      icon: Icons.add_rounded,
-                      filled: true,
-                      onPressed: () => showPurchaseOrderForm(context, controller: _c),
-                    )
-                  else
-                    HandoverButton(
-                      key: const ValueKey('supplier-new'),
-                      label: 'Add supplier',
-                      icon: Icons.add_rounded,
-                      filled: true,
-                      onPressed: () => showAddSupplierSheet(context, controller: _c),
-                    ),
-                ],
-              ),
             _tabs(context),
             const SizedBox(height: 14),
             ...(orders ? _orders(context) : _suppliers(context)),
@@ -92,7 +80,10 @@ class _PurchasingViewState extends State<PurchasingView> {
                 child: InkWell(
                   key: ValueKey('purchasing-tab-${tab.name}'),
                   borderRadius: BorderRadius.circular(8),
-                  onTap: () => _c.setTab(tab),
+                  onTap: () {
+                    _c.setTab(tab);
+                    widget.onHeaderNeedsRebuild?.call();
+                  },
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 9),
                     alignment: Alignment.center,

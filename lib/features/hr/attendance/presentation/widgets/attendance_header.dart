@@ -5,14 +5,21 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../attendance_assets.dart';
 import '../../attendance_constants.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 
 /// The plain white header shared by every Attendance tab: a hamburger menu
 /// button, the centered "Attendance" title and a bordered calendar button.
 class AttendanceHeader extends StatelessWidget {
   final VoidCallback? onMenuTap;
   final VoidCallback? onCalendarTap;
+  final VoidCallback? onManualEntryTap;
 
-  const AttendanceHeader({super.key, this.onMenuTap, this.onCalendarTap});
+  const AttendanceHeader({
+    super.key,
+    this.onMenuTap,
+    this.onCalendarTap,
+    this.onManualEntryTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +48,14 @@ class AttendanceHeader extends StatelessWidget {
               ),
             ),
           ),
+          if (onManualEntryTap != null) ...[
+            HrHeaderPrimaryAction(
+              actionKey: const ValueKey('attendance-manual-entry'),
+              label: 'Entry',
+              onTap: onManualEntryTap!,
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+          ],
           GestureDetector(
             onTap: onCalendarTap,
             behavior: HitTestBehavior.opaque,

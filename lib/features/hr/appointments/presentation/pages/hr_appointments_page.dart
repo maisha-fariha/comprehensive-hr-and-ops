@@ -14,6 +14,7 @@ import '../widgets/hr_appointment_form_sheet.dart';
 import '../widgets/hr_appointment_reason_dialog.dart';
 import '../widgets/hr_appointments_kpi_grid.dart';
 import '../widgets/hr_appointments_toolbar.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
@@ -143,6 +144,14 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
                         style: handoverText(context, 18, weight: FontWeight.w700),
                       ),
                     ),
+                    Obx(() {
+                      if (!_c.canWrite) return const SizedBox.shrink();
+                      return HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('appointments-create'),
+                        label: 'Appointment',
+                        onTap: () => _openForm(),
+                      );
+                    }),
                   ],
                 ),
               ),
@@ -199,29 +208,14 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
           'Visit requests from families, and the appointments the home books itself',
           style: handoverText(context, 13, color: AppColors.textMuted),
         ),
-        if (_c.canWrite || _c.canExport) ...[
+        if (_c.canExport) ...[
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (_c.canWrite)
-                HandoverButton(
-                  key: const ValueKey('appointments-create'),
-                  label: 'Create Appointment',
-                  icon: Icons.add_rounded,
-                  filled: true,
-                  onPressed: () => _openForm(),
-                ),
-              if (_c.canExport)
-                HandoverButton(
-                  key: const ValueKey('appointments-export'),
-                  label: _c.exporting.value ? 'Preparing…' : 'Export List',
-                  icon: Icons.download_rounded,
-                  foreground: AppColors.secondaryTeal,
-                  onPressed: _c.exporting.value ? null : _c.export,
-                ),
-            ],
+          HandoverButton(
+            key: const ValueKey('appointments-export'),
+            label: _c.exporting.value ? 'Preparing…' : 'Export List',
+            icon: Icons.download_rounded,
+            foreground: AppColors.secondaryTeal,
+            onPressed: _c.exporting.value ? null : _c.export,
           ),
         ],
       ],

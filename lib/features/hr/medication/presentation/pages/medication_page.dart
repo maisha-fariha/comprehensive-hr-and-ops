@@ -24,6 +24,7 @@ import '../widgets/mar_row_card.dart';
 import '../widgets/mar_side_panels.dart';
 import '../widgets/mar_stock_tab.dart';
 import '../widgets/medication_common.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Medication Administration Record (MAR)" — mirrors web
@@ -176,6 +177,17 @@ class _MedicationPageState extends State<MedicationPage> {
                     Expanded(
                       child: Text('Medication', style: handoverText(context, 18, weight: FontWeight.w700)),
                     ),
+                    if (_c.canWrite)
+                      Obx(() {
+                        final reason = _c.administerDisabledReason;
+                        if (reason != null) return const SizedBox.shrink();
+                        return HrHeaderPrimaryAction(
+                          actionKey: const ValueKey('mar-record-administration'),
+                          label: 'Record',
+                          icon: Icons.vaccines_outlined,
+                          onTap: () => _record(),
+                        );
+                      }),
                   ],
                 ),
               ),
@@ -235,7 +247,6 @@ class _MedicationPageState extends State<MedicationPage> {
   }
 
   Widget _heading(BuildContext context) {
-    final reason = _c.administerDisabledReason;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -249,17 +260,6 @@ class _MedicationPageState extends State<MedicationPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              if (_c.canWrite)
-                Tooltip(
-                  message: reason ?? '',
-                  child: HandoverButton(
-                    key: const ValueKey('mar-record-administration'),
-                    label: 'Record Administration',
-                    icon: Icons.vaccines_outlined,
-                    filled: true,
-                    onPressed: reason == null ? () => _record() : null,
-                  ),
-                ),
               if (_c.canWrite)
                 HandoverButton(
                   key: const ValueKey('mar-add-medicine'),

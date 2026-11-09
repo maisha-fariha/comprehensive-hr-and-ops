@@ -4,14 +4,15 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 
-/// White header for Tasks & Compliance: menu, centered title/subtitle,
-/// and a bordered search button — matched to the reference chrome.
+/// White header for Tasks & Compliance: menu, title, optional New Task, search.
 class TasksComplianceHeader extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback? onMenuTap;
   final VoidCallback? onSearchTap;
+  final VoidCallback? onNewTaskTap;
 
   const TasksComplianceHeader({
     super.key,
@@ -19,6 +20,7 @@ class TasksComplianceHeader extends StatelessWidget {
     required this.subtitle,
     this.onMenuTap,
     this.onSearchTap,
+    this.onNewTaskTap,
   });
 
   @override
@@ -31,8 +33,8 @@ class TasksComplianceHeader extends StatelessWidget {
           padding: ResponsiveHelper.getResponsivePadding(
             context,
             horizontal: 16,
-            top: 8,
-            bottom: 8,
+            top: 4,
+            bottom: 6,
           ),
           child: Row(
             children: [
@@ -48,19 +50,23 @@ class TasksComplianceHeader extends StatelessWidget {
                   ),
                 ),
               ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
               Expanded(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       title,
-                      textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          17,
+                        ),
                         color: AppColors.textHeading,
                         height: 1.2,
                       ),
@@ -71,7 +77,6 @@ class TasksComplianceHeader extends StatelessWidget {
                       ),
                       Text(
                         subtitle,
-                        textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -89,6 +94,14 @@ class TasksComplianceHeader extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onNewTaskTap != null) ...[
+                HrHeaderPrimaryAction(
+                  actionKey: const ValueKey('tasks-header-new-task'),
+                  label: 'Task',
+                  onTap: onNewTaskTap!,
+                ),
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+              ],
               GestureDetector(
                 onTap: onSearchTap,
                 behavior: HitTestBehavior.opaque,

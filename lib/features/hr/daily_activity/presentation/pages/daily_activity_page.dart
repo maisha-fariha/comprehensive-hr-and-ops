@@ -6,6 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import '../../domain/entities/daily_activity.dart';
 import '../controllers/daily_activity_controller.dart';
 import '../widgets/daily_activity_common.dart';
@@ -103,7 +104,7 @@ class _DailyActivityPageState extends State<DailyActivityPage> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 16, 10),
+                padding: const EdgeInsets.fromLTRB(4, 4, 12, 8),
                 child: Row(
                   children: [
                     IconButton(
@@ -113,28 +114,30 @@ class _DailyActivityPageState extends State<DailyActivityPage> {
                     Expanded(
                       child: Text(
                         'Daily Activity',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: handoverText(context, 18, weight: FontWeight.w700),
                       ),
                     ),
                     if (_c.canWrite) ...[
-                      HandoverButton(
-                        key: const ValueKey('daily-activity-group'),
-                        label: 'Group activity',
-                        icon: Icons.groups_rounded,
-                        compact: true,
-                        onPressed: () => showDailyActivityGroupSheet(
-                          context,
-                          controller: _c,
+                      Tooltip(
+                        message: 'Group activity',
+                        child: HandoverButton(
+                          key: const ValueKey('daily-activity-group'),
+                          label: '',
+                          icon: Icons.groups_rounded,
+                          compact: true,
+                          onPressed: () => showDailyActivityGroupSheet(
+                            context,
+                            controller: _c,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      HandoverButton(
-                        key: const ValueKey('daily-activity-record'),
-                        label: 'Record activity',
-                        icon: Icons.add_rounded,
-                        filled: true,
-                        compact: true,
-                        onPressed: _openForm,
+                      SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                      HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('daily-activity-record'),
+                        label: 'Activity',
+                        onTap: _openForm,
                       ),
                     ],
                   ],
@@ -149,7 +152,7 @@ class _DailyActivityPageState extends State<DailyActivityPage> {
               child: Obx(
                 () => ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
+                  padding: EdgeInsets.fromLTRB(pad, 12, pad, 24),
                   children: [
                     DailyActivityKpiGrid(stats: _c.stats.value),
                     const SizedBox(height: 15),

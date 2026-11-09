@@ -37,11 +37,6 @@ class _StockCountsViewState extends State<StockCountsView> {
     super.dispose();
   }
 
-  Future<void> _start() async {
-    final id = await showStartCountSheet(context, controller: _c);
-    if (id != null && mounted) await showStockCountSheet(context, controller: _c, countId: id);
-  }
-
   @override
   Widget build(BuildContext context) {
     final pad = ResponsiveHelper.getResponsiveWidth(context, 16);
@@ -53,18 +48,6 @@ class _StockCountsViewState extends State<StockCountsView> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
           children: [
-            if (_c.canAdjust)
-              InventoryToolbar(
-                children: [
-                  HandoverButton(
-                    key: const ValueKey('count-start'),
-                    label: 'Start a count',
-                    icon: Icons.add_rounded,
-                    filled: true,
-                    onPressed: _start,
-                  ),
-                ],
-              ),
             ..._list(context),
           ],
         ),

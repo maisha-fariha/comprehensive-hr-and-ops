@@ -87,22 +87,6 @@ class TrainingAssignmentsTab extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (c.canManage) ...[
-            Align(
-              alignment: Alignment.centerRight,
-              child: HandoverButton(
-                key: const ValueKey('training-assign-staff'),
-                label: 'Assign staff',
-                icon: Icons.person_add_alt_1_outlined,
-                filled: true,
-                onPressed: () => showTrainingSheet<void>(
-                  context,
-                  builder: (_) => TrainingAssignSheet(controller: c),
-                ),
-              ),
-            ),
-            const SizedBox(height: 15),
-          ],
           ..._pagedBody(
             c,
             c.assignmentsTab,
@@ -576,29 +560,10 @@ class TrainingSittingsTab extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (c.canManage) ...[
-            if (!canSit) ...[
-              Text(
-                'This course has no quiz to sit \u2014 it needs questions and a pass mark.',
-                textAlign: TextAlign.right,
-                style: handoverText(context, 13, color: AppColors.textMuted),
-              ),
-              const SizedBox(height: 8),
-            ],
-            Align(
-              alignment: Alignment.centerRight,
-              child: HandoverButton(
-                key: const ValueKey('training-record-sitting'),
-                label: 'Record a sitting',
-                icon: Icons.fact_check_outlined,
-                filled: true,
-                onPressed: canSit
-                    ? () => showTrainingSheet<void>(
-                          context,
-                          builder: (_) => TrainingRecordSittingSheet(controller: c),
-                        )
-                    : null,
-              ),
+          if (c.canManage && !canSit) ...[
+            Text(
+              'This course has no quiz to sit \u2014 it needs questions and a pass mark.',
+              style: handoverText(context, 13, color: AppColors.textMuted),
             ),
             const SizedBox(height: 15),
           ],

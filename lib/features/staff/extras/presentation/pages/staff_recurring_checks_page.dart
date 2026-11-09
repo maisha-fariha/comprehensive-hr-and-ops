@@ -18,6 +18,7 @@ import '../../../tasks_messages/domain/entities/recurring_check_schedule.dart';
 import '../../../tasks_messages/domain/repositories/staff_tasks_messages_repository.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
+import '../../../../hr/presentation/widgets/hr_header_primary_action.dart';
 
 /// Dedicated Recurring Checks module (BUG_Report008).
 class StaffRecurringChecksPage extends StatefulWidget {
@@ -408,6 +409,24 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
         backgroundColor: AppColors.surfaceWhite,
         foregroundColor: AppColors.textHeading,
         elevation: 0,
+        actions: [
+          if (_canComplete) ...[
+            HrHeaderPrimaryAction(
+              actionKey: const Key('staff-recurring-record-progress'),
+              label: 'Progress',
+              icon: Icons.assignment_turned_in_outlined,
+              onTap: _openRecordProgress,
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+          ],
+          if (_canWrite)
+            HrHeaderPrimaryAction(
+              actionKey: const Key('staff-recurring-new-schedule'),
+              label: 'Schedule',
+              onTap: _openNewSchedule,
+            ),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.secondaryTeal,
@@ -429,45 +448,34 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
           : AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _load,
-              child: Column(
+              child: TabBarView(
+                controller: _tabController,
                 children: [
-                  if (_canComplete || _canWrite)
-                    _ActionsBar(
-                      onRecordProgress: _openRecordProgress,
-                      onNewSchedule: _canWrite ? _openNewSchedule : null,
-                    ),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _SchedulesTab(
-                          schedules: _schedules,
-                          canManage: _canWrite,
-                          onEdit: _openEditSchedule,
-                          onToggle: _toggleSchedule,
-                          onDelete: _deleteSchedule,
-                        ),
-                        _InstancesTab(
-                          filters: _filters(),
-                          items: _dueItems,
-                          emptyText: 'No recurring checks are due.',
-                          statusColor: _statusColor,
-                          statusLabel: _statusLabel,
-                          onComplete: _complete,
-                          onSkip: _skip,
-                        ),
-                        _InstancesTab(
-                          filters: _filters(),
-                          items: _checks,
-                          emptyText:
-                              'No checks were recorded for these filters.',
-                          statusColor: _statusColor,
-                          statusLabel: _statusLabel,
-                          onComplete: _complete,
-                          onSkip: _skip,
-                        ),
-                      ],
-                    ),
+                  _SchedulesTab(
+                    schedules: _schedules,
+                    canManage: _canWrite,
+                    onEdit: _openEditSchedule,
+                    onToggle: _toggleSchedule,
+                    onDelete: _deleteSchedule,
+                  ),
+                  _InstancesTab(
+                    filters: _filters(),
+                    items: _dueItems,
+                    emptyText: 'No recurring checks are due.',
+                    statusColor: _statusColor,
+                    statusLabel: _statusLabel,
+                    onComplete: _complete,
+                    onSkip: _skip,
+                  ),
+                  _InstancesTab(
+                    filters: _filters(),
+                    items: _checks,
+                    emptyText:
+                        'No checks were recorded for these filters.',
+                    statusColor: _statusColor,
+                    statusLabel: _statusLabel,
+                    onComplete: _complete,
+                    onSkip: _skip,
                   ),
                 ],
               ),
@@ -495,41 +503,6 @@ class _StaffRecurringChecksPageState extends State<StaffRecurringChecksPage>
         setState(() => _onlyMine = value);
         _load();
       },
-    );
-  }
-}
-
-class _ActionsBar extends StatelessWidget {
-  final VoidCallback onRecordProgress;
-  final VoidCallback? onNewSchedule;
-
-  const _ActionsBar({
-    required this.onRecordProgress,
-    this.onNewSchedule,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
-          OutlinedButton.icon(
-            onPressed: onRecordProgress,
-            icon: const Icon(Icons.playlist_add_check_outlined),
-            label: const Text('Record Progress'),
-          ),
-          if (onNewSchedule != null)
-            FilledButton.icon(
-              key: const Key('staff-recurring-new-schedule'),
-              onPressed: onNewSchedule,
-              icon: const Icon(Icons.add),
-              label: const Text('New Schedule'),
-            ),
-        ],
-      ),
     );
   }
 }

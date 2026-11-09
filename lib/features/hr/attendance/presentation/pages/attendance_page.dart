@@ -55,9 +55,19 @@ class AttendancePage extends StatelessWidget {
             color: AppColors.surfaceWhite,
             child: SafeArea(
               bottom: false,
-              child: AttendanceHeader(
-                onMenuTap: openManagerMenu,
-                onCalendarTap: () => _pickWeek(context, controller),
+              child: Obx(
+                () => AttendanceHeader(
+                  onMenuTap: openManagerMenu,
+                  onCalendarTap: () => _pickWeek(context, controller),
+                  onManualEntryTap: controller.canManage
+                      ? () async {
+                          final saved = await openManualAttendanceEntry(
+                            defaultResidenceId: controller.residenceId.value,
+                          );
+                          if (saved == true) await controller.refresh();
+                        }
+                      : null,
+                ),
               ),
             ),
           ),
@@ -158,40 +168,14 @@ class AttendancePage extends StatelessWidget {
           ),
         ],
       ),
-      if (controller.canWrite || controller.canManage) ...[
+      if (controller.canWrite) ...[
         _gap(context, 10),
-        Row(
-          children: [
-            if (controller.canWrite)
-              Expanded(
-                child: _HeaderButton(
-                  key: const ValueKey('attendance-clock'),
-                  label: open == null ? 'Clock in' : 'Clock out',
-                  icon: open == null ? Icons.login_rounded : Icons.logout_rounded,
-                  color: open == null
-                      ? AppColors.activeGreen
-                      : AppColors.criticalRed,
-                  onTap: () => _openClock(controller),
-                ),
-              ),
-            if (controller.canWrite && controller.canManage)
-              SizedBox(width: spacing),
-            if (controller.canManage)
-              Expanded(
-                child: _HeaderButton(
-                  key: const ValueKey('attendance-manual-entry'),
-                  label: 'Manual Entry',
-                  icon: Icons.add_rounded,
-                  filled: true,
-                  onTap: () async {
-                    final saved = await openManualAttendanceEntry(
-                      defaultResidenceId: controller.residenceId.value,
-                    );
-                    if (saved == true) await controller.refresh();
-                  },
-                ),
-              ),
-          ],
+        _HeaderButton(
+          key: const ValueKey('attendance-clock'),
+          label: open == null ? 'Clock in' : 'Clock out',
+          icon: open == null ? Icons.login_rounded : Icons.logout_rounded,
+          color: open == null ? AppColors.activeGreen : AppColors.criticalRed,
+          onTap: () => _openClock(controller),
         ),
       ],
     ];

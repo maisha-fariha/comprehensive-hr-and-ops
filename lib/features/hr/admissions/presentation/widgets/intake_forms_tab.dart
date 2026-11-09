@@ -51,20 +51,6 @@ class _IntakeFormsTabState extends State<IntakeFormsTab> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_c.canWrite) ...[
-            Align(
-              alignment: Alignment.centerRight,
-              child: HandoverButton(
-                key: const ValueKey('template-new'),
-                label: 'New intake form',
-                icon: Icons.add_rounded,
-                filled: true,
-                onPressed: () =>
-                    showIntakeTemplateFormSheet(context, controller: _c),
-              ),
-            ),
-            const SizedBox(height: 15),
-          ],
           if (_c.templatesLoading.value && templates.isEmpty)
             for (var i = 0; i < 2; i++)
               Container(

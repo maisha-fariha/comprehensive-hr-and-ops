@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import '../../domain/entities/residence_summary.dart';
 import '../controllers/residences_controller.dart';
 import '../residences_labels.dart';
@@ -83,7 +84,26 @@ class _ResidencesPageState extends State<ResidencesPage> {
     final gap = ResponsiveHelper.getResponsiveHeight(context, 12);
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      appBar: hrSubPageAppBar(context, 'Residences Management'),
+      appBar: hrSubPageAppBar(
+        context,
+        'Residences Management',
+        actions: [
+          Obx(() {
+            if (!controller.canCreate) return const SizedBox.shrink();
+            final limited = controller.limitReached;
+            final action = HrHeaderPrimaryAction(
+              actionKey: const ValueKey('residence-add'),
+              label: 'Residence',
+              onTap: limited ? () {} : () => _openForm(),
+            );
+            if (!limited) return action;
+            return Tooltip(
+              message: controller.limitTooltip,
+              child: Opacity(opacity: 0.45, child: action),
+            );
+          }),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: Obx(() {
@@ -158,22 +178,10 @@ class _ResidencesPageState extends State<ResidencesPage> {
   }
 
   Widget _headerActions(BuildContext context) {
-    final limitReached = controller.limitReached;
-    final add = HandoverButton(
-      key: const ValueKey('residence-add'),
-      label: limitReached ? 'Limit Exceeded' : 'Add Residence',
-      icon: Icons.add_rounded,
-      filled: true,
-      onPressed: limitReached ? null : () => _openForm(),
-    );
     return Wrap(
       spacing: 10,
       runSpacing: 10,
       children: [
-        if (controller.canCreate)
-          limitReached
-              ? Tooltip(message: controller.limitTooltip, child: add)
-              : add,
         if (controller.canExport)
           HandoverButton(
             key: const ValueKey('residence-export'),

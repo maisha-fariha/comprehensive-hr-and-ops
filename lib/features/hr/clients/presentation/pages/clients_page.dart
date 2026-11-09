@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import '../../domain/entities/client_summary.dart';
 import '../clients_labels.dart';
 import '../controllers/clients_controller.dart';
@@ -98,7 +99,34 @@ class _ClientsPageState extends State<ClientsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      appBar: hrSubPageAppBar(context, 'Client Directory'),
+      appBar: hrSubPageAppBar(
+        context,
+        'Client Directory',
+        actions: [
+          Obx(() {
+            if (!controller.canCreate) return const SizedBox.shrink();
+            final limited = controller.isLimitReached;
+            final cap = controller.clientLimit.value;
+            final action = HrHeaderPrimaryAction(
+              actionKey: const ValueKey('clients-add'),
+              label: 'Client',
+              onTap: limited
+                  ? () {}
+                  : () async {
+                      final created = await showAddClientSheet(context, controller);
+                      if (created != null && context.mounted) {
+                        await _open(created, editing: true);
+                      }
+                    },
+            );
+            if (!limited || cap == null) return action;
+            return Tooltip(
+              message: ClientsLabels.planLimitTooltip(controller.limitCount, cap),
+              child: Opacity(opacity: 0.45, child: action),
+            );
+          }),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: Obx(() {
@@ -197,35 +225,12 @@ class _ClientsPageState extends State<ClientsPage> {
 
   Widget _actions(BuildContext context) {
     final c = _controller;
-    final limited = c.isLimitReached;
-    final cap = c.clientLimit.value;
     final exporting = c.isExporting.value;
-    final add = HandoverButton(
-      key: const ValueKey('clients-add'),
-      label: limited ? 'Limit Exceeded' : 'Add Client',
-      icon: Icons.add_rounded,
-      filled: true,
-      onPressed: limited
-          ? null
-          : () async {
-              final created = await showAddClientSheet(context, c);
-              if (created != null && context.mounted) {
-                await _open(created, editing: true);
-              }
-            },
-    );
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       alignment: WrapAlignment.end,
       children: [
-        if (c.canCreate)
-          limited && cap != null
-              ? Tooltip(
-                  message: ClientsLabels.planLimitTooltip(c.limitCount, cap),
-                  child: add,
-                )
-              : add,
         if (c.canDelete)
           HandoverButton(
             key: const ValueKey('clients-deleted'),

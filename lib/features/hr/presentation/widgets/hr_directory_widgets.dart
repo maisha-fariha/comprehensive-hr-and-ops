@@ -9,7 +9,11 @@ import '../../../../core/widgets/surface_card.dart';
 /// Shared building blocks for the Manager list/detail screens (Residences,
 /// Clients).
 
-PreferredSizeWidget hrSubPageAppBar(BuildContext context, String title) {
+PreferredSizeWidget hrSubPageAppBar(
+  BuildContext context,
+  String title, {
+  List<Widget>? actions,
+}) {
   return AppBar(
     backgroundColor: AppColors.surfaceWhite,
     surfaceTintColor: AppColors.surfaceWhite,
@@ -24,6 +28,8 @@ PreferredSizeWidget hrSubPageAppBar(BuildContext context, String title) {
         color: AppColors.textHeading,
       ),
     ),
+    actions: actions,
+    actionsPadding: ResponsiveHelper.getResponsivePadding(context, horizontal: 12),
   );
 }
 

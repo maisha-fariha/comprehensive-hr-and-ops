@@ -16,6 +16,7 @@ import '../widgets/check_common.dart';
 import '../widgets/record_check_sheet.dart';
 import '../widgets/schedule_form_sheet.dart';
 import '../widgets/skip_check_sheet.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
@@ -109,6 +110,21 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
                         style: handoverText(context, 18, weight: FontWeight.w700),
                       ),
                     ),
+                    if (_c.canRecordProgress) ...[
+                      HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('checks-record-progress'),
+                        label: 'Progress',
+                        icon: Icons.assignment_turned_in_outlined,
+                        onTap: () => showRecordCheckSheet(context, controller: _c),
+                      ),
+                      SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                    ],
+                    if (_c.canWrite)
+                      HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('checks-new-schedule'),
+                        label: 'Schedule',
+                        onTap: () => showScheduleFormSheet(context, controller: _c),
+                      ),
                   ],
                 ),
               ),
@@ -123,8 +139,6 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
                   children: [
-                    _actions(context),
-                    const SizedBox(height: 15),
                     _tabs(context),
                     const SizedBox(height: 15),
                     if (_c.tab.value == RecurringChecksTab.schedules)
@@ -144,32 +158,6 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _actions(BuildContext context) {
-    if (!_c.canRecordProgress && !_c.canWrite) return const SizedBox.shrink();
-    return Wrap(
-      alignment: WrapAlignment.end,
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        if (_c.canRecordProgress)
-          HandoverButton(
-            key: const ValueKey('checks-record-progress'),
-            label: 'Record Progress',
-            icon: Icons.assignment_turned_in_outlined,
-            onPressed: () => showRecordCheckSheet(context, controller: _c),
-          ),
-        if (_c.canWrite)
-          HandoverButton(
-            key: const ValueKey('checks-new-schedule'),
-            label: 'New Schedule',
-            icon: Icons.add_rounded,
-            filled: true,
-            onPressed: () => showScheduleFormSheet(context, controller: _c),
-          ),
-      ],
     );
   }
 

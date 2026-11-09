@@ -56,18 +56,6 @@ class _StockTransfersViewState extends State<StockTransfersView> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
           children: [
-            if (_c.canRequest)
-              InventoryToolbar(
-                children: [
-                  HandoverButton(
-                    key: const ValueKey('transfer-new'),
-                    label: 'Move stock',
-                    icon: Icons.add_rounded,
-                    filled: true,
-                    onPressed: () => showTransferRequestSheet(context, controller: _c),
-                  ),
-                ],
-              ),
             ..._list(context),
           ],
         ),

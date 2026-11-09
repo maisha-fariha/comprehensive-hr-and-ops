@@ -14,6 +14,7 @@ import '../controllers/hr_training_controller.dart';
 import '../widgets/my_training_panel.dart';
 import '../widgets/training_common.dart';
 import '../widgets/training_course_widgets.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'hr_training_course_page.dart';
 import 'hr_training_form_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
@@ -90,7 +91,17 @@ class _HrTrainingPageState extends State<HrTrainingPage> {
       backgroundColor: AppColors.scaffoldBackground,
       body: Column(
         children: [
-          const TrainingHeader(title: 'Training'),
+          TrainingHeader(
+            title: 'Training',
+            actions: [
+              if (_library && _c.canManage)
+                HrHeaderPrimaryAction(
+                  actionKey: const ValueKey('training-new-course'),
+                  label: 'Course',
+                  onTap: _create,
+                ),
+            ],
+          ),
           Expanded(
             child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
@@ -215,14 +226,6 @@ class _HrTrainingPageState extends State<HrTrainingPage> {
           filled: archived,
           onPressed: _c.toggleArchived,
         ),
-        if (_c.canManage)
-          HandoverButton(
-            key: const ValueKey('training-new-course'),
-            label: 'New course',
-            icon: Icons.add_rounded,
-            filled: true,
-            onPressed: _create,
-          ),
       ],
     );
   }

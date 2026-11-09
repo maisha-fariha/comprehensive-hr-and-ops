@@ -208,6 +208,13 @@ class TasksCompliancePage extends StatelessWidget {
                     subtitle: overview.headerSubtitle,
                     onMenuTap: openManagerMenu,
                     onSearchTap: openManagerPortalSearch,
+                    onNewTaskTap: selected == TasksComplianceTab.tasks &&
+                            _canCreateTasks()
+                        ? () => showCreateTaskSheet(
+                              context,
+                              onCreated: controller.refresh,
+                            )
+                        : null,
                   ),
                   // Web Task Management has no lone “Tasks” pill under the title.
                   if (tabs.length > 1)
@@ -235,7 +242,7 @@ class TasksCompliancePage extends StatelessWidget {
                 child: ListView(
                   padding: EdgeInsets.fromLTRB(
                     ResponsiveHelper.getResponsiveWidth(context, 16),
-                    ResponsiveHelper.getResponsiveHeight(context, 16),
+                    ResponsiveHelper.getResponsiveHeight(context, 12),
                     ResponsiveHelper.getResponsiveWidth(context, 16),
                     ResponsiveHelper.getResponsiveHeight(context, 24),
                   ),
@@ -243,12 +250,6 @@ class TasksCompliancePage extends StatelessWidget {
                     switch (selected) {
                       TasksComplianceTab.tasks => TasksTabView(
                           overview: overview,
-                          onNewTaskTap: _canCreateTasks()
-                              ? () => showCreateTaskSheet(
-                                    context,
-                                    onCreated: controller.refresh,
-                                  )
-                              : null,
                           onTaskTap: (task) => showTaskDetailSheet(
                             context,
                             task: task,

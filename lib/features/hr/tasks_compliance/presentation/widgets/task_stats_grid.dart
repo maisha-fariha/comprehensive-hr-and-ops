@@ -64,6 +64,9 @@ class TaskStatsGrid extends StatelessWidget {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
+      // Nested under a padded ListView — zero this or MediaQuery.padding
+      // (status bar) is applied again and leaves a large gap above the KPIs.
+      padding: EdgeInsets.zero,
       itemCount: stats.length,
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,

@@ -13,7 +13,6 @@ import 'tasks_list_segment_bar.dart';
 /// Body content of Task Management: KPIs, charts, tabs, filters, list.
 class TasksTabView extends StatefulWidget {
   final TasksComplianceOverview overview;
-  final VoidCallback? onNewTaskTap;
   final void Function(TaskItem task)? onTaskTap;
   final void Function(TaskItem task)? onPauseRecurring;
   final void Function(TaskItem task)? onResumeRecurring;
@@ -23,7 +22,6 @@ class TasksTabView extends StatefulWidget {
   const TasksTabView({
     super.key,
     required this.overview,
-    this.onNewTaskTap,
     this.onTaskTap,
     this.onPauseRecurring,
     this.onResumeRecurring,
@@ -175,12 +173,6 @@ class _TasksTabViewState extends State<TasksTabView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (widget.onNewTaskTap != null)
-          Align(
-            alignment: Alignment.centerRight,
-            child: _NewTaskButton(onTap: widget.onNewTaskTap),
-          ),
-        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         TaskStatsGrid(stats: overview.taskStats),
         SizedBox(height: sectionGap),
         TaskAnalyticsSection(analytics: overview.taskAnalytics),
@@ -607,53 +599,6 @@ class _ActionChip extends StatelessWidget {
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
               color: filled ? Colors.white : AppColors.textHeading,
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NewTaskButton extends StatelessWidget {
-  final VoidCallback? onTap;
-
-  const _NewTaskButton({this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
-    return Material(
-      color: AppColors.primaryNavy,
-      borderRadius: BorderRadius.circular(radius),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(radius),
-        child: Padding(
-          padding: ResponsiveHelper.getResponsivePadding(
-            context,
-            horizontal: 14,
-            vertical: 10,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.add_rounded,
-                size: ResponsiveHelper.getResponsiveSize(context, 18),
-                color: Colors.white,
-              ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-              Text(
-                'New task',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                  color: Colors.white,
-                ),
-              ),
-            ],
           ),
         ),
       ),

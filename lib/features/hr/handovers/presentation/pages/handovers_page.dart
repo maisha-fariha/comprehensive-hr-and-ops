@@ -12,6 +12,7 @@ import '../widgets/handover_card.dart';
 import '../widgets/handover_common.dart';
 import '../widgets/handover_detail_sheet.dart';
 import '../widgets/record_handover_sheet.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
@@ -120,6 +121,12 @@ class _HandoversPageState extends State<HandoversPage> {
                         style: handoverText(context, 18, weight: FontWeight.w700),
                       ),
                     ),
+                    if (_c.canWrite)
+                      HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('handovers-record'),
+                        label: 'Handover',
+                        onTap: () => showRecordHandoverSheet(context, controller: _c),
+                      ),
                   ],
                 ),
               ),
@@ -219,19 +226,6 @@ class _HandoversPageState extends State<HandoversPage> {
       const SizedBox(height: 10),
       select('handovers-residence-filter', 'Residence', residenceOptions,
           _c.residenceId.value, _c.setResidence),
-      if (_c.canWrite) ...[
-        const SizedBox(height: 10),
-        Align(
-          alignment: Alignment.centerRight,
-          child: HandoverButton(
-            key: const ValueKey('handovers-record'),
-            label: 'Record Handover',
-            icon: Icons.add_rounded,
-            filled: true,
-            onPressed: () => showRecordHandoverSheet(context, controller: _c),
-          ),
-        ),
-      ],
     ];
   }
 
