@@ -10,15 +10,13 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
-import '../../../../../core/network/api_endpoints.dart';
-import '../../../../../core/network/app_api_client.dart';
-import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../../../hr/attendance/presentation/attendance_formatters.dart';
 import '../../../../hr/attendance/presentation/pages/attendance_clock_page.dart'
     show earlyDepartureReasons;
+import '../../../../hr/attendance/presentation/widgets/clock_location_verification.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
@@ -153,7 +151,14 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   String? _earlyReason;
   final _earlyNotes = TextEditingController();
   Timer? _locationGiveUp;
-  late final Future<void> _locationTask;
+  Future<void> _locationTask = Future.value();
+  ResidenceClockGeofence? _geofence;
+  bool _geofenceLoading = false;
+  bool _capturingLocation = false;
+  bool? _withinGeofence;
+  bool _askLocation = false;
+  bool _photoEnabled = false;
+  int _geofenceEpoch = 0;
 
   String _rosterWarning() {
     final starts = widget.nextShiftStartsAt;
@@ -166,6 +171,20 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     return 'Your next shift starts ${AttendanceFormat.date(starts)} at '
         '${AttendanceFormat.time(starts)}. Clocking in opens at '
         '${AttendanceFormat.time(opens)}.';
+  }
+
+  bool get _requiresGeofenceGate => _geofence?.requiresGate == true;
+
+  bool get _shouldCaptureLocation =>
+      _requiresGeofenceGate || _askLocation;
+
+  /// Web disables Clock in while the residence geofence gate fails.
+  bool get _geofenceBlocksClockIn {
+    if (!widget.isCheckIn || !_requiresGeofenceGate) return false;
+    if (_geofenceLoading || _capturingLocation) return true;
+    final fix = _location;
+    if (fix == null) return true;
+    return !(_geofence?.isWithin(fix.latitude, fix.longitude) ?? false);
   }
 
   @override
@@ -181,7 +200,8 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     }
     _photoNote =
         'Permission denied — clocking ${widget.isCheckIn ? 'in' : 'out'} without a photo is allowed.';
-    _locationTask = _captureLocation();
+    _loadVerificationPrefs();
+    _syncResidenceGeofence();
   }
 
   @override
@@ -199,7 +219,63 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     return DateTime.now().isBefore(endsAt);
   }
 
-  Future<void> _captureLocation() async {
+  Future<void> _loadVerificationPrefs() async {
+    final prefs = await ClockVerificationPrefs.load();
+    if (!mounted) return;
+    setState(() {
+      _askLocation = prefs.askLocation;
+      _photoEnabled = prefs.askPhoto;
+    });
+  }
+
+  Future<void> _syncResidenceGeofence() async {
+    final residenceId = _residenceId;
+    final epoch = ++_geofenceEpoch;
+    _locationGiveUp?.cancel();
+    if (residenceId == null || residenceId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _geofence = ResidenceClockGeofence.unknown;
+        _geofenceLoading = false;
+        _withinGeofence = null;
+        _location = null;
+        _locationError = null;
+        _capturingLocation = false;
+      });
+      _locationTask = Future.value();
+      return;
+    }
+    setState(() {
+      _geofenceLoading = true;
+      _withinGeofence = null;
+      _location = null;
+      _locationError = null;
+    });
+    final fence = await loadResidenceClockGeofence(residenceId);
+    if (!mounted || epoch != _geofenceEpoch) return;
+    setState(() {
+      _geofence = fence;
+      _geofenceLoading = false;
+    });
+    _locationTask = _captureLocationIfNeeded();
+    await _locationTask;
+  }
+
+  Future<void> _captureLocationIfNeeded() async {
+    if (!_shouldCaptureLocation) {
+      if (!mounted) return;
+      setState(() {
+        _capturingLocation = false;
+        _location = null;
+        _locationError = null;
+        _withinGeofence = null;
+      });
+      return;
+    }
+    setState(() {
+      _capturingLocation = true;
+      _locationError = null;
+    });
     final done = Completer<StaffClockFix?>();
     _locationGiveUp = Timer(const Duration(seconds: 8), () {
       if (!done.isCompleted) done.complete(null);
@@ -213,9 +289,14 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     try {
       final fix = await done.future;
       if (!mounted) return;
+      final within = fix == null
+          ? (_requiresGeofenceGate ? false : null)
+          : _geofence?.isWithin(fix.latitude, fix.longitude);
       setState(() {
         _location = fix;
         _locationError = fix == null ? 'Location unavailable' : null;
+        _withinGeofence = within;
+        _capturingLocation = false;
       });
     } catch (error) {
       if (!mounted) return;
@@ -223,6 +304,8 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
       setState(() {
         _location = null;
         _locationError = message.isEmpty ? 'Location unavailable' : message;
+        _withinGeofence = _requiresGeofenceGate ? false : null;
+        _capturingLocation = false;
       });
     } finally {
       _locationGiveUp?.cancel();
@@ -264,43 +347,26 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     return (error?.message ?? '').toLowerCase().contains('handover');
   }
 
-  /// When the residence has GPS tracking on, clock-in must be inside the radius.
-  Future<String?> _geofenceBlockReason(
-    String residenceId,
-    StaffClockFix? fix,
-  ) async {
-    if (!GetIt.instance.isRegistered<AppApiClient>()) return null;
-    final result = await GetIt.instance<AppApiClient>().get(
-      ApiEndpoints.residenceById(residenceId),
-      silent: true,
-    );
-    if (result.isFailure) return null;
-    final json = JsonCodec.unwrapMap(result.value);
-    final geofence = JsonCodec.mapAt(json, 'geofence') ?? {};
-    final enabled = JsonCodec.boolean(json['geofenceEnabled']) ??
-        JsonCodec.boolean(geofence['enabled']) ??
-        false;
-    if (!enabled) return null;
-    final lat = JsonCodec.number(json['latitude'])?.toDouble();
-    final lng = JsonCodec.number(json['longitude'])?.toDouble();
-    final radius = JsonCodec.number(
-      geofence['radiusMeters'] ?? geofence['radius'],
-    )?.toDouble();
-    if (lat == null || lng == null || radius == null || radius <= 0) {
-      return null;
+  String? _geofenceBlockReason(StaffClockFix? fix) {
+    if (!_requiresGeofenceGate) return null;
+    if (_capturingLocation) {
+      return 'Still checking your location — wait a moment, then try again.';
     }
     if (fix == null) {
-      return 'Location is required to clock in at this residence. Enable GPS and try again.';
+      return 'Location is required to clock in at this residence. Enable GPS '
+          'permission and try again.';
     }
-    final distance = Geolocator.distanceBetween(
-      lat,
-      lng,
-      fix.latitude,
-      fix.longitude,
-    );
-    if (distance <= radius) return null;
-    final feet = (distance * 3.28084).round();
-    return 'You are outside the residence GPS area ($feet ft from center; allowed ${radius.round()} m). Move closer to clock in.';
+    final within = _geofence?.isWithin(fix.latitude, fix.longitude) ?? false;
+    if (within) return null;
+    final distance =
+        _geofence?.distanceMetersFrom(fix.latitude, fix.longitude);
+    final feet = distance == null ? null : (distance * 3.28084).round();
+    final radius = _geofence?.radiusMeters?.round();
+    if (feet == null || radius == null) {
+      return 'You are outside the residence GPS area. Move closer to clock in.';
+    }
+    return 'You are outside the residence GPS area ($feet ft from center; '
+        'allowed $radius m). Move closer to clock in.';
   }
 
   Future<void> _submit() async {
@@ -320,9 +386,10 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     await _locationTask;
     if (!mounted) return;
 
-    final fix = _location;
+    final fix =
+        (_requiresGeofenceGate || _askLocation) ? _location : null;
     if (widget.isCheckIn) {
-      final gate = await _geofenceBlockReason(residenceId, fix);
+      final gate = _geofenceBlockReason(fix);
       if (gate != null) {
         _showSubmitError(gate);
         return;
@@ -330,7 +397,9 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     }
 
     String? selfieUrl;
-    if (_selfiePath != null && _selfiePath!.isNotEmpty) {
+    if (_photoEnabled &&
+        _selfiePath != null &&
+        _selfiePath!.isNotEmpty) {
       final upload = await _repo.uploadAttendanceSelfie(
         localPath: _selfiePath!,
         fileName: _selfieName ?? 'attendance-selfie.jpg',
@@ -472,8 +541,9 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'The photo and the location are recorded with the time. '
-                      'Neither is required — without them the record simply says so.',
+                      'The photo and your location are recorded with the time. '
+                      'The photo is optional; homes that set an on-site area '
+                      'need your location to let you in.',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w400,
@@ -625,7 +695,10 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                           items: residenceItems,
                           onChanged: _submitting
                               ? null
-                              : (v) => setState(() => _residenceId = v),
+                              : (v) {
+                                  setState(() => _residenceId = v);
+                                  _syncResidenceGeofence();
+                                },
                         ),
                       ),
                     ),
@@ -645,65 +718,84 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 14),
                     ),
-                    _ClockLocationRow(
-                      location: location,
-                      error: _locationError,
-                      clockOut: !widget.isCheckIn,
+                    ClockLocationVerification(
+                      geofence: _geofence,
+                      loadingGeofence: _geofenceLoading,
+                      capturingLocation: _capturingLocation,
+                      latitude: location?.latitude,
+                      longitude: location?.longitude,
+                      accuracyMeters: location?.accuracyMeters.round(),
+                      locationError: _locationError,
+                      withinGeofence: _withinGeofence,
+                      onRetry: _submitting ? null : () {
+                        _locationTask = _captureLocationIfNeeded();
+                      },
                     ),
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 14),
                     ),
-                    Text(
-                      'Photo',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(
-                          context,
-                          13,
-                        ),
-                        color: AppColors.textHeading,
-                      ),
-                    ),
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 6),
-                    ),
-                    InkWell(
-                      onTap: _submitting ? null : _pickPhoto,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.filterButtonBackground,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.searchBorder),
-                        ),
-                        child: Text(
-                          _photoNote ?? '',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(
-                              context,
-                              12.5,
+                    ClockPhotoVerification(
+                      enabledToggle: _photoEnabled,
+                      onToggle: _submitting
+                          ? null
+                          : (value) => setState(() {
+                                _photoEnabled = value;
+                                if (!value) {
+                                  _selfiePath = null;
+                                  _selfieName = null;
+                                }
+                              }),
+                      captureChild: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          InkWell(
+                            onTap: _submitting ? null : _pickPhoto,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.filterButtonBackground,
+                                borderRadius: BorderRadius.circular(12),
+                                border:
+                                    Border.all(color: AppColors.searchBorder),
+                              ),
+                              child: Text(
+                                _selfiePath == null
+                                    ? 'Take the photo'
+                                    : (_photoNote ?? 'Photo ready'),
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    12.5,
+                                  ),
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
                             ),
-                            color: AppColors.textSecondary,
                           ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
-                    ),
-                    Text(
-                      'Kept as evidence of who was here and when. Nothing compares the face to anything.',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(
-                          context,
-                          11,
-                        ),
-                        color: AppColors.textMuted,
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              4,
+                            ),
+                          ),
+                          Text(
+                            'Kept as evidence of who was here and when. '
+                            'Nothing compares the face to anything.',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize:
+                                  ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                11,
+                              ),
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -783,10 +875,16 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                   ),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _submitting ? null : _submit,
+                      onPressed: _submitting || _geofenceBlocksClockIn
+                          ? null
+                          : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryNavy,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.primaryNavy.withValues(alpha: 0.35),
+                        disabledForegroundColor:
+                            Colors.white.withValues(alpha: 0.9),
                       ),
                       child: _submitting
                           ? const SizedBox(
@@ -808,102 +906,6 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
           ),
         );
       },
-    );
-  }
-}
-
-/// Same location line as the web clock dialog: a status pill plus the
-/// device accuracy in meters.
-class _ClockLocationRow extends StatelessWidget {
-  final StaffClockFix? location;
-  final String? error;
-  final bool clockOut;
-
-  const _ClockLocationRow({
-    required this.location,
-    required this.error,
-    required this.clockOut,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final found = location;
-    final action = clockOut ? 'clock-out' : 'clock-in';
-    Widget pill(String label, Color foreground, Color background) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
-            color: foreground,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.searchBorder),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          const Icon(Icons.place_outlined, size: 15, color: AppColors.textMuted),
-          if (found != null) ...[
-            pill(
-              'Location found',
-              AppColors.activeGreen,
-              AppColors.activeBackground,
-            ),
-            Text(
-              'accurate to about ${found.accuracyMeters.round()} m',
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w400,
-                fontSize: 12.5,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ] else if (error != null) ...[
-            pill(
-              'No location',
-              AppColors.urgentAmber,
-              AppColors.urgentBackground,
-            ),
-            Text(
-              '$error — the record will say the position was not provided, '
-              'and the $action still goes through.',
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w400,
-                fontSize: 12.5,
-                height: 1.3,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ] else
-            const Text(
-              'Finding your location…',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w400,
-                fontSize: 12.5,
-                color: AppColors.textSecondary,
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

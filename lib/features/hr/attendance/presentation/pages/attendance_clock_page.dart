@@ -14,6 +14,7 @@ import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/repositories/attendance_repository.dart';
 import '../attendance_formatters.dart';
 import '../widgets/attendance_filters.dart';
+import '../widgets/clock_location_verification.dart';
 import '../widgets/manual_entry/manual_entry_fields.dart';
 
 class ClockLocation {
@@ -125,6 +126,13 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
   String? _photoPath;
   String? _cameraError;
   bool _saving = false;
+  ResidenceClockGeofence? _geofence;
+  bool _geofenceLoading = false;
+  bool _capturingLocation = false;
+  bool? _withinGeofence;
+  bool _askLocation = false;
+  bool _photoEnabled = false;
+  int _geofenceEpoch = 0;
 
   String get _mode => widget.clockOut ? 'out' : 'in';
 
@@ -133,6 +141,16 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
   OpenAttendance? get _open => widget.clockOut ? widget.openAttendance : null;
 
   bool get _canSubmit => widget.clockOut || (_shift?.isCurrent ?? false);
+
+  /// Web disables Clock in while the residence geofence gate fails.
+  bool get _geofenceBlocksClockIn {
+    if (widget.clockOut || !_requiresGeofenceGate) return false;
+    if (_geofenceLoading || _capturingLocation) return true;
+    final location = _location;
+    if (location == null) return true;
+    return !(_geofence?.isWithin(location.latitude, location.longitude) ??
+        false);
+  }
 
   String? get _effectiveResidenceId {
     final open = _open?.residenceId;
@@ -185,6 +203,11 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
     return null;
   }
 
+  bool get _requiresGeofenceGate => _geofence?.requiresGate == true;
+
+  bool get _shouldCaptureLocation =>
+      _requiresGeofenceGate || _askLocation;
+
   @override
   void initState() {
     super.initState();
@@ -192,7 +215,8 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
     _session = Get.find<UserSession>();
     _residenceId = widget.defaultResidenceId;
     _loadShift();
-    _findLocation();
+    _loadVerificationPrefs();
+    _syncResidenceGeofence();
   }
 
   @override
@@ -206,30 +230,94 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
     final result = await _repository.getMyShiftWindow(_staffId);
     if (!mounted) return;
     result.when(
-      success: (shift) => setState(() {
-        _shift = shift;
+      success: (shift) {
         final shiftResidence = shift?.residenceId;
-        if ((_residenceId == null || _residenceId!.isEmpty) &&
+        final shouldSync = (_residenceId == null || _residenceId!.isEmpty) &&
             shiftResidence != null &&
-            shiftResidence.isNotEmpty) {
-          _residenceId = shiftResidence;
-        }
-      }),
+            shiftResidence.isNotEmpty;
+        setState(() {
+          _shift = shift;
+          if (shouldSync) _residenceId = shiftResidence;
+        });
+        if (shouldSync) _syncResidenceGeofence();
+      },
       failure: (_) {},
     );
   }
 
-  Future<void> _findLocation() async {
+  Future<void> _loadVerificationPrefs() async {
+    final prefs = await ClockVerificationPrefs.load();
+    if (!mounted) return;
+    setState(() {
+      _askLocation = prefs.askLocation;
+      _photoEnabled = prefs.askPhoto;
+    });
+    if (_shouldCaptureLocation) _captureLocationIfNeeded();
+  }
+
+  Future<void> _syncResidenceGeofence() async {
+    final residenceId = _effectiveResidenceId;
+    final epoch = ++_geofenceEpoch;
+    if (residenceId == null || residenceId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _geofence = ResidenceClockGeofence.unknown;
+        _geofenceLoading = false;
+        _withinGeofence = null;
+        _location = null;
+        _locationError = null;
+        _capturingLocation = false;
+      });
+      return;
+    }
+    setState(() {
+      _geofenceLoading = true;
+      _withinGeofence = null;
+      _location = null;
+      _locationError = null;
+    });
+    final fence = await loadResidenceClockGeofence(residenceId);
+    if (!mounted || epoch != _geofenceEpoch) return;
+    setState(() {
+      _geofence = fence;
+      _geofenceLoading = false;
+    });
+    await _captureLocationIfNeeded();
+  }
+
+  Future<void> _captureLocationIfNeeded() async {
+    if (!_shouldCaptureLocation) {
+      if (!mounted) return;
+      setState(() {
+        _capturingLocation = false;
+        _location = null;
+        _locationError = null;
+        _withinGeofence = null;
+      });
+      return;
+    }
+    setState(() {
+      _capturingLocation = true;
+      _locationError = null;
+    });
     try {
       final location = await widget.locate();
-      if (mounted) {
-        setState(() {
-          _location = location;
-          _locationError = null;
-        });
-      }
+      if (!mounted) return;
+      final within = _geofence?.isWithin(location.latitude, location.longitude);
+      setState(() {
+        _location = location;
+        _locationError = null;
+        _withinGeofence = within;
+        _capturingLocation = false;
+      });
     } catch (error) {
-      if (mounted) setState(() => _locationError = error.toString());
+      if (!mounted) return;
+      setState(() {
+        _location = null;
+        _locationError = error.toString();
+        _withinGeofence = _requiresGeofenceGate ? false : null;
+        _capturingLocation = false;
+      });
     }
   }
 
@@ -255,10 +343,46 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
       AppSnackbar.show('Attendance', 'Choose a residence.');
       return;
     }
+    if (!widget.clockOut && _requiresGeofenceGate) {
+      if (_capturingLocation) {
+        AppSnackbar.show(
+          'Attendance',
+          'Still checking your location — wait a moment, then try again.',
+        );
+        return;
+      }
+      final location = _location;
+      if (location == null) {
+        AppSnackbar.show(
+          'Attendance',
+          'Location is required to clock in at this residence. Enable GPS '
+          'permission and try again.',
+        );
+        return;
+      }
+      final within =
+          _geofence?.isWithin(location.latitude, location.longitude) ?? false;
+      if (!within) {
+        final distance = _geofence?.distanceMetersFrom(
+          location.latitude,
+          location.longitude,
+        );
+        final feet = distance == null ? null : (distance * 3.28084).round();
+        final radius = _geofence?.radiusMeters?.round();
+        AppSnackbar.show(
+          'Attendance',
+          feet == null || radius == null
+              ? 'You are outside the residence GPS area. Move closer to clock in.'
+              : 'You are outside the residence GPS area ($feet ft from center; '
+                  'allowed $radius m). Move closer to clock in.',
+        );
+        return;
+      }
+    }
     setState(() => _saving = true);
     try {
       String? selfieUrl;
-      final photo = _photoPath;
+      final photo = _photoEnabled ? _photoPath : null;
       if (photo != null) {
         final upload =
             await _repository.uploadSelfie(photo, 'clock-$_mode.jpg');
@@ -270,7 +394,9 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
           ),
         );
       }
-      final location = _location;
+      // Only attach GPS when the home gates on it, or org asks for a record.
+      final location =
+          (_requiresGeofenceGate || _askLocation) ? _location : null;
       final notes = _notesController.text.trim();
       final shift = _shift;
       final body = <String, dynamic>{
@@ -342,9 +468,9 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
                         Text(title, style: _text(18, FontWeight.w700)),
                         const SizedBox(height: 4),
                         Text(
-                          'The photo and the location are recorded with the '
-                          'time. Neither is required — without them the record '
-                          'simply says so.',
+                          'The photo and your location are recorded with the '
+                          'time. The photo is optional; homes that set an '
+                          'on-site area need your location to let you in.',
                           style: _text(12.5, FontWeight.w400,
                               AppColors.textSecondary),
                         ),
@@ -423,15 +549,38 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  _LocationRow(location: _location, error: _locationError),
+                  ClockLocationVerification(
+                    geofence: _geofence,
+                    loadingGeofence: _geofenceLoading,
+                    capturingLocation: _capturingLocation,
+                    latitude: _location?.latitude,
+                    longitude: _location?.longitude,
+                    accuracyMeters: _location?.accuracyMeters,
+                    locationError: _locationError,
+                    withinGeofence: _withinGeofence,
+                    onRetry: _saving ? null : _captureLocationIfNeeded,
+                  ),
+                  if (_askLocation && !_requiresGeofenceGate) ...[
+                    const SizedBox(height: 8),
+                    _OptionalLocationAskRow(
+                      location: _location,
+                      error: _locationError,
+                      capturing: _capturingLocation,
+                    ),
+                  ],
                   const SizedBox(height: 16),
-                  Text('Photo', style: _text(12.5, FontWeight.w500)),
-                  const SizedBox(height: 8),
-                  _photoSection(),
-                  const SizedBox(height: 6),
-                  const ManualEntryHelperText(
-                    'Kept as evidence of who was here and when. Nothing '
-                    'compares the face to anything.',
+                  ClockPhotoVerification(
+                    enabledToggle: _photoEnabled,
+                    onToggle: _saving
+                        ? null
+                        : (value) => setState(() {
+                              _photoEnabled = value;
+                              if (!value) {
+                                _photoPath = null;
+                                _cameraError = null;
+                              }
+                            }),
+                    captureChild: _photoSection(),
                   ),
                 ],
               ),
@@ -452,8 +601,16 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
                     key: const ValueKey('attendance-clock-submit'),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primaryNavy,
+                      disabledBackgroundColor:
+                          AppColors.primaryNavy.withValues(alpha: 0.35),
+                      disabledForegroundColor:
+                          Colors.white.withValues(alpha: 0.9),
                     ),
-                    onPressed: _saving || !_canSubmit ? null : _submit,
+                    onPressed: _saving ||
+                            !_canSubmit ||
+                            _geofenceBlocksClockIn
+                        ? null
+                        : _submit,
                     child: Text(_saving ? 'Saving…' : title),
                   ),
                 ],
@@ -527,7 +684,10 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
       options: options,
       labelOf: (r) => r.name,
     );
-    if (picked != null) setState(() => _residenceId = picked.value.id);
+    if (picked != null) {
+      setState(() => _residenceId = picked.value.id);
+      await _syncResidenceGeofence();
+    }
   }
 
   Future<void> _pickEarlyReason() async {
@@ -669,11 +829,17 @@ class _EarlyLeaveBox extends StatelessWidget {
   }
 }
 
-class _LocationRow extends StatelessWidget {
+/// Org "Ask for location" when the residence geofence itself is off — optional.
+class _OptionalLocationAskRow extends StatelessWidget {
   final ClockLocation? location;
   final String? error;
+  final bool capturing;
 
-  const _LocationRow({this.location, this.error});
+  const _OptionalLocationAskRow({
+    this.location,
+    this.error,
+    this.capturing = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -687,40 +853,30 @@ class _LocationRow extends StatelessWidget {
           child: Text(label, style: _text(11, FontWeight.w600, fg)),
         );
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.searchBorder),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          const Icon(Icons.place_outlined, size: 15, color: AppColors.textMuted),
-          if (found != null) ...[
-            pill('Location found', AppColors.activeGreen,
-                AppColors.activeBackground),
-            Text(
-              'accurate to about ${found.accuracyMeters} m',
-              style: _text(12.5, FontWeight.w400, AppColors.textSecondary),
-            ),
-          ] else if (error != null) ...[
-            pill('No location', AppColors.urgentAmber,
-                AppColors.urgentBackground),
-            Text(
-              '$error — the record will say the position was not provided, '
-              'and the clock-in still goes through.',
-              style: _text(12.5, FontWeight.w400, AppColors.textSecondary),
-            ),
-          ] else
-            Text(
-              'Finding your location…',
-              style: _text(12.5, FontWeight.w400, AppColors.textSecondary),
-            ),
-        ],
-      ),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (found != null) ...[
+          pill('Location found', AppColors.activeGreen, AppColors.activeBackground),
+          Text(
+            'accurate to about ${found.accuracyMeters} m',
+            style: _text(12.5, FontWeight.w400, AppColors.textSecondary),
+          ),
+        ] else if (error != null) ...[
+          pill('No location', AppColors.urgentAmber, AppColors.urgentBackground),
+          Text(
+            '$error — the record will say the position was not provided, '
+            'and the clock-in still goes through.',
+            style: _text(12.5, FontWeight.w400, AppColors.textSecondary),
+          ),
+        ] else if (capturing)
+          Text(
+            'Finding your location…',
+            style: _text(12.5, FontWeight.w400, AppColors.textSecondary),
+          ),
+      ],
     );
   }
 }
