@@ -61,6 +61,13 @@ class _AddClientSheetState extends State<AddClientSheet> {
     final step = ClientForm.stepOf(errors.keys.first);
     if (step != _step) _goTo(step);
     scrollToFirstField(context, [
+      // Portal-email errors: land on the Turn Off control (web parity).
+      if (errors.containsKey('guardianEmail') &&
+          _form.familyPortalAccess &&
+          _form.guardianEmail.text.trim().isEmpty)
+        const ValueKey('client-turn-off-portal-banner'),
+      if (errors.containsKey('guardianEmail'))
+        const ValueKey('client-family-portal-access'),
       for (final field in errors.keys)
         if (ClientForm.stepOf(field) == step) ClientForm.fieldKey(field),
     ]);

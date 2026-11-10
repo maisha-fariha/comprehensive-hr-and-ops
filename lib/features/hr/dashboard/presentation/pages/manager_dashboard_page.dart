@@ -11,9 +11,12 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../communication/presentation/pages/communication_page.dart';
 import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../../../documents/presentation/pages/hr_documents_page.dart';
 import '../../../emergency/domain/repositories/emergency_repository.dart';
 import '../../../emergency/presentation/widgets/raise_emergency_sheet.dart';
 import '../../../hr_shell.dart';
+import '../../../incidents/presentation/pages/hr_incident_details_page.dart';
+import '../../../incidents/presentation/pages/incidents_list_page.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/manager_page_search_sheet.dart';
 import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
@@ -635,6 +638,57 @@ class _NeedsAttentionSection extends StatelessWidget {
 
   const _NeedsAttentionSection({required this.alerts});
 
+  void _openViewAll() {
+    final hasIncident = alerts.any(_isIncidentAlert);
+    final hasDocument = alerts.any(_isDocumentAlert);
+    if (hasIncident && !hasDocument) {
+      Get.to(() => const IncidentsListPage());
+      return;
+    }
+    if (hasDocument && !hasIncident) {
+      Get.to(() => const HrDocumentsPage());
+      return;
+    }
+    // Mixed / unknown — Alerts tab matches web "View all".
+    Get.offAll(() => const HrShell(initialIndex: 3));
+  }
+
+  void _openAlert(AttentionAlert alert) {
+    if (_isIncidentAlert(alert)) {
+      final id = alert.metaString('incidentId') ??
+          alert.metaString('entityId') ??
+          (alert.id.trim().isEmpty ? null : alert.id.trim());
+      if (id != null) {
+        final canWrite = Get.isRegistered<UserSession>()
+            ? Get.find<UserSession>().can('incidents:write')
+            : true;
+        Get.to(
+          () => HrIncidentDetailsPage(incidentId: id, canWrite: canWrite),
+        );
+        return;
+      }
+      Get.to(() => const IncidentsListPage());
+      return;
+    }
+    if (_isDocumentAlert(alert)) {
+      Get.to(() => const HrDocumentsPage());
+      return;
+    }
+    _openViewAll();
+  }
+
+  static bool _isIncidentAlert(AttentionAlert alert) {
+    final type = (alert.type ?? '').toLowerCase();
+    if (type.contains('incident')) return true;
+    return alert.metaString('incidentId') != null;
+  }
+
+  static bool _isDocumentAlert(AttentionAlert alert) {
+    final type = (alert.type ?? '').toLowerCase();
+    if (type.contains('document')) return true;
+    return alert.metaString('documentId') != null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -717,14 +771,18 @@ class _NeedsAttentionSection extends StatelessWidget {
                   ),
                 ),
               ),
-              Spacer(),
-              Text(
-                'View all',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: AppColors.secondaryTeal,
+              const Spacer(),
+              GestureDetector(
+                onTap: _openViewAll,
+                behavior: HitTestBehavior.opaque,
+                child: Text(
+                  'View all',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    color: AppColors.secondaryTeal,
+                  ),
                 ),
               ),
             ],
@@ -733,6 +791,7 @@ class _NeedsAttentionSection extends StatelessWidget {
             _AttentionAlertTile(
               alert: alerts[i],
               showDivider: i != alerts.length - 1,
+              onTap: () => _openAlert(alerts[i]),
             ),
         ],
       ),
@@ -743,10 +802,12 @@ class _NeedsAttentionSection extends StatelessWidget {
 class _AttentionAlertTile extends StatelessWidget {
   final AttentionAlert alert;
   final bool showDivider;
+  final VoidCallback? onTap;
 
   const _AttentionAlertTile({
     required this.alert,
     required this.showDivider,
+    this.onTap,
   });
 
   @override
@@ -761,81 +822,89 @@ class _AttentionAlertTile extends StatelessWidget {
     final iconAsset = isCritical ? AppAssets.alertTriangle : AppAssets.clock;
     final iconBox = ResponsiveHelper.getResponsiveSize(context, 38);
 
-    return Container(
-      decoration: showDivider
-          ? const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: AppColors.dividerLight),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: showDivider
+            ? const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: AppColors.dividerLight),
+                ),
+              )
+            : null,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          top: 16,
+          bottom: 14,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: iconBox,
+              height: iconBox,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 11),
+                ),
               ),
-            )
-          : null,
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        top: 16,
-        bottom: 14,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: iconBox,
-            height: iconBox,
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 11),
+              alignment: Alignment.center,
+              child: AppSvgIcon(iconAsset, size: 18, color: iconColor),
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    alert.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                      color: AppColors.textPrimary,
+                      height: 1.25,
+                    ),
+                  ),
+                  SizedBox(
+                    height: ResponsiveHelper.getResponsiveHeight(context, 2),
+                  ),
+                  Text(
+                    alert.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w400,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 12),
+                      color: AppColors.textMuted,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
               ),
             ),
-            alignment: Alignment.center,
-            child: AppSvgIcon(iconAsset, size: 18, color: iconColor),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  alert.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                    color: AppColors.textPrimary,
-                    height: 1.25,
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                Text(
-                  alert.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textMuted,
-                    height: 1.25,
-                  ),
-                ),
-              ],
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+            _StatusPill(
+              label: badgeLabel,
+              background: badgeBg,
+              foreground: iconColor,
             ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          _StatusPill(
-            label: badgeLabel,
-            background: badgeBg,
-            foreground: iconColor,
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          const AppSvgIcon(
-            AppAssets.chevronRight,
-            size: 18,
-            color: AppColors.iconChevron,
-          ),
-        ],
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            const AppSvgIcon(
+              AppAssets.chevronRight,
+              size: 18,
+              color: AppColors.iconChevron,
+            ),
+          ],
+        ),
       ),
     );
   }

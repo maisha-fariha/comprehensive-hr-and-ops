@@ -9,7 +9,7 @@ import '../ai_alerts/presentation/pages/ai_alerts_page.dart';
 import '../appointments/presentation/pages/hr_appointments_page.dart';
 import '../clients/presentation/pages/clients_page.dart';
 import '../communication/presentation/pages/communication_page.dart';
-import '../daily_activity/presentation/pages/daily_activity_page.dart';
+// import '../daily_activity/presentation/pages/daily_activity_page.dart'; // Daily Activity UI hidden
 import '../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../documents/presentation/pages/hr_documents_page.dart';
 import '../emergency/presentation/pages/emergency_page.dart';
@@ -257,20 +257,21 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['mar', 'meds'],
       ),
-    if (can('client-activities:read'))
-      ManagerDestination(
-        title: 'Daily Activity',
-        subtitle: 'What residents did — outings, programmes and observations',
-        icon: Icons.monitor_heart_outlined,
-        iconBackground: AppColors.quickActionCreateShiftBg,
-        iconColor: AppColors.secondaryTeal,
-        open: () => openPermittedPage(
-          title: 'Daily Activity',
-          anyOf: const ['client-activities:read'],
-          builder: () => const DailyActivityPage(),
-        ),
-        keywords: const ['activity', 'activities', 'daily activity', 'outing', 'programme', 'school', 'resident history'],
-      ),
+    // Daily Activity UI temporarily hidden for all roles (code kept).
+    // if (can('client-activities:read'))
+    //   ManagerDestination(
+    //     title: 'Daily Activity',
+    //     subtitle: 'What residents did — outings, programmes and observations',
+    //     icon: Icons.monitor_heart_outlined,
+    //     iconBackground: AppColors.quickActionCreateShiftBg,
+    //     iconColor: AppColors.secondaryTeal,
+    //     open: () => openPermittedPage(
+    //       title: 'Daily Activity',
+    //       anyOf: const ['client-activities:read'],
+    //       builder: () => const DailyActivityPage(),
+    //     ),
+    //     keywords: const ['activity', 'activities', 'daily activity', 'outing', 'programme', 'school', 'resident history'],
+    //   ),
     if (can('appointments:read'))
       ManagerDestination(
         title: 'Appointments',

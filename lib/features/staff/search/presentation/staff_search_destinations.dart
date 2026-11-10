@@ -7,7 +7,7 @@ import '../../../hr/compliance/presentation/pages/compliance_page.dart';
 import '../../../hr/finance/presentation/pages/finance_page.dart';
 import '../../../hr/org_settings/presentation/pages/org_settings_page.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
-import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
+// import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart'; // Daily Activity UI hidden
 // import '../../extras/presentation/pages/staff_admissions_page.dart'; // Admissions UI hidden
 import '../../extras/presentation/pages/staff_appointments_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
@@ -208,14 +208,15 @@ List<StaffSearchDestination> staffSearchDestinations() {
       iconColor: AppColors.activeGreen,
       open: () => Get.to(() => const CompliancePage()),
     ),
-    StaffSearchDestination(
-      label: 'Daily Activity',
-      permissions: const ['client-activities:read'],
-      icon: Icons.directions_walk_outlined,
-      iconBackground: AppColors.activeBackground,
-      iconColor: AppColors.activeGreen,
-      open: () => Get.to(() => const StaffDailyActivityPage()),
-    ),
+    // Daily Activity UI temporarily hidden for all roles (code kept).
+    // StaffSearchDestination(
+    //   label: 'Daily Activity',
+    //   permissions: const ['client-activities:read'],
+    //   icon: Icons.directions_walk_outlined,
+    //   iconBackground: AppColors.activeBackground,
+    //   iconColor: AppColors.activeGreen,
+    //   open: () => Get.to(() => const StaffDailyActivityPage()),
+    // ),
     StaffSearchDestination(
       label: 'Finance & Payroll',
       permissions: const ['payroll:read', 'finance:read'],

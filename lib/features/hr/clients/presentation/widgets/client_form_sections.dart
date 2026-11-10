@@ -554,9 +554,10 @@ class ClientGuardianSection extends StatelessWidget {
           bordered: true,
           onChanged: (v) => _set(() => form.familyPortalAccess = v),
         ),
+        // Web: show Turn Off whenever portal is on and email is missing so the
+        // validation message has an in-page control (not gated on name).
         if (form.familyPortalAccess &&
-            form.guardianEmail.text.trim().isEmpty &&
-            form.guardianName.text.trim().isNotEmpty) ...[
+            form.guardianEmail.text.trim().isEmpty) ...[
           _gap,
           _PortalAccessRequiredBanner(
             onTurnOff: () => _set(() => form.familyPortalAccess = false),
@@ -757,6 +758,18 @@ class ClientPortalVisibilityCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Keep Turn Off reachable while this card is on-screen (email empty).
+          if (form.familyPortalAccess &&
+              form.guardianEmail.text.trim().isEmpty &&
+              enabled) ...[
+            _PortalAccessRequiredBanner(
+              onTurnOff: () {
+                form.familyPortalAccess = false;
+                onChanged();
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
           for (final group in portalVisibilityGroups) ...[
             Text(
               group.label.toUpperCase(),

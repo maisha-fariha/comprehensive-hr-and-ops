@@ -59,8 +59,15 @@ abstract final class DashboardOverviewMapper {
         .where(_isActionableSeverity)
         .map((json) {
           final severity = _alertSeverity(json);
+          final meta = JsonCodec.mapAt(json, 'meta') ?? const <String, dynamic>{};
           return AttentionAlert(
-            id: JsonCodec.stringOr(json['id'], json.hashCode.toString()),
+            id: JsonCodec.stringOr(
+              json['id'] ??
+                  meta['incidentId'] ??
+                  meta['documentId'] ??
+                  json.hashCode.toString(),
+              json.hashCode.toString(),
+            ),
             title: JsonCodec.stringOr(
               json['title'] ?? json['message'] ?? json['name'],
               'Needs attention',
@@ -70,6 +77,8 @@ abstract final class DashboardOverviewMapper {
               _alertFallbackSubtitle(json, severity),
             ),
             severity: severity,
+            type: JsonCodec.string(json['type'] ?? json['kind']),
+            meta: meta,
           );
         })
         .toList();

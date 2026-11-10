@@ -8,7 +8,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/permission_gate.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
-import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
+// import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart'; // Daily Activity UI hidden
 // import '../../extras/presentation/pages/staff_admissions_page.dart'; // Admissions UI hidden
 import '../../extras/presentation/pages/staff_appointments_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
@@ -90,14 +90,15 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Shift handovers',
                 subtitle: 'Write and acknowledge handovers',
               ),
-            if (session.canAccessClientActivities)
-              const StaffMenuEntry(
-                icon: Icons.directions_walk_outlined,
-                iconBackground: AppColors.activeBackground,
-                iconColor: AppColors.activeGreen,
-                title: 'Daily Activity',
-                subtitle: 'Outings, school, programmes, and observations',
-              ),
+            // Daily Activity UI temporarily hidden for all roles (code kept).
+            // if (session.canAccessClientActivities)
+            //   const StaffMenuEntry(
+            //     icon: Icons.directions_walk_outlined,
+            //     iconBackground: AppColors.activeBackground,
+            //     iconColor: AppColors.activeGreen,
+            //     title: 'Daily Activity',
+            //     subtitle: 'Outings, school, programmes, and observations',
+            //   ),
             if (session.canAccessMessaging)
               const StaffMenuEntry(
                 icon: Icons.forum_outlined,
@@ -235,12 +236,12 @@ class StaffMoreMenuPage extends StatelessWidget {
           anyOf: const ['shift-handovers:read'],
           builder: () => const StaffShiftHandoversPage(),
         );
-      case 'Daily Activity':
-        openPermittedPage(
-          title: title,
-          anyOf: const ['client-activities:read'],
-          builder: () => const StaffDailyActivityPage(),
-        );
+      // case 'Daily Activity':
+      //   openPermittedPage(
+      //     title: title,
+      //     anyOf: const ['client-activities:read'],
+      //     builder: () => const StaffDailyActivityPage(),
+      //   );
       case 'Communication':
         openPermittedPage(
           title: title,

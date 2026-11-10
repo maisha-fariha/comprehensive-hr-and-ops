@@ -361,7 +361,8 @@ class ClientForm {
   /// Email format, plus the web rule that a family portal login needs one.
   String? guardianEmailError() {
     final email = guardianEmail.text.trim();
-    if (email.isEmpty && familyPortalAccess && _filled(guardianName.text)) {
+    // Web: portal access ON always requires a guardian email (name optional).
+    if (email.isEmpty && familyPortalAccess) {
       return 'Add an email for the family portal login, or turn portal access off';
     }
     return optionalEmailError(email);

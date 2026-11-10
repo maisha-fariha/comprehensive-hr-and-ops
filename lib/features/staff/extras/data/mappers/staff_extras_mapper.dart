@@ -60,8 +60,14 @@ abstract final class StaffExtrasMapper {
       occupiedBeds: JsonCodec.integer(json['occupiedBeds']),
       availableBeds: JsonCodec.integer(json['availableBeds']),
       atCapacity: JsonCodec.boolean(json['atCapacity']) ?? false,
+      // Web form uses top-level `geofenceRadiusMeters`; nested
+      // `geofence.radiusMeters` is secondary (and can disagree).
       geofenceRadiusMeters: JsonCodec.integer(
-        geofence?['radiusMeters'] ?? json['gpsRadiusMeters'],
+        json['geofenceRadiusMeters'] ??
+            geofence?['radiusMeters'] ??
+            geofence?['radius'] ??
+            json['gpsRadiusMeters'] ??
+            json['radiusMeters'],
       ),
       latitude: JsonCodec.number(json['latitude'])?.toDouble(),
       longitude: JsonCodec.number(json['longitude'])?.toDouble(),
