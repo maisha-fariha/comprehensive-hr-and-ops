@@ -65,10 +65,19 @@ abstract final class MedicationMapper {
           .map((o) => occurrenceFrom(JsonCodec.asMap(o)))
           .toList(),
       summary: MarSummary(
-        scheduled: JsonCodec.integerOr(summary['scheduled'], 0),
-        administered: JsonCodec.integerOr(summary['administered'], 0),
+        // Match staff/web aliases — some tenants send scheduledToday / given.
+        scheduled: JsonCodec.integerOr(
+          summary['scheduled'] ?? summary['scheduledToday'],
+          0,
+        ),
+        administered: JsonCodec.integerOr(
+          summary['administered'] ?? summary['given'],
+          0,
+        ),
         unscheduled: JsonCodec.integerOr(summary['unscheduled'], 0),
+        // Web KPI "Missed / Overdue" is summary.missed (already includes overdue).
         missed: JsonCodec.integerOr(summary['missed'], 0),
+        overdue: JsonCodec.integerOr(summary['overdue'], 0),
         complianceRate: JsonCodec.number(summary['complianceRate'])?.round(),
       ),
     );

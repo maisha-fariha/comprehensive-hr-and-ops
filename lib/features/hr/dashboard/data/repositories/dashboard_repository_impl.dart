@@ -24,14 +24,12 @@ class DashboardRepositoryImpl implements DashboardRepository {
 
   @override
   Future<Result<DashboardOverview>> getOverview() async {
-    final residenceId = _session.residenceId;
-    final scoped = <String, dynamic>{
-      'residenceId': ?residenceId,
-    };
-
+    // Web Home is tenant-wide unless the user picks a residence filter.
+    // Do not inject session.residenceId — that silently scopes nurse/manager
+    // home houses differently and hides alerts the web still shows.
     final results = await Future.wait([
-      _api.get(ApiEndpoints.dashboard, query: scoped),
-      _api.get(ApiEndpoints.dashboardAlerts, query: scoped),
+      _api.get(ApiEndpoints.dashboard),
+      _api.get(ApiEndpoints.dashboardAlerts),
       _api.get(
         ApiEndpoints.notifications,
         query: const {'page': 1, 'limit': 30},

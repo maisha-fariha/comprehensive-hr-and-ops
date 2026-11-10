@@ -17,7 +17,7 @@ import '../finance/presentation/pages/finance_page.dart';
 import '../handovers/presentation/pages/handovers_page.dart';
 import '../hr_shell.dart';
 import '../inventory/presentation/pages/inventory_page.dart';
-import '../medication/presentation/pages/medication_page.dart';
+import '../../staff/medication/presentation/pages/staff_medication_page.dart';
 import '../training/presentation/pages/hr_training_page.dart';
 import '../profile_settings/presentation/pages/hr_profile_settings_page.dart';
 import '../org_settings/presentation/pages/org_settings_page.dart';
@@ -245,17 +245,17 @@ List<ManagerDestination> managerDestinations() {
       ),
     if (can('mar:read'))
       ManagerDestination(
-        title: 'Medication',
-        subtitle: 'MAR oversight across all residences',
+        title: 'Medication Administration Record (MAR)',
+        subtitle: 'Rounds, PRN, charted doses and stock',
         icon: Icons.medication_outlined,
         iconBackground: AppColors.activeBackground,
         iconColor: AppColors.activeGreen,
         open: () => openPermittedPage(
-          title: 'Medication',
+          title: 'Medication Administration Record (MAR)',
           anyOf: const ['mar:read'],
-          builder: () => const MedicationPage(),
+          builder: () => const StaffMedicationPage(showStaffBottomNav: false),
         ),
-        keywords: const ['mar', 'meds'],
+        keywords: const ['mar', 'meds', 'medication'],
       ),
     // Daily Activity UI temporarily hidden for all roles (code kept).
     // if (can('client-activities:read'))

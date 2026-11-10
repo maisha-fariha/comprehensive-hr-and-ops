@@ -13,7 +13,7 @@ import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/repositories/medication_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/presentation/controllers/medication_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/presentation/mar_row.dart';
-import 'package:comprehensive_hr_and_ops/features/hr/medication/presentation/pages/medication_page.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/medication/presentation/pages/medication_page_legacy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -433,7 +433,7 @@ Future<_FakeRepo> _open(
       },
     ),
   );
-  await tester.pumpWidget(_app(const MedicationPage()));
+  await tester.pumpWidget(_app(const MedicationPageLegacy()));
   await tester.pumpAndSettle();
   return fake;
 }

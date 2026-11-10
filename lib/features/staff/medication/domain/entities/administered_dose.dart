@@ -18,6 +18,15 @@ class AdministeredDose {
   final String outcomeLabel;
   final String residenceName;
 
+  /// Web "After its round".
+  final bool wasLate;
+
+  /// `false` → web red "Given off duty". Null when the API omits the flag.
+  final bool? administeredOnDuty;
+
+  /// `false` → web red "Witness off duty".
+  final bool? witnessOnDuty;
+
   const AdministeredDose({
     required this.id,
     required this.residentName,
@@ -30,5 +39,33 @@ class AdministeredDose {
     required this.administeredByName,
     this.outcomeLabel = 'Given',
     this.residenceName = '',
+    this.wasLate = false,
+    this.administeredOnDuty,
+    this.witnessOnDuty,
   });
+
+  /// Web "Off duty only — doses to review".
+  bool get isOffDutyReview =>
+      administeredOnDuty == false || witnessOnDuty == false;
+
+  AdministeredDose copyWith({
+    String? residenceName,
+  }) {
+    return AdministeredDose(
+      id: id,
+      residentName: residentName,
+      residentInitials: residentInitials,
+      avatarColor: avatarColor,
+      medicationName: medicationName,
+      dose: dose,
+      route: route,
+      givenTimeLabel: givenTimeLabel,
+      administeredByName: administeredByName,
+      outcomeLabel: outcomeLabel,
+      residenceName: residenceName ?? this.residenceName,
+      wasLate: wasLate,
+      administeredOnDuty: administeredOnDuty,
+      witnessOnDuty: witnessOnDuty,
+    );
+  }
 }

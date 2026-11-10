@@ -772,7 +772,6 @@ void main() {
       final api = _FakeApi();
       final repo = IncidentsRepositoryImpl(
         api: api,
-        session: _Session(),
         tokens: _NoTokens(),
         tenant: _NoTenant(),
       );

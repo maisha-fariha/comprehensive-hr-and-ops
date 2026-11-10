@@ -18,7 +18,6 @@ Future<void> setupHrAttendanceDependencies() async {
   DIHelper.registerRepository<AttendanceRepository>(
     factory: () => AttendanceRepositoryImpl(
       api: getIt<AppApiClient>(),
-      session: Get.find<UserSession>(),
     ),
   );
 

@@ -133,11 +133,41 @@ class MedicationRepositoryImpl implements MedicationRepository {
       );
 
   @override
-  Future<Result<List<MarAdministration>>> administrations() => _get(
+  Future<Result<List<MarAdministration>>> administrations() async {
+    // Web Given tab walks every page; a single page=1&limit=50 truncates.
+    final rows = <Map<String, dynamic>>[];
+    var page = 1;
+    var totalPages = 1;
+    do {
+      final result = await _api.get(
         MedicationEndpoints.administrations,
-        MedicationMapper.administrationsFrom,
-        query: const {'page': 1, 'limit': 50},
+        query: {
+          'page': page,
+          'limit': MedicationEndpoints.maxPageLimit,
+        },
+        silent: true,
       );
+      if (result.isFailure) {
+        return Result.failure(
+          result.error ??
+              const ApiError(message: 'Could not load charted doses.'),
+        );
+      }
+      rows.addAll(
+        JsonCodec.unwrapList(result.value)
+            .whereType<Map>()
+            .map(JsonCodec.asMap),
+      );
+      totalPages = JsonCodec.integerOr(
+        JsonCodec.metaOf(result.value)?['totalPages'],
+        1,
+      );
+      page++;
+    } while (page <= totalPages && page <= 50);
+    return Result.success(
+      rows.map(MedicationMapper.administrationFrom).toList(),
+    );
+  }
 
   @override
   Future<Result<MarResidentChart>> residentChart(String clientId) =>

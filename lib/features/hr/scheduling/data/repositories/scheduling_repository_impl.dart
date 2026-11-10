@@ -4,7 +4,6 @@ import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
-import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/scheduling_enums.dart';
@@ -20,13 +19,10 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   static const _maxPages = 5;
 
   final AppApiClient _api;
-  final UserSession _session;
 
   SchedulingRepositoryImpl({
     required AppApiClient api,
-    required UserSession session,
-  })  : _api = api,
-        _session = session;
+  }) : _api = api;
 
   @override
   Future<Result<SchedulingOverview>> getOverview({
@@ -40,7 +36,11 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }) async {
     // Always refresh org timezone so Settings → General changes match the web.
     await TenantClock.syncFromApi(_api, force: true);
-    final scopedResidenceId = residenceId ?? _session.residenceId;
+    // Web schedule is tenant-wide until a residence filter is chosen.
+    // Do not fall back to session.residenceId (role/home-house scoping gap).
+    final scopedResidenceId = residenceId?.trim().isNotEmpty == true
+        ? residenceId!.trim()
+        : null;
     final anchor = weekOf ?? TenantClock.now();
     final weekStart = IsoDateRange.startOfWeek(anchor);
     final weekEnd = IsoDateRange.endOfWeek(anchor);

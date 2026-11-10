@@ -275,7 +275,7 @@ void main() {
   test('BUG05: mine=true goes on the week and open shift queries only',
       () async {
     final api = _FakeApi();
-    final repo = SchedulingRepositoryImpl(api: api, session: UserSession());
+    final repo = SchedulingRepositoryImpl(api: api);
 
     await repo.getOverview(weekOf: DateTime(2026, 9, 28), mine: true);
     final shiftQueries = [

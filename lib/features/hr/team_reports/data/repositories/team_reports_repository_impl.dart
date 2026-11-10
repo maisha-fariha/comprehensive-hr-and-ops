@@ -10,7 +10,6 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
-import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/report_export_item.dart';
 import '../../domain/entities/staff_sensitive.dart';
 import '../../domain/entities/team_reports_page_data.dart';
@@ -20,7 +19,6 @@ import '../mappers/team_reports_mapper.dart';
 
 class TeamReportsRepositoryImpl implements TeamReportsRepository {
   final AppApiClient _api;
-  final UserSession _session;
   final TokenStore _tokens;
   final TenantStore _tenant;
 
@@ -28,20 +26,14 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
 
   TeamReportsRepositoryImpl({
     required AppApiClient api,
-    required UserSession session,
     required TokenStore tokens,
     required TenantStore tenant,
   })  : _api = api,
-        _session = session,
         _tokens = tokens,
         _tenant = tenant;
 
-  Map<String, dynamic> get _residenceQuery {
-    final residenceId = _session.residenceId;
-    return {
-      if (residenceId != null && residenceId.isNotEmpty) 'residenceId': residenceId,
-    };
-  }
+  /// Web Team Reports is tenant-wide; do not inject session.residenceId.
+  Map<String, dynamic> get _residenceQuery => const <String, dynamic>{};
 
   Map<String, dynamic> get _rangeQuery => {
         'from': IsoDateRange.daysAgoStartIso(30),

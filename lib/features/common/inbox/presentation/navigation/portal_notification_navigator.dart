@@ -14,7 +14,6 @@ import '../../../../hr/emergency/presentation/pages/emergency_page.dart';
 import '../../../../hr/handovers/presentation/pages/handovers_page.dart';
 import '../../../../hr/hr_shell.dart';
 import '../../../../hr/inventory/presentation/pages/inventory_page.dart';
-import '../../../../hr/medication/presentation/pages/medication_page.dart';
 import '../../../../hr/recurring_checks/presentation/pages/recurring_checks_page.dart';
 import '../../../../hr/residences/presentation/pages/residences_page.dart';
 import '../../../../hr/tasks_compliance/presentation/pages/tasks_compliance_page.dart';
@@ -109,7 +108,7 @@ abstract final class PortalNotificationNavigator {
           ? const CommunicationPage(showStaffBottomNav: true)
           : const CommunicationPage(),
       'medication' =>
-        staff ? const StaffMedicationPage() : const MedicationPage(),
+        StaffMedicationPage(showStaffBottomNav: staff),
       'handover' =>
         staff ? const StaffShiftHandoversPage() : const HandoversPage(),
       'client' => staff ? const StaffClientsPage() : const ClientsPage(),

@@ -27,12 +27,21 @@ import '../widgets/staff_medication_tab_bar.dart';
 import '../widgets/staff_mar_metrics_row.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
-/// Staff Medication MAR — web console parity:
+/// Shared Medication MAR for every role — web console parity:
 /// metrics + MAR / PRN / Given / Stock / Resident chart tabs.
+///
+/// Staff shell keeps the MAR / Tasks bottom nav; manager opens the same UI
+/// as a pushed page (`showStaffBottomNav: false`).
 class StaffMedicationPage extends StatelessWidget {
   static const int _marTasksTabIndex = 3;
 
-  const StaffMedicationPage({super.key});
+  /// When false (manager / notification deep-link), hide staff bottom nav.
+  final bool showStaffBottomNav;
+
+  const StaffMedicationPage({
+    super.key,
+    this.showStaffBottomNav = true,
+  });
 
   StaffMedicationController _resolveController() {
     try {
@@ -57,10 +66,12 @@ class StaffMedicationPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: _marTasksTabIndex,
-        onTap: _onBottomNavTap,
-      ),
+      bottomNavigationBar: showStaffBottomNav
+          ? StaffBottomNavBar(
+              currentIndex: _marTasksTabIndex,
+              onTap: _onBottomNavTap,
+            )
+          : null,
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;

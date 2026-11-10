@@ -242,7 +242,10 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
     String? residenceId,
   }) async {
     final trimmed = search?.trim() ?? '';
-    final scopedResidenceId = residenceId ?? _session.residenceId;
+    // Match web: only scope when the UI filter is set (not session home house).
+    final scopedResidenceId = residenceId?.trim().isNotEmpty == true
+        ? residenceId!.trim()
+        : null;
     final result = await _api.get(
       ApiEndpoints.staff,
       query: {

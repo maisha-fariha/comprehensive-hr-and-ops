@@ -10,7 +10,6 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
 import '../../../../../core/offline/offline_file_cache.dart';
-import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/incident_ai_draft.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
@@ -26,27 +25,24 @@ import '../mappers/incidents_mapper.dart';
 
 class IncidentsRepositoryImpl implements IncidentsRepository {
   final AppApiClient _api;
-  final UserSession _session;
   final TokenStore _tokens;
   final TenantStore _tenant;
 
   IncidentsRepositoryImpl({
     required AppApiClient api,
-    required UserSession session,
     required TokenStore tokens,
     required TenantStore tenant,
   })  : _api = api,
-        _session = session,
         _tokens = tokens,
         _tenant = tenant;
 
   @override
   Future<Result<IncidentsBoard>> getBoard() async {
-    final residenceId = _session.residenceId;
+    // Web Incidents lists the whole tenant until a residence filter is chosen.
+    // Session home-house injection made nurse/manager boards disagree with web.
     final base = <String, dynamic>{
       'page': 1,
       'limit': 100,
-      'residenceId': ?residenceId,
     };
 
     final incidents = await Future.wait([
@@ -486,7 +482,7 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
         allowQueue: false,
       );
 
-      return result.when(
+      return await result.when(
         success: (body) async {
           final map = JsonCodec.unwrapMap(body);
           final url = JsonCodec.string(
@@ -738,14 +734,11 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   }
 
   Future<Result<List<int>>> _buildIncidentListCsvFromApi() async {
-    final residenceId = _session.residenceId;
     final result = await _api.get(
       ApiEndpoints.incidents,
       query: {
         'page': 1,
         'limit': 500,
-        if (residenceId != null && residenceId.isNotEmpty)
-          'residenceId': residenceId,
       },
       silent: true,
     );

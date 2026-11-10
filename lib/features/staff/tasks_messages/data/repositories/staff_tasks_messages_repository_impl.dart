@@ -82,9 +82,10 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
 
   @override
   Future<Result<List<StaffTask>>> getMyTasks() async {
+    // Web Task Management is not auto-scoped to session.residenceId.
     final result = await _api.get(
       ApiEndpoints.tasks,
-      query: {'page': 1, 'limit': 50, 'residenceId': ?_session.residenceId},
+      query: {'page': 1, 'limit': 50},
     );
     return result.when(
       success: (body) async =>
@@ -97,7 +98,6 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   Future<Result<TaskStats>> getTaskStats() async {
     final result = await _api.get(
       ApiEndpoints.tasksStats,
-      query: {'residenceId': ?_session.residenceId},
       silent: true,
     );
     return result.when(

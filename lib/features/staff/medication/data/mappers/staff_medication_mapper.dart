@@ -355,6 +355,9 @@ abstract final class StaffMedicationMapper {
             json['houseName'],
         '',
       ),
+      wasLate: JsonCodec.boolean(json['wasLate']) ?? false,
+      administeredOnDuty: JsonCodec.boolean(json['administeredOnDuty']),
+      witnessOnDuty: JsonCodec.boolean(json['witnessOnDuty']),
     );
   }
 

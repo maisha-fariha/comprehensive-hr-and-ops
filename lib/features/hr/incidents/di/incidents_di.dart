@@ -21,7 +21,6 @@ Future<void> setupHrIncidentsDependencies() async {
   DIHelper.registerRepository<IncidentsRepository>(
     factory: () => IncidentsRepositoryImpl(
       api: getIt<AppApiClient>(),
-      session: Get.find<UserSession>(),
       tokens: getIt<TokenStore>(),
       tenant: getIt<TenantStore>(),
     ),

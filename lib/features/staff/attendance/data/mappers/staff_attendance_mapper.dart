@@ -107,10 +107,11 @@ abstract final class StaffAttendanceMapper {
     );
 
     final geofenceMap = JsonCodec.mapAt(residence, 'geofence') ?? {};
+    // Top-level geofenceRadiusMeters wins (same as residences / staff extras).
     final radiusMeters = JsonCodec.number(
-      geofenceMap['radiusMeters'] ??
+      residence['geofenceRadiusMeters'] ??
+          geofenceMap['radiusMeters'] ??
           geofenceMap['radius'] ??
-          residence['geofenceRadiusMeters'] ??
           residence['radiusMeters'],
     );
     final geofenceLat = JsonCodec.number(residence['latitude'])?.toDouble();

@@ -173,47 +173,49 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
     int page = 1,
     int limit = 50,
   }) async {
+    // Web Given tab loads every page; keep filter-only scoping (no session home).
     final filter = residenceId?.trim();
-    final result = await _api.get(
-      ApiEndpoints.marAdministrations,
-      query: {
-        'page': page,
-        'limit': limit,
-        if (filter != null && filter.isNotEmpty) 'residenceId': filter,
-      },
-      silent: true,
-    );
-    return result.when(
-      success: (body) async {
-        final residences = await _residenceNameMap();
-        final items = <AdministeredDose>[];
-        for (final row in JsonCodec.unwrapList(body)) {
-          if (row is! Map) continue;
-          final json = JsonCodec.asMap(row);
-          final mapped = StaffMedicationMapper.administrationsFrom([json]).first;
-          final rid = JsonCodec.string(json['residenceId']);
-          items.add(
-            AdministeredDose(
-              id: mapped.id,
-              residentName: mapped.residentName,
-              residentInitials: mapped.residentInitials,
-              avatarColor: mapped.avatarColor,
-              medicationName: mapped.medicationName,
-              dose: mapped.dose,
-              route: mapped.route,
-              givenTimeLabel: mapped.givenTimeLabel,
-              administeredByName: mapped.administeredByName,
-              outcomeLabel: mapped.outcomeLabel,
-              residenceName: mapped.residenceName.isNotEmpty
-                  ? mapped.residenceName
-                  : (rid == null ? '' : (residences[rid] ?? '')),
-            ),
-          );
-        }
-        return Result.success(items);
-      },
-      failure: (error) async => Result.failure(error),
-    );
+    final residences = await _residenceNameMap();
+    final items = <AdministeredDose>[];
+    var current = page;
+    var totalPages = 1;
+    do {
+      final result = await _api.get(
+        ApiEndpoints.marAdministrations,
+        query: {
+          'page': current,
+          'limit': limit < 100 ? 100 : limit,
+          if (filter != null && filter.isNotEmpty) 'residenceId': filter,
+        },
+        silent: true,
+      );
+      if (result.isFailure) {
+        return Result.failure(
+          result.error ??
+              const ApiError(message: 'Could not load charted doses.'),
+        );
+      }
+      for (final row in JsonCodec.unwrapList(result.value)) {
+        if (row is! Map) continue;
+        final json = JsonCodec.asMap(row);
+        final mapped = StaffMedicationMapper.administrationsFrom([json]).first;
+        final rid = JsonCodec.string(json['residenceId']);
+        final house = mapped.residenceName.isNotEmpty
+            ? mapped.residenceName
+            : (rid == null ? '' : (residences[rid] ?? ''));
+        items.add(
+          house == mapped.residenceName
+              ? mapped
+              : mapped.copyWith(residenceName: house),
+        );
+      }
+      totalPages = JsonCodec.integerOr(
+        JsonCodec.metaOf(result.value)?['totalPages'],
+        1,
+      );
+      current++;
+    } while (current <= totalPages && current <= 50);
+    return Result.success(items);
   }
 
   @override

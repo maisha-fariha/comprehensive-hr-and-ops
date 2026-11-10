@@ -9,7 +9,7 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Web "Given" tab: every charted dose with flags, signer, witness and the
 /// Correct action.
-class MarGivenTab extends StatelessWidget {
+class MarGivenTab extends StatefulWidget {
   final List<MarAdministration> rows;
   final bool loading;
   final String? error;
@@ -26,20 +26,81 @@ class MarGivenTab extends StatelessWidget {
   });
 
   @override
+  State<MarGivenTab> createState() => _MarGivenTabState();
+}
+
+class _MarGivenTabState extends State<MarGivenTab> {
+  /// Web "Off duty only — doses to review".
+  bool _offDutyOnly = false;
+
+  List<MarAdministration> get _visible {
+    if (!_offDutyOnly) return widget.rows;
+    return [
+      for (final a in widget.rows)
+        if (!a.isSuperseded &&
+            (a.administeredOnDuty == false || a.witnessOnDuty == false))
+          a,
+    ];
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (loading && rows.isEmpty) return const MarEmpty('Loading the chart…');
-    if (rows.isEmpty) return MarEmpty(error ?? 'Nothing has been charted yet.');
+    if (widget.loading && widget.rows.isEmpty) {
+      return const MarEmpty('Loading the chart…');
+    }
+    final rows = _visible;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final a in rows) ...[
-          _GivenCard(
-            key: ValueKey('mar-given-${a.id}'),
-            row: a,
-            canCorrect: canCorrect(a) && !a.isSuperseded,
-            onCorrect: () => onCorrect(a),
+        InkWell(
+          key: const ValueKey('mar-given-off-duty-only'),
+          onTap: () => setState(() => _offDutyOnly = !_offDutyOnly),
+          borderRadius: BorderRadius.circular(8),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: _offDutyOnly,
+                  activeColor: AppColors.secondaryTeal,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: (v) => setState(() => _offDutyOnly = v ?? false),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Off duty only — doses to review',
+                  style: handoverText(
+                    context,
+                    13,
+                    weight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-        ],
+        ),
+        const SizedBox(height: 10),
+        if (rows.isEmpty)
+          MarEmpty(
+            _offDutyOnly
+                ? 'No off-duty doses to review.'
+                : (widget.error ?? 'Nothing has been charted yet.'),
+          )
+        else
+          for (final a in rows) ...[
+            _GivenCard(
+              key: ValueKey('mar-given-${a.id}'),
+              row: a,
+              canCorrect: widget.canCorrect(a) && !a.isSuperseded,
+              onCorrect: () => widget.onCorrect(a),
+            ),
+            const SizedBox(height: 10),
+          ],
       ],
     );
   }

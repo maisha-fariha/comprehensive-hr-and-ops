@@ -18,7 +18,6 @@ Future<void> setupHrSchedulingDependencies() async {
   DIHelper.registerRepository<SchedulingRepository>(
     factory: () => SchedulingRepositoryImpl(
       api: getIt<AppApiClient>(),
-      session: Get.find<UserSession>(),
     ),
   );
 

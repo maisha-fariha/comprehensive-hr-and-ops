@@ -50,7 +50,12 @@ class MarSummary {
   final int scheduled;
   final int administered;
   final int unscheduled;
+
+  /// Web "Missed / Overdue" KPI — already includes overdue doses.
   final int missed;
+
+  /// Optional separate overdue count (do not add on top of [missed] for KPIs).
+  final int overdue;
   final int? complianceRate;
 
   const MarSummary({
@@ -58,6 +63,7 @@ class MarSummary {
     this.administered = 0,
     this.unscheduled = 0,
     this.missed = 0,
+    this.overdue = 0,
     this.complianceRate,
   });
 }

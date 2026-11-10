@@ -190,9 +190,7 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     // Web opens the resident list on focus with an empty query.
     final trimmed = search.trim();
 
-    final scopedResidence = residenceId?.trim().isNotEmpty == true
-        ? residenceId!.trim()
-        : _session.residenceId;
+    final scopedResidence = residenceId?.trim();
 
     final result = await _api.get(
       ApiEndpoints.clients,
@@ -220,9 +218,7 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     // Web opens the staff list on focus with an empty query.
     final trimmed = search.trim();
 
-    final scopedResidence = residenceId?.trim().isNotEmpty == true
-        ? residenceId!.trim()
-        : _session.residenceId;
+    final scopedResidence = residenceId?.trim();
 
     // Purpose-built picker: id, name, category — no payslip fields.
     var result = await _api.get(
@@ -447,7 +443,7 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
         query: {'category': 'tasks'},
         allowQueue: false,
       );
-      return result.when(
+      return await result.when(
         success: (body) async {
           final map = JsonCodec.unwrapMap(body);
           final url = JsonCodec.string(map['fileUrl'] ?? map['url']);
@@ -655,12 +651,8 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     );
   }
 
-  /// Web Task Management defaults to **All Residences**. Only scope when the
-  /// signed-in session already has a home — never invent the first GET
-  /// /residences row (that hid tasks and polluted the header subtitle).
-  Future<String?> _resolveResidenceId() async {
-    final sessionId = _session.residenceId?.trim();
-    if (sessionId != null && sessionId.isNotEmpty) return sessionId;
-    return null;
-  }
+  /// Web Task Management defaults to **All Residences**.
+  /// Do not inject session.residenceId — that made nurse/manager task boards
+  /// disagree with the web console for the same tenant.
+  Future<String?> _resolveResidenceId() async => null;
 }

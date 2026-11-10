@@ -4,7 +4,6 @@ import 'package:gems_core/gems_core.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
-import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/entities/time_off_request.dart';
@@ -13,15 +12,12 @@ import '../mappers/attendance_mapper.dart';
 
 class AttendanceRepositoryImpl implements AttendanceRepository {
   final AppApiClient _api;
-  final UserSession _session;
 
   static const int _pageSize = 100;
 
   AttendanceRepositoryImpl({
     required AppApiClient api,
-    required UserSession session,
-  })  : _api = api,
-        _session = session;
+  }) : _api = api;
 
   @override
   Future<Result<AttendanceRecordPage>> getRecords({
@@ -189,7 +185,11 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
     String? residenceId,
   }) async {
     final trimmed = search?.trim() ?? '';
-    final scopedResidenceId = residenceId ?? _session.residenceId;
+    // Prefer the caller's filter only — session home-house fallback hid staff
+    // the web still lists when "All residences" is selected.
+    final scopedResidenceId = residenceId?.trim().isNotEmpty == true
+        ? residenceId!.trim()
+        : null;
     final result = await _api.get(
       ApiEndpoints.staff,
       query: {
@@ -270,7 +270,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
         query: {'category': category},
         allowQueue: false,
       );
-      return result.when(
+      return await result.when(
         success: (body) async {
           final map = JsonCodec.unwrapMap(body);
           final url = JsonCodec.string(
