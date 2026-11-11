@@ -541,7 +541,7 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
     final result = await _api.patch(
       ApiEndpoints.incidentInvestigation(incidentId),
       data: {
-        'findings': findings,
+        if (findings.trim().isNotEmpty) 'findings': findings.trim(),
         if (rootCause != null && rootCause.isNotEmpty) 'rootCause': rootCause,
         if (correctiveActions != null && correctiveActions.isNotEmpty)
           'correctiveActions': correctiveActions,

@@ -418,7 +418,7 @@ abstract final class IncidentsMapper {
           json['residenceName'] ?? JsonCodec.mapAt(json, 'residence')?['name'],
         ),
       ].whereType<String>().where((part) => part.isNotEmpty).join(' · '),
-      statusLabel: JsonCodec.stringOr(json['status'], 'Open'),
+      statusLabel: _listStatusLabel(json),
       reportedAtLabel: at == null ? '' : IsoDateRange.dateTimeLabel(at),
       reporterInitials: IsoDateRange.initials(reporter),
       reporterName: reporter,
@@ -434,7 +434,7 @@ abstract final class IncidentsMapper {
       id: JsonCodec.stringOr(json['id'], 'incident'),
       title: JsonCodec.stringOr(json['title'] ?? json['category'], 'Incident'),
       iconKind: _icon(json),
-      statusLabel: JsonCodec.stringOr(json['status'], 'Under Review'),
+      statusLabel: _listStatusLabel(json),
       subtitle: _clientName(json),
       investigatorInitials: IsoDateRange.initials(investigator, fallback: '--'),
       investigatorName: investigator.isEmpty ? 'Unassigned' : investigator,
@@ -574,6 +574,39 @@ abstract final class IncidentsMapper {
               '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
         )
         .join(' ');
+  }
+
+  /// Web Status column: "Open / Unacknowledged", "Closed / Ack dd/mm/yyyy".
+  static String _listStatusLabel(Map<String, dynamic> json) {
+    final investigation = JsonCodec.mapAt(json, 'investigation') ?? const {};
+    final raw = (JsonCodec.string(
+              investigation['status'] ?? json['status'],
+            ) ??
+            'open')
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_');
+    final base = raw.contains('investigat')
+        ? 'Investigating'
+        : raw.contains('close') || raw.contains('resolv')
+            ? 'Closed'
+            : raw.contains('under')
+                ? 'Under Review'
+                : _displayStatus(raw);
+
+    final acknowledged = json['acknowledged'] == true ||
+        json['acknowledgedAt'] != null ||
+        JsonCodec.mapAt(json, 'acknowledgedBy') != null;
+    final ackAt = JsonCodec.dateTime(json['acknowledgedAt']);
+    if (base == 'Closed' || raw.contains('close') || raw.contains('resolv')) {
+      if (ackAt != null) {
+        return 'Closed / Ack ${TenantClock.formatDate(ackAt)}';
+      }
+      return acknowledged ? 'Closed / Ack' : 'Closed';
+    }
+    if (!acknowledged) return '$base / Unacknowledged';
+    if (ackAt != null) return '$base / Ack ${TenantClock.formatDate(ackAt)}';
+    return '$base / Acknowledged';
   }
 
   static String _formatUtcStamp(DateTime utc) {

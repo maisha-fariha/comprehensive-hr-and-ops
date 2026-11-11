@@ -271,7 +271,7 @@ class InventoryMapper {
     return PurchaseOrder(
       id: id,
       reference: JsonCodec.string(json['reference']),
-      status: JsonCodec.stringOr(json['status'], 'draft'),
+      status: JsonCodec.stringOr(json['status'], 'draft').trim().toLowerCase(),
       residenceId: JsonCodec.string(json['residenceId']),
       residenceName: _nameOf(json, 'residence'),
       supplierId: JsonCodec.string(json['supplierId']),

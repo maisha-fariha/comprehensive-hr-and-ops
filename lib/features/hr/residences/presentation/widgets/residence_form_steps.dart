@@ -236,7 +236,13 @@ class _ResidenceAddressStepState extends State<ResidenceAddressStep> {
     if (!mounted) return;
     setState(() => _locating = false);
     if (hit == null) {
-      if (!silent) {
+      // Web Google Geocoder often still finds a hit; when the pin already has
+      // coordinates (map tap / prior locate), keep them instead of alarming.
+      final hasCoords = v.latitude.trim().isNotEmpty &&
+          v.longitude.trim().isNotEmpty &&
+          double.tryParse(v.latitude) != null &&
+          double.tryParse(v.longitude) != null;
+      if (!silent && !hasCoords) {
         AppSnackbar.show('That address could not be located', '');
       }
       return;

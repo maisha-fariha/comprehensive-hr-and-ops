@@ -80,7 +80,6 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   final List<ShiftStaffOption> _staffOptions = [];
   bool _isLoadingStaff = false;
   String? _staffError;
-  String? _expandedStaffId;
 
   ShiftConflictsResult _conflicts = const ShiftConflictsResult();
   Set<String> _staffWithOverlappingShifts = {};
@@ -1035,11 +1034,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           _draft.assignedStaff.indexWhere((s) => s.staffId == option.id);
       if (index >= 0) {
         _draft.assignedStaff.removeAt(index);
-        if (_expandedStaffId == option.id) _expandedStaffId = null;
       } else {
         _draft.assignedStaff.add(AssignedShiftStaff.fromOption(option));
-        // Web does not auto-open Task Assignment after picking staff.
-        _expandedStaffId = null;
       }
     });
   }
@@ -1047,7 +1043,6 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   void _removeStaff(String staffId) {
     _update(() {
       _draft.assignedStaff.removeWhere((s) => s.staffId == staffId);
-      if (_expandedStaffId == staffId) _expandedStaffId = null;
     });
   }
 
@@ -1248,7 +1243,6 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       case CreateShiftStep.staffAssignment:
         return CreateShiftStaffAssignmentForm(
           assignedStaff: _draft.assignedStaff,
-          expandedStaffId: _expandedStaffId,
           isLoadingStaff: _isLoadingStaff,
           isOpenShift: _draft.isOpenShift,
           scheduleConflicts: _conflicts.conflicts,
@@ -1321,10 +1315,6 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           ),
           onAddStaff: _openStaffPicker,
           onRemoveStaff: _removeStaff,
-          onToggleExpand: (id) => setState(
-            () => _expandedStaffId = _expandedStaffId == id ? null : id,
-          ),
-          onChanged: () => setState(() {}),
         );
       case CreateShiftStep.openShift:
         // Legacy step — navigation skips this; kept for enum/progress parity.

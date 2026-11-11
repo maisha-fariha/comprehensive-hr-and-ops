@@ -112,14 +112,17 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
           );
         }
 
-        final unread = items.where((item) => !item.isRead).length;
+        final unread = _controller.unreadCount;
+        final allCount = _controller.total.value > 0
+            ? _controller.total.value
+            : items.length;
         final visible = _unreadOnly
             ? items.where((item) => !item.isRead).toList()
             : items;
 
         return Column(
           children: [
-            _filters(context, all: items.length, unread: unread),
+            _filters(context, all: allCount, unread: unread),
             Expanded(
               child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
@@ -144,7 +147,29 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
                           horizontal: 16,
                           vertical: 12,
                         ),
-                        children: _sections(context, visible),
+                        children: [
+                          ..._sections(context, visible),
+                          if (!_unreadOnly && _controller.hasNext.value) ...[
+                            const SizedBox(height: 8),
+                            Center(
+                              child: TextButton(
+                                onPressed: _controller.isLoadingMore.value
+                                    ? null
+                                    : _controller.loadMore,
+                                child: Text(
+                                  _controller.isLoadingMore.value
+                                      ? 'Loading…'
+                                      : 'Show older notifications',
+                                  style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.secondaryTeal,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
               ),
             ),
@@ -266,7 +291,6 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
     final critical = items.where((item) => _band(item) == _Band.critical).toList();
     final high = items.where((item) => _band(item) == _Band.high).toList();
     final normal = items.where((item) => _band(item) == _Band.normal).toList();
-    final grouped = critical.isNotEmpty || high.isNotEmpty;
     final gap = ResponsiveHelper.getResponsiveHeight(context, 8);
 
     List<Widget> block(String title, Color color, List<PortalNotification> rows) {
@@ -292,21 +316,15 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
       ];
     }
 
-    if (!grouped) {
+    // Web bell: Priority Alerts (amber) + General Activity.
+    final priority = [...critical, ...high];
+    if (priority.isEmpty) {
       return [
-        for (final item in normal) ...[
-          _tile(context, item),
-          SizedBox(height: gap),
-        ],
+        ...block('GENERAL ACTIVITY', AppColors.textSecondary, normal),
       ];
     }
     return [
-      ...block(
-        'LIFE-SAFETY & EMERGENCY',
-        AppColors.criticalRed,
-        critical,
-      ),
-      ...block('PRIORITY ALERTS', AppColors.urgentAmber, high),
+      ...block('PRIORITY ALERTS', AppColors.urgentAmber, priority),
       ...block('GENERAL ACTIVITY', AppColors.textSecondary, normal),
     ];
   }
@@ -314,17 +332,60 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
   Widget _tile(BuildContext context, PortalNotification item) {
     final label = (item.eventLabel ?? '').trim();
     final when = item.createdAt == null ? item.timeLabel : _ago(item.createdAt!);
+    final priority = _band(item) != _Band.normal;
+    final bg = priority
+        ? (item.isRead ? const Color(0xFFFFF8ED) : const Color(0xFFFFF1DC))
+        : (item.isRead ? Colors.white : const Color(0xFFF4F7FB));
+    final border = priority
+        ? const Border(left: BorderSide(color: AppColors.urgentAmber, width: 3))
+        : null;
+    final dotColor =
+        priority ? AppColors.urgentAmber : AppColors.primaryNavy;
     return Material(
-      color: item.isRead ? Colors.white : const Color(0xFFE8F5F3),
-      borderRadius: BorderRadius.circular(14),
+      color: bg,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         onTap: () => _controller.openItem(item),
-        child: Padding(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: border,
+          ),
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (priority) ...[
+                const Padding(
+                  padding: EdgeInsets.only(top: 2, right: 8),
+                  child: Icon(
+                    Icons.warning_amber_rounded,
+                    size: 16,
+                    color: AppColors.urgentAmber,
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  width: 28,
+                  height: 28,
+                  margin: const EdgeInsets.only(right: 10, top: 1),
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE8EEF5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    _initials(item),
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryNavy,
+                    ),
+                  ),
+                ),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,12 +397,14 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
                             label.isEmpty ? item.title : label.toUpperCase(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'Outfit',
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.3,
-                              color: AppColors.textSecondary,
+                              color: priority
+                                  ? AppColors.urgentAmber
+                                  : AppColors.textSecondary,
                             ),
                           ),
                         ),
@@ -392,8 +455,8 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
                   width: 8,
                   height: 8,
                   margin: const EdgeInsets.only(top: 4),
-                  decoration: const BoxDecoration(
-                    color: AppColors.secondaryTeal,
+                  decoration: BoxDecoration(
+                    color: dotColor,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -404,6 +467,16 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
       ),
     );
   }
+}
+
+String _initials(PortalNotification item) {
+  final label = (item.eventLabel ?? item.title).trim();
+  if (label.isEmpty) return 'N';
+  final parts = label.split(RegExp(r'\s+'));
+  if (parts.length == 1) {
+    return parts.first.substring(0, parts.first.length.clamp(0, 2)).toUpperCase();
+  }
+  return ('${parts.first[0]}${parts[1][0]}').toUpperCase();
 }
 
 enum _Band { critical, high, normal }

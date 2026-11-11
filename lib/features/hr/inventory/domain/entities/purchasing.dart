@@ -125,7 +125,8 @@ class PurchaseOrder {
     'send': ['submitted', 'partially_received'],
   };
 
-  bool allows(String action) => transitions[action]?.contains(status) ?? false;
+  bool allows(String action) =>
+      transitions[action]?.contains(status.trim().toLowerCase()) ?? false;
 
   /// Submitting needs a supplier.
   bool get canSubmit => allows('submit') && supplierId != null;

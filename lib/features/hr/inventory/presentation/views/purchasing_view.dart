@@ -191,13 +191,14 @@ class _PurchasingViewState extends State<PurchasingView> {
                   order: order,
                 ),
       ),
-      if (_c.canWriteOrders && order.status == 'draft')
+      if (_c.canWriteOrders && order.allows('edit'))
         HandoverButton(
           key: ValueKey('order-edit-${order.id}'),
           label: 'Edit',
           compact: true,
           onPressed: busy ? null : () => showPurchaseOrderForm(context, controller: _c, order: order),
         ),
+      // Web draft row: View · Edit · Submit · Cancel (no "Send for approval").
       if (_c.canWriteOrders && order.allows('submit'))
         order.canSubmit
             ? HandoverButton(
@@ -217,17 +218,13 @@ class _PurchasingViewState extends State<PurchasingView> {
                   onPressed: null,
                 ),
               ),
-      if (_c.canWriteOrders && order.allows('requestApproval'))
-        HandoverButton(
-          key: ValueKey('order-request-approval-${order.id}'),
-          label: 'Send for approval',
-          compact: true,
-          onPressed: busy ? null : () => _c.requestApproval(order),
-        ),
+      // Web submitted row: "Send to supplier" / Resend.
       if (_c.canWriteOrders && order.allows('send'))
         HandoverButton(
           key: ValueKey('order-resend-${order.id}'),
-          label: order.sentAt == null ? 'Send' : 'Resend',
+          label: order.canResend || order.sentAt != null
+              ? 'Resend'
+              : 'Send to supplier',
           icon: Icons.send_outlined,
           compact: true,
           onPressed: busy

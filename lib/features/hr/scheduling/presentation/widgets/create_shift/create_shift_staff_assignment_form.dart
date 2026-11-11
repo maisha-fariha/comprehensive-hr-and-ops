@@ -17,15 +17,12 @@ const Color _avatarText = Color(0xFF8E88B1);
 /// side-by-side, then either assignees or open-shift bidding fields.
 class CreateShiftStaffAssignmentForm extends StatelessWidget {
   final List<AssignedShiftStaff> assignedStaff;
-  final String? expandedStaffId;
   final bool isLoadingStaff;
   final bool isOpenShift;
   final ValueChanged<bool> onOpenShiftChanged;
   final Widget? openShiftFields;
   final VoidCallback onAddStaff;
   final ValueChanged<String> onRemoveStaff;
-  final ValueChanged<String> onToggleExpand;
-  final VoidCallback onChanged;
   final List<ShiftScheduleConflict> scheduleConflicts;
   final List<ShiftLeaveConflict> leaveConflicts;
   final List<ShiftRestConflict> restConflicts;
@@ -38,13 +35,10 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
   const CreateShiftStaffAssignmentForm({
     super.key,
     required this.assignedStaff,
-    required this.expandedStaffId,
     required this.isOpenShift,
     required this.onOpenShiftChanged,
     required this.onAddStaff,
     required this.onRemoveStaff,
-    required this.onToggleExpand,
-    required this.onChanged,
     this.openShiftFields,
     this.isLoadingStaff = false,
     this.scheduleConflicts = const [],
@@ -236,10 +230,7 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
                 _AssignedStaffCard(
                   key: ValueKey('assigned-staff-${staff.staffId}'),
                   staff: staff,
-                  expanded: expandedStaffId == staff.staffId,
-                  onToggleExpand: () => onToggleExpand(staff.staffId),
                   onRemove: () => onRemoveStaff(staff.staffId),
-                  onChanged: onChanged,
                 ),
                 SizedBox(
                   height: ResponsiveHelper.getResponsiveHeight(context, 12),
@@ -588,49 +579,16 @@ class _EmptyAssignedStaff extends StatelessWidget {
   }
 }
 
-class _AssignedStaffCard extends StatefulWidget {
+/// Web staffing cards list name + residence only — no per-staff Task Assignment.
+class _AssignedStaffCard extends StatelessWidget {
   final AssignedShiftStaff staff;
-  final bool expanded;
-  final VoidCallback onToggleExpand;
   final VoidCallback onRemove;
-  final VoidCallback onChanged;
 
   const _AssignedStaffCard({
     super.key,
     required this.staff,
-    required this.expanded,
-    required this.onToggleExpand,
     required this.onRemove,
-    required this.onChanged,
   });
-
-  @override
-  State<_AssignedStaffCard> createState() => _AssignedStaffCardState();
-}
-
-class _AssignedStaffCardState extends State<_AssignedStaffCard> {
-  late final TextEditingController _titleController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _noteController;
-
-  AssignedShiftStaff get _staff => widget.staff;
-
-  @override
-  void initState() {
-    super.initState();
-    _titleController = TextEditingController(text: _staff.taskTitle);
-    _descriptionController =
-        TextEditingController(text: _staff.taskDescription);
-    _noteController = TextEditingController(text: _staff.note);
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _noteController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -651,181 +609,86 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: ResponsiveHelper.getResponsivePadding(
-              context,
-              horizontal: 14,
-              vertical: 12,
+      child: Padding(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 14,
+          vertical: 12,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: ResponsiveHelper.getResponsiveSize(context, 36),
+              height: ResponsiveHelper.getResponsiveSize(context, 36),
+              decoration: const BoxDecoration(
+                color: _avatarFill,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                staff.initials,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: _avatarText,
+                ),
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    key: ValueKey('assigned-staff-toggle-${_staff.staffId}'),
-                    onTap: widget.onToggleExpand,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: ResponsiveHelper.getResponsiveSize(context, 36),
-                          height: ResponsiveHelper.getResponsiveSize(context, 36),
-                          decoration: const BoxDecoration(
-                            color: _avatarFill,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            _staff.initials,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                              fontSize:
-                                  ResponsiveHelper.getResponsiveFontSize(context, 12),
-                              color: _avatarText,
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: ResponsiveHelper.getResponsiveWidth(context, 12),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _staff.staffName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                    context,
-                                    14,
-                                  ),
-                                  color: AppColors.textHeading,
-                                ),
-                              ),
-                              Text(
-                                _staff.subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w400,
-                                  fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                    context,
-                                    12,
-                                  ),
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        AnimatedRotation(
-                          turns: widget.expanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 150),
-                          child: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 20,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ],
+            SizedBox(
+              width: ResponsiveHelper.getResponsiveWidth(context, 12),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    staff.staffName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(
+                        context,
+                        14,
+                      ),
+                      color: AppColors.textHeading,
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: widget.onRemove,
-                  tooltip: 'Remove ${_staff.staffName}',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    size: 18,
-                    color: AppColors.textMuted,
+                  Text(
+                    staff.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w400,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(
+                        context,
+                        12,
+                      ),
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          if (widget.expanded) _buildTaskBody(context),
-        ],
+            IconButton(
+              onPressed: onRemove,
+              tooltip: 'Remove ${staff.staffName}',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: AppColors.textMuted,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-
-  Widget _buildTaskBody(BuildContext context) {
-    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14));
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.cardBorder)),
-      ),
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 14,
-        top: 14,
-        bottom: 16,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Task Assignment',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-              color: AppColors.textHeading,
-            ),
-          ),
-          gap,
-          const CreateShiftFieldLabel('Task Title'),
-          CreateShiftTextField(
-            key: ValueKey('task-title-${_staff.staffId}'),
-            controller: _titleController,
-            hint: 'e.g. Morning medication round',
-            onChanged: (value) {
-              _staff.taskTitle = value;
-              widget.onChanged();
-            },
-          ),
-          const CreateShiftHelperText(
-            'Leave empty to assign the shift without a task.',
-          ),
-          gap,
-          const CreateShiftFieldLabel('Task Description'),
-          CreateShiftTextField(
-            key: ValueKey('task-description-${_staff.staffId}'),
-            controller: _descriptionController,
-            hint:
-                'Describe what this staff member is responsible for during this shift…',
-            maxLines: 3,
-            keyboardType: TextInputType.multiline,
-            onChanged: (value) {
-              _staff.taskDescription = value;
-              widget.onChanged();
-            },
-          ),
-          gap,
-          const CreateShiftFieldLabel('Note'),
-          CreateShiftTextField(
-            key: ValueKey('task-note-${_staff.staffId}'),
-            controller: _noteController,
-            hint: 'Any special instructions for this task…',
-            onChanged: (value) {
-              _staff.note = value;
-              widget.onChanged();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
 }
 
 class _ShiftConflictBanner extends StatelessWidget {

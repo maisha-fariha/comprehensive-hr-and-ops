@@ -9,6 +9,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/incident_ai_draft.dart';
@@ -1870,13 +1871,73 @@ class IncidentCreationController extends GetxController {
     }
 
     final investigation = JsonCodec.mapAt(json, 'investigation') ?? const {};
+    // Web: Investigation Status matches the Status column — hydrate from
+    // investigation.status (preferred) or top-level / payload fallbacks.
+    final statusRaw = (JsonCodec.string(
+              investigation['status'] ??
+                  payload['investigationStatus'] ??
+                  json['status'],
+            ) ??
+            'open')
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_');
+    String? matchedStatus;
+    for (final option in investigationStatusOptions) {
+      if (option.$1 == statusRaw) {
+        matchedStatus = option.$1;
+        break;
+      }
+    }
+    investigationStatus.value = matchedStatus ??
+        (statusRaw.contains('investigat')
+            ? 'investigating'
+            : statusRaw.contains('close') || statusRaw.contains('resolv')
+                ? 'closed'
+                : 'open');
+
+    final investigatorId = JsonCodec.string(
+      investigation['investigatorId'] ??
+          investigation['assignedToId'] ??
+          payload['investigatorId'],
+    );
+    final investigatorName = JsonCodec.string(
+      investigation['investigatorName'] ??
+          payload['investigatorName'] ??
+          (JsonCodec.mapAt(investigation, 'investigator') == null
+              ? null
+              : IsoDateRange.personName(
+                  JsonCodec.mapAt(investigation, 'investigator'),
+                )),
+    );
+    if (investigatorId != null && investigatorId.isNotEmpty) {
+      selectedInvestigator.value = _staffById(investigatorId) ??
+          IncidentStaffOption(
+            id: investigatorId,
+            name: investigatorName ?? 'Investigator',
+          );
+    } else if (investigatorName != null && investigatorName.isNotEmpty) {
+      selectedInvestigator.value = IncidentStaffOption(
+        id: investigatorName,
+        name: investigatorName,
+      );
+    }
+
     investigationNotesController.text = JsonCodec.stringOr(
       investigation['findings'] ?? payload['investigationNotes'],
       '',
     );
+    rootCauseController.text = JsonCodec.stringOr(
+      investigation['rootCause'] ?? payload['rootCause'],
+      '',
+    );
+    correctiveActionController.text = JsonCodec.stringOr(
+      investigation['correctiveActions'] ?? payload['correctiveAction'],
+      '',
+    );
     if (immediateActionController.text.trim().isEmpty) {
       immediateActionController.text = JsonCodec.stringOr(
-        investigation['correctiveActions'],
+        investigation['correctiveActions'] ?? payload['immediateAction'],
         '',
       );
     }
@@ -1999,7 +2060,10 @@ class IncidentCreationController extends GetxController {
         title: title,
         severity: severity.value.name,
         payload: payload,
-        status: existingStatus.value ?? 'investigating',
+        // Web Status column tracks investigation status.
+        status: investigationStatus.value ??
+            existingStatus.value ??
+            'investigating',
         reportedAt: reportedAt,
         residentChecked: false,
         supervisorNotified: supervisorNotified,
@@ -2034,7 +2098,7 @@ class IncidentCreationController extends GetxController {
         title: title,
         severity: severity.value.name,
         payload: payload,
-        status: 'open',
+        status: investigationStatus.value ?? 'open',
         reportedAt: reportedAt,
         residentChecked: false,
         supervisorNotified: supervisorNotified,
@@ -2069,33 +2133,31 @@ class IncidentCreationController extends GetxController {
     final immediate = immediateActionController.text.trim();
     final rootCause = rootCauseController.text.trim();
     final corrective = correctiveActionController.text.trim();
-    if (!asDraft &&
-        (findings.isNotEmpty ||
-            immediate.isNotEmpty ||
-            rootCause.isNotEmpty ||
-            corrective.isNotEmpty)) {
-      final investigation = await repository.recordInvestigation(
-        incidentId: incidentId,
-        findings: findings.isEmpty
-            ? (immediate.isEmpty ? rootCause : immediate)
-            : findings,
-        rootCause: rootCause.isEmpty ? null : rootCause,
-        correctiveActions: corrective.isEmpty
-            ? (immediate.isEmpty ? null : immediate)
-            : corrective,
-        status: investigationStatus.value ??
-            (isEditMode ? (existingStatus.value ?? 'open') : 'open'),
-      );
-      investigation.when(
-        success: (_) {},
-        failure: (error) {
-          AppSnackbar.show(
-            isEditMode ? 'Incident updated' : 'Incident created',
-            'Investigation notes could not be saved: ${error.message}',
-          );
-        },
-      );
-    }
+    final investigationStatusValue = investigationStatus.value ??
+        (isEditMode ? (existingStatus.value ?? 'open') : 'open');
+    // Always sync investigation status (web Status column), even without notes.
+    final investigation = await repository.recordInvestigation(
+      incidentId: incidentId,
+      findings: findings.isEmpty
+          ? (immediate.isEmpty ? rootCause : immediate)
+          : findings,
+      rootCause: rootCause.isEmpty ? null : rootCause,
+      correctiveActions: corrective.isEmpty
+          ? (immediate.isEmpty ? null : immediate)
+          : corrective,
+      status: investigationStatusValue,
+    );
+    investigation.when(
+      success: (_) {
+        existingStatus.value = investigationStatusValue;
+      },
+      failure: (error) {
+        AppSnackbar.show(
+          isEditMode ? 'Incident updated' : 'Incident created',
+          'Investigation status could not be saved: ${error.message}',
+        );
+      },
+    );
 
     for (final file in evidenceFiles.where(
       (item) => item.isReady && item.localPath.trim().isNotEmpty,
