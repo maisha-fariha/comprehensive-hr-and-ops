@@ -86,6 +86,18 @@ abstract class StaffMedicationRepository {
     StaffCreatePrnMedicationInput input,
   );
 
+  /// `DELETE /medications/:id` (web Delete prescription).
+  Future<Result<void>> deleteMedication(String id);
+
+  /// `POST /medications/:id/discontinue`.
+  Future<Result<void>> discontinueMedication(String id);
+
+  /// `DELETE /prn-medications/:id`.
+  Future<Result<void>> deletePrnMedication(String id);
+
+  /// `POST /prn-medications/:id/discontinue`.
+  Future<Result<void>> discontinuePrnMedication(String id);
+
   /// `GET /residences` for Add Medicine house picker.
   Future<Result<List<StaffMedResidenceOption>>> getResidences();
 

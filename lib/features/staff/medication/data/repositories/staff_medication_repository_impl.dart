@@ -486,6 +486,38 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   }
 
   @override
+  Future<Result<void>> deleteMedication(String id) async => _done(
+        await _api.delete(
+          '${ApiEndpoints.medications}/$id',
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<void>> discontinueMedication(String id) async => _done(
+        await _api.post(
+          '${ApiEndpoints.medications}/$id/discontinue',
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<void>> deletePrnMedication(String id) async => _done(
+        await _api.delete(
+          '${ApiEndpoints.prnMedications}/$id',
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<void>> discontinuePrnMedication(String id) async => _done(
+        await _api.post(
+          '${ApiEndpoints.prnMedications}/$id/discontinue',
+          allowQueue: false,
+        ),
+      );
+
+  @override
   Future<Result<List<StaffMedResidenceOption>>> getResidences() async {
     final result = await _api.get(ApiEndpoints.residences, silent: true);
     return result.when(

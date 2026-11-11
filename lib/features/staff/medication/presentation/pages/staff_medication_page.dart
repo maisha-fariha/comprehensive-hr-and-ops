@@ -27,6 +27,7 @@ import '../widgets/staff_medication_tab_bar.dart';
 import '../widgets/staff_mar_metrics_row.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
+
 /// Shared Medication MAR for every role — web console parity:
 /// metrics + MAR / PRN / Given / Stock / Resident chart tabs.
 ///
@@ -178,6 +179,13 @@ class StaffMedicationPage extends StatelessWidget {
                           onEdit: controller.canEditMedicines
                               ? (dose) => controller.editDose(context, dose)
                               : null,
+                          onDelete: controller.canEditMedicines
+                              ? (dose) => controller.deleteDose(context, dose)
+                              : null,
+                          onDiscontinue: controller.canEditMedicines
+                              ? (dose) =>
+                                  controller.discontinueDose(context, dose)
+                              : null,
                           administeredByName: controller.administeredByName,
                           isPendingSync: controller.isPendingSync,
                           onOpenClientMedications: (dose) {
@@ -211,6 +219,16 @@ class StaffMedicationPage extends StatelessWidget {
                           onEdit: controller.canEditMedicines
                               ? (item) =>
                                   controller.editMedication(context, item)
+                              : null,
+                          onDelete: controller.canEditMedicines
+                              ? (item) =>
+                                  controller.deleteMedication(context, item)
+                              : null,
+                          onDiscontinue: controller.canEditMedicines
+                              ? (item) => controller.discontinueMedication(
+                                    context,
+                                    item,
+                                  )
                               : null,
                           onGive: controller.givePrn,
                           onOpenChart: (item) {
@@ -258,13 +276,23 @@ class StaffMedicationPage extends StatelessWidget {
                           },
                         ),
                     },
-                    StaffMedicationSideCards(
-                      overview: overview,
-                      onReviewAllMissed: controller.reviewAllMissed,
-                      onChartDue: canWrite
-                          ? (dose) => controller.markAdministered(dose.id)
-                          : null,
-                    ),
+                    // Web right column — once under MAR / PRN registry only.
+                    if (controller.selectedTab.value ==
+                            StaffMedicationTab.mar ||
+                        controller.selectedTab.value ==
+                            StaffMedicationTab.prn) ...[
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 12),
+                      ),
+                      StaffMedicationSideCards(
+                        overview: overview,
+                        onReviewAllMissed: controller.reviewAllMissed,
+                        onChartDue: canWrite
+                            ? (dose) => controller.markAdministered(dose.id)
+                            : null,
+                      ),
+                    ],
                   ],
                 ),
               ),

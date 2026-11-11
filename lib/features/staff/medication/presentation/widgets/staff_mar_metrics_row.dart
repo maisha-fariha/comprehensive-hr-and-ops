@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../hr/medication/presentation/medication_labels.dart';
 import '../../domain/entities/staff_medication_overview.dart';
 
-/// Web-parity metric strip: Scheduled / Administered / Missed / Compliance.
+/// Compact web KPI strip: Scheduled / Administered / Missed / Compliance.
 class StaffMarMetricsRow extends StatelessWidget {
   final StaffMedicationOverview overview;
 
@@ -14,125 +15,147 @@ class StaffMarMetricsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final gap = ResponsiveHelper.getResponsiveWidth(context, 8);
     final compliance = overview.complianceRate;
-    final complianceLabel =
-        compliance == null ? '—' : '${compliance.round()}%';
+    final tiles = [
+      _Tile(
+        key: const ValueKey('mar-kpi-scheduled'),
+        icon: Icons.event_note_rounded,
+        tone: MarTone.info,
+        value: '${overview.scheduledCount}',
+        label: 'Scheduled',
+        caption: 'today',
+      ),
+      _Tile(
+        key: const ValueKey('mar-kpi-administered'),
+        icon: Icons.check_circle_outline_rounded,
+        tone: MarTone.success,
+        value: '${overview.administeredCount}',
+        label: 'Administered',
+        caption: overview.unscheduledCount > 0
+            ? '${overview.unscheduledCount} extra'
+            : 'on round',
+        captionTone: true,
+      ),
+      _Tile(
+        key: const ValueKey('mar-kpi-missed'),
+        icon: Icons.warning_amber_rounded,
+        tone: MarTone.danger,
+        value: '${overview.missedOrOverdueCount}',
+        label: 'Missed',
+        caption: 'follow-up',
+        captionTone: true,
+      ),
+      _Tile(
+        key: const ValueKey('mar-kpi-compliance'),
+        icon: Icons.percent_rounded,
+        tone: MarTone.purple,
+        value: compliance == null ? '—' : '${compliance.round()}%',
+        label: 'Compliance',
+        caption: 'today',
+      ),
+    ];
 
-    return Wrap(
-      spacing: gap,
-      runSpacing: gap,
+    return Column(
       children: [
-        _MetricCard(
-          label: 'Scheduled Today',
-          value: '${overview.scheduledCount}',
-          subtitle: 'across all residences',
-          accent: AppColors.secondaryTeal,
-        ),
-        _MetricCard(
-          label: 'Administered',
-          value: '${overview.administeredCount}',
-          subtitle: overview.unscheduledCount > 0
-              ? '${overview.unscheduledCount} outside a round'
-              : 'all on the round',
-          accent: const Color(0xFF059669),
-        ),
-        _MetricCard(
-          label: 'Missed / Overdue',
-          value: '${overview.missedOrOverdueCount}',
-          subtitle: 'requires follow-up',
-          accent: AppColors.criticalRed,
-        ),
-        _MetricCard(
-          label: 'Compliance Rate',
-          value: complianceLabel,
-          subtitle: "of today's scheduled doses",
-          accent: AppColors.textMuted,
-        ),
+        for (var i = 0; i < tiles.length; i += 2) ...[
+          if (i > 0) SizedBox(height: gap),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: tiles[i]),
+                SizedBox(width: gap),
+                Expanded(child: tiles[i + 1]),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  final String label;
+class _Tile extends StatelessWidget {
+  final IconData icon;
+  final MarTone tone;
   final String value;
-  final String subtitle;
-  final Color accent;
+  final String label;
+  final String caption;
+  final bool captionTone;
 
-  const _MetricCard({
-    required this.label,
+  const _Tile({
+    super.key,
+    required this.icon,
+    required this.tone,
     required this.value,
-    required this.subtitle,
-    required this.accent,
+    required this.label,
+    required this.caption,
+    this.captionTone = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final width = (MediaQuery.sizeOf(context).width -
-            ResponsiveHelper.getResponsiveWidth(context, 40) -
-            ResponsiveHelper.getResponsiveWidth(context, 8)) /
-        2;
-
     return Container(
-      width: width.clamp(140, 220),
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 12,
-        vertical: 12,
-      ),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 14),
-        ),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.cardBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: tone.background,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 14, color: tone.foreground),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                    color: AppColors.textHeading,
+                    height: 1.1,
+                  ),
+                ),
+                Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                    height: 1.2,
+                  ),
+                ),
+                Text(
+                  caption,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 11),
-                    color: AppColors.textMuted,
+                    fontWeight:
+                        captionTone ? FontWeight.w600 : FontWeight.w400,
+                    fontSize: 10.5,
+                    color: captionTone ? tone.foreground : AppColors.textMuted,
+                    height: 1.2,
                   ),
                 ),
-              ),
-            ],
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-          Text(
-            value,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w800,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 22),
-              color: AppColors.textHeading,
-              height: 1,
-            ),
-          ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
-          Text(
-            subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 11),
-              color: AppColors.textMuted,
+              ],
             ),
           ),
         ],

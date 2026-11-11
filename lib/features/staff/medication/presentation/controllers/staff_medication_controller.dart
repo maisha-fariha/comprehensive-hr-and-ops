@@ -16,6 +16,7 @@ import '../../domain/entities/staff_med_options.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/entities/staff_medication_overview.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
+import '../../../../hr/medication/presentation/widgets/medication_common.dart';
 import '../widgets/staff_add_medicine_sheet.dart';
 import '../widgets/staff_record_administration_dialog.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
@@ -341,6 +342,105 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     }
     final saved = await StaffAddMedicineSheet.show(context, editing: item);
     if (saved == true) await loadOverview();
+  }
+
+  StaffClientMedicationItem? medicationForDose(DueDose dose) {
+    for (final m in dose.isPrn ? prnItems : medications) {
+      if (m.id == dose.medicationId) return m;
+    }
+    return null;
+  }
+
+  /// Web Delete on a MAR registry row.
+  Future<void> deleteDose(BuildContext context, DueDose dose) async {
+    final match = medicationForDose(dose);
+    if (match == null) {
+      AppSnackbar.show(notInList, '');
+      return;
+    }
+    await deleteMedication(context, match);
+  }
+
+  /// Web Discontinue on a MAR registry row.
+  Future<void> discontinueDose(BuildContext context, DueDose dose) async {
+    final match = medicationForDose(dose);
+    if (match == null) {
+      AppSnackbar.show(notInList, '');
+      return;
+    }
+    await discontinueMedication(context, match);
+  }
+
+  Future<void> deleteMedication(
+    BuildContext context,
+    StaffClientMedicationItem item,
+  ) async {
+    if (!canEditMedicines) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot delete prescription',
+        message: 'Deleting medicines needs mar:write permission.',
+      );
+      return;
+    }
+    final ok = await showMarConfirm(
+      context,
+      title: 'Delete this prescription?',
+      description:
+          'It leaves the register. The prescription and the rounds already signed for are kept rather than destroyed, so it can be restored.',
+      confirmLabel: 'Delete',
+    );
+    if (!ok) return;
+    final result = item.isPrn
+        ? await repository.deletePrnMedication(item.id)
+        : await repository.deleteMedication(item.id);
+    result.when(
+      success: (_) async {
+        AppSnackbar.show('Prescription deleted', '');
+        await loadOverview();
+      },
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not delete prescription',
+        );
+      },
+    );
+  }
+
+  Future<void> discontinueMedication(
+    BuildContext context,
+    StaffClientMedicationItem item,
+  ) async {
+    if (!canEditMedicines) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot discontinue',
+        message: 'Discontinuing medicines needs mar:write permission.',
+      );
+      return;
+    }
+    final ok = await showMarConfirm(
+      context,
+      title: 'Stop giving ${item.name}?',
+      description:
+          'It stops appearing here and cannot be charted again. The record and every dose already given are kept, though this list only shows medicines still in use.',
+      confirmLabel: 'Discontinue',
+    );
+    if (!ok) return;
+    final result = item.isPrn
+        ? await repository.discontinuePrnMedication(item.id)
+        : await repository.discontinueMedication(item.id);
+    result.when(
+      success: (_) async {
+        AppSnackbar.show('Discontinued — it stays on file', '');
+        await loadOverview();
+      },
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not discontinue',
+        );
+      },
+    );
   }
 
   void selectTab(StaffMedicationTab tab) {

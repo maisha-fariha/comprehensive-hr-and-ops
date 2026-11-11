@@ -308,6 +308,22 @@ class _FakeRepo implements StaffMedicationRepository {
       Result.success(null);
 
   @override
+  Future<Result<void>> deleteMedication(String id) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> discontinueMedication(String id) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> deletePrnMedication(String id) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> discontinuePrnMedication(String id) async =>
+      Result.success(null);
+
+  @override
   Future<Result<void>> recordAdministration({
     required String clientId,
     required String residenceId,

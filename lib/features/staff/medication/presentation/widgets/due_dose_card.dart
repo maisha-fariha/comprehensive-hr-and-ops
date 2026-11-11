@@ -1,32 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../hr/medication/presentation/medication_labels.dart';
 import '../../domain/entities/due_dose.dart';
-import '../../domain/entities/staff_medication_enums.dart';
 import '../../staff_medication_constants.dart';
-import 'status_by_row.dart';
 
-/// A single dose card in the "Due" tab (Due Now / Later Today).
+/// Web MAR Administration Registry row as a stacked mobile card.
 class DueDoseCard extends StatelessWidget {
   final DueDose dose;
   final VoidCallback onAdminister;
   final VoidCallback onNotGiven;
   final VoidCallback? onOpenClientMedications;
   final bool canWrite;
-
-  /// Web "Edit prescription" (`mar:write`).
   final VoidCallback? onEdit;
-
-  /// Who signed a charted dose (footer "by …").
+  final VoidCallback? onDelete;
+  final VoidCallback? onDiscontinue;
   final String administeredByName;
-
-  static const Color _titleColor = Color(0xFF1A2B48);
-  static const Color _metaColor = Color(0xFF7E8B9A);
-  static const Color _accentGreen = Color(0xFF2D8A56);
-  static const Color _notGivenBorder = Color(0xFFE5E9EF);
 
   const DueDoseCard({
     super.key,
@@ -36,6 +25,8 @@ class DueDoseCard extends StatelessWidget {
     this.onOpenClientMedications,
     this.canWrite = true,
     this.onEdit,
+    this.onDelete,
+    this.onDiscontinue,
     this.administeredByName = 'you',
   });
 
@@ -53,326 +44,182 @@ class DueDoseCard extends StatelessWidget {
 
   String get _stateLabel => _stateLabels[dose.state] ?? dose.state;
 
-  ({Color fg, Color bg}) get _stateTone => switch (dose.state) {
-        'given' => (fg: AppColors.activeGreen, bg: AppColors.activeBackground),
-        'late' ||
-        'refused' =>
-          (fg: AppColors.urgentAmber, bg: AppColors.urgentBackground),
-        'due' ||
-        'withheld' =>
-          (fg: AppColors.infoBlue, bg: AppColors.infoBackground),
-        'overdue' ||
-        'missed' ||
-        'not_available' =>
-          (fg: AppColors.criticalRed, bg: AppColors.criticalBackgroundSoft),
-        _ => (
-            fg: AppColors.textSecondary,
-            bg: AppColors.filterButtonBackground,
-          ),
-      };
-
-  String get _routeLabel =>
-      StaffMedicationConstants.routeLabel(dose.route).replaceAll(' · ', '  •  ');
-
   @override
   Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 20);
-    final avatarSize = ResponsiveHelper.getResponsiveSize(context, 44);
-    final avatarStyle = StaffMedicationConstants.avatarStyle(dose.avatarColor);
+    final avatar = StaffMedicationConstants.avatarStyle(dose.avatarColor);
+    final tone = MedicationLabels.stateTone(dose.state);
+    final schedule = dose.isPrn
+        ? 'PRN'
+        : [
+            if (dose.slotLabel.isNotEmpty) dose.slotLabel,
+            if (dose.timeLabel.isNotEmpty) dose.timeLabel,
+          ].join(' · ');
+    final lastAdmin = dose.administeredAt == null
+        ? '—'
+        : MedicationLabels.time(dose.administeredAt!);
 
-    return Container(
-      width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AppColors.cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowNavy.withValues(alpha: 0.05),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 4)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 12),
+    return Material(
+      color: AppColors.surfaceWhite,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpenClientMedications ?? onAdminister,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.cardBorder),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: onOpenClientMedications,
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: avatarSize,
-                  height: avatarSize,
-                  decoration: BoxDecoration(
-                    color: avatarStyle.background,
-                    borderRadius: BorderRadius.circular(
-                      ResponsiveHelper.getResponsiveRadius(context, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: avatar.background,
+                      shape: BoxShape.circle,
                     ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    dose.residentInitials,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize:
-                          ResponsiveHelper.getResponsiveFontSize(context, 14),
-                      color: avatarStyle.foreground,
-                      height: 1,
-                    ),
-                  ),
-                ),
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        dose.residentName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            14,
-                          ),
-                          color: _titleColor,
-                          height: 1.25,
-                        ),
-                      ),
-                      SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 3),
-                      ),
-                      Text(
-                        '${dose.medicationName} ${dose.dose}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            14,
-                          ),
-                          color: _titleColor,
-                          height: 1.25,
-                        ),
-                      ),
-                      SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 3),
-                      ),
-                      Text(
-                        dose.isPrn ? 'PRN  •  $_routeLabel' : _routeLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w400,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            12.5,
-                          ),
-                          color: _metaColor,
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (dose.slotLabel.isNotEmpty)
-                      Text(
-                        dose.slotLabel,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w600,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            11.5,
-                          ),
-                          color: _metaColor,
-                          height: 1.2,
-                        ),
-                      ),
-                    Text(
-                      dose.timeLabel,
+                    child: Text(
+                      dose.residentInitials.isEmpty
+                          ? '?'
+                          : dose.residentInitials,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
-                        fontSize:
-                            ResponsiveHelper.getResponsiveFontSize(context, 13),
-                        color: _accentGreen,
-                        height: 1.2,
+                        fontSize: 12,
+                        color: avatar.foreground,
                       ),
                     ),
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
-                    ),
-                    Container(
-                      key: ValueKey('staff-mar-state-${dose.id}'),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _stateTone.bg,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        _stateLabel.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            10.5,
-                          ),
-                          color: _stateTone.fg,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (dose.residenceName.isNotEmpty) ...[
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-            Text(
-              dose.residenceName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w500,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                color: _metaColor,
-              ),
-            ),
-          ],
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-          _buildActionArea(context),
-          if (onEdit != null)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                key: ValueKey('staff-mar-edit-${dose.id}'),
-                onPressed: onEdit,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.secondaryTeal,
-                ),
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text(
-                  'Edit prescription',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.5,
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      dose.residentName.isEmpty
+                          ? 'Resident'
+                          : dose.residentName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppColors.primaryNavy,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: tone.background,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      _stateLabel.toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10.5,
+                        color: tone.foreground,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionArea(BuildContext context) {
-    switch (dose.status) {
-      case DueDoseStatus.upcoming:
-      case DueDoseStatus.pending:
-        if (!canWrite) {
-          return Text(
-            dose.isPrn
-                ? 'View only — PRN needs medication-admin certification.'
-                : 'View only — administering needs mar:write permission.',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w500,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-              color: _metaColor,
-            ),
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: _AdministerButton(onTap: onAdminister)),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-            Expanded(child: _NotGivenButton(onTap: onNotGiven)),
-          ],
-        );
-      case DueDoseStatus.administered:
-        return StatusByRow(
-          label: _stateLabels.containsKey(dose.state)
-              ? _stateLabel
-              : 'Administered',
-          byName: administeredByName,
-          background: AppColors.activeBackground,
-          foreground: AppColors.activeGreen,
-          svgAsset: AppAssets.checkCircle,
-        );
-      case DueDoseStatus.notGiven:
-        return StatusByRow(
-          label: _stateLabels.containsKey(dose.state) ? _stateLabel : 'Not Given',
-          byName: administeredByName,
-          background: AppColors.criticalBackground,
-          foreground: AppColors.criticalRed,
-          materialIcon: Icons.cancel_rounded,
-        );
-    }
-  }
-}
-
-class _AdministerButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _AdministerButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(radius),
-        child: Ink(
-          height: ResponsiveHelper.getResponsiveHeight(context, 44),
-          decoration: BoxDecoration(
-            color: DueDoseCard._accentGreen,
-            borderRadius: BorderRadius.circular(radius),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AppSvgIcon(
-                'assets/icons/staff_medication/check.svg',
-                size: ResponsiveHelper.getResponsiveSize(context, 16),
-                color: Colors.white,
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: avatar.foreground,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      dose.medicationName.isEmpty
+                          ? 'Medication'
+                          : dose.medicationName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-              Text(
-                'Administer',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: Colors.white,
-                  height: 1,
+              const SizedBox(height: 10),
+              _metaGrid([
+                (
+                  'Residence',
+                  dose.residenceName.isEmpty ? '—' : dose.residenceName,
                 ),
+                ('Dosage', dose.dose.isEmpty ? '—' : dose.dose),
+                (
+                  dose.isPrn ? 'Type' : 'Schedule',
+                  schedule.isEmpty ? '—' : schedule,
+                ),
+                ('Last Admin', lastAdmin),
+                if (!dose.isPrn)
+                  (
+                    'Next Due',
+                    dose.timeLabel.isEmpty ? '—' : dose.timeLabel,
+                  ),
+              ]),
+              const SizedBox(height: 6),
+              const Divider(height: 1, color: AppColors.cardBorder),
+              // Web order: View · Record · Delete · Edit · Discontinue.
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _Action(
+                    key: ValueKey('mar-view-${dose.id}'),
+                    icon: Icons.visibility_outlined,
+                    label: 'View',
+                    onTap: onOpenClientMedications ?? onAdminister,
+                  ),
+                  if (canWrite)
+                    _Action(
+                      key: ValueKey('mar-chart-${dose.id}'),
+                      icon: Icons.vaccines_outlined,
+                      label: 'Record administration',
+                      onTap: onAdminister,
+                    ),
+                  if (canWrite && onDelete != null)
+                    _Action(
+                      key: ValueKey('mar-delete-${dose.id}'),
+                      icon: Icons.delete_outline_rounded,
+                      label: 'Delete prescription',
+                      danger: true,
+                      onTap: onDelete!,
+                    ),
+                  if (onEdit != null)
+                    _Action(
+                      key: ValueKey('mar-edit-${dose.id}'),
+                      icon: Icons.edit_outlined,
+                      label: 'Edit prescription',
+                      onTap: onEdit!,
+                    ),
+                  if (canWrite && onDiscontinue != null)
+                    _Action(
+                      key: ValueKey('mar-discontinue-${dose.id}'),
+                      icon: Icons.block_rounded,
+                      label: 'Discontinue',
+                      onTap: onDiscontinue!,
+                    ),
+                ],
               ),
             ],
           ),
@@ -380,41 +227,85 @@ class _AdministerButton extends StatelessWidget {
       ),
     );
   }
+
+  Widget _metaGrid(List<(String, String)> cells) {
+    return Column(
+      children: [
+        for (var i = 0; i < cells.length; i += 2)
+          Padding(
+            padding: EdgeInsets.only(bottom: i + 2 < cells.length ? 8 : 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _metaCell(cells[i])),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: i + 1 < cells.length
+                      ? _metaCell(cells[i + 1])
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _metaCell((String, String) cell) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          cell.$1.toUpperCase(),
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: 10.5,
+            letterSpacing: 0.3,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          cell.$2,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+            color: AppColors.textHeading,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _NotGivenButton extends StatelessWidget {
+class _Action extends StatelessWidget {
+  final IconData icon;
+  final String label;
   final VoidCallback onTap;
+  final bool danger;
 
-  const _NotGivenButton({required this.onTap});
+  const _Action({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(radius),
-        child: Ink(
-          height: ResponsiveHelper.getResponsiveHeight(context, 44),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceWhite,
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(color: DueDoseCard._notGivenBorder),
-          ),
-          child: Center(
-            child: Text(
-              'Not Given',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                color: DueDoseCard._titleColor,
-                height: 1,
-              ),
-            ),
-          ),
+    return Tooltip(
+      message: label,
+      child: IconButton(
+        onPressed: onTap,
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        icon: Icon(
+          icon,
+          size: 18,
+          color: danger ? AppColors.criticalRed : AppColors.textSecondary,
         ),
       ),
     );

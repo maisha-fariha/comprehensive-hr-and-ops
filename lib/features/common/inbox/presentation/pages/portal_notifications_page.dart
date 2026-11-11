@@ -316,15 +316,14 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
       ];
     }
 
-    // Web bell: Priority Alerts (amber) + General Activity.
-    final priority = [...critical, ...high];
-    if (priority.isEmpty) {
-      return [
-        ...block('GENERAL ACTIVITY', AppColors.textSecondary, normal),
-      ];
-    }
+    // Web bell: Life-Safety (critical) · Priority Alerts (high) · General.
     return [
-      ...block('PRIORITY ALERTS', AppColors.urgentAmber, priority),
+      ...block(
+        'LIFE-SAFETY & EMERGENCY',
+        AppColors.criticalRed,
+        critical,
+      ),
+      ...block('PRIORITY ALERTS', AppColors.urgentAmber, high),
       ...block('GENERAL ACTIVITY', AppColors.textSecondary, normal),
     ];
   }
@@ -332,15 +331,29 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
   Widget _tile(BuildContext context, PortalNotification item) {
     final label = (item.eventLabel ?? '').trim();
     final when = item.createdAt == null ? item.timeLabel : _ago(item.createdAt!);
-    final priority = _band(item) != _Band.normal;
-    final bg = priority
-        ? (item.isRead ? const Color(0xFFFFF8ED) : const Color(0xFFFFF1DC))
-        : (item.isRead ? Colors.white : const Color(0xFFF4F7FB));
-    final border = priority
-        ? const Border(left: BorderSide(color: AppColors.urgentAmber, width: 3))
-        : null;
-    final dotColor =
-        priority ? AppColors.urgentAmber : AppColors.primaryNavy;
+    final band = _band(item);
+    final critical = band == _Band.critical;
+    final priority = band == _Band.high;
+    final alert = critical || priority;
+    final bg = critical
+        ? (item.isRead ? const Color(0xFFFEECEC) : const Color(0xFFFDE8E8))
+        : priority
+            ? (item.isRead ? const Color(0xFFFFF8ED) : const Color(0xFFFFF1DC))
+            : (item.isRead ? Colors.white : const Color(0xFFF4F7FB));
+    final border = critical
+        ? const Border(left: BorderSide(color: AppColors.criticalRed, width: 3))
+        : priority
+            ? const Border(
+                left: BorderSide(color: AppColors.urgentAmber, width: 3),
+              )
+            : null;
+    final accent =
+        critical ? AppColors.criticalRed : AppColors.urgentAmber;
+    final dotColor = critical
+        ? AppColors.criticalRed
+        : priority
+            ? AppColors.urgentAmber
+            : AppColors.primaryNavy;
     return Material(
       color: bg,
       borderRadius: BorderRadius.circular(12),
@@ -356,13 +369,15 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (priority) ...[
-                const Padding(
-                  padding: EdgeInsets.only(top: 2, right: 8),
+              if (alert) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 2, right: 8),
                   child: Icon(
-                    Icons.warning_amber_rounded,
+                    critical
+                        ? Icons.emergency_rounded
+                        : Icons.warning_amber_rounded,
                     size: 16,
-                    color: AppColors.urgentAmber,
+                    color: accent,
                   ),
                 ),
               ] else ...[
@@ -402,9 +417,7 @@ class _PortalNotificationsPageState extends State<PortalNotificationsPage> {
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.3,
-                              color: priority
-                                  ? AppColors.urgentAmber
-                                  : AppColors.textSecondary,
+                              color: alert ? accent : AppColors.textSecondary,
                             ),
                           ),
                         ),

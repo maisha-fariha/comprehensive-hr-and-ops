@@ -4,6 +4,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/due_dose.dart';
 import '../../domain/entities/staff_medication_overview.dart';
+import '../../staff_medication_constants.dart';
 
 /// Web-parity metric strip: Scheduled / Administered / Missed-Overdue / Compliance.
 ///
@@ -267,6 +268,7 @@ class _DueNowRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatar = StaffMedicationConstants.avatarStyle(dose.avatarColor);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -279,22 +281,37 @@ class _DueNowRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  dose.residentName.isEmpty ? 'Resident' : dose.residentName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: AppColors.textHeading,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: avatar.foreground,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        dose.medicationName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: AppColors.primaryNavy,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
                   [
-                    dose.medicationName,
-                    if (dose.dose.isNotEmpty) dose.dose,
+                    dose.residentName.isEmpty ? 'Resident' : dose.residentName,
+                    if (dose.residenceName.isNotEmpty) dose.residenceName,
                     if (dose.timeLabel.isNotEmpty) dose.timeLabel,
                   ].join(' · '),
                   maxLines: 2,
@@ -309,15 +326,16 @@ class _DueNowRow extends StatelessWidget {
             ),
           ),
           if (onChart != null)
-            TextButton(
+            TextButton.icon(
               onPressed: () => onChart!(dose),
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.secondaryTeal,
+                foregroundColor: AppColors.primaryNavy,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text(
+              icon: const Icon(Icons.edit_outlined, size: 14),
+              label: const Text(
                 'Record',
                 style: TextStyle(
                   fontFamily: 'Outfit',
@@ -459,11 +477,11 @@ class StaffMedicationActionRow extends StatelessWidget {
               key: const Key('staff-mar-record-admin'),
               onPressed: canWrite ? onRecordAdministration : null,
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.secondaryTeal,
+                backgroundColor: AppColors.primaryNavy,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              icon: const Icon(Icons.medication_liquid_outlined, size: 18),
+              icon: const Icon(Icons.vaccines_outlined, size: 18),
               label: const Text(
                 'Record Administration',
                 style: TextStyle(
@@ -479,8 +497,9 @@ class StaffMedicationActionRow extends StatelessWidget {
             key: const Key('staff-mar-add-medicine'),
             onPressed: canWrite ? onAddMedicine : null,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.secondaryTeal,
-              side: const BorderSide(color: AppColors.secondaryTeal),
+              foregroundColor: AppColors.primaryNavy,
+              side: const BorderSide(color: AppColors.cardBorder),
+              backgroundColor: AppColors.surfaceWhite,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
             icon: const Icon(Icons.add, size: 18),

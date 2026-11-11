@@ -43,7 +43,14 @@ abstract final class PortalInboxMapper {
       json['createdAt'] ?? json['sentAt'] ?? json['updatedAt'],
     );
     final metaRaw = json['metaJson'] ?? json['meta'];
-    final meta = _metaMap(metaRaw);
+    final meta = Map<String, dynamic>.from(_metaMap(metaRaw));
+    // Web bell: `severity || metaJson.severity` — keep top-level on meta.
+    final topSeverity = JsonCodec.string(json['severity']);
+    if (topSeverity != null &&
+        topSeverity.isNotEmpty &&
+        meta['severity'] == null) {
+      meta['severity'] = topSeverity;
+    }
     final rawBody = JsonCodec.stringOr(
       json['body'] ?? json['message'] ?? json['text'],
       '',
