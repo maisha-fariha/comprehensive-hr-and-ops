@@ -39,6 +39,12 @@ abstract class AttendanceRepository {
   /// `POST /attendance/check-out`.
   Future<Result<void>> clockOut(Map<String, dynamic> body);
 
+  /// `POST /attendance/break/start` with `{ residenceId }` for the open punch.
+  Future<Result<void>> startBreak({required String residenceId});
+
+  /// `POST /attendance/break/end` with `{ residenceId }` for the open punch.
+  Future<Result<void>> endBreak({required String residenceId});
+
   /// Clock photo upload (`POST /uploads?category=attendance-selfies`).
   Future<Result<String>> uploadSelfie(String localPath, String fileName);
 

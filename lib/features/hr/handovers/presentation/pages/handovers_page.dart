@@ -18,7 +18,15 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart
 
 /// Manager "Shift Handovers" — mirrors web `/dashboard/handovers`.
 class HandoversPage extends StatefulWidget {
-  const HandoversPage({super.key});
+  /// Set from clock-out "Write it" so the record form opens for that shift.
+  final String? focusShiftId;
+  final String? focusResidenceId;
+
+  const HandoversPage({
+    super.key,
+    this.focusShiftId,
+    this.focusResidenceId,
+  });
 
   @override
   State<HandoversPage> createState() => _HandoversPageState();
@@ -26,11 +34,38 @@ class HandoversPage extends StatefulWidget {
 
 class _HandoversPageState extends State<HandoversPage> {
   late final HandoversController _c;
+  bool _openedFocus = false;
 
   @override
   void initState() {
     super.initState();
     _c = Get.put(GetIt.instance<HandoversController>());
+    final shiftId = widget.focusShiftId?.trim() ?? '';
+    if (shiftId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openFocusedShift());
+    }
+  }
+
+  /// Web "Write it" lands on Shift Handovers and records this shift.
+  Future<void> _openFocusedShift() async {
+    if (!mounted || _openedFocus) return;
+    _openedFocus = true;
+    final shiftId = widget.focusShiftId!.trim();
+    final residenceId = widget.focusResidenceId?.trim();
+    if (residenceId != null && residenceId.isNotEmpty) {
+      _c.residenceId.value = residenceId;
+    }
+    await _c.load();
+    if (!mounted) return;
+    final mine = _c.handovers.where((h) => h.fromShiftId == shiftId);
+    if (mine.any((h) => h.status == 'draft')) return;
+    if (mine.isNotEmpty) return;
+    await showRecordHandoverSheet(
+      context,
+      controller: _c,
+      initialResidenceId: residenceId,
+      initialFromShiftId: shiftId,
+    );
   }
 
   @override

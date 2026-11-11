@@ -31,8 +31,8 @@ class StaffMarMetricsRow extends StatelessWidget {
         value: '${overview.administeredCount}',
         label: 'Administered',
         caption: overview.unscheduledCount > 0
-            ? '${overview.unscheduledCount} extra'
-            : 'on round',
+            ? '${overview.unscheduledCount} outside a round'
+            : 'all on the round',
         captionTone: true,
       ),
       _Tile(

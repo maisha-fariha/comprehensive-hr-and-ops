@@ -155,6 +155,14 @@ class _FakeAttendanceRepo implements AttendanceRepository {
   }
 
   @override
+  Future<Result<void>> startBreak({required String residenceId}) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> endBreak({required String residenceId}) async =>
+      Result.success(null);
+
+  @override
   Future<Result<String>> uploadSelfie(String localPath, String fileName) async =>
       Result.success('/api/v1/files/attendance-selfies/$fileName');
 

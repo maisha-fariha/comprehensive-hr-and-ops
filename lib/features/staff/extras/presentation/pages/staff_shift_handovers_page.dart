@@ -18,7 +18,15 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 class StaffShiftHandoversPage extends StatefulWidget {
-  const StaffShiftHandoversPage({super.key});
+  /// Set from clock-out "Write it" so the record form opens for that shift.
+  final String? focusShiftId;
+  final String? focusResidenceId;
+
+  const StaffShiftHandoversPage({
+    super.key,
+    this.focusShiftId,
+    this.focusResidenceId,
+  });
 
   @override
   State<StaffShiftHandoversPage> createState() =>
@@ -42,12 +50,27 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
   DateTime? _startDate;
   DateTime? _endDate;
 
+  bool _openedFocus = false;
+
   @override
   void initState() {
     super.initState();
     _repository = GetIt.instance<StaffExtrasRepository>();
     _session = Get.find<UserSession>();
     _bootstrap();
+    final shiftId = widget.focusShiftId?.trim() ?? '';
+    if (shiftId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openFocusedShift());
+    }
+  }
+
+  Future<void> _openFocusedShift() async {
+    if (!mounted || _openedFocus) return;
+    _openedFocus = true;
+    await _createHandover(
+      shiftId: widget.focusShiftId,
+      residenceId: widget.focusResidenceId,
+    );
   }
 
   Future<void> _bootstrap() async {
@@ -150,13 +173,18 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
 
   /// Same web Record Handover sheet managers use. Role differences come from
   /// my-shifts vs residence shifts (`on behalf`), not a separate form.
-  Future<void> _createHandover() async {
+  Future<void> _createHandover({String? shiftId, String? residenceId}) async {
     const tag = 'staff-record-handover';
     final owned = !Get.isRegistered<HandoversController>(tag: tag);
     final controller = owned
         ? Get.put(GetIt.instance<HandoversController>(), tag: tag)
         : Get.find<HandoversController>(tag: tag);
-    await showRecordHandoverSheet(context, controller: controller);
+    await showRecordHandoverSheet(
+      context,
+      controller: controller,
+      initialFromShiftId: shiftId,
+      initialResidenceId: residenceId,
+    );
     if (owned && Get.isRegistered<HandoversController>(tag: tag)) {
       Get.delete<HandoversController>(tag: tag);
     }

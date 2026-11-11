@@ -542,11 +542,32 @@ class AppApiClient implements OutboxTransport {
             );
           }
           final refreshError = refreshFailure;
-          // 429 / network / 5xx: keep the current tokens and surface that
-          // failure. Only a 401 from the refresh call itself signs the user out.
+          // The server asked us to wait. Keep the session, do not show a
+          // warning, and try the call again with the token already stored.
+          if (refreshError != null && _isRateLimited(refreshError)) {
+            final again = await request();
+            if (again.success) {
+              _connectivity?.reportReachable();
+              if (canCache) {
+                await _cache?.put(
+                  method: method,
+                  path: path,
+                  query: query,
+                  body: again.data,
+                );
+              }
+              return Result.success(again.data);
+            }
+            if (method == 'GET' && canCache) {
+              final cached = await _readCache(method, path, query);
+              if (cached != null) return Result.success(cached);
+            }
+            return Result.failure(rawError);
+          }
+          // Network / 5xx on refresh: keep the tokens. Only a 401 from the
+          // refresh call itself signs the user out.
           if (refreshError != null &&
-              (AppErrorMapper.isTransient(refreshError) ||
-                  _isRateLimited(refreshError))) {
+              AppErrorMapper.isTransient(refreshError)) {
             await _showError(
               refreshError,
               silent: silent || AppErrorDialog.holdingTransient,
@@ -582,9 +603,12 @@ class AppApiClient implements OutboxTransport {
           );
           return Result.success(queued.response);
         }
+        // 5xx / timeout: never block the screen with a modal. AppErrorDialog
+        // turns these into a short notice (or nothing while starting up).
         await _showError(
           error,
           silent: silent ||
+              AppErrorMapper.isTransient(error) ||
               (outbox != null &&
                   _isBackgroundPath(path) &&
                   _isOfflineError(error)),
@@ -631,6 +655,7 @@ class AppApiClient implements OutboxTransport {
       await _showError(
         mapped,
         silent: silent ||
+            AppErrorMapper.isTransient(mapped) ||
             (outbox != null &&
                 _isBackgroundPath(path) &&
                 _isOfflineError(mapped)),

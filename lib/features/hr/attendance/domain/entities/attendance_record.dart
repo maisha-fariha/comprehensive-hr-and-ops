@@ -182,9 +182,16 @@ class OpenAttendance {
   final String residenceId;
   final String? residenceName;
 
+  /// When the current unpaid break started. Null when not on break.
+  /// Web uses this (not a separate onBreak flag) for Start/End break.
+  final DateTime? breakStartedAt;
+
   const OpenAttendance({
     required this.id,
     required this.residenceId,
     this.residenceName,
+    this.breakStartedAt,
   });
+
+  bool get isOnBreak => breakStartedAt != null;
 }

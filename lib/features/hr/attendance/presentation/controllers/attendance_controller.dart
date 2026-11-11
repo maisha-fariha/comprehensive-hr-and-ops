@@ -42,6 +42,7 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
       <ManualEntryResidenceOption>[].obs;
   final Rxn<OpenAttendance> myOpenAttendance = Rxn<OpenAttendance>();
   final RxnString busyId = RxnString();
+  final RxBool breakBusy = false.obs;
 
   /// Web Attendance | Time-Off Requests segment.
   final Rx<AttendanceMainTab> mainTab = AttendanceMainTab.records.obs;
@@ -249,6 +250,38 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
       success: (value) => myOpenAttendance.value = value,
       failure: (_) {},
     );
+  }
+
+  /// Web header Start break / End break for the signed-in user's open punch.
+  Future<void> toggleBreak() async {
+    final open = myOpenAttendance.value;
+    if (!canWrite || open == null || breakBusy.value) return;
+    breakBusy.value = true;
+    try {
+      final result = open.isOnBreak
+          ? await _repository.endBreak(residenceId: open.residenceId)
+          : await _repository.startBreak(residenceId: open.residenceId);
+      var ok = false;
+      result.when(
+        success: (_) {
+          ok = true;
+          AppSnackbar.show(
+            'Attendance',
+            open.isOnBreak ? 'Break ended.' : 'Break started.',
+          );
+        },
+        failure: (error) => AppSnackbar.show('Attendance', error.message),
+      );
+      if (ok) {
+        await Future.wait([
+          loadMyOpenAttendance(),
+          loadRecords(),
+          loadSummary(),
+        ]);
+      }
+    } finally {
+      breakBusy.value = false;
+    }
   }
 
   Future<void> _loadResidences() async {

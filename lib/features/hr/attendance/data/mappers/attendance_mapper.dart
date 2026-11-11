@@ -113,6 +113,7 @@ abstract final class AttendanceMapper {
         id: id,
         residenceId: residenceId,
         residenceName: JsonCodec.string(residence['name']),
+        breakStartedAt: JsonCodec.dateTime(json['breakStartedAt']),
       );
     }
     return null;

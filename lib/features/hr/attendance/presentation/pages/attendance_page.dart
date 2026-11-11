@@ -167,6 +167,19 @@ class AttendancePage extends StatelessWidget {
         ],
       ),
       if (controller.canWrite) ...[
+        // Web: Start/End break when clocked in, then Clock in/out.
+        if (open != null) ...[
+          _gap(context, 10),
+          _HeaderButton(
+            key: const ValueKey('attendance-break'),
+            label: open.isOnBreak ? 'End break' : 'Start break',
+            icon: open.isOnBreak
+                ? Icons.free_breakfast_outlined
+                : Icons.coffee_outlined,
+            color: AppColors.secondaryTeal,
+            onTap: controller.breakBusy.value ? null : controller.toggleBreak,
+          ),
+        ],
         _gap(context, 10),
         _HeaderButton(
           key: const ValueKey('attendance-clock'),

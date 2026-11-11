@@ -61,7 +61,12 @@ abstract final class AppErrorDialog {
     String? fallbackTitle,
     VoidCallback? onRetry,
   }) {
-    if (holdingTransient && AppErrorMapper.isTransient(error)) {
+    // Network / 5xx is not a rejected session. A blocking "Care home is
+    // unavailable" sheet over a screen that still has data alarms users.
+    if (AppErrorMapper.isTransient(error)) {
+      if (holdingTransient) return Future.value();
+      final info = AppErrorMapper.from(error, fallbackTitle: fallbackTitle);
+      _offlineNotice(info.title, info.message);
       return Future.value();
     }
     final info = AppErrorMapper.from(error, fallbackTitle: fallbackTitle);

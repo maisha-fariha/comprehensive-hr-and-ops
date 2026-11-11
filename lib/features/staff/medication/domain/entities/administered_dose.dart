@@ -69,3 +69,17 @@ class AdministeredDose {
     );
   }
 }
+
+/// `GET /mar/administrations` list + web Given tab badge (`meta.total`).
+@immutable
+class MarAdministrationsList {
+  final List<AdministeredDose> items;
+
+  /// Server `meta.total` — same number the web puts on the Given tab.
+  final int total;
+
+  const MarAdministrationsList({
+    required this.items,
+    required this.total,
+  });
+}

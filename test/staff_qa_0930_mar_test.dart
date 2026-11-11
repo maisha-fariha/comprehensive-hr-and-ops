@@ -174,24 +174,26 @@ class _FakeRepo implements StaffMedicationRepository {
       );
 
   @override
-  Future<Result<List<AdministeredDose>>> listAdministrations({
+  Future<Result<MarAdministrationsList>> listAdministrations({
     String? residenceId,
     int page = 1,
     int limit = 50,
-  }) async =>
-      Result.success(
-        StaffMedicationMapper.administrationsFrom([
-          {
-            'id': 'adm-1',
-            'medication': {'id': _napaId, 'name': 'Napa', 'dose': '500'},
-            'client': {'id': _clientId, 'name': 'Client One'},
-            'residenceId': _residenceId,
-            'administeredByStaff': {'id': _staffId, 'name': 'Abir Hasan'},
-            'administeredAt': '2026-09-30T09:31:00.000Z',
-            'status': 'administered',
-          },
-        ]),
-      );
+  }) async {
+    final items = StaffMedicationMapper.administrationsFrom([
+      {
+        'id': 'adm-1',
+        'medication': {'id': _napaId, 'name': 'Napa', 'dose': '500'},
+        'client': {'id': _clientId, 'name': 'Client One'},
+        'residenceId': _residenceId,
+        'administeredByStaff': {'id': _staffId, 'name': 'Abir Hasan'},
+        'administeredAt': '2026-09-30T09:31:00.000Z',
+        'status': 'administered',
+      },
+    ]);
+    return Result.success(
+      MarAdministrationsList(items: items, total: items.length),
+    );
+  }
 
   @override
   Future<Result<List<StaffClientMedicationItem>>> getClientMedications(

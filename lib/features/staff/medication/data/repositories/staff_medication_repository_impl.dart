@@ -192,26 +192,24 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   }
 
   @override
-  Future<Result<List<AdministeredDose>>> listAdministrations({
+  Future<Result<MarAdministrationsList>> listAdministrations({
     String? residenceId,
     int page = 1,
     int limit = 50,
   }) async {
-    // Web Given tab loads every page; keep filter-only scoping (no session home).
+    // Web Given tab: every page, no status filter; badge = meta.total.
     final filter = residenceId?.trim();
     final residences = await _residenceNameMap();
     final items = <AdministeredDose>[];
     var current = page;
     var totalPages = 1;
+    int? badgeTotal;
     do {
-      // Web Given tab: `status=administered` (excludes missed / refused /
-      // Not Given so those do not inflate the Given count).
       final result = await _api.get(
         ApiEndpoints.marAdministrations,
         query: {
           'page': current,
           'limit': limit < 100 ? 100 : limit,
-          'status': 'administered',
           if (filter != null && filter.isNotEmpty) 'residenceId': filter,
         },
         silent: true,
@@ -222,18 +220,11 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
               const ApiError(message: 'Could not load charted doses.'),
         );
       }
+      final meta = JsonCodec.metaOf(result.value);
+      badgeTotal ??= JsonCodec.integer(meta?['total']);
       for (final row in JsonCodec.unwrapList(result.value)) {
         if (row is! Map) continue;
         final json = JsonCodec.asMap(row);
-        final status =
-            (JsonCodec.string(json['status']) ?? '').toLowerCase().trim();
-        if (status != 'administered' &&
-            status != 'given' &&
-            status != 'late') {
-          continue;
-        }
-        // Corrections replace the prior charted dose — count the live one.
-        if (JsonCodec.string(json['supersededById']) != null) continue;
         final mapped = StaffMedicationMapper.administrationsFrom([json]).first;
         final rid = JsonCodec.string(json['residenceId']);
         final house = mapped.residenceName.isNotEmpty
@@ -245,13 +236,15 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
               : mapped.copyWith(residenceName: house),
         );
       }
-      totalPages = JsonCodec.integerOr(
-        JsonCodec.metaOf(result.value)?['totalPages'],
-        1,
-      );
+      totalPages = JsonCodec.integerOr(meta?['totalPages'], 1);
       current++;
     } while (current <= totalPages && current <= 50);
-    return Result.success(items);
+    return Result.success(
+      MarAdministrationsList(
+        items: items,
+        total: badgeTotal ?? items.length,
+      ),
+    );
   }
 
   @override

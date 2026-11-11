@@ -18,12 +18,18 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 Future<void> showRecordHandoverSheet(
   BuildContext context, {
   required HandoversController controller,
+  String? initialResidenceId,
+  String? initialFromShiftId,
 }) {
   return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => RecordHandoverSheet(controller: controller),
+    builder: (_) => RecordHandoverSheet(
+      controller: controller,
+      initialResidenceId: initialResidenceId,
+      initialFromShiftId: initialFromShiftId,
+    ),
   );
 }
 
@@ -42,7 +48,16 @@ String _describe(HandoverShift s, {bool withResidence = false}) =>
 class RecordHandoverSheet extends StatefulWidget {
   final HandoversController controller;
 
-  const RecordHandoverSheet({super.key, required this.controller});
+  /// Clock-out `HANDOVER_REQUIRED` opens this form for that shift.
+  final String? initialResidenceId;
+  final String? initialFromShiftId;
+
+  const RecordHandoverSheet({
+    super.key,
+    required this.controller,
+    this.initialResidenceId,
+    this.initialFromShiftId,
+  });
 
   @override
   State<RecordHandoverSheet> createState() => _RecordHandoverSheetState();
@@ -82,7 +97,21 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
 
   HandoversController get _c => widget.controller;
 
-  List<HandoverShift> get _shifts => _myShifts.isNotEmpty ? _myShifts : _residenceShifts;
+  String get _pinnedShiftId => widget.initialFromShiftId?.trim() ?? '';
+
+  List<HandoverShift> get _shifts {
+    final base = _myShifts.isNotEmpty ? _myShifts : _residenceShifts;
+    final pin = _pinnedShiftId;
+    if (pin.isEmpty || base.any((s) => s.id == pin)) return base;
+    return [
+      HandoverShift(
+        id: pin,
+        residenceId: (widget.initialResidenceId ?? _residenceId).trim(),
+        title: 'This shift',
+      ),
+      ...base,
+    ];
+  }
 
   HandoverShift? get _shift => _shifts.where((s) => s.id == _shiftId).firstOrNull;
 
@@ -95,7 +124,10 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
   @override
   void initState() {
     super.initState();
-    _residenceId = _c.residenceId.value ?? '';
+    final home = widget.initialResidenceId?.trim() ?? '';
+    _residenceId = home.isNotEmpty ? home : (_c.residenceId.value ?? '');
+    final pin = _pinnedShiftId;
+    if (pin.isNotEmpty) _shiftId = pin;
     _loadMyShifts();
     _loadResidenceShifts();
     aiDraftingEnabled().then((enabled) {
@@ -414,7 +446,8 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
     final handedOver = _c.myHandedOverShiftIds;
     final shiftOptions = [
       for (final s in _shifts)
-        if (!handedOver.contains(s.id)) (s.id, _describe(s, withResidence: true)),
+        if (!handedOver.contains(s.id) || s.id == _pinnedShiftId)
+          (s.id, _describe(s, withResidence: true)),
     ];
     final incomingOptions = [for (final s in _incoming) (s.id, _describe(s))];
     final availableClients = [

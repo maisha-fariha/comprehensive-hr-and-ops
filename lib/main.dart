@@ -12,6 +12,7 @@ import 'core/deeplink/app_deep_link_router.dart';
 import 'core/di/service_locator.dart';
 import 'core/errors/app_error_dialog.dart';
 import 'core/network/connectivity_monitor.dart';
+import 'core/offline/install_cache.dart';
 import 'core/offline/offline_bootstrap.dart';
 import 'core/push/firebase_push_bridge.dart';
 import 'core/network/app_api_client.dart';
@@ -36,6 +37,7 @@ Future<void> main() async {
 
   await Get.put(ConnectivityMonitor(), permanent: true).start();
 
+  await InstallCache.clearOnFreshInstall();
   await OfflineBootstrap.openStorage();
 
   await setupAppDependencies(

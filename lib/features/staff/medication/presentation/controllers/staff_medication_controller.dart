@@ -32,6 +32,9 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   final RxList<StaffClientMedicationItem> prnItems =
       <StaffClientMedicationItem>[].obs;
   final RxList<AdministeredDose> givenItems = <AdministeredDose>[].obs;
+
+  /// Web Given tab badge (`meta.total`), not today's Administered KPI.
+  final RxInt givenTotal = 0.obs;
   final RxList<StaffMedClientOption> chartClients =
       <StaffMedClientOption>[].obs;
 
@@ -112,7 +115,8 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   /// Web tab badges count the filtered rows.
   int get marTabCount => filteredScheduledDoses.length;
   int get prnTabCount => filteredPrnItems.length;
-  int get givenTabCount => givenItems.length;
+  int get givenTabCount =>
+      givenTotal.value > 0 ? givenTotal.value : givenItems.length;
 
   /// Web Edit on a registry row (`mar:write`).
   bool get canEditMedicines => _session.can('mar:write');
@@ -312,7 +316,9 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     ).wait;
     if (serial != _loadSerial) return;
     prnItems.assignAll(prnResult.value ?? const []);
-    givenItems.assignAll(givenResult.value ?? const []);
+    final given = givenResult.value;
+    givenItems.assignAll(given?.items ?? const []);
+    givenTotal.value = given?.total ?? givenItems.length;
     medications.assignAll(medsResult.value ?? const []);
     chartClients.assignAll(clientsResult.value ?? const []);
     if (homesResult.value case final homes?) residences.assignAll(homes);

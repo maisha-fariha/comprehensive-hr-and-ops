@@ -11,7 +11,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/roles/user_session.dart';
-import '../../../extras/domain/repositories/staff_extras_repository.dart';
+import '../../../../hr/handovers/presentation/open_shift_handover.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
 import '../../../../hr/attendance/presentation/attendance_formatters.dart';
 import '../../../../hr/attendance/presentation/pages/attendance_clock_page.dart'
@@ -355,27 +355,8 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     });
   }
 
-  /// Web clock-out toast for `HANDOVER_REQUIRED`, including the "Write it" action.
-  bool _handoverRequired(AppError? error) {
-    final data = error is ApiError ? error.responseData : null;
-    final nested = data?['error'];
-    final code = '${data?['code'] ?? data?['errorCode'] ?? (nested is Map ? nested['code'] : '') ?? ''}'
-        .toUpperCase();
-    if (code == 'HANDOVER_REQUIRED') return true;
-    return (error?.message ?? '').toLowerCase().contains('handover');
-  }
-
-  String? _handoverShiftFrom(AppError? error) {
-    final data = error is ApiError ? error.responseData : null;
-    if (data == null) return widget.shiftId;
-    final details = data['details'] ??
-        (data['error'] is Map ? (data['error'] as Map)['details'] : null);
-    if (details is Map) {
-      final id = details['shiftId']?.toString();
-      if (id != null && id.isNotEmpty) return id;
-    }
-    return widget.shiftId;
-  }
+  String? _handoverShiftFrom(AppError? error) =>
+      handoverShiftIdOf(error) ?? widget.shiftId;
 
   String? _geofenceBlockReason(StaffClockFix? fix) {
     if (!_requiresGeofenceGate) return null;
@@ -490,7 +471,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
 
     if (result.isFailure) {
       final handover =
-          !widget.isCheckIn && _handoverRequired(result.error);
+          !widget.isCheckIn && handoverRequired(result.error);
       if (handover) {
         _handoverShiftId = _handoverShiftFrom(result.error);
         _showSubmitError(
@@ -512,85 +493,17 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     Navigator.of(context).pop(true);
   }
 
-  /// `HANDOVER_REQUIRED`: write and submit the shift handover, then clock out.
-  Future<void> _submitHandoverThenClockOut() async {
-    final residenceId = _residenceId?.trim();
+  /// Web "Write it" leaves clock-out and opens Shift Handovers for this shift.
+  void _openHandover() {
     final shiftId = (_handoverShiftId ?? widget.shiftId)?.trim();
-    if (residenceId == null || residenceId.isEmpty || shiftId == null || shiftId.isEmpty) {
-      _showSubmitError('This clock-out is missing the shift to hand over.');
-      return;
-    }
-    final summary = TextEditingController();
-    final String? text;
-    try {
-      text = await showAppPopup<String>(
-        context: context,
-        builder: (dialogContext) => AppSheetDialog(
-          backgroundColor: AppColors.surfaceWhite,
-          title: const Text('Write the handover'),
-          content: TextField(
-            controller: summary,
-            autofocus: true,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'What the next shift needs to know',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(summary.text.trim()),
-              child: const Text('Submit handover'),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      summary.dispose();
-    }
-    final note = text?.trim() ?? '';
-    if (note.isEmpty) return;
-    if (!GetIt.instance.isRegistered<StaffExtrasRepository>()) {
-      _showSubmitError('Handovers are not available in this session.');
-      return;
-    }
-    setState(() => _submitting = true);
-    final created = await GetIt.instance<StaffExtrasRepository>().createHandover(
-      residenceId: residenceId,
-      summary: note,
-      submit: true,
-      fromShiftId: shiftId,
-    );
-    if (!mounted) return;
-    if (created.isFailure) {
-      _showSubmitError(
-        created.error?.message ?? 'Could not submit the handover.',
-        writeHandover: true,
-      );
-      return;
-    }
-    final again = await _repo.checkOut(
+    final residenceId = _residenceId?.trim();
+    final role = _session.role;
+    Navigator.of(context).pop(false);
+    openShiftHandover(
+      role: role,
       shiftId: shiftId,
       residenceId: residenceId,
-      latitude: _location?.latitude,
-      longitude: _location?.longitude,
-      accuracyMeters: _location?.accuracyMeters,
-      earlyDepartureReason: _leavingEarly ? _earlyReason : null,
-      earlyDepartureNotes: _leavingEarly ? _earlyNotes.text.trim() : null,
     );
-    if (!mounted) return;
-    if (again.isFailure) {
-      _showSubmitError(
-        again.error?.message ?? 'Could not clock out.',
-        writeHandover: _handoverRequired(again.error),
-      );
-      return;
-    }
-    Navigator.of(context).pop(true);
   }
 
   @override
@@ -965,7 +878,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton(
-                          onPressed: _submitHandoverThenClockOut,
+                          onPressed: _openHandover,
                           style: TextButton.styleFrom(
                             foregroundColor: AppColors.primaryNavy,
                             padding: const EdgeInsets.symmetric(horizontal: 0),

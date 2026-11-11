@@ -48,8 +48,8 @@ abstract class StaffMedicationRepository {
     String? residenceId,
   });
 
-  /// `GET /mar/administrations` — web Given tab history.
-  Future<Result<List<AdministeredDose>>> listAdministrations({
+  /// `GET /mar/administrations` — web Given tab history + badge total.
+  Future<Result<MarAdministrationsList>> listAdministrations({
     String? residenceId,
     int page = 1,
     int limit = 50,

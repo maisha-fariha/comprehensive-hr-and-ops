@@ -42,7 +42,6 @@ class _LoginPageState extends State<LoginPage> {
     _auth = Get.isRegistered<AuthController>()
         ? Get.find<AuthController>()
         : Get.put(GetIt.instance<AuthController>());
-    _workspaceController.text = _auth.savedWorkspaceCode;
   }
 
   @override

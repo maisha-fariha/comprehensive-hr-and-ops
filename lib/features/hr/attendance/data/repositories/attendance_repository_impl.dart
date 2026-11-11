@@ -119,6 +119,18 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       _voidPost(ApiEndpoints.attendanceCheckOut, body);
 
   @override
+  Future<Result<void>> startBreak({required String residenceId}) =>
+      _voidPost(ApiEndpoints.attendanceBreakStart, {
+        'residenceId': residenceId,
+      });
+
+  @override
+  Future<Result<void>> endBreak({required String residenceId}) =>
+      _voidPost(ApiEndpoints.attendanceBreakEnd, {
+        'residenceId': residenceId,
+      });
+
+  @override
   Future<Result<String>> uploadSelfie(String localPath, String fileName) async {
     final result = await _upload(localPath, fileName, 'attendance-selfies');
     return result.when(

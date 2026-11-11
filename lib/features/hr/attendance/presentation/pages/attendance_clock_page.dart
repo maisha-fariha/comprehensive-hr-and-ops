@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../handovers/presentation/open_shift_handover.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/repositories/attendance_repository.dart';
@@ -132,6 +133,9 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
   bool? _withinGeofence;
   bool _askLocation = false;
   bool _photoEnabled = false;
+  String? _submitError;
+  bool _writeHandover = false;
+  String? _handoverShiftId;
   int _geofenceEpoch = 0;
 
   String get _mode => widget.clockOut ? 'out' : 'in';
@@ -424,7 +428,20 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
           );
           Navigator.of(context).pop(true);
         },
-        failure: (error) => AppSnackbar.show('Attendance', error.message),
+        failure: (error) {
+          if (widget.clockOut && handoverRequired(error)) {
+            setState(() {
+              _submitError = error.message;
+              _writeHandover = true;
+              _handoverShiftId = handoverShiftIdOf(error) ?? shift?.shiftId;
+            });
+            return;
+          }
+          setState(() {
+            _submitError = error.message;
+            _writeHandover = false;
+          });
+        },
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -582,6 +599,30 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
                             }),
                     captureChild: _photoSection(),
                   ),
+                  if (_submitError != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _submitError!,
+                      style: _text(12.5, FontWeight.w500, AppColors.criticalRed),
+                    ),
+                    if (_writeHandover)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: _openHandover,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primaryNavy,
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Write it',
+                            style: _text(13, FontWeight.w700, AppColors.primaryNavy),
+                          ),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -688,6 +729,19 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
       setState(() => _residenceId = picked.value.id);
       await _syncResidenceGeofence();
     }
+  }
+
+  /// Web "Write it" leaves clock-out and opens Shift Handovers for this shift.
+  void _openHandover() {
+    final shiftId = _handoverShiftId ?? _shift?.shiftId;
+    final residenceId = _residenceId;
+    final role = _session.role;
+    Navigator.of(context).pop(false);
+    openShiftHandover(
+      role: role,
+      shiftId: shiftId,
+      residenceId: residenceId,
+    );
   }
 
   Future<void> _pickEarlyReason() async {
