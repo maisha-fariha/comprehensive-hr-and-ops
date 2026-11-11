@@ -241,6 +241,9 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
     String? search,
     String? residenceId,
   }) async {
+    if (!_session.can('staff:read')) {
+      return Result.success(const []);
+    }
     final trimmed = search?.trim() ?? '';
     // Match web: only scope when the UI filter is set (not session home house).
     final scopedResidenceId = residenceId?.trim().isNotEmpty == true

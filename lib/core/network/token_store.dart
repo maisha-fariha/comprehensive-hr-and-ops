@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class TokenStore {
   static const _accessKey = 'mobile_access_token';
   static const _refreshKey = 'mobile_refresh_token';
+  static const _expiresKey = 'mobile_access_expires_at_ms';
   static const _lastMeKey = 'mobile_last_me';
 
   final SharedPreferences _prefs;
@@ -18,6 +19,22 @@ class TokenStore {
   String? get refreshToken => _prefs.getString(_refreshKey);
   bool get hasAccessToken => (accessToken ?? '').isNotEmpty;
 
+  /// Absolute expiry of the access token. `expiresIn` from the server is
+  /// seconds (900 = 15 minutes), stored here as a timestamp.
+  DateTime? get accessExpiresAt {
+    final ms = _prefs.getInt(_expiresKey);
+    if (ms == null || ms <= 0) return null;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  /// True when the access token is missing an expiry or is inside the
+  /// last 60 seconds of its life.
+  bool get accessExpiresSoon {
+    final at = accessExpiresAt;
+    if (at == null) return true;
+    return !DateTime.now().isBefore(at.subtract(const Duration(seconds: 60)));
+  }
+
   void applyToClient() {
     final token = accessToken;
     _api.setAuthToken((token == null || token.isEmpty) ? null : token);
@@ -26,10 +43,14 @@ class TokenStore {
   Future<void> save({
     required String accessToken,
     String? refreshToken,
+    DateTime? accessExpiresAt,
   }) async {
     await _prefs.setString(_accessKey, accessToken);
     if (refreshToken != null && refreshToken.isNotEmpty) {
       await _prefs.setString(_refreshKey, refreshToken);
+    }
+    if (accessExpiresAt != null) {
+      await _prefs.setInt(_expiresKey, accessExpiresAt.millisecondsSinceEpoch);
     }
     _api.setAuthToken(accessToken);
   }
@@ -45,6 +66,7 @@ class TokenStore {
   Future<void> clear() async {
     await _prefs.remove(_accessKey);
     await _prefs.remove(_refreshKey);
+    await _prefs.remove(_expiresKey);
     await _prefs.remove(_lastMeKey);
     _api.setAuthToken(null);
   }

@@ -542,7 +542,11 @@ class AppApiClient implements OutboxTransport {
             );
           }
           final refreshError = refreshFailure;
-          if (refreshError != null && AppErrorMapper.isTransient(refreshError)) {
+          // 429 / network / 5xx: keep the current tokens and surface that
+          // failure. Only a 401 from the refresh call itself signs the user out.
+          if (refreshError != null &&
+              (AppErrorMapper.isTransient(refreshError) ||
+                  _isRateLimited(refreshError))) {
             await _showError(
               refreshError,
               silent: silent || AppErrorDialog.holdingTransient,
@@ -724,6 +728,11 @@ class AppApiClient implements OutboxTransport {
         _refreshInFlight = null;
       }
     }
+  }
+
+  bool _isRateLimited(AppError error) {
+    if (error.code == 'RATE_LIMITED') return true;
+    return error is ApiError && error.statusCode == 429;
   }
 
   bool _isUnauthorized(AppError error, int? statusCode) {

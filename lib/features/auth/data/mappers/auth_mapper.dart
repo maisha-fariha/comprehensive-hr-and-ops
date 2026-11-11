@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../../core/network/json_codec.dart';
 import '../../../../core/roles/user_role.dart';
 import '../../domain/entities/auth_tokens.dart';
@@ -37,7 +39,43 @@ abstract final class AuthMapper {
           JsonCodec.string(nested['refresh_token']) ??
           JsonCodec.string(json['refreshToken']) ??
           JsonCodec.string(json['refresh_token']),
+      accessExpiresAt: accessExpiry(
+        expiresInSeconds: JsonCodec.integer(
+          nested['expiresIn'] ??
+              nested['expires_in'] ??
+              json['expiresIn'] ??
+              json['expires_in'],
+        ),
+        accessToken: access,
+      ),
     );
+  }
+
+  /// `expiresIn` is seconds (server sends 900). Never treat it as minutes.
+  static DateTime? accessExpiry({
+    required int? expiresInSeconds,
+    required String accessToken,
+  }) {
+    if (expiresInSeconds != null && expiresInSeconds > 0) {
+      return DateTime.now().add(Duration(seconds: expiresInSeconds));
+    }
+    return jwtExpiry(accessToken);
+  }
+
+  static DateTime? jwtExpiry(String accessToken) {
+    final parts = accessToken.split('.');
+    if (parts.length < 2) return null;
+    try {
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+      if (payload is! Map) return null;
+      final exp = JsonCodec.integer(payload['exp']);
+      if (exp == null || exp <= 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(exp * 1000, isUtc: true)
+          .toLocal();
+    } catch (_) {
+      return null;
+    }
   }
 
   static MobileProfile? profileFromJson(dynamic body) {

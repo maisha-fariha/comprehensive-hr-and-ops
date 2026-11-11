@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
@@ -14,6 +16,7 @@ import '../../../core/network/response_cache.dart';
 import '../../../core/network/tenant_store.dart';
 import '../../../core/offline/offline_bootstrap.dart';
 import '../../../core/network/token_store.dart';
+import '../../../core/roles/user_session.dart';
 import '../../../core/push/device_registration_service.dart';
 import '../data/repositories/auth_repository_impl.dart';
 import '../domain/repositories/auth_repository.dart';
@@ -99,8 +102,21 @@ Future<void> setupAuthDependencies() async {
   // When any API call gets HTTP 401, refresh the access token once and retry.
   getIt<AppApiClient>().tokenRefresher = () async {
     final client = getIt<AppApiClient>();
-    final result = await getIt<AuthRepository>().refreshTokens(silent: true);
+    // A 401 on a normal request forces one refresh even if local expiry
+    // still looks valid. Sign out only when the refresh call itself is 401.
+    final result = await getIt<AuthRepository>().refreshTokens(
+      silent: true,
+      force: true,
+    );
     client.refreshFailure = result.isSuccess ? null : result.error;
+    if (result.isFailure && result.error?.code == 'refresh_rejected') {
+      final session = Get.isRegistered<UserSession>()
+          ? Get.find<UserSession>()
+          : null;
+      if (session != null && session.isSignedIn) {
+        unawaited(session.signOut());
+      }
+    }
     return result.isSuccess;
   };
 

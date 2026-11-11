@@ -141,7 +141,7 @@ abstract final class BackgroundSync {
       final client = AppApiClient(api, tenant);
       final auth = AuthRepositoryImpl(api: client, tokens: tokens, tenant: tenant);
       client.tokenRefresher = () async {
-        final result = await auth.refreshTokens(silent: true);
+        final result = await auth.refreshTokens(silent: true, force: true);
         client.refreshFailure = result.isSuccess ? null : result.error;
         return result.isSuccess;
       };

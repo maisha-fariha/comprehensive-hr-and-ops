@@ -190,16 +190,18 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
         query: const {'page': 1, 'limit': 100},
         silent: true,
       ),
-      _api.get(
-        ApiEndpoints.staff,
-        query: {
-          if (residenceId != null && residenceId.isNotEmpty)
-            'residenceId': residenceId,
-          'page': 1,
-          'limit': 100,
-        },
-        silent: true,
-      ),
+      _session.can('staff:read')
+          ? _api.get(
+              ApiEndpoints.staff,
+              query: {
+                if (residenceId != null && residenceId.isNotEmpty)
+                  'residenceId': residenceId,
+                'page': 1,
+                'limit': 100,
+              },
+              silent: true,
+            )
+          : Future<Result<dynamic>>.value(Result.success(const [])),
     ]);
 
     final shiftsResult = results[0];
@@ -954,6 +956,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     }
     final email = _session.email.trim();
     if (email.isEmpty) return null;
+    if (!_session.can('staff:read')) return null;
 
     final result = await _api.get(
       ApiEndpoints.staff,

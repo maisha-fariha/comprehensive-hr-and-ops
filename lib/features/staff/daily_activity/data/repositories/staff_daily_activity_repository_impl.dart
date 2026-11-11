@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
@@ -71,6 +73,10 @@ class StaffDailyActivityRepositoryImpl implements StaffDailyActivityRepository {
 
   @override
   Future<Result<List<StaffDailyActivityPersonOption>>> getStaffOptions() async {
+    if (!Get.isRegistered<UserSession>() ||
+        !Get.find<UserSession>().can('staff:read')) {
+      return Result.success(const []);
+    }
     final result = await _api.get(
       ApiEndpoints.staff,
       query: const {'page': 1, 'limit': 100},

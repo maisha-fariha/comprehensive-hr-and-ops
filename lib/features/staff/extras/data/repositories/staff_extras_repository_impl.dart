@@ -135,7 +135,27 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
     return result.when(
       success: (body) async {
         final json = StaffExtrasMapper.unwrap(body);
-        return Result.success(JsonCodec.stringOr(json['id'], ''));
+        final id = JsonCodec.stringOr(json['id'], '');
+        // A draft does not satisfy clock-out. Confirm submitted.
+        if (submit && id.isNotEmpty) {
+          final confirmed = await _api.post(
+            ApiEndpoints.handoverStatus(id),
+            data: const {'status': 'submitted'},
+            silent: true,
+          );
+          if (confirmed.isFailure) {
+            final msg = (confirmed.error?.message ?? '').toLowerCase();
+            if (!msg.contains('submitted') && !msg.contains('already')) {
+              return Result.failure(
+                confirmed.error ??
+                    const ApiError(
+                      message: 'The handover was saved as a draft and was not submitted.',
+                    ),
+              );
+            }
+          }
+        }
+        return Result.success(id);
       },
       failure: (error) async => Result.failure(error),
     );
@@ -466,6 +486,9 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
   Future<Result<List<Map<String, String>>>> getResidenceStaffMembers(
     String residenceId,
   ) async {
+    if (!_session.can('staff:read')) {
+      return Result.success(const []);
+    }
     final result = await _api.get(
       ApiEndpoints.staff,
       query: {
@@ -607,6 +630,7 @@ class StaffExtrasRepositoryImpl implements StaffExtrasRepository {
         return Result.success(people);
       },
       failure: (error) async {
+        if (!_session.can('staff:read')) return Result.failure(error);
         // Fallback to full staff list if directory is unavailable.
         final fallback = await _api.get(
           ApiEndpoints.staff,

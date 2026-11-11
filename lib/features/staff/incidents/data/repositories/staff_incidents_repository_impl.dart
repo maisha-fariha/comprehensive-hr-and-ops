@@ -462,6 +462,13 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
       final rows = _staffDirectoryOptions(directory.value);
       if (rows.isNotEmpty) return Result.success(rows);
     }
+    // GET /staff is staff:read. Caregivers without it were getting 403.
+    if (!_session.can('staff:read')) {
+      return directory.when(
+        success: (_) async => Result.success(const []),
+        failure: (error) async => Result.failure(error),
+      );
+    }
     final result = await _api.get(
       ApiEndpoints.staff,
       query: const {'page': 1, 'limit': 100},

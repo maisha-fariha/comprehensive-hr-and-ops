@@ -20,6 +20,14 @@ class AuthRepositoryImpl implements AuthRepository {
   final TenantStore _tenant;
   final ResponseCache? _cache;
 
+  /// One refresh at a time. Waiters share the call that stores the rotated
+  /// refresh token before it completes.
+  Future<Result<void>>? _refreshInFlight;
+
+  /// Do not call refresh again before this instant (429 / 5xx backoff).
+  DateTime? _refreshNotBefore;
+  int _refreshBackoffSeconds = 2;
+
   AuthRepositoryImpl({
     required AppApiClient api,
     required TokenStore tokens,
@@ -119,7 +127,9 @@ class AuthRepositoryImpl implements AuthRepository {
             ),
           );
         }
-        if (profile.avatarUrl == null) {
+        // `/mobile/me` is enough for the session. `/auth/me` is only for a
+        // missing avatar, and not on the silent refresh path.
+        if (profile.avatarUrl == null && !silent) {
           body = await _withAuthMeAvatar(body);
           profile = AuthMapper.profileFromJson(body) ?? profile;
         }
@@ -197,11 +207,48 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Result<void>> refreshTokens({bool silent = false}) async {
+  Future<Result<void>> refreshTokens({
+    bool silent = false,
+    bool force = false,
+  }) {
+    // A still-valid token must not join (or block) a real exchange.
+    if (!force && !_tokens.accessExpiresSoon) {
+      return Future.value(Result.success(null));
+    }
+    final existing = _refreshInFlight;
+    if (existing != null) return existing;
+    final run = _refreshTokens(silent: silent, force: force);
+    _refreshInFlight = run;
+    return run.whenComplete(() {
+      if (identical(_refreshInFlight, run)) _refreshInFlight = null;
+    });
+  }
+
+  Future<Result<void>> _refreshTokens({
+    required bool silent,
+    required bool force,
+  }) async {
+    final heldUntil = _refreshNotBefore;
+    if (heldUntil != null && DateTime.now().isBefore(heldUntil)) {
+      return Result.failure(
+        ApiError(
+          message: 'Too many token refreshes. Waiting before trying again.',
+          statusCode: 429,
+          code: 'RATE_LIMITED',
+        ),
+      );
+    }
+    // Access token still has more than a minute left — do not exchange.
+    if (!force && !_tokens.accessExpiresSoon) {
+      return Result.success(null);
+    }
     final refreshToken = _tokens.refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) {
       return Result.failure(
-        const AuthError(message: 'No refresh token available.'),
+        const AuthError(
+          message: 'No refresh token available.',
+          code: 'refresh_rejected',
+        ),
       );
     }
     // Do not attempt another refresh if this call itself returns 401.
@@ -213,9 +260,51 @@ class AuthRepositoryImpl implements AuthRepository {
       allowQueue: false,
     );
     return result.when(
-      success: (body) => _saveTokens(body),
-      failure: (error) async => Result.failure(error),
+      success: (body) async {
+        _refreshBackoffSeconds = 2;
+        _refreshNotBefore = null;
+        // Persist the rotated refresh token before waiters resume.
+        return _saveTokens(body);
+      },
+      failure: (error) async {
+        final status = error is ApiError ? error.statusCode : null;
+        if (status == 401) {
+          return Result.failure(
+            AuthError(
+              message: error.message,
+              code: 'refresh_rejected',
+            ),
+          );
+        }
+        if (status == 429) {
+          final wait = _retryAfterSeconds(error) ?? 60;
+          _refreshNotBefore = DateTime.now().add(Duration(seconds: wait));
+          return Result.failure(error);
+        }
+        if (status == null || status == 0 || status >= 500) {
+          final wait = _refreshBackoffSeconds;
+          _refreshBackoffSeconds = (wait * 2).clamp(2, 8);
+          _refreshNotBefore = DateTime.now().add(Duration(seconds: wait));
+        }
+        return Result.failure(error);
+      },
     );
+  }
+
+  int? _retryAfterSeconds(AppError error) {
+    if (error is! ApiError) return null;
+    final data = error.responseData;
+    if (data == null) return null;
+    final details = data['details'];
+    if (details is Map) {
+      final nested = JsonCodec.integer(
+        details['retryAfterSec'] ?? details['retryAfter'],
+      );
+      if (nested != null && nested > 0) return nested;
+    }
+    final top = JsonCodec.integer(data['retryAfterSec'] ?? data['retryAfter']);
+    if (top != null && top > 0) return top;
+    return null;
   }
 
   @override
@@ -286,6 +375,7 @@ class AuthRepositoryImpl implements AuthRepository {
     await _tokens.save(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
+      accessExpiresAt: tokens.accessExpiresAt,
     );
     return Result.success(null);
   }

@@ -28,7 +28,6 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
   Timer? _debounce;
   Timer? _offlineProbeTimer;
   Timer? _pendingPoll;
-  Timer? _permissionPoll;
   Future<bool>? _probeInFlight;
   bool _hasInterface = true;
   bool _observing = false;
@@ -60,10 +59,9 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
       _observing = true;
     }
     if (_hasInterface) unawaited(_confirmReachability());
-    _permissionPoll ??= Timer.periodic(const Duration(seconds: 15), (_) {
-      if (!Get.isRegistered<UserSession>()) return;
-      unawaited(Get.find<UserSession>().refreshProfile());
-    });
+    // Do not poll the profile on a short timer. That path used to exchange
+    // the refresh token every 15 seconds (access tokens last 15 minutes).
+    // Profile reload happens when the app returns to the foreground.
     return this;
   }
 
@@ -238,7 +236,6 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
     _debounce?.cancel();
     _offlineProbeTimer?.cancel();
     _pendingPoll?.cancel();
-    _permissionPoll?.cancel();
     if (_observing) WidgetsBinding.instance.removeObserver(this);
     super.onClose();
   }

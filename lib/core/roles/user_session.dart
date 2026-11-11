@@ -229,8 +229,8 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   Future<void> _reloadProfile() async {
     try {
       final auth = GetIt.instance<AuthRepository>();
-      // Permissions are also stored on the access token. A new token picks
-      // up a role change; `/mobile/me` then applies that list to the UI.
+      // Refresh only when the access token is within ~60s of expiry.
+      // A 401 from another call forces a refresh on its own.
       await auth.refreshTokens(silent: true);
       final me = await auth.fetchMe(silent: true);
       final profile = me.value;
@@ -433,6 +433,8 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   bool _keepSessionOn(AppError? error) {
     if (error == null) return false;
     if (error is AuthError || error is PermissionError) return false;
+    if (error is ApiError && error.statusCode == 429) return true;
+    if (error.code == 'RATE_LIMITED') return true;
     if (error is ApiError &&
         (error.statusCode == 401 || error.statusCode == 403)) {
       return false;
