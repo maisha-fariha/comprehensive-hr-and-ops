@@ -4,12 +4,10 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/roles/permission_gate.dart';
 import '../../../core/roles/user_session.dart';
-// import '../admissions/presentation/pages/admissions_page.dart'; // Admissions UI hidden
 import '../ai_alerts/presentation/pages/ai_alerts_page.dart';
 import '../appointments/presentation/pages/hr_appointments_page.dart';
 import '../clients/presentation/pages/clients_page.dart';
 import '../communication/presentation/pages/communication_page.dart';
-// import '../daily_activity/presentation/pages/daily_activity_page.dart'; // Daily Activity UI hidden
 import '../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../documents/presentation/pages/hr_documents_page.dart';
 import '../emergency/presentation/pages/emergency_page.dart';
@@ -27,6 +25,7 @@ import '../compliance/presentation/pages/compliance_page.dart';
 import '../tasks_compliance/presentation/pages/tasks_compliance_page.dart';
 import '../team_reports/presentation/pages/team_reports_page.dart';
 import '../users_access/presentation/pages/users_access_page.dart';
+import '../../common/support_tickets/presentation/pages/support_tickets_page.dart';
 
 /// A page the Manager can navigate to from the More menu or the
 /// "Search pages" sheet on the dashboard.
@@ -143,16 +142,7 @@ List<ManagerDestination> managerDestinations() {
     // if (can('admissions:read'))
     //   ManagerDestination(
     //     title: 'Admissions',
-    //     subtitle: 'Referrals, waitlist, intake forms and admitting',
-    //     icon: Icons.person_add_alt_1_outlined,
-    //     iconBackground: AppColors.quickActionCreateShiftBg,
-    //     iconColor: AppColors.secondaryTeal,
-    //     open: () => openPermittedPage(
-    //       title: 'Admissions',
-    //       anyOf: const ['admissions:read'],
-    //       builder: () => const AdmissionsPage(),
-    //     ),
-    //     keywords: const ['admissions', 'admission', 'referral', 'referrals', 'waitlist', 'intake', 'admit'],
+    //     ...
     //   ),
     if (can('scheduling:read'))
       ManagerDestination(
@@ -261,16 +251,7 @@ List<ManagerDestination> managerDestinations() {
     // if (can('client-activities:read'))
     //   ManagerDestination(
     //     title: 'Daily Activity',
-    //     subtitle: 'What residents did — outings, programmes and observations',
-    //     icon: Icons.monitor_heart_outlined,
-    //     iconBackground: AppColors.quickActionCreateShiftBg,
-    //     iconColor: AppColors.secondaryTeal,
-    //     open: () => openPermittedPage(
-    //       title: 'Daily Activity',
-    //       anyOf: const ['client-activities:read'],
-    //       builder: () => const DailyActivityPage(),
-    //     ),
-    //     keywords: const ['activity', 'activities', 'daily activity', 'outing', 'programme', 'school', 'resident history'],
+    //     ...
     //   ),
     if (can('appointments:read'))
       ManagerDestination(
@@ -409,6 +390,20 @@ List<ManagerDestination> managerDestinations() {
           builder: () => const CommunicationPage(),
         ),
         keywords: const ['messages', 'chat', 'announcements'],
+      ),
+    if (can('tickets:view_own') || can('tickets:view_tenant'))
+      ManagerDestination(
+        title: 'Support & Tickets',
+        subtitle: 'Tenant support requests and replies',
+        icon: Icons.support_agent_outlined,
+        iconBackground: AppColors.infoBackground,
+        iconColor: AppColors.infoBlue,
+        open: () => openPermittedPage(
+          title: 'Support & Tickets',
+          anyOf: const ['tickets:view_own', 'tickets:view_tenant'],
+          builder: () => const SupportTicketsPage(),
+        ),
+        keywords: const ['support', 'tickets', 'helpdesk', 'help'],
       ),
     if (can('dashboard:read') || can('notifications:read'))
       ManagerDestination(

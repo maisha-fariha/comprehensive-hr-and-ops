@@ -271,40 +271,6 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     return null;
   }
 
-  Future<void> completeRecurringCheck(RecurringCheckInstance check) async {
-    final result = await repository.updateRecurringCheck(
-      instanceId: check.id,
-      status: 'requires_review',
-      statusNote: 'Completed from Tasks tab',
-    );
-    if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not update check',
-      );
-      return;
-    }
-    AppSnackbar.show('Check updated', check.title);
-    await loadOverview();
-  }
-
-  Future<void> skipRecurringCheck(RecurringCheckInstance check) async {
-    final result = await repository.updateRecurringCheck(
-      instanceId: check.id,
-      status: 'skipped',
-      statusNote: 'Skipped from Tasks tab',
-    );
-    if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not skip check',
-      );
-      return;
-    }
-    AppSnackbar.show('Check skipped', check.title);
-    await loadOverview();
-  }
-
   @override
   Future<void> refresh() => loadOverview();
 }

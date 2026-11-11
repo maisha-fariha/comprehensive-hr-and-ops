@@ -56,6 +56,7 @@ class _Item {
   String medicationName = '';
   String dosage = '';
   String scheduledTime = '';
+  String scheduledFor = '';
   bool isControlled = false;
   String status = 'administered';
   String doseReason = '';
@@ -71,6 +72,9 @@ class _Item {
     ..medicationName = r.medication
     ..dosage = r.dosage
     ..scheduledTime = r.isPrn ? '' : r.scheduleTime
+    ..scheduledFor = (r.isPrn || r.scheduleTime == 'Unscheduled')
+        ? ''
+        : (r.dueAt?.toUtc().toIso8601String() ?? '')
     ..isControlled = r.isControlled;
 
   bool get isPrn => recordType == 'PRN';
@@ -86,6 +90,7 @@ class _Item {
         medicationName: medicationName,
         dosage: dosage,
         scheduledTime: scheduledTime,
+        scheduledFor: scheduledFor,
         isControlled: isControlled,
         status: status,
         doseReason: doseReason,
@@ -879,7 +884,8 @@ class _MarRecordAdministrationFormState extends State<MarRecordAdministrationFor
   }
 
   Widget _summary(BuildContext context) {
-    final ready = _safetyDone && _medicinesDone && _detailsDone;
+    // Safety / five-rights toggles are optional — do not block submit readiness.
+    final ready = _medicinesDone && _detailsDone;
     return HandoverPanel(
       key: const ValueKey('mar-wizard-summary'),
       child: Column(
@@ -935,7 +941,7 @@ class _MarRecordAdministrationFormState extends State<MarRecordAdministrationFor
                 ),
                 Text(
                   ready
-                      ? 'All safety checks confirmed. Ready to submit.'
+                      ? 'Ready to submit.'
                       : 'Waiting for confirmation. Complete all required fields to finalize this record.',
                   style: handoverText(context, 12, color: AppColors.textSecondary),
                 ),

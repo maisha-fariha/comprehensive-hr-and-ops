@@ -8,9 +8,10 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/permission_gate.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
-// import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart'; // Daily Activity UI hidden
-// import '../../extras/presentation/pages/staff_admissions_page.dart'; // Admissions UI hidden
+import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
+import '../../extras/presentation/pages/staff_admissions_page.dart';
 import '../../extras/presentation/pages/staff_appointments_page.dart';
+import '../../../common/support_tickets/presentation/pages/support_tickets_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
 import '../../extras/presentation/pages/staff_documents_page.dart';
 import '../../extras/presentation/pages/staff_emergency_page.dart';
@@ -91,14 +92,6 @@ class StaffMoreMenuPage extends StatelessWidget {
                 subtitle: 'Write and acknowledge handovers',
               ),
             // Daily Activity UI temporarily hidden for all roles (code kept).
-            // if (session.canAccessClientActivities)
-            //   const StaffMenuEntry(
-            //     icon: Icons.directions_walk_outlined,
-            //     iconBackground: AppColors.activeBackground,
-            //     iconColor: AppColors.activeGreen,
-            //     title: 'Daily Activity',
-            //     subtitle: 'Outings, school, programmes, and observations',
-            //   ),
             if (session.canAccessMessaging)
               const StaffMenuEntry(
                 icon: Icons.forum_outlined,
@@ -140,14 +133,15 @@ class StaffMoreMenuPage extends StatelessWidget {
                 subtitle: 'Stock on hand at your residence',
               ),
             // Admissions UI temporarily hidden for all roles (code kept).
-            // if (session.can('admissions:read'))
-            //   const StaffMenuEntry(
-            //     icon: Icons.how_to_reg_outlined,
-            //     iconBackground: AppColors.infoBackground,
-            //     iconColor: AppColors.infoBlue,
-            //     title: 'Admissions',
-            //     subtitle: 'Referrals and assessments',
-            //   ),
+            if (session.can('tickets:view_own') ||
+                session.can('tickets:view_tenant'))
+              const StaffMenuEntry(
+                icon: Icons.support_agent_outlined,
+                iconBackground: AppColors.infoBackground,
+                iconColor: AppColors.infoBlue,
+                title: 'Support & Tickets',
+                subtitle: 'Tenant support requests and replies',
+              ),
             if (session.can('attendance:read'))
               const StaffMenuEntry(
                 icon: Icons.access_time_rounded,
@@ -236,12 +230,12 @@ class StaffMoreMenuPage extends StatelessWidget {
           anyOf: const ['shift-handovers:read'],
           builder: () => const StaffShiftHandoversPage(),
         );
-      // case 'Daily Activity':
-      //   openPermittedPage(
-      //     title: title,
-      //     anyOf: const ['client-activities:read'],
-      //     builder: () => const StaffDailyActivityPage(),
-      //   );
+      case 'Daily Activity':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['client-activities:read'],
+          builder: () => const StaffDailyActivityPage(),
+        );
       case 'Communication':
         openPermittedPage(
           title: title,
@@ -272,12 +266,18 @@ class StaffMoreMenuPage extends StatelessWidget {
           anyOf: const ['inventory:read'],
           builder: () => const StaffInventoryPage(),
         );
-      // case 'Admissions':
-      //   openPermittedPage(
-      //     title: title,
-      //     anyOf: const ['admissions:read'],
-      //     builder: () => const StaffAdmissionsPage(),
-      //   );
+      case 'Admissions':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['admissions:read'],
+          builder: () => const StaffAdmissionsPage(),
+        );
+      case 'Support & Tickets':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['tickets:view_own', 'tickets:view_tenant'],
+          builder: () => const SupportTicketsPage(),
+        );
       case 'Attendance':
         openPermittedPage(
           title: title,

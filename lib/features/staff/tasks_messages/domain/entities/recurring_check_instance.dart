@@ -12,6 +12,7 @@ class RecurringCheckInstance {
   final String residenceName;
   final String title;
   final String statusRaw;
+  final DateTime? dueAt;
   final String dueLabel;
   final String location;
   final String assignedStaffName;
@@ -29,6 +30,7 @@ class RecurringCheckInstance {
     this.residenceName = '',
     required this.title,
     this.statusRaw = '',
+    this.dueAt,
     this.dueLabel = '',
     this.location = '',
     this.assignedStaffName = '',

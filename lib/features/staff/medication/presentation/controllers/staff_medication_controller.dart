@@ -951,6 +951,8 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
         clinicalNotes: clinicalNotes,
         doseReason: doseReason,
         isPrn: dose.isPrn,
+        scheduledFor: dose.dueAt,
+        scheduled: dose.scheduled,
         safetyChecks: safetyChecks,
         vitals: vitals,
       ),

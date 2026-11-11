@@ -166,7 +166,7 @@ class TasksTabView extends StatelessWidget {
                                 onPressed: onRecurringTap == null
                                     ? null
                                     : () => onRecurringTap!(recurringChecks[i]),
-                                child: const Text('Complete'),
+                                child: const Text('Record'),
                               ),
                             ],
                           )

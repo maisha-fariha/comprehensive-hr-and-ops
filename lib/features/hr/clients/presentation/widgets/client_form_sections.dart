@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/formatting/web_formats.dart';
+import '../../../daily_logs/domain/repositories/daily_logs_repository.dart';
+import '../../../daily_logs/presentation/controllers/daily_logs_controller.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/client_extras.dart';
 import '../../domain/entities/client_goals.dart';
@@ -1161,20 +1165,111 @@ class _GoalCategoryPickerState extends State<_GoalCategoryPicker> {
   }
 }
 
-/// Web Client Details "Daily Logs" tab — read-only recent activity summary.
-class ClientDailyLogsSection extends StatelessWidget {
+/// Web Client Details "Daily Logs" tab — recent review rows from the API.
+class ClientDailyLogsSection extends StatefulWidget {
+  final String clientId;
+  final String? residenceId;
   final VoidCallback? onViewAll;
 
-  const ClientDailyLogsSection({super.key, this.onViewAll});
+  const ClientDailyLogsSection({
+    super.key,
+    required this.clientId,
+    this.residenceId,
+    this.onViewAll,
+  });
 
-  static const _rows = <(String, String, String, String)>[
-    ('Jun 10, 2024', 'Morning (7A–3P)', '7:42 AM', 'Complete'),
-    ('Jun 10, 2024', 'Evening (3P–11P)', '6:15 PM', 'Complete'),
-    ('Jun 9, 2024', 'Morning (7A–3P)', '8:03 AM', 'In Review'),
-    ('Jun 9, 2024', 'Night (11P–7A)', '11:58 PM', 'Flagged'),
-    ('Jun 8, 2024', 'Morning (7A–3P)', '7:30 AM', 'Complete'),
-    ('Jun 8, 2024', 'Evening (3P–11P)', '5:47 PM', 'Complete'),
-  ];
+  @override
+  State<ClientDailyLogsSection> createState() => _ClientDailyLogsSectionState();
+}
+
+class _ClientDailyLogsSectionState extends State<ClientDailyLogsSection> {
+  bool _loading = true;
+  String? _error;
+  List<(String, String, String, String)> _rows = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant ClientDailyLogsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.clientId != widget.clientId ||
+        oldWidget.residenceId != widget.residenceId) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    if (!GetIt.instance.isRegistered<DailyLogsRepository>()) {
+      setState(() {
+        _loading = false;
+        _error = 'Daily logs are unavailable.';
+        _rows = const [];
+      });
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final now = DateTime.now();
+    final to = DailyLogsController.dayKey(now);
+    final from = DailyLogsController.dayKey(
+      now.subtract(const Duration(days: 14)),
+    );
+    final residenceId = (widget.residenceId ?? '').trim();
+    if (residenceId.isEmpty) {
+      setState(() {
+        _loading = false;
+        _rows = const [];
+        _error = null;
+      });
+      return;
+    }
+    final result = await GetIt.instance<DailyLogsRepository>().reviewQueue(
+      residenceId: residenceId,
+      clientId: widget.clientId,
+      from: from,
+      to: to,
+      page: 1,
+      limit: 12,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (page) {
+        setState(() {
+          _rows = [
+            for (final row in page.items)
+              (
+                _dateLabel(row.logDate),
+                (row.shiftLabel ?? '').trim().isEmpty
+                    ? '—'
+                    : row.shiftLabel!.trim(),
+                row.entriesCount > 0 ? '${row.entriesCount} notes' : '—',
+                row.entriesCount > 0 ? 'In Review' : 'Pending',
+              ),
+          ];
+          _loading = false;
+        });
+      },
+      failure: (error) {
+        setState(() {
+          _error = error.message;
+          _rows = const [];
+          _loading = false;
+        });
+      },
+    );
+  }
+
+  String _dateLabel(String logDate) {
+    final parsed = DateTime.tryParse(logDate);
+    if (parsed == null) return logDate;
+    return WebFormat.date(parsed);
+  }
 
   Color _statusBg(String status) => switch (status) {
         'Complete' => AppColors.activeBackground,
@@ -1248,86 +1343,101 @@ class ClientDailyLogsSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.cardBorder),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              Container(
-                color: AppColors.filterButtonBackground.withValues(alpha: 0.4),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    for (final h in ['Date', 'Shift', 'Submitted', 'Status'])
-                      Expanded(
-                        child: Text(
-                          h.toUpperCase(),
-                          style: handoverText(
-                            context,
-                            11,
-                            weight: FontWeight.w600,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              for (final row in _rows)
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+            ),
+          )
+        else if (_error != null)
+          Text(_error!, style: handoverText(context, 13, color: AppColors.criticalRed))
+        else if (_rows.isEmpty)
+          Text(
+            'No recent daily logs for this client.',
+            style: muted,
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
                 Container(
+                  color: AppColors.filterButtonBackground.withValues(alpha: 0.4),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: const BoxDecoration(
-                    border: Border(top: BorderSide(color: AppColors.cardBorder)),
-                  ),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          row.$1,
-                          style: handoverText(context, 13, weight: FontWeight.w600),
+                      for (final h in ['Date', 'Shift', 'Submitted', 'Status'])
+                        Expanded(
+                          child: Text(
+                            h.toUpperCase(),
+                            style: handoverText(
+                              context,
+                              11,
+                              weight: FontWeight.w600,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
                         ),
-                      ),
-                      Expanded(child: Text(row.$2, style: muted)),
-                      Expanded(child: Text(row.$3, style: muted)),
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _statusBg(row.$4),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              row.$4,
-                              style: handoverText(
-                                context,
-                                11,
-                                weight: FontWeight.w600,
-                                color: _statusFg(row.$4),
+                    ],
+                  ),
+                ),
+                for (final row in _rows)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: AppColors.cardBorder)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            row.$1,
+                            style: handoverText(context, 13, weight: FontWeight.w600),
+                          ),
+                        ),
+                        Expanded(child: Text(row.$2, style: muted)),
+                        Expanded(child: Text(row.$3, style: muted)),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _statusBg(row.$4),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                row.$4,
+                                style: handoverText(
+                                  context,
+                                  11,
+                                  weight: FontWeight.w600,
+                                  color: _statusFg(row.$4),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-        if (onViewAll != null) ...[
+        if (widget.onViewAll != null) ...[
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: onViewAll,
+              onPressed: widget.onViewAll,
               child: Text(
                 'View all daily logs →',
                 style: handoverText(

@@ -26,6 +26,12 @@ class StaffAttendanceOverview {
   final String? selfieUrl;
   final bool isOnBreak;
   final String breakStatusLabel;
+
+  /// When the current break started (wall clock). Null when not on break.
+  final DateTime? breakStartedAt;
+
+  /// Completed unpaid break minutes on the open punch (web Worked "Xm break").
+  final int breakMinutes;
   final String? shiftId;
   final String? residenceId;
 
@@ -58,6 +64,8 @@ class StaffAttendanceOverview {
     this.selfieUrl,
     required this.isOnBreak,
     required this.breakStatusLabel,
+    this.breakStartedAt,
+    this.breakMinutes = 0,
     this.shiftId,
     this.residenceId,
     this.shiftEndsAt,
@@ -71,6 +79,8 @@ class StaffAttendanceOverview {
     String? elapsedTimeLabel,
     bool? isOnBreak,
     String? breakStatusLabel,
+    DateTime? breakStartedAt,
+    int? breakMinutes,
     bool? isWithinGeofence,
     String? geofenceStatusLabel,
     String? geofenceAddress,
@@ -94,6 +104,8 @@ class StaffAttendanceOverview {
       selfieUrl: selfieUrl,
       isOnBreak: isOnBreak ?? this.isOnBreak,
       breakStatusLabel: breakStatusLabel ?? this.breakStatusLabel,
+      breakStartedAt: breakStartedAt ?? this.breakStartedAt,
+      breakMinutes: breakMinutes ?? this.breakMinutes,
       shiftId: shiftId,
       residenceId: residenceId,
       shiftEndsAt: shiftEndsAt,

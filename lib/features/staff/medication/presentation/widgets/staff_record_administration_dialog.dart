@@ -248,20 +248,18 @@ class _StaffRecordAdministrationDialogState
 
   bool get _isAdministered => _status.status == 'administered';
 
-  bool get _safetyOk =>
-      _safetyConfirmed &&
-      _identityVerified &&
-      _medicationVerified &&
-      _dosageVerified &&
-      _routeVerified &&
-      _timeVerified;
-
   DueDose? get _resolvedDose {
     final med = _medication;
     final client = _client;
     if (med == null || client == null) return null;
+    final pre = widget.preselectedDose;
+    // Keep occurrence id / dueAt from the overdue/due row so
+    // `scheduledFor` charts that slot (web parity).
+    final reusePre = pre != null &&
+        pre.medicationId == med.id &&
+        pre.clientId == client.id;
     return DueDose(
-      id: '${med.isPrn ? 'prn' : 'med'}-${med.id}',
+      id: reusePre ? pre.id : '${med.isPrn ? 'prn' : 'med'}-${med.id}',
       residentName: client.name,
       residentInitials: client.name
           .trim()
@@ -274,15 +272,22 @@ class _StaffRecordAdministrationDialogState
       medicationName: med.name,
       dose: med.dose,
       route: MedicationRoute.tabletOral,
-      timeLabel: med.isPrn
-          ? (med.instructions ?? 'PRN / as needed')
-          : (med.scheduleLabel ?? ''),
+      timeLabel: reusePre && pre.timeLabel.isNotEmpty
+          ? pre.timeLabel
+          : (med.isPrn
+              ? (med.instructions ?? 'PRN / as needed')
+              : (med.scheduleLabel ?? '')),
       section: DueDoseSection.dueNow,
+      state: reusePre ? pre.state : 'due',
       clientId: client.id,
       residenceId: (client.residenceId ?? med.residenceId),
       residenceName: client.residenceName ?? med.residenceName,
       medicationId: med.id,
       isPrn: med.isPrn,
+      scheduled: reusePre ? pre.scheduled : !med.isPrn,
+      slotLabel: reusePre ? pre.slotLabel : '',
+      scheduledTime: reusePre ? pre.scheduledTime : '',
+      dueAt: reusePre ? pre.dueAt : null,
     );
   }
 
@@ -329,9 +334,7 @@ class _StaffRecordAdministrationDialogState
       }
       return null;
     }
-    if (_step == 1 && _isAdministered && !_safetyOk) {
-      return 'Confirm pre-administration and all five rights checks.';
-    }
+    // Safety / five-rights toggles are optional — do not block Next/submit.
     return null;
   }
 

@@ -60,6 +60,9 @@ class MarRoundItem {
   final String medicationName;
   final String dosage;
   final String scheduledTime;
+
+  /// Occurrence `dueAt` ISO — web round body field `scheduledFor`.
+  final String scheduledFor;
   final bool isControlled;
   final String status;
   final String doseReason;
@@ -74,6 +77,7 @@ class MarRoundItem {
     this.medicationName = '',
     this.dosage = '',
     this.scheduledTime = '',
+    this.scheduledFor = '',
     this.isControlled = false,
     this.status = 'administered',
     this.doseReason = '',

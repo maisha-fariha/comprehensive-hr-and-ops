@@ -49,6 +49,7 @@ abstract final class StaffAttendanceMapper {
         JsonCodec.boolean(open?['onBreak']) ??
         (JsonCodec.dateTime(open?['breakStartedAt']) != null);
     final breakStartedAt = JsonCodec.dateTime(open?['breakStartedAt']);
+    final breakMinutes = JsonCodec.integerOr(open?['breakMinutes'], 0);
 
     final checkInMeta = JsonCodec.mapAt(open ?? const {}, 'checkIn') ?? {};
     final geofenceStatus = JsonCodec.string(
@@ -192,11 +193,17 @@ abstract final class StaffAttendanceMapper {
           : 'Verified · ${IsoDateRange.timeLabel(checkIn)}',
       selfieUrl: selfieUrl,
       isOnBreak: onBreak,
-      breakStatusLabel: onBreak
-          ? (breakStartedAt == null
-                ? 'On break'
-                : 'On break · since ${IsoDateRange.timeLabel(breakStartedAt)}')
-          : 'Not on break',
+      breakStartedAt: onBreak && breakStartedAt != null
+          ? TenantClock.wallOf(breakStartedAt)
+          : null,
+      breakMinutes: breakMinutes,
+      breakStatusLabel: _breakStatusLabel(
+        onBreak: onBreak,
+        breakStartedAt: breakStartedAt == null
+            ? null
+            : TenantClock.wallOf(breakStartedAt),
+        breakMinutes: breakMinutes,
+      ),
       shiftId: JsonCodec.string(
         shift['id'] ??
             open?['shiftId'] ??
@@ -310,6 +317,7 @@ abstract final class StaffAttendanceMapper {
         occurredRaw == null ? null : TenantClock.wallOf(occurredRaw);
 
     final minutes = JsonCodec.integer(json['workedMinutes']);
+    final breakMinutes = JsonCodec.integerOr(json['breakMinutes'], 0);
     final fromMinutes = IsoDateRange.workedMinutesLabel(minutes);
     final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
     final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
@@ -341,13 +349,20 @@ abstract final class StaffAttendanceMapper {
           ? JsonCodec.stringOr(json['date'], '—')
           : IsoDateRange.formatShortDate(occurredAt),
       timeRange: timeRange,
-      durationLabel: fromMinutes.isNotEmpty
-          ? fromMinutes
-          : (checkIn == null || checkOut == null
-                ? (checkOut == null && checkIn != null ? 'In progress' : '—')
-                : IsoDateRange.workedMinutesLabel(
-                    checkOut.difference(checkIn).inMinutes,
-                  )),
+      durationLabel: () {
+        final worked = fromMinutes.isNotEmpty
+            ? fromMinutes
+            : (checkIn == null || checkOut == null
+                  ? (checkOut == null && checkIn != null ? 'In progress' : '—')
+                  : IsoDateRange.workedMinutesLabel(
+                      checkOut.difference(checkIn).inMinutes,
+                    ));
+        // Web Worked cell: append completed unpaid break total.
+        if (breakMinutes > 0 && worked != '—') {
+          return '$worked · ${breakMinutes}m break';
+        }
+        return worked;
+      }(),
       occurredAt: occurredAt,
       isOpen: checkIn != null && checkOut == null && status != 'missed',
       status: status,
@@ -379,6 +394,23 @@ abstract final class StaffAttendanceMapper {
         if (status.isEmpty) return isManual ? 'Manual entry' : '—';
         return status.replaceAll('_', ' ');
     }
+  }
+
+  /// Live elapsed while on break; completed total matches web Worked "Xm break".
+  static String _breakStatusLabel({
+    required bool onBreak,
+    required DateTime? breakStartedAt,
+    required int breakMinutes,
+  }) {
+    if (onBreak) {
+      final elapsed = breakStartedAt == null
+          ? 'On break'
+          : 'On break · ${IsoDateRange.elapsedHms(breakStartedAt)}';
+      if (breakMinutes > 0) return '$elapsed · ${breakMinutes}m earlier';
+      return elapsed;
+    }
+    if (breakMinutes > 0) return '${breakMinutes}m break today';
+    return 'Not on break';
   }
 
   const StaffAttendanceMapper._();

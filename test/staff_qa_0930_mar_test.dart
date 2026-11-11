@@ -339,6 +339,8 @@ class _FakeRepo implements StaffMedicationRepository {
     String? doseReason,
     String? witnessStaffId,
     bool isPrn = false,
+    DateTime? scheduledFor,
+    bool scheduled = true,
     Map<String, bool>? safetyChecks,
     Map<String, String>? vitals,
   }) async =>

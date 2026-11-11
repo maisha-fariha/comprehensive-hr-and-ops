@@ -191,7 +191,7 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
                       ),
                       BreakRow(
                         isOnBreak: overview.isOnBreak,
-                        statusLabel: overview.breakStatusLabel,
+                        statusLabel: controller.liveBreakStatusLabel.value,
                         onToggleBreak: controller.toggleBreak,
                       ),
                       SizedBox(

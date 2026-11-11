@@ -28,6 +28,9 @@ class StaffAttendanceController
   /// Live HH:MM:SS from [StaffAttendanceOverview.checkInAt].
   final RxString liveElapsedLabel = '00:00:00'.obs;
 
+  /// Live break status (elapsed duration while on break — web parity).
+  final RxString liveBreakStatusLabel = 'Not on break'.obs;
+
   /// Live GPS check against the residence fence (when enabled).
   final RxBool geofenceCheckBusy = false.obs;
 
@@ -73,7 +76,8 @@ class StaffAttendanceController
       success: (overview) {
         setSuccess(overview);
         liveElapsedLabel.value = overview.elapsedTimeLabel;
-        _restartTicker(overview.checkInAt);
+        liveBreakStatusLabel.value = overview.breakStatusLabel;
+        _restartTicker(overview);
         // Web: when GPS is on, resolve the device fix before offering Clock In.
         if (!overview.isOnShift && overview.requiresGeofence) {
           _refreshLiveGeofence(overview);
@@ -134,16 +138,31 @@ class StaffAttendanceController
     }
   }
 
-  void _restartTicker(DateTime? checkInAt) {
+  void _restartTicker(StaffAttendanceOverview overview) {
     _ticker?.cancel();
-    if (checkInAt == null) {
+    final checkInAt = overview.checkInAt;
+    final breakStartedAt = overview.breakStartedAt;
+    if (checkInAt == null && breakStartedAt == null) {
       liveElapsedLabel.value = '00:00:00';
+      liveBreakStatusLabel.value = overview.breakStatusLabel;
       return;
     }
-    liveElapsedLabel.value = IsoDateRange.elapsedHms(checkInAt);
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      liveElapsedLabel.value = IsoDateRange.elapsedHms(checkInAt);
-    });
+    void tick() {
+      if (checkInAt != null) {
+        liveElapsedLabel.value = IsoDateRange.elapsedHms(checkInAt);
+      }
+      if (overview.isOnBreak && breakStartedAt != null) {
+        final elapsed = IsoDateRange.elapsedHms(breakStartedAt);
+        liveBreakStatusLabel.value = overview.breakMinutes > 0
+            ? 'On break · $elapsed · ${overview.breakMinutes}m earlier'
+            : 'On break · $elapsed';
+      } else {
+        liveBreakStatusLabel.value = overview.breakStatusLabel;
+      }
+    }
+
+    tick();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => tick());
   }
 
   Future<void> clockIn() => _openClockSheet(isCheckIn: true);

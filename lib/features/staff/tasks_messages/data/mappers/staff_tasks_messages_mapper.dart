@@ -140,6 +140,7 @@ abstract final class StaffTasksMessagesMapper {
         residenceName: residenceName,
         title: name,
         statusRaw: JsonCodec.stringOr(json['status'], ''),
+        dueAt: due,
         dueLabel: dueText,
         location: residenceName,
         assignedStaffName: JsonCodec.stringOr(json['assignedStaffName'], ''),

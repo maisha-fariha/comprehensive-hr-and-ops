@@ -284,6 +284,8 @@ abstract final class StaffMedicationMapper {
       timeLabel: timeLabel,
       scheduled: inRound,
       slotLabel: slotFor(!inRound && dueHhmm.isNotEmpty ? dueHhmm : scheduledTime),
+      scheduledTime: scheduledTime,
+      dueAt: scheduled,
       administrationId: JsonCodec.string(json['administrationId']),
       administeredAt: JsonCodec.dateTime(json['administeredAt']),
       administeredBy: JsonCodec.string(json['administeredBy']),

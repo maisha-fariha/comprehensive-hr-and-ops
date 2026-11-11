@@ -12,8 +12,9 @@ abstract class StaffMedicationRepository {
   /// `GET /mar/round` — optional `residenceId` (web registry filter).
   Future<Result<StaffMedicationOverview>> getOverview({String? residenceId});
 
-  /// `POST /mar/administrations` — status: administered | refused | missed |
-  /// withheld | not_available | late.
+  /// `POST /mar/administrations/round` — same path as web Record
+  /// Administration (status: administered | refused | missed | withheld |
+  /// not_available | late).
   Future<Result<void>> recordAdministration({
     required String clientId,
     required String residenceId,
@@ -24,6 +25,10 @@ abstract class StaffMedicationRepository {
     String? doseReason,
     String? witnessStaffId,
     bool isPrn = false,
+    /// Web `scheduledFor` — occurrence `dueAt` ISO (required to chart a
+    /// specific overdue/due slot when the same med has multiple times).
+    DateTime? scheduledFor,
+    bool scheduled = true,
     Map<String, bool>? safetyChecks,
     Map<String, String>? vitals,
   });

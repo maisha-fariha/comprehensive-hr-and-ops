@@ -9,6 +9,11 @@ import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_outbox_section.dart';
 import '../../../../hr/communication/presentation/pages/communication_page.dart';
+import '../../../../hr/recurring_checks/domain/entities/recurring_check.dart';
+import '../../../../hr/recurring_checks/presentation/controllers/recurring_checks_controller.dart';
+import '../../../../hr/recurring_checks/presentation/widgets/record_check_sheet.dart';
+import '../../../../hr/recurring_checks/presentation/widgets/skip_check_sheet.dart';
+import '../../domain/entities/recurring_check_instance.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
 import '../controllers/tasks_messages_controller.dart';
 import '../widgets/messages_tab_view.dart';
@@ -57,6 +62,53 @@ class StaffTasksMessagesPage extends StatelessWidget {
   ) async {
     await Get.to(() => const CommunicationPage(showStaffBottomNav: true));
     await controller.refresh();
+  }
+
+  /// Same Record / Skip sheets as web Recurring Checks Due (not a bare PATCH).
+  CheckInstance _asCheckInstance(RecurringCheckInstance check) {
+    return CheckInstance(
+      id: check.id,
+      scheduleId: check.scheduleId,
+      clientId: check.clientId,
+      residenceId: check.residenceId,
+      dueAt: check.dueAt ?? DateTime.now(),
+      status: check.statusRaw.isEmpty ? 'pending' : check.statusRaw,
+      statusNote: check.statusNote.isEmpty ? null : check.statusNote,
+      assignedRole: check.assignedRole.isEmpty ? null : check.assignedRole,
+      assignedStaffName:
+          check.assignedStaffName.isEmpty ? null : check.assignedStaffName,
+      checkName: check.title,
+      clientName: check.clientName.isEmpty ? null : check.clientName,
+      roomNumber: check.roomLabel.isEmpty ? null : check.roomLabel,
+    );
+  }
+
+  Future<void> _recordRecurringCheck(
+    BuildContext context,
+    TasksMessagesController tasks,
+    RecurringCheckInstance check,
+  ) async {
+    final recurring = GetIt.instance<RecurringChecksController>();
+    await showRecordCheckSheet(
+      context,
+      controller: recurring,
+      instance: _asCheckInstance(check),
+    );
+    await tasks.refresh();
+  }
+
+  Future<void> _skipRecurringCheck(
+    BuildContext context,
+    TasksMessagesController tasks,
+    RecurringCheckInstance check,
+  ) async {
+    final recurring = GetIt.instance<RecurringChecksController>();
+    await showSkipCheckSheet(
+      context,
+      controller: recurring,
+      instance: _asCheckInstance(check),
+    );
+    await tasks.refresh();
   }
 
   @override
@@ -166,10 +218,18 @@ class StaffTasksMessagesPage extends StatelessWidget {
                           onFilterSelected: controller.selectFilter,
                           onTaskTap: controller.openTask,
                           onRecurringTap: canCompleteChecks
-                              ? controller.completeRecurringCheck
+                              ? (check) => _recordRecurringCheck(
+                                    context,
+                                    controller,
+                                    check,
+                                  )
                               : null,
                           onRecurringSkip: canCompleteChecks
-                              ? controller.skipRecurringCheck
+                              ? (check) => _skipRecurringCheck(
+                                    context,
+                                    controller,
+                                    check,
+                                  )
                               : null,
                         ),
                         TasksMessagesTab.messages => MessagesTabView(

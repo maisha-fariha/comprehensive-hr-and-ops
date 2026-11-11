@@ -376,6 +376,9 @@ abstract final class MedicationMapper {
             'status': item.status,
             if (item.status != 'administered' && item.doseReason.isNotEmpty)
               'reason': item.doseReason,
+            // Web charts a specific round slot via occurrence dueAt.
+            if (!item.isPrn && item.scheduledFor.isNotEmpty)
+              'scheduledFor': item.scheduledFor,
             'witnessStaffId': ?_blank(item.witnessStaffId),
             'notes': ?_blank(item.notes),
             'clinicalNotes': ?_blank(item.clinicalNotes),

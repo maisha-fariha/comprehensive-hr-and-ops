@@ -66,10 +66,22 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
     String? doseReason,
     String? witnessStaffId,
     bool isPrn = false,
+    DateTime? scheduledFor,
+    bool scheduled = true,
     Map<String, bool>? safetyChecks,
     Map<String, String>? vitals,
   }) async {
-    final staffId = _session.staffId?.trim();
+    // Web charts via `POST /mar/administrations/round` (not a bare
+    // `/mar/administrations` create). Using the create path duplicates
+    // Given rows and can 403 approved-staff checks differently.
+    final staffId = _session.staffId?.trim() ?? '';
+    if (staffId.isEmpty) {
+      return Result.failure(
+        const ApiError(
+          message: 'Say who administered it — your staff profile is missing.',
+        ),
+      );
+    }
     final cleanedVitals = <String, String>{};
     if (vitals != null) {
       for (final entry in vitals.entries) {
@@ -77,31 +89,42 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
         if (value.isNotEmpty) cleanedVitals[entry.key] = value;
       }
     }
-    final data = <String, dynamic>{
+    final anyCheck =
+        safetyChecks != null && safetyChecks.values.any((v) => v);
+    final reason = doseReason?.trim() ?? '';
+    // Web: for prescribed round doses, send occurrence dueAt as
+    // `scheduledFor` so the API charts that slot (not another already-given
+    // time for the same medicine).
+    final scheduledForIso = (!isPrn &&
+            scheduled &&
+            scheduledFor != null)
+        ? scheduledFor.toUtc().toIso8601String()
+        : null;
+    final item = <String, dynamic>{
       'source': isPrn ? 'prn' : 'prescribed',
-      'clientId': clientId,
-      'residenceId': residenceId,
+      if (isPrn) 'prnMedicationId': medicationId else 'medicationId': medicationId,
       'status': status,
-      'administeredAt': IsoDateRange.nowIso,
-      if (isPrn)
-        'prnMedicationId': medicationId
-      else
-        'medicationId': medicationId,
-      if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
+      if (status != 'administered' && reason.isNotEmpty) 'reason': reason,
+      if (scheduledForIso != null) 'scheduledFor': scheduledForIso,
+      if (witnessStaffId != null && witnessStaffId.trim().isNotEmpty)
+        'witnessStaffId': witnessStaffId.trim(),
       if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
       if (clinicalNotes != null && clinicalNotes.trim().isNotEmpty)
         'clinicalNotes': clinicalNotes.trim(),
-      if (doseReason != null && doseReason.trim().isNotEmpty)
-        'doseReason': doseReason.trim(),
-      if (witnessStaffId != null && witnessStaffId.trim().isNotEmpty)
-        'witnessStaffId': witnessStaffId.trim(),
-      if (safetyChecks != null && safetyChecks.isNotEmpty)
-        'safetyChecks': safetyChecks,
-      if (cleanedVitals.isNotEmpty) 'vitals': cleanedVitals,
+      if (status == 'administered' && anyCheck) 'safetyChecks': safetyChecks,
+      if (status == 'administered' && cleanedVitals.isNotEmpty)
+        'vitals': cleanedVitals,
+    };
+    final data = <String, dynamic>{
+      'clientId': clientId,
+      'residenceId': residenceId,
+      'staffId': staffId,
+      'administeredAt': IsoDateRange.nowIso,
+      'items': [item],
     };
 
     final result = await _api.post(
-      ApiEndpoints.marAdministrations,
+      ApiEndpoints.marAdministrationRound,
       data: data,
     );
     return result.when(

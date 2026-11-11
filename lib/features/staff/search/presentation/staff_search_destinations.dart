@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/roles/permission_gate.dart';
+import '../../../common/support_tickets/presentation/pages/support_tickets_page.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../../hr/compliance/presentation/pages/compliance_page.dart';
 import '../../../hr/finance/presentation/pages/finance_page.dart';
 import '../../../hr/org_settings/presentation/pages/org_settings_page.dart';
 import '../../attendance/presentation/pages/staff_attendance_page.dart';
-// import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart'; // Daily Activity UI hidden
-// import '../../extras/presentation/pages/staff_admissions_page.dart'; // Admissions UI hidden
 import '../../extras/presentation/pages/staff_appointments_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
 import '../../extras/presentation/pages/staff_documents_page.dart';
@@ -76,7 +76,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.home_work_outlined,
       iconBackground: AppColors.activeBackground,
       iconColor: AppColors.activeGreen,
-      open: () => Get.to(() => const StaffResidencesPage()),
+      open: () => openPermittedPage(
+        title: 'Residences',
+        anyOf: const ['residences:read'],
+        builder: () => const StaffResidencesPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Clients',
@@ -84,24 +88,24 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.groups_outlined,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
-      open: () => Get.to(() => const StaffClientsPage()),
+      open: () => openPermittedPage(
+        title: 'Clients',
+        anyOf: const ['clients:read'],
+        builder: () => const StaffClientsPage(),
+      ),
     ),
     // Admissions UI temporarily hidden for all roles (code kept).
-    // StaffSearchDestination(
-    //   label: 'Admissions',
-    //   permissions: const ['admissions:read'],
-    //   icon: Icons.how_to_reg_outlined,
-    //   iconBackground: AppColors.infoBackground,
-    //   iconColor: AppColors.infoBlue,
-    //   open: () => Get.to(() => const StaffAdmissionsPage()),
-    // ),
     StaffSearchDestination(
       label: 'Users & Access',
       permissions: const ['users:read', 'roles:read'],
       icon: Icons.admin_panel_settings_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
-      open: () => Get.to(() => const UsersAccessPage()),
+      open: () => openPermittedPage(
+        title: 'Users & Access',
+        anyOf: const ['users:read', 'roles:read'],
+        builder: () => const UsersAccessPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Scheduling',
@@ -119,7 +123,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.access_time_rounded,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
-      open: () => Get.to(() => const StaffAttendancePage()),
+      open: () => openPermittedPage(
+        title: 'Attendance',
+        anyOf: const ['attendance:read'],
+        builder: () => const StaffAttendancePage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Handovers',
@@ -128,7 +136,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.swap_horiz_rounded,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
-      open: () => Get.to(() => const StaffShiftHandoversPage()),
+      open: () => openPermittedPage(
+        title: 'Handovers',
+        anyOf: const ['shift-handovers:read'],
+        builder: () => const StaffShiftHandoversPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Recurring Checks',
@@ -137,7 +149,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.fact_check_outlined,
       iconBackground: AppColors.urgentBackground,
       iconColor: AppColors.urgentAmber,
-      open: () => Get.to(() => const StaffRecurringChecksPage()),
+      open: () => openPermittedPage(
+        title: 'Recurring Checks',
+        anyOf: const ['recurring-checks:read'],
+        builder: () => const StaffRecurringChecksPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Task Management',
@@ -145,7 +161,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.task_alt_rounded,
       iconBackground: AppColors.activeBackground,
       iconColor: AppColors.activeGreen,
-      open: () => Get.to(() => const StaffTasksMessagesPage()),
+      open: () => openPermittedPage(
+        title: 'Task Management',
+        anyOf: const ['tasks:read'],
+        builder: () => const StaffTasksMessagesPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Daily Logs',
@@ -161,7 +181,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.warning_amber_rounded,
       iconBackground: AppColors.urgentBackground,
       iconColor: AppColors.criticalRed,
-      open: () => Get.to(() => const StaffEmergencyPage()),
+      open: () => openPermittedPage(
+        title: 'Emergency',
+        anyOf: const ['emergency:read'],
+        builder: () => const StaffEmergencyPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Incidents',
@@ -170,7 +194,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.report_gmailerrorred_outlined,
       iconBackground: AppColors.urgentBackground,
       iconColor: AppColors.criticalRed,
-      open: () => Get.to(() => const StaffIncidentsListPage()),
+      open: () => openPermittedPage(
+        title: 'Incidents',
+        anyOf: const ['incidents:read'],
+        builder: () => const StaffIncidentsListPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Medication MAR',
@@ -179,7 +207,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.medication_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
-      open: () => Get.to(() => const StaffMedicationPage()),
+      open: () => openPermittedPage(
+        title: 'Medication MAR',
+        anyOf: const ['mar:read'],
+        builder: () => const StaffMedicationPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Inventory',
@@ -188,7 +220,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.inventory_2_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
-      open: () => Get.to(() => const StaffInventoryPage()),
+      open: () => openPermittedPage(
+        title: 'Inventory',
+        anyOf: const ['inventory:read'],
+        builder: () => const StaffInventoryPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Reports & Analytics',
@@ -197,7 +233,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.insert_chart_outlined_rounded,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
-      open: () => Get.to(() => const TeamReportsPage()),
+      open: () => openPermittedPage(
+        title: 'Reports & Analytics',
+        anyOf: const ['reports:read'],
+        builder: () => const TeamReportsPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Compliance & Audit',
@@ -206,17 +246,13 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.verified_user_outlined,
       iconBackground: AppColors.activeBackground,
       iconColor: AppColors.activeGreen,
-      open: () => Get.to(() => const CompliancePage()),
+      open: () => openPermittedPage(
+        title: 'Compliance & Audit',
+        anyOf: const ['compliance:read'],
+        builder: () => const CompliancePage(),
+      ),
     ),
     // Daily Activity UI temporarily hidden for all roles (code kept).
-    // StaffSearchDestination(
-    //   label: 'Daily Activity',
-    //   permissions: const ['client-activities:read'],
-    //   icon: Icons.directions_walk_outlined,
-    //   iconBackground: AppColors.activeBackground,
-    //   iconColor: AppColors.activeGreen,
-    //   open: () => Get.to(() => const StaffDailyActivityPage()),
-    // ),
     StaffSearchDestination(
       label: 'Finance & Payroll',
       permissions: const ['payroll:read', 'finance:read'],
@@ -225,7 +261,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       iconBackground: AppColors.urgentBackgroundSoft,
       iconColor: AppColors.urgentAmber,
       // Staff portal surfaces the same module when payroll/finance perms exist.
-      open: () => Get.to(() => const FinancePage()),
+      open: () => openPermittedPage(
+        title: 'Finance & Payroll',
+        anyOf: const ['payroll:read', 'finance:read'],
+        builder: () => const FinancePage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Documents Management',
@@ -234,7 +274,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.folder_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
-      open: () => Get.to(() => const StaffDocumentsPage()),
+      open: () => openPermittedPage(
+        title: 'Documents Management',
+        anyOf: const ['documents:read'],
+        builder: () => const StaffDocumentsPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Appointments',
@@ -243,7 +287,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.event_available_outlined,
       iconBackground: AppColors.activeBackground,
       iconColor: AppColors.activeGreen,
-      open: () => Get.to(() => const StaffAppointmentsPage()),
+      open: () => openPermittedPage(
+        title: 'Appointments',
+        anyOf: const ['appointments:read'],
+        builder: () => const StaffAppointmentsPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Training',
@@ -252,14 +300,23 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.school_outlined,
       iconBackground: AppColors.urgentBackgroundSoft,
       iconColor: AppColors.urgentAmber,
-      open: () => Get.to(() => const StaffTrainingPage()),
+      open: () => openPermittedPage(
+        title: 'Training',
+        anyOf: const ['training:read'],
+        builder: () => const StaffTrainingPage(),
+      ),
     ),
-    const StaffSearchDestination(
+    StaffSearchDestination(
       label: 'Support & Tickets',
-      permissions: ['tickets:view_own', 'tickets:view_tenant'],
+      permissions: const ['tickets:view_own', 'tickets:view_tenant'],
       icon: Icons.support_agent_outlined,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
+      open: () => openPermittedPage(
+        title: 'Support & Tickets',
+        anyOf: const ['tickets:view_own', 'tickets:view_tenant'],
+        builder: () => const SupportTicketsPage(),
+      ),
     ),
     StaffSearchDestination(
       label: 'Communication',
@@ -268,8 +325,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.forum_outlined,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
-      open: () =>
-          Get.to(() => const CommunicationPage(showStaffBottomNav: true)),
+      open: () => openPermittedPage(
+        title: 'Communication',
+        anyOf: const ['messaging:read'],
+        builder: () => const CommunicationPage(showStaffBottomNav: true),
+      ),
     ),
     StaffSearchDestination(
       label: 'Settings',
@@ -277,7 +337,11 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.settings_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
-      open: () => Get.to(() => const OrgSettingsPage(showShell: false)),
+      open: () => openPermittedPage(
+        title: 'Settings',
+        anyOf: const ['settings:read'],
+        builder: () => const OrgSettingsPage(showShell: false),
+      ),
     ),
   ];
 }
@@ -308,10 +372,22 @@ String staffSearchRecordGroupLabel(StaffSearchRecordType type) {
 void openStaffSearchRecord(StaffSearchRecord record) {
   switch (record.type) {
     case StaffSearchRecordType.client:
-      Get.to(() => const StaffClientsPage());
+      openPermittedPage(
+        title: 'Clients',
+        anyOf: const ['clients:read'],
+        builder: () => const StaffClientsPage(),
+      );
     case StaffSearchRecordType.document:
-      Get.to(() => const StaffDocumentsPage());
+      openPermittedPage(
+        title: 'Documents Management',
+        anyOf: const ['documents:read'],
+        builder: () => const StaffDocumentsPage(),
+      );
     case StaffSearchRecordType.medication:
-      Get.to(() => const StaffMedicationPage());
+      openPermittedPage(
+        title: 'Medication MAR',
+        anyOf: const ['mar:read'],
+        builder: () => const StaffMedicationPage(),
+      );
   }
 }

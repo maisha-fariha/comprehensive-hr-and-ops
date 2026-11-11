@@ -241,10 +241,12 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                   _panel(
                     'logs',
                     ClientDailyLogsSection(
+                      clientId: c.id,
+                      residenceId: c.residenceId ?? _form.currentResidence,
                       onViewAll: () {
                         if (!_controller.can('daily-logs:read')) {
                           AppSnackbar.show(
-                            'You need daily logs access to open the full queue.',
+                            'You need daily logs access to open the full board.',
                             '',
                             force: true,
                           );
