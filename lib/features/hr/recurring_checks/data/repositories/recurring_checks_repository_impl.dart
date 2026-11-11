@@ -70,6 +70,7 @@ class RecurringChecksRepositoryImpl implements RecurringChecksRepository {
   Future<Result<List<CheckInstance>>> instances({
     required String day,
     String? residenceId,
+    String? clientId,
     String? status,
     bool mine = false,
   }) =>
@@ -77,6 +78,7 @@ class RecurringChecksRepositoryImpl implements RecurringChecksRepository {
         ApiEndpoints.recurringCheckInstances,
         {
           'residenceId': ?residenceId,
+          'clientId': ?clientId,
           'status': ?status,
           'from': day,
           'to': day,
@@ -91,6 +93,7 @@ class RecurringChecksRepositoryImpl implements RecurringChecksRepository {
   Future<Result<List<CheckEntry>>> entries({
     required String day,
     String? residenceId,
+    String? clientId,
     String? outcome,
     bool mine = false,
   }) =>
@@ -98,6 +101,7 @@ class RecurringChecksRepositoryImpl implements RecurringChecksRepository {
         ApiEndpoints.recurringCheckEntries,
         {
           'residenceId': ?residenceId,
+          'clientId': ?clientId,
           'outcome': ?outcome,
           'from': day,
           'to': day,

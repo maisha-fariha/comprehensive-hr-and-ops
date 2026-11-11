@@ -542,10 +542,17 @@ class _FakeChecksRepo implements RecurringChecksRepository {
   Future<Result<List<CheckInstance>>> instances({
     required String day,
     String? residenceId,
+    String? clientId,
     String? status,
     bool mine = false,
   }) async {
-    instanceQueries.add({'day': day, 'residenceId': residenceId, 'status': status, 'mine': mine});
+    instanceQueries.add({
+      'day': day,
+      'residenceId': residenceId,
+      'clientId': clientId,
+      'status': status,
+      'mine': mine,
+    });
     return Result.success(instanceItems);
   }
 
@@ -553,10 +560,17 @@ class _FakeChecksRepo implements RecurringChecksRepository {
   Future<Result<List<CheckEntry>>> entries({
     required String day,
     String? residenceId,
+    String? clientId,
     String? outcome,
     bool mine = false,
   }) async {
-    entryQueries.add({'day': day, 'residenceId': residenceId, 'outcome': outcome, 'mine': mine});
+    entryQueries.add({
+      'day': day,
+      'residenceId': residenceId,
+      'clientId': clientId,
+      'outcome': outcome,
+      'mine': mine,
+    });
     return Result.success(entryItems);
   }
 
@@ -1725,9 +1739,15 @@ void main() {
       await _openChecks(tester, repo: repo);
 
       await _tap(tester, find.byKey(const ValueKey('checks-tab-due')));
-      expect(repo.instanceQueries.last,
-          {'day': today, 'residenceId': null, 'status': null, 'mine': false});
+      expect(repo.instanceQueries.last, {
+        'day': today,
+        'residenceId': null,
+        'clientId': null,
+        'status': null,
+        'mine': false,
+      });
       expect(find.text('All my residences'), findsOneWidget);
+      expect(find.text('All residents'), findsOneWidget);
       expect(find.text(WebFormat.date(DateTime.now())), findsOneWidget);
       expect(find.text('Any status'), findsOneWidget);
       expect(find.text('Checks assigned to me'), findsOneWidget);
@@ -2029,8 +2049,13 @@ void main() {
       await _openChecks(tester, repo: repo);
       await _tap(tester, find.byKey(const ValueKey('checks-tab-checks')));
 
-      expect(repo.entryQueries.last,
-          {'day': today, 'residenceId': null, 'outcome': null, 'mine': false});
+      expect(repo.entryQueries.last, {
+        'day': today,
+        'residenceId': null,
+        'clientId': null,
+        'outcome': null,
+        'mine': false,
+      });
       expect(find.text('Urgent'), findsOneWidget);
       expect(find.text('Off duty'), findsOneWidget);
       expect(find.text('Covered for Maya Rahman'), findsOneWidget);

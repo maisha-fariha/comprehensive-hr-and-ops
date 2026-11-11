@@ -206,6 +206,10 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
       ('', 'All my residences'),
       for (final r in _c.residences) (r.id, r.label),
     ];
+    final residentOptions = [
+      ('', 'All residents'),
+      for (final c in _c.filterClients) (c.id, c.label),
+    ];
     final statusOptions = [('', 'Any status'), ...CheckLabels.statuses];
     String? labelOf(List<(String, String)> options, String? id) =>
         id == null ? null : options.where((o) => o.$1 == id).firstOrNull?.$2;
@@ -223,6 +227,24 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
                   title: 'Residence', options: residenceOptions,
                   selected: _c.residenceId.value ?? '');
               if (picked != null) _c.setResidence(picked.isEmpty ? null : picked);
+            },
+          ),
+          const SizedBox(height: 12),
+          HandoverSelect(
+            key: const ValueKey('checks-resident-filter'),
+            label: 'Resident',
+            value: labelOf(residentOptions, _c.clientId.value),
+            placeholder: 'All residents',
+            onTap: () async {
+              final picked = await pickHandoverOption(
+                context,
+                title: 'Resident',
+                options: residentOptions,
+                selected: _c.clientId.value ?? '',
+              );
+              if (picked != null) {
+                _c.setClient(picked.isEmpty ? null : picked);
+              }
             },
           ),
           const SizedBox(height: 12),

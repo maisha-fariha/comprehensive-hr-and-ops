@@ -19,6 +19,7 @@ abstract class RecurringChecksRepository {
   Future<Result<List<CheckInstance>>> instances({
     required String day,
     String? residenceId,
+    String? clientId,
     String? status,
     bool mine = false,
   });
@@ -27,6 +28,7 @@ abstract class RecurringChecksRepository {
   Future<Result<List<CheckEntry>>> entries({
     required String day,
     String? residenceId,
+    String? clientId,
     String? outcome,
     bool mine = false,
   });

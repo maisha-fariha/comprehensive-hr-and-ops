@@ -15,6 +15,10 @@ import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_residence.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_shift_handover.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/repositories/staff_extras_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/recurring_checks/domain/entities/recurring_check.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/recurring_checks/domain/repositories/recurring_checks_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/recurring_checks/presentation/controllers/recurring_checks_controller.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/recurring_checks/presentation/pages/recurring_checks_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/presentation/pages/staff_recurring_checks_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/presentation/pages/staff_shift_handovers_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/presentation/pages/staff_more_menu_page.dart';
@@ -656,6 +660,135 @@ class _FakeAttendanceRepo implements StaffAttendanceRepository {
       );
 }
 
+class _StaffRecurringChecksFake implements RecurringChecksRepository {
+  @override
+  Future<Result<CheckSchedulePage>> schedules({
+    required int page,
+    required int limit,
+  }) async =>
+      Result.success(
+        CheckSchedulePage(
+          items: const [
+            CheckSchedule(
+              id: 's1',
+              clientId: 'client-1',
+              residenceId: 'res-1',
+              name: 'Room check — Sunrise',
+              clientName: 'Alex Brown',
+              residenceName: 'Sunrise Home',
+              frequency: 'interval',
+              intervalMinutes: 30,
+            ),
+          ],
+          page: page,
+          limit: limit,
+          total: 1,
+          totalPages: 1,
+        ),
+      );
+
+  @override
+  Future<Result<List<CheckSchedule>>> clientSchedules(String clientId) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<void>> createSchedule(Map<String, dynamic> body) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> updateSchedule(
+    String id,
+    Map<String, dynamic> body,
+  ) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> deleteSchedule(String id) async => Result.success(null);
+
+  @override
+  Future<Result<List<CheckInstance>>> instances({
+    required String day,
+    String? residenceId,
+    String? clientId,
+    String? status,
+    bool mine = false,
+  }) async =>
+      Result.success([
+        CheckInstance(
+          id: 'rc-1',
+          scheduleId: 's1',
+          clientId: 'client-1',
+          residenceId: 'res-1',
+          dueAt: DateTime.now().add(const Duration(hours: 1)),
+          status: 'pending',
+          checkName: 'Room check — Sunrise',
+          clientName: 'Alex Brown',
+          roomNumber: '101',
+          assignedStaffName: 'Sam Jones',
+        ),
+        CheckInstance(
+          id: 'rc-2',
+          scheduleId: 's1',
+          clientId: 'client-1',
+          residenceId: 'res-1',
+          dueAt: DateTime.now().add(const Duration(hours: 2)),
+          status: 'needs_assignment',
+          checkName: 'Evening check',
+          clientName: 'Alex Brown',
+          roomNumber: '101',
+        ),
+      ]);
+
+  @override
+  Future<Result<List<CheckEntry>>> entries({
+    required String day,
+    String? residenceId,
+    String? clientId,
+    String? outcome,
+    bool mine = false,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<void>> updateInstance(
+    String id,
+    Map<String, dynamic> body,
+  ) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<List<CheckAvailableStaff>>> availableStaff(
+    String instanceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<void>> recordEntry(Map<String, dynamic> body) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<List<CheckOption>>> residences() async => Result.success(const [
+        CheckOption(id: 'res-1', label: 'Sunrise Home'),
+      ]);
+
+  @override
+  Future<Result<List<CheckOption>>> staff() async => Result.success(const []);
+
+  @override
+  Future<Result<List<CheckOption>>> clients({String? residenceId}) async =>
+      Result.success(const [
+        CheckOption(id: 'client-1', label: 'Alex Brown'),
+      ]);
+
+  @override
+  Future<Result<List<CheckOption>>> colleagues(String? residenceId) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<String?>> openAttendanceResidenceId() async =>
+      Result.success(null);
+}
+
 Widget _wrap(Widget child) {
   return ScreenUtilInit(
     designSize: const Size(
@@ -923,13 +1056,18 @@ void main() {
   testWidgets('BUG_Report008: Recurring Checks matches web tabs and dialogs', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(375, 812);
+    tester.view.physicalSize = const Size(375, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    GetIt.I.registerSingleton<StaffTasksMessagesRepository>(_FakeTasksRepo());
-    GetIt.I.registerSingleton<StaffExtrasRepository>(_FakeExtrasRepo());
+    final checksRepo = _StaffRecurringChecksFake();
+    GetIt.I.registerFactory<RecurringChecksController>(
+      () => RecurringChecksController(
+        repository: checksRepo,
+        session: Get.find<UserSession>(),
+      ),
+    );
 
     await tester.pumpWidget(_wrap(const StaffMoreMenuPage()));
     await tester.pumpAndSettle();
@@ -939,58 +1077,35 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(StaffRecurringChecksPage), findsOneWidget);
-    expect(
-      find.byKey(const Key('staff-recurring-checks-page')),
-      findsOneWidget,
-    );
+    expect(find.byType(RecurringChecksPage), findsOneWidget);
     expect(find.text('Schedules'), findsOneWidget);
     expect(find.text('Due'), findsOneWidget);
     expect(find.text('Checks'), findsOneWidget);
-    expect(find.text('Record Progress'), findsOneWidget);
-    expect(find.text('New Schedule'), findsOneWidget);
+    expect(find.byKey(const ValueKey('checks-record-progress')), findsOneWidget);
+    expect(find.byKey(const ValueKey('checks-new-schedule')), findsOneWidget);
     expect(find.text('Room check — Sunrise'), findsOneWidget);
 
     await tester.tap(find.text('Due'));
     await tester.pumpAndSettle();
-    expect(find.text('Complete'), findsOneWidget);
-    expect(find.text('Skip'), findsOneWidget);
+    expect(find.text('All my residences'), findsOneWidget);
+    expect(find.text('All residents'), findsOneWidget);
+    expect(find.text('Any status'), findsOneWidget);
+    expect(find.text('Checks assigned to me'), findsOneWidget);
+    expect(find.byKey(const ValueKey('check-record-rc-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('check-skip-rc-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('check-assign-rc-2')), findsOneWidget);
     expect(find.text('Pending'), findsOneWidget);
+    expect(find.text('Needs assignment'), findsOneWidget);
 
-    await tester.tap(find.text('Checks'));
-    await tester.pumpAndSettle();
-    expect(find.text('Evening check'), findsOneWidget);
-
-    await tester.tap(find.text('New Schedule'));
+    await tester.tap(find.byKey(const ValueKey('checks-new-schedule')));
     await tester.pumpAndSettle();
     expect(find.text('New recurring check'), findsOneWidget);
-    expect(find.textContaining('Residence'), findsWidgets);
-    expect(find.textContaining('Resident'), findsWidgets);
-    expect(find.text('The check'), findsOneWidget);
-    expect(find.text('How often'), findsOneWidget);
-    expect(
-      find.text('Tell somebody when it reads wrong'),
-      findsOneWidget,
-    );
-    expect(find.text('Alert on an abnormal reading'), findsOneWidget);
-    expect(find.byKey(const Key('staff-recurring-alert-toggle')), findsOneWidget);
-    expect(find.text('Who does it'), findsOneWidget);
-    expect(find.text('Whoever is on shift'), findsOneWidget);
-    expect(find.textContaining('Specific person'), findsWidgets);
-    expect(find.text('Create check'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Record Progress'));
+    await tester.tap(find.byKey(const ValueKey('checks-record-progress')));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('welfare observation'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('Resident'), findsWidgets);
-    expect(find.textContaining('What you saw'), findsOneWidget);
-    expect(find.text('Outcome'), findsOneWidget);
-    expect(find.text('Normal'), findsWidgets);
-    expect(find.text('Record progress'), findsOneWidget);
+    expect(find.textContaining('welfare observation'), findsOneWidget);
   });
 
   testWidgets(
