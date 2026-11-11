@@ -119,14 +119,20 @@ abstract final class AuthMapper {
   }
 
   static const restrictedAccountMessage =
-      'This app is for managers, staff and family members. Platform admin '
-      'accounts cannot sign in here — please use the web dashboard.';
+      'This app is for managers, staff and family members. Tenant admin and '
+      'platform admin accounts cannot sign in here — please use the web '
+      'dashboard.';
 
-  /// Platform operators only. Tenant / HR admins use the manager shell so
-  /// Finance & Payroll (and other tenant modules) match the web dashboard.
-  static const _webOnlyRoles = {'platform_admin', 'super_admin'};
+  /// Web-only roles: tenant admins and platform operators use the dashboard,
+  /// not the mobile portals (Bug Report 001 — Tenant Admin mobile login).
+  /// `hr_admin` / residence managers still use the manager shell.
+  static const _webOnlyRoles = {
+    'tenant_admin',
+    'platform_admin',
+    'super_admin',
+  };
 
-  /// Platform users only have the web dashboard.
+  /// Tenant admin and platform users only have the web dashboard.
   static bool isWebOnlyAccount(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
     final user = JsonCodec.mapAt(json, 'user') ??

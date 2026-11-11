@@ -285,15 +285,38 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
-  Future<Result<List<ShiftStaffOption>>> getStaffOptions() async {
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions({
+    String? residenceId,
+  }) async {
     final result = await _api.get(
       ApiEndpoints.staff,
-      query: {'page': 1, 'limit': _pageSize},
+      query: {
+        'page': 1,
+        'limit': _pageSize,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
       silent: true,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(SchedulingMapper.staffFrom(body)),
+      success: (body) async {
+        var options = SchedulingMapper.staffFrom(body);
+        // Defense in depth: keep only staff linked to the selected home when
+        // the API still returns a wider directory.
+        if (residenceId != null && residenceId.isNotEmpty) {
+          final scoped = [
+            for (final o in options)
+              if (o.residenceIds.contains(residenceId)) o,
+          ];
+          // Prefer the scoped list when we could resolve residence links;
+          // otherwise trust the residenceId-filtered API payload.
+          if (scoped.isNotEmpty ||
+              options.any((o) => o.residenceIds.isNotEmpty)) {
+            options = scoped;
+          }
+        }
+        return Result.success(options);
+      },
       failure: (error) async => Result.failure(error),
     );
   }

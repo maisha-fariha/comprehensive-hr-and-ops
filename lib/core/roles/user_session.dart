@@ -56,6 +56,7 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   final RxnString _residenceId = RxnString();
   final RxnString _residenceName = RxnString();
   final RxnString _organizationName = RxnString();
+  final RxnString _organizationLogoUrl = RxnString();
   final RxnString _staffId = RxnString();
   final RxnString _relationship = RxnString();
   final RxnString _selectedClientId = RxnString();
@@ -82,6 +83,8 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   String? get residenceId => _residenceId.value;
   String? get residenceName => _residenceName.value;
   String? get organizationName => _organizationName.value;
+  /// Settings → General `logoUrl` for web sidebar / header brand.
+  String? get organizationLogoUrl => _organizationLogoUrl.value;
   String? get staffId => _staffId.value;
   String? get relationship => _relationship.value;
   String? get selectedClientId => _selectedClientId.value;
@@ -197,7 +200,6 @@ class UserSession extends GetxService with WidgetsBindingObserver {
           (residenceId != null && residenceId.isNotEmpty) ? residenceId : null;
       if (residenceName != null && residenceName.isNotEmpty) {
         _residenceName.value = residenceName;
-        _organizationName.value = residenceName;
       }
       return;
     }
@@ -207,7 +209,6 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     }
     if (residenceName != null && residenceName.isNotEmpty) {
       _residenceName.value = residenceName;
-      _organizationName.value = residenceName;
     }
   }
 
@@ -248,7 +249,9 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     _avatarUrl.value = profile.avatarUrl;
     _residenceId.value = profile.residenceId;
     _residenceName.value = profile.residenceName;
-    _organizationName.value = profile.residenceName ?? profile.tenantName;
+    // Company / tenant name for portal branding (not the assigned residence).
+    _organizationName.value = profile.tenantName ?? profile.residenceName;
+    // Logo is filled by Settings → General sync (`applyOrgBranding`).
     // `/mobile/me` often has no staffId. A refresh must not wipe the id
     // `/mobile/home` already stored, or clock-out is sent without it and
     // the API answers "staffId Required" instead of the handover error.
@@ -276,7 +279,6 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     }
     if (residenceName != null && residenceName.isNotEmpty) {
       _residenceName.value = residenceName;
-      _organizationName.value = residenceName;
     }
   }
 
@@ -285,6 +287,14 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   /// Reflects a profile photo change (`PATCH /auth/avatar`) app-wide.
   void updateAvatarUrl(String? url) =>
       _avatarUrl.value = (url == null || url.trim().isEmpty) ? null : url;
+
+  /// Settings → General brand (`platformName`, `logoUrl`) for headers/sidebar.
+  void applyOrgBranding({String? name, String? logoUrl}) {
+    final n = name?.trim();
+    if (n != null && n.isNotEmpty) _organizationName.value = n;
+    final logo = logoUrl?.trim();
+    _organizationLogoUrl.value = (logo == null || logo.isEmpty) ? null : logo;
+  }
 
   /// Test/dev helper to open a portal without going through `/mobile/me`.
   void signIn({
@@ -364,6 +374,7 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     _residenceId.value = null;
     _residenceName.value = null;
     _organizationName.value = null;
+    _organizationLogoUrl.value = null;
     _staffId.value = null;
     _relationship.value = null;
     _selectedClientId.value = null;

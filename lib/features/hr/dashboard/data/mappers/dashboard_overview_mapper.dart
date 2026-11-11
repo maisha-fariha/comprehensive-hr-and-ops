@@ -23,9 +23,10 @@ abstract final class DashboardOverviewMapper {
 
     return DashboardOverview(
       organizationName: session.organizationName ??
-          JsonCodec.string(dashboard['residenceName']) ??
           JsonCodec.string(dashboard['organizationName']) ??
-          'Residence',
+          JsonCodec.string(dashboard['tenantName']) ??
+          JsonCodec.string(dashboard['residenceName']) ??
+          'Organisation',
       dateLabel: IsoDateRange.formatDisplayDate(now),
       greetingLine: '${IsoDateRange.greetingPrefix(now)}, $firstName 👋',
       greetingSubtitle: "Here's what's happening today.",

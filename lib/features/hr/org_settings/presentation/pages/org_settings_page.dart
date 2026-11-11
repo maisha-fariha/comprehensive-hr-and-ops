@@ -79,6 +79,17 @@ Future<OrgSettingsSnapshot> loadOrgSettings() async {
     dateFmt: JsonCodec.string(general['dateFormat']),
     timeFmt: JsonCodec.string(general['timeFormat']),
   );
+  final logo = JsonCodec.string(general['logoUrl'])?.trim();
+  TenantClock.logoUrl = (logo == null || logo.isEmpty) ? null : logo;
+  final platform = JsonCodec.string(general['platformName'])?.trim();
+  TenantClock.platformName =
+      (platform == null || platform.isEmpty) ? null : platform;
+  if (Get.isRegistered<UserSession>()) {
+    Get.find<UserSession>().applyOrgBranding(
+      name: TenantClock.platformName,
+      logoUrl: TenantClock.logoUrl,
+    );
+  }
 
   int? breakMinutes;
   final scheduling = await api.get(ApiEndpoints.settingsScheduling, silent: true);

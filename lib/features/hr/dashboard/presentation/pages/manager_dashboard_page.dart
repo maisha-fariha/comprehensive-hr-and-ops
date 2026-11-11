@@ -18,6 +18,7 @@ import '../../../hr_shell.dart';
 import '../../../incidents/presentation/pages/hr_incident_details_page.dart';
 import '../../../incidents/presentation/pages/incidents_list_page.dart';
 import '../../../presentation/open_manager_portal_search.dart';
+import '../../../presentation/widgets/hr_company_brand.dart';
 import '../../../presentation/widgets/manager_page_search_sheet.dart';
 import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
 import '../../../profile_settings/presentation/widgets/hr_initials_avatar.dart';
@@ -146,6 +147,11 @@ class ManagerDashboardPage extends StatelessWidget {
                       _TodaysOverviewSection(
                         stats: overview.overviewStats.take(4).toList(),
                         lastUpdatedLabel: overview.lastUpdatedLabel,
+                        onStatTap: (stat) {
+                          if (stat.id == 'open-incidents') {
+                            Get.to(() => const IncidentsListPage());
+                          }
+                        },
                       ),
                       if (_permittedQuickActions(overview.quickActions)
                           case final actions when actions.isNotEmpty) ...[
@@ -377,46 +383,10 @@ class _OrganizationSwitcher extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: ResponsiveHelper.getResponsiveSize(context, 28),
-            height: ResponsiveHelper.getResponsiveSize(context, 28),
-            decoration: BoxDecoration(
-              color: AppColors.activeBackground,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 8),
-              ),
-            ),
-            alignment: Alignment.center,
-            child: const AppSvgIcon(
-              AppAssets.homeSmall,
-              size: 17,
-              color: AppColors.secondaryTeal,
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          Flexible(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                color: AppColors.surfaceWhite,
-              ),
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-          const AppSvgIcon(
-            AppAssets.chevronDown,
-            size: 17,
-            color: AppColors.whiteOpacity70,
-          ),
-        ],
+      child: HrCompanyBrand(
+        name: name,
+        lightOnDark: true,
+        maxNameWidth: 140,
       ),
     );
   }
@@ -639,17 +609,16 @@ class _NeedsAttentionSection extends StatelessWidget {
   const _NeedsAttentionSection({required this.alerts});
 
   void _openViewAll() {
-    final hasIncident = alerts.any(_isIncidentAlert);
-    final hasDocument = alerts.any(_isDocumentAlert);
-    if (hasIncident && !hasDocument) {
+    // Web Needs Attention "View all" for open incidents opens the Incidents
+    // module (not Alerts), even when other alert types are also present.
+    if (alerts.any(_isIncidentAlert)) {
       Get.to(() => const IncidentsListPage());
       return;
     }
-    if (hasDocument && !hasIncident) {
+    if (alerts.any(_isDocumentAlert)) {
       Get.to(() => const HrDocumentsPage());
       return;
     }
-    // Mixed / unknown — Alerts tab matches web "View all".
     Get.offAll(() => const HrShell(initialIndex: 3));
   }
 
@@ -680,7 +649,9 @@ class _NeedsAttentionSection extends StatelessWidget {
   static bool _isIncidentAlert(AttentionAlert alert) {
     final type = (alert.type ?? '').toLowerCase();
     if (type.contains('incident')) return true;
-    return alert.metaString('incidentId') != null;
+    if (alert.metaString('incidentId') != null) return true;
+    final title = alert.title.toLowerCase();
+    return title.contains('incident');
   }
 
   static bool _isDocumentAlert(AttentionAlert alert) {
@@ -969,10 +940,12 @@ class _QuickActionsSection extends StatelessWidget {
 class _TodaysOverviewSection extends StatelessWidget {
   final List<OverviewStat> stats;
   final String lastUpdatedLabel;
+  final ValueChanged<OverviewStat>? onStatTap;
 
   const _TodaysOverviewSection({
     required this.stats,
     required this.lastUpdatedLabel,
+    this.onStatTap,
   });
 
   @override
@@ -1026,7 +999,10 @@ class _TodaysOverviewSection extends StatelessWidget {
                   SizedBox(
                     width: cardWidth,
                     height: cardHeight,
-                    child: _OverviewStatCard(stat: stat),
+                    child: _OverviewStatCard(
+                      stat: stat,
+                      onTap: onStatTap == null ? null : () => onStatTap!(stat),
+                    ),
                   ),
               ],
             );
@@ -1108,15 +1084,23 @@ _StatVisual _visualForTag(StatTag tag) {
 
 class _OverviewStatCard extends StatelessWidget {
   final OverviewStat stat;
+  final VoidCallback? onTap;
 
-  const _OverviewStatCard({required this.stat});
+  const _OverviewStatCard({required this.stat, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final visual = _visualForTag(stat.tag);
     final iconBox = ResponsiveHelper.getResponsiveSize(context, 40);
 
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusCard),
+        ),
+        child: Container(
       padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -1206,6 +1190,8 @@ class _OverviewStatCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+        ),
       ),
     );
   }

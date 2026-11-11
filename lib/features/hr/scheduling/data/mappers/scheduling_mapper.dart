@@ -170,6 +170,14 @@ abstract final class SchedulingMapper {
             json['staffCategoryId'],
       );
       final residences = json['residences'];
+      final residenceIds = <String>[];
+      if (residences is List) {
+        for (final raw in residences) {
+          if (raw is! Map) continue;
+          final rid = JsonCodec.string(JsonCodec.asMap(raw)['id']);
+          if (rid != null && rid.isNotEmpty) residenceIds.add(rid);
+        }
+      }
       final firstResidence = residences is List && residences.isNotEmpty
           ? residences.first
           : null;
@@ -183,6 +191,14 @@ abstract final class SchedulingMapper {
             json['city'] ??
             json['site'],
       )?.trim();
+      final singleResidenceId = JsonCodec.string(
+        residence['id'] ?? json['residenceId'],
+      );
+      if (singleResidenceId != null &&
+          singleResidenceId.isNotEmpty &&
+          !residenceIds.contains(singleResidenceId)) {
+        residenceIds.add(singleResidenceId);
+      }
       final detail = [
         if (role != null && role.isNotEmpty) role,
         if (location != null && location.isNotEmpty) location,
@@ -200,6 +216,7 @@ abstract final class SchedulingMapper {
           role: role,
           categoryId: categoryId,
           residenceLabel: location,
+          residenceIds: residenceIds,
         ),
       );
     }

@@ -152,6 +152,9 @@ abstract class InventoryRepository {
     required int limit,
   });
 
+  /// `GET /purchase-orders/:id` — web View modal payload.
+  Future<Result<PurchaseOrder>> purchaseOrder(String id);
+
   Future<Result<void>> createOrder(Map<String, dynamic> body);
 
   Future<Result<void>> updateOrder(String id, Map<String, dynamic> body);
@@ -168,4 +171,11 @@ abstract class InventoryRepository {
   Future<Result<void>> receiveOrder(String id, Map<String, dynamic> body);
 
   Future<Result<void>> cancelOrder(String id);
+
+  /// `POST /purchase-orders/:id/send` — `{ via: email|manual, message? }`.
+  Future<Result<void>> sendOrder(
+    String id, {
+    required String via,
+    String? message,
+  });
 }

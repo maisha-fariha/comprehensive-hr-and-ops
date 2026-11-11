@@ -5,18 +5,16 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/team_reports_enums.dart';
 import '../../team_reports_assets.dart';
+import '../../../presentation/widgets/hr_company_brand.dart';
 
-/// Shared header: plain menu, centered title, bordered trailing action
-/// (search on Team/Reports, compose on Messages) — matched to the reference.
+/// Team & Reports header: company brand (no hamburger), title, trailing action.
 class TeamReportsHeader extends StatelessWidget {
   final TeamReportsTab selectedTab;
-  final VoidCallback? onMenuTap;
   final VoidCallback? onTrailingTap;
 
   const TeamReportsHeader({
     super.key,
     required this.selectedTab,
-    this.onMenuTap,
     this.onTrailingTap,
   });
 
@@ -37,16 +35,10 @@ class TeamReportsHeader extends StatelessWidget {
           ),
           child: Row(
             children: [
-              GestureDetector(
-                onTap: onMenuTap,
-                behavior: HitTestBehavior.opaque,
-                child: Padding(
-                  padding: ResponsiveHelper.getResponsivePadding(context, all: 7),
-                  child: Icon(
-                    Icons.menu_rounded,
-                    size: ResponsiveHelper.getResponsiveSize(context, 22),
-                    color: AppColors.textHeading,
-                  ),
+              const Flexible(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: HrCompanyBrand(maxNameWidth: 100),
                 ),
               ),
               Expanded(

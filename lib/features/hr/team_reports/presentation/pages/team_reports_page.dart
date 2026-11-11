@@ -15,7 +15,6 @@ import '../../../communication/domain/repositories/communication_repository.dart
 import '../../../communication/presentation/pages/communication_page.dart';
 import '../../../communication/presentation/widgets/new_conversation_dialog.dart';
 import '../../../hr_shell.dart';
-import '../../../presentation/open_manager_menu.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 import '../../domain/entities/available_report_item.dart';
@@ -278,7 +277,6 @@ class TeamReportsPage extends StatelessWidget {
                 children: [
                   TeamReportsHeader(
                     selectedTab: selectedTab,
-                    onMenuTap: openManagerMenu,
                     onTrailingTap: selectedTab == TeamReportsTab.messages
                         ? () => _composeConversation(context, controller)
                         : openManagerPortalSearch,

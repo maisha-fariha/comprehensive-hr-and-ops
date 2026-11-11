@@ -14,10 +14,10 @@ class CreateShiftFooter extends StatelessWidget {
   final VoidCallback? onNext;
   final VoidCallback? onSubmit;
 
-  /// Create only: web "Draft".
+  /// Create only: web "Save as Draft".
   final VoidCallback? onSaveDraft;
 
-  /// Edit draft only: web "Publish Shift".
+  /// Edit draft only: web "Publish Shift" (filled primary).
   final VoidCallback? onPublish;
 
   /// Edit only: delete this shift.
@@ -45,6 +45,8 @@ class CreateShiftFooter extends StatelessWidget {
   String get _submitLabel {
     if (isSubmitting) return 'Saving…';
     if (plannedOccurrences > 1) return 'Create $plannedOccurrences shifts';
+    // Web edit-draft footer: "Save as Draft" keeps status; Publish promotes.
+    if (isEdit && onPublish != null) return 'Save as Draft';
     return isEdit ? 'Save changes' : 'Create shift';
   }
 
@@ -68,6 +70,10 @@ class CreateShiftFooter extends StatelessWidget {
       ),
     );
 
+    // Web: only one filled primary. When Publish Shift is present it is that
+    // primary — Next / Save as Draft stay outlined so they do not compete.
+    final primaryFilled = onPublish == null;
+
     final secondary = isFirstStep
         ? _FooterButton(
             key: const ValueKey('create-shift-cancel'),
@@ -88,7 +94,7 @@ class CreateShiftFooter extends StatelessWidget {
         ? _FooterButton(
             key: const ValueKey('create-shift-submit'),
             label: _submitLabel,
-            filled: true,
+            filled: primaryFilled,
             expanded: true,
             isLoading: isSubmitting,
             onTap: isSubmitting ? null : onSubmit,
@@ -96,7 +102,7 @@ class CreateShiftFooter extends StatelessWidget {
         : _FooterButton(
             key: const ValueKey('create-shift-next'),
             label: 'Next',
-            filled: true,
+            filled: primaryFilled,
             expanded: true,
             onTap: onNext,
           );
@@ -104,14 +110,14 @@ class CreateShiftFooter extends StatelessWidget {
     final draft = !isEdit && onSaveDraft != null
         ? _FooterButton(
             key: const ValueKey('create-shift-draft'),
-            label: isSubmitting ? 'Saving…' : 'Draft',
+            label: isSubmitting ? 'Saving…' : 'Save as Draft',
             filled: false,
             expanded: true,
             onTap: isSubmitting ? null : onSaveDraft,
           )
         : null;
 
-    // Web Publish is the primary action for drafts (filled teal/navy).
+    // Web Publish is the primary action for drafts (filled navy).
     final publish = isEdit && onPublish != null
         ? _FooterButton(
             key: const ValueKey('create-shift-publish'),

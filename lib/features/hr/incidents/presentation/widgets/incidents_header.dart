@@ -4,19 +4,13 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../presentation/widgets/hr_company_brand.dart';
 
-/// Top app bar for the Incidents screen: menu button, "Incidents" title and
-/// a search button.
-///
-/// Icon note: the source Figma screenshot shows a hamburger-menu glyph with
-/// no equivalent SVG in `assets/icons/*` yet, so this uses the built-in
-/// Material `Icons.menu` as a temporary stand-in (flagged in the feature's
-/// final report).
+/// Incidents header: company brand (no hamburger), title, search.
 class IncidentsHeader extends StatelessWidget {
-  final VoidCallback? onMenuTap;
   final VoidCallback? onSearchTap;
 
-  const IncidentsHeader({super.key, this.onMenuTap, this.onSearchTap});
+  const IncidentsHeader({super.key, this.onSearchTap});
 
   @override
   Widget build(BuildContext context) {
@@ -26,19 +20,18 @@ class IncidentsHeader extends StatelessWidget {
       padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 8, bottom: 14),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: onMenuTap,
-            behavior: HitTestBehavior.opaque,
-            child: Icon(
-              Icons.menu_rounded,
-              size: ResponsiveHelper.getResponsiveSize(context, 24),
-              color: AppColors.textPrimary,
+          const Flexible(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: HrCompanyBrand(maxNameWidth: 110),
             ),
           ),
           Expanded(
             child: Text(
               'Incidents',
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w700,

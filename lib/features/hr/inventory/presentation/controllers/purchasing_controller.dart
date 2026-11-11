@@ -177,8 +177,23 @@ class PurchasingController extends GetxController {
     return error;
   }
 
+  /// Loads the full order for the web View modal (supplier contact, dates, lines).
+  Future<Result<PurchaseOrder>> loadOrder(String id) =>
+      repository.purchaseOrder(id);
+
   Future<String?> submit(PurchaseOrder order) =>
       _row(order, () => repository.submitOrder(order.id), 'Order submitted');
+
+  Future<String?> sendOrder(
+    PurchaseOrder order, {
+    required String via,
+    String? message,
+  }) =>
+      _row(
+        order,
+        () => repository.sendOrder(order.id, via: via, message: message),
+        via == 'email' ? 'Order emailed to supplier' : 'Order marked as placed',
+      );
 
   Future<String?> requestApproval(PurchaseOrder order) =>
       _row(order, () => repository.requestOrderApproval(order.id), 'Sent for approval');

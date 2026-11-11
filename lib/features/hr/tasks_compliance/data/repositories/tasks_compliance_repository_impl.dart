@@ -612,6 +612,43 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
   }
 
   @override
+  Future<Result<void>> cancelTask(String taskId) async {
+    final id = taskId.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Missing task id.'),
+      );
+    }
+    final result = await _api.patch(
+      ApiEndpoints.taskById(id),
+      data: const {'status': 'cancelled'},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> deleteTask(String taskId) async {
+    final id = taskId.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Missing task id.'),
+      );
+    }
+    final result = await _api.delete(
+      ApiEndpoints.taskById(id),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<void>> pauseRecurring(String recurrenceId) async {
     final id = recurrenceId.trim();
     if (id.isEmpty) {

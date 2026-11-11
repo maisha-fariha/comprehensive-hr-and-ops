@@ -84,9 +84,11 @@ abstract final class StaffHomeMapper {
 
     return StaffDashboardOverview(
       organizationName: session.organizationName ??
+          JsonCodec.string(json['organizationName']) ??
+          JsonCodec.string(json['tenantName']) ??
           session.residenceName ??
           JsonCodec.string(shift['residenceName']) ??
-          'Residence',
+          'Organisation',
       dateLabel: IsoDateRange.formatDisplayDate(clock),
       greetingLine: '${IsoDateRange.greetingPrefix(clock)}, $firstName 👋',
       greetingSubtitle: "Here's what's happening on your shift.",

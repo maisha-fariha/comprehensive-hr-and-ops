@@ -117,6 +117,28 @@ class _PurchasingViewState extends State<PurchasingView> {
         onLimit: _c.setLimit,
       );
 
+  /// Web opens "Send to supplier" immediately after a successful Submit.
+  Future<void> _submitThenOfferSend(BuildContext context, PurchaseOrder order) async {
+    final error = await _c.submit(order);
+    if (!mounted || error != null) return;
+    final refreshed = _c.orders.where((o) => o.id == order.id).firstOrNull ??
+        PurchaseOrder(
+          id: order.id,
+          status: 'submitted',
+          reference: order.reference,
+          residenceId: order.residenceId,
+          residenceName: order.residenceName,
+          supplierId: order.supplierId,
+          supplierName: order.supplierName,
+          supplierEmail: order.supplierEmail,
+          notes: order.notes,
+          expectedAt: order.expectedAt,
+          items: order.items,
+        );
+    if (!context.mounted) return;
+    await showSendOrderSheet(context, controller: _c, order: refreshed);
+  }
+
   List<Widget> _orders(BuildContext context) {
     if (_c.ordersLoading.value && _c.orders.isEmpty) return const [InventorySkeleton()];
     if (_c.orders.isEmpty) {
@@ -156,6 +178,19 @@ class _PurchasingViewState extends State<PurchasingView> {
           ),
         );
     final actions = <Widget>[
+      HandoverButton(
+        key: ValueKey('order-view-${order.id}'),
+        label: 'View',
+        icon: Icons.visibility_outlined,
+        compact: true,
+        onPressed: busy
+            ? null
+            : () => showPurchaseOrderViewSheet(
+                  context,
+                  controller: _c,
+                  order: order,
+                ),
+      ),
       if (_c.canWriteOrders && order.status == 'draft')
         HandoverButton(
           key: ValueKey('order-edit-${order.id}'),
@@ -170,7 +205,7 @@ class _PurchasingViewState extends State<PurchasingView> {
                 label: 'Submit',
                 filled: true,
                 compact: true,
-                onPressed: busy ? null : () => _c.submit(order),
+                onPressed: busy ? null : () => _submitThenOfferSend(context, order),
               )
             : Tooltip(
                 message: 'Choose a supplier before submitting',
@@ -188,6 +223,16 @@ class _PurchasingViewState extends State<PurchasingView> {
           label: 'Send for approval',
           compact: true,
           onPressed: busy ? null : () => _c.requestApproval(order),
+        ),
+      if (_c.canWriteOrders && order.allows('send'))
+        HandoverButton(
+          key: ValueKey('order-resend-${order.id}'),
+          label: order.sentAt == null ? 'Send' : 'Resend',
+          icon: Icons.send_outlined,
+          compact: true,
+          onPressed: busy
+              ? null
+              : () => showSendOrderSheet(context, controller: _c, order: order),
         ),
       if (_c.canApprove && order.allows('approve')) ...[
         HandoverButton(
@@ -246,10 +291,26 @@ class _PurchasingViewState extends State<PurchasingView> {
                 ),
               ),
               const SizedBox(width: 8),
-              AttendancePill(
-                label: InventoryLabels.humanise(order.status),
-                tone: InventoryLabels.orderTone(order.status),
-                dot: true,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  AttendancePill(
+                    label: InventoryLabels.humanise(order.status),
+                    tone: InventoryLabels.orderTone(order.status),
+                    dot: true,
+                  ),
+                  if (order.sentCaption != null) ...[
+                    const SizedBox(height: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 140),
+                      child: Text(
+                        order.sentCaption!,
+                        textAlign: TextAlign.end,
+                        style: handoverText(context, 11, color: AppColors.textMuted),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),

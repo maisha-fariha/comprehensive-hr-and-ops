@@ -3,18 +3,20 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../presentation/widgets/hr_company_brand.dart';
 import '../../scheduling_constants.dart';
 
-/// Scheduling top bar: menu, title, optional Review rota / Staff Hours, Create.
+/// Scheduling top bar: company brand (no hamburger), optional actions, Create.
+///
+/// Narrow phones: brand name flexes/ellipsizes; secondary actions stay icon-only
+/// so the row never RenderFlex-overflows.
 class SchedulingTopBar extends StatelessWidget {
-  final VoidCallback? onMenuTap;
   final VoidCallback? onCreateShiftTap;
   final VoidCallback? onReviewRotaTap;
   final VoidCallback? onStaffHoursTap;
 
   const SchedulingTopBar({
     super.key,
-    this.onMenuTap,
     this.onCreateShiftTap,
     this.onReviewRotaTap,
     this.onStaffHoursTap,
@@ -22,12 +24,10 @@ class SchedulingTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final buttonBoxSize =
-        ResponsiveHelper.getResponsiveSize(context, AppDimens.iconBoxMedium);
     final width = MediaQuery.sizeOf(context).width;
-    // Labeled secondary actions only fit on wider phones/tablets.
-    final labeledSecondaries = width >= 420 &&
-        !(onReviewRotaTap != null && onStaffHoursTap != null && width < 520);
+    // Labels only when there is room after brand + Shift CTA.
+    final labeledSecondaries = width >= 480 &&
+        !(onReviewRotaTap != null && onStaffHoursTap != null && width < 560);
 
     return Padding(
       padding: ResponsiveHelper.getResponsivePadding(
@@ -38,34 +38,15 @@ class SchedulingTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: onMenuTap,
-            behavior: HitTestBehavior.opaque,
-            child: SizedBox(
-              width: buttonBoxSize,
-              height: buttonBoxSize,
-              child: Icon(
-                Icons.menu_rounded,
-                size: ResponsiveHelper.getResponsiveSize(
-                  context,
-                  AppDimens.iconNav,
-                ),
-                color: AppColors.textPrimary,
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: HrCompanyBrand(
+                maxNameWidth: width < 380 ? 96 : 130,
               ),
             ),
           ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          Text(
-            'Schedule',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17),
-              color: AppColors.textHeading,
-              height: 23 / 17,
-            ),
-          ),
-          const Spacer(),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
           if (onReviewRotaTap != null) ...[
             _OutlineAction(
               key: const ValueKey('scheduling-review-rota'),
@@ -74,7 +55,7 @@ class SchedulingTopBar extends StatelessWidget {
               tooltip: 'Review rota',
               onTap: onReviewRotaTap!,
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
           ],
           if (onStaffHoursTap != null) ...[
             _OutlineAction(
@@ -84,18 +65,16 @@ class SchedulingTopBar extends StatelessWidget {
               tooltip: 'Staff Hours',
               onTap: onStaffHoursTap!,
             ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
           ],
-          if (onCreateShiftTap == null)
-            SizedBox(width: buttonBoxSize)
-          else
+          if (onCreateShiftTap != null)
             GestureDetector(
               onTap: onCreateShiftTap,
               behavior: HitTestBehavior.opaque,
               child: Container(
                 padding: ResponsiveHelper.getResponsivePadding(
                   context,
-                  horizontal: 12,
+                  horizontal: width < 360 ? 10 : 12,
                   vertical: 9,
                 ),
                 decoration: BoxDecoration(

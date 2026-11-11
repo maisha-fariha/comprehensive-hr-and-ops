@@ -294,6 +294,166 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     return session.can('tasks:write') || session.can('tasks:manage');
   }
 
+  /// Web overflow Cancel/Delete — same gate as creating tasks.
+  bool _canManageTasks() {
+    if (!Get.isRegistered<UserSession>()) return true;
+    return Get.find<UserSession>().can('tasks:manage');
+  }
+
+  /// Web shows Cancel for open + awaiting-review rows (API may say `completed`
+  /// until a reviewer acts). Hide only for truly cancelled/fully done tasks.
+  bool _canCancelTask(Map<String, dynamic>? detail) {
+    if (!_canManageTasks() || detail == null) return false;
+    final status = _statusRaw(detail);
+    if (_isCancelled(status)) return false;
+    if (_awaitingReview(detail, status)) return true;
+    return !_isCompleted(status);
+  }
+
+  Future<void> _cancelTask() async {
+    if (_busy || !_canManageTasks()) return;
+    final confirmed = await showAppBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Cancel this task?',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  color: AppColors.textHeading,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'It leaves the open queue. Staff will no longer see it as due.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _BarButton(
+                      label: 'Keep task',
+                      onTap: () => Navigator.of(ctx).pop(false),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _BarButton(
+                      key: const Key('task-confirm-cancel'),
+                      label: 'Cancel task',
+                      danger: true,
+                      onTap: () => Navigator.of(ctx).pop(true),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    final result = await _repository.cancelTask(widget.task.id);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Task cancelled', widget.task.title, force: true);
+        widget.onChanged?.call();
+        Navigator.of(context).pop();
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not cancel', error.message, force: true);
+      },
+    );
+  }
+
+  Future<void> _deleteTask() async {
+    if (_busy || !_canManageTasks()) return;
+    final confirmed = await showAppBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Delete this task?',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 17,
+                  color: AppColors.textHeading,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'This permanently removes the task and its checklist.',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _BarButton(
+                      label: 'Keep task',
+                      onTap: () => Navigator.of(ctx).pop(false),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _BarButton(
+                      key: const Key('task-confirm-delete'),
+                      label: 'Delete',
+                      danger: true,
+                      onTap: () => Navigator.of(ctx).pop(true),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    final result = await _repository.deleteTask(widget.task.id);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Task deleted', widget.task.title, force: true);
+        widget.onChanged?.call();
+        Navigator.of(context).pop();
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not delete', error.message, force: true);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(_buildSheet);
@@ -605,9 +765,16 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
               _ActionBar(
                 busy: _busy,
                 completed: _isCompleted(_statusRaw(_load.detail)),
+                cancelled: _isCancelled(_statusRaw(_load.detail)),
                 onClose: () => Navigator.of(context).pop(),
                 onEdit: canMutate && _load.detail != null ? _edit : null,
                 onSave: canMutate && _load.detail != null ? _saveProgress : null,
+                // Web still offers Cancel while the row is "Awaiting review",
+                // even though the API status may already be `completed`.
+                onCancelTask: _canCancelTask(_load.detail) ? _cancelTask : null,
+                onDelete: _canManageTasks() && _load.detail != null
+                    ? _deleteTask
+                    : null,
               ),
             ],
           ),
@@ -626,6 +793,10 @@ String _statusRaw(Map<String, dynamic>? detail) {
 
 bool _isCompleted(String raw) {
   return raw == 'completed' || raw == 'done' || raw == 'complete' || raw == 'closed';
+}
+
+bool _isCancelled(String raw) {
+  return raw == 'cancelled' || raw == 'canceled';
 }
 
 InputDecoration _fieldDecoration(String hint) {
@@ -1255,16 +1426,22 @@ class _UploadZone extends StatelessWidget {
 class _ActionBar extends StatelessWidget {
   final bool busy;
   final bool completed;
+  final bool cancelled;
   final VoidCallback onClose;
   final VoidCallback? onEdit;
   final VoidCallback? onSave;
+  final VoidCallback? onCancelTask;
+  final VoidCallback? onDelete;
 
   const _ActionBar({
     required this.busy,
     required this.completed,
+    required this.cancelled,
     required this.onClose,
     required this.onEdit,
     required this.onSave,
+    this.onCancelTask,
+    this.onDelete,
   });
 
   @override
@@ -1288,8 +1465,22 @@ class _ActionBar extends StatelessWidget {
               _BarButton(
                 key: const Key('task-save-progress'),
                 label: 'Save progress',
-                onTap: busy || completed ? null : onSave,
+                onTap: busy || completed || cancelled ? null : onSave,
               ),
+              if (onCancelTask != null)
+                _BarButton(
+                  key: const Key('task-cancel'),
+                  label: 'Cancel task',
+                  danger: true,
+                  onTap: busy ? null : onCancelTask,
+                ),
+              if (onDelete != null)
+                _BarButton(
+                  key: const Key('task-delete'),
+                  label: 'Delete',
+                  danger: true,
+                  onTap: busy ? null : onDelete,
+                ),
             ],
           ),
         ),
@@ -1301,15 +1492,23 @@ class _ActionBar extends StatelessWidget {
 class _BarButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
+  final bool danger;
 
   const _BarButton({
     super.key,
     required this.label,
     required this.onTap,
+    this.danger = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final color = !enabled
+        ? AppColors.textMuted
+        : danger
+            ? AppColors.criticalRed
+            : AppColors.textHeading;
     return Material(
       color: AppColors.surfaceWhite,
       borderRadius: BorderRadius.circular(10),
@@ -1320,7 +1519,11 @@ class _BarButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.searchBorder),
+            border: Border.all(
+              color: danger && enabled
+                  ? AppColors.criticalRed.withValues(alpha: 0.35)
+                  : AppColors.searchBorder,
+            ),
           ),
           child: Text(
             label,
@@ -1328,9 +1531,7 @@ class _BarButton extends StatelessWidget {
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w700,
               fontSize: 13,
-              color: onTap == null
-                  ? AppColors.textMuted
-                  : AppColors.textHeading,
+              color: color,
             ),
           ),
         ),

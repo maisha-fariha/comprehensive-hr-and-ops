@@ -5,18 +5,16 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../attendance_assets.dart';
 import '../../attendance_constants.dart';
+import '../../../presentation/widgets/hr_company_brand.dart';
 import '../../../presentation/widgets/hr_header_primary_action.dart';
 
-/// The plain white header shared by every Attendance tab: a hamburger menu
-/// button, the centered "Attendance" title and a bordered calendar button.
+/// Attendance header: company brand (no hamburger), title, calendar / manual entry.
 class AttendanceHeader extends StatelessWidget {
-  final VoidCallback? onMenuTap;
   final VoidCallback? onCalendarTap;
   final VoidCallback? onManualEntryTap;
 
   const AttendanceHeader({
     super.key,
-    this.onMenuTap,
     this.onCalendarTap,
     this.onManualEntryTap,
   });
@@ -27,25 +25,10 @@ class AttendanceHeader extends StatelessWidget {
       padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 8, bottom: 14),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: onMenuTap,
-            behavior: HitTestBehavior.opaque,
-            child: Icon(
-              AttendanceMaterialIconFallback.menu,
-              size: ResponsiveHelper.getResponsiveSize(context, 24),
-              color: AppColors.textPrimary,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              'Attendance',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 17.5),
-                color: AppColors.textHeading,
-              ),
+          const Flexible(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: HrCompanyBrand(maxNameWidth: 110),
             ),
           ),
           if (onManualEntryTap != null) ...[

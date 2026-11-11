@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 
@@ -8,6 +7,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/account_photo.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../hr/emergency/presentation/widgets/emergency_alert_motion.dart';
+import '../../../../hr/presentation/widgets/hr_company_brand.dart';
 import '../../domain/entities/staff_dashboard_overview.dart';
 
 /// How far [TodayShiftCard] overlaps the gradient header.
@@ -166,6 +166,7 @@ class StaffDashboardHeader extends StatelessWidget {
   }
 }
 
+/// Company name + logo — web staff portal branding (no corner dropdown).
 class _OrganizationSwitcher extends StatelessWidget {
   final String name;
   final VoidCallback? onTap;
@@ -174,66 +175,19 @@ class _OrganizationSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logoSize = ResponsiveHelper.getResponsiveSize(context, 30);
+    final brand = HrCompanyBrand(
+      name: name,
+      lightOnDark: true,
+      maxNameWidth: 160,
+    );
 
+    // Keep optional tap for rare multi-org flows, but never show a dropdown
+    // chevron — web Staff Portal shows static company name + logo.
+    if (onTap == null) return brand;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: ResponsiveHelper.getResponsivePadding(
-          context,
-          left: 7,
-          right: 12,
-          top: 6,
-          bottom: 6,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: logoSize,
-              height: logoSize,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 8),
-                ),
-              ),
-              alignment: Alignment.center,
-              // No leaf SVG in assets — eco stands in for the brand mark.
-              child: SvgPicture.asset(
-                'assets/icons/staff_core/leaf.svg',
-                width: ResponsiveHelper.getResponsiveSize(context, 17),
-              ),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 9)),
-            Flexible(
-              child: Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 4)),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: ResponsiveHelper.getResponsiveSize(context, 20),
-              color: Colors.white.withValues(alpha: 0.92),
-            ),
-          ],
-        ),
-      ),
+      child: brand,
     );
   }
 }

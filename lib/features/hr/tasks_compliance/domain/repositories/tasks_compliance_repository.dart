@@ -73,6 +73,12 @@ abstract class TasksComplianceRepository {
     String? reviewNotes,
   });
 
+  /// Web "Cancel task": `PATCH /tasks/{id}` with `{ "status": "cancelled" }`.
+  Future<Result<void>> cancelTask(String taskId);
+
+  /// Web "Delete": `DELETE /tasks/{id}`.
+  Future<Result<void>> deleteTask(String taskId);
+
   /// `POST /tasks/recurring/{id}/pause`
   Future<Result<void>> pauseRecurring(String recurrenceId);
 

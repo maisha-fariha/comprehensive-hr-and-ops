@@ -4,6 +4,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../presentation/widgets/hr_company_brand.dart';
 import '../../domain/entities/dashboard_overview.dart';
 
 /// The teal gradient hero header: organization switcher, notifications,
@@ -151,34 +152,10 @@ class _OrganizationSwitcher extends StatelessWidget {
           border: Border.all(color: AppColors.whiteOpacity16),
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: ResponsiveHelper.getResponsiveSize(context, 28),
-              height: ResponsiveHelper.getResponsiveSize(context, 28),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceWhite,
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 8),
-                ),
-              ),
-              alignment: Alignment.center,
-              child: const AppSvgIcon(AppAssets.homeSmall, size: 17, color: AppColors.secondaryTeal),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 9)),
-            Text(
-              name,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 9)),
-            const AppSvgIcon(AppAssets.chevronDown, size: 16, color: AppColors.whiteOpacity70),
-          ],
+        child: HrCompanyBrand(
+          name: name,
+          lightOnDark: true,
+          maxNameWidth: 140,
         ),
       ),
     );

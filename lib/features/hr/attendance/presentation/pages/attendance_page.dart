@@ -8,7 +8,6 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/entities/time_off_request.dart';
-import '../../../presentation/open_manager_menu.dart';
 import '../controllers/attendance_controller.dart';
 import '../widgets/attendance_filters.dart';
 import '../widgets/attendance_header.dart';
@@ -57,7 +56,6 @@ class AttendancePage extends StatelessWidget {
               bottom: false,
               child: Obx(
                 () => AttendanceHeader(
-                  onMenuTap: openManagerMenu,
                   onCalendarTap: () => _pickWeek(context, controller),
                   onManualEntryTap: controller.canManage
                       ? () async {

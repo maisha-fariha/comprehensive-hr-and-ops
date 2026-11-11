@@ -366,6 +366,23 @@ class InventoryRepositoryImpl implements InventoryRepository {
       );
 
   @override
+  Future<Result<PurchaseOrder>> purchaseOrder(String id) async {
+    final result = await _api.get(InventoryEndpoints.purchaseOrder(id), silent: true);
+    return result.when(
+      success: (body) async {
+        final order = InventoryMapper.orderFrom(JsonCodec.unwrapMap(body));
+        if (order == null) {
+          return Result.failure(
+            const ApiError(message: 'Purchase order could not be loaded.'),
+          );
+        }
+        return Result.success(order);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<void>> createOrder(Map<String, dynamic> body) =>
       _post(InventoryEndpoints.purchaseOrders, body);
 
@@ -396,4 +413,15 @@ class InventoryRepositoryImpl implements InventoryRepository {
   @override
   Future<Result<void>> cancelOrder(String id) =>
       _post(InventoryEndpoints.purchaseOrderCancel(id));
+
+  @override
+  Future<Result<void>> sendOrder(
+    String id, {
+    required String via,
+    String? message,
+  }) =>
+      _post(InventoryEndpoints.purchaseOrderSend(id), {
+        'via': via,
+        if (message != null && message.trim().isNotEmpty) 'message': message.trim(),
+      });
 }

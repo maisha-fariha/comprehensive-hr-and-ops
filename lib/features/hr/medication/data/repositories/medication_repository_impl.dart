@@ -139,11 +139,13 @@ class MedicationRepositoryImpl implements MedicationRepository {
     var page = 1;
     var totalPages = 1;
     do {
+      // Web Given tab filters to charted doses only (`status=administered`).
       final result = await _api.get(
         MedicationEndpoints.administrations,
         query: {
           'page': page,
           'limit': MedicationEndpoints.maxPageLimit,
+          'status': 'administered',
         },
         silent: true,
       );
@@ -153,11 +155,18 @@ class MedicationRepositoryImpl implements MedicationRepository {
               const ApiError(message: 'Could not load charted doses.'),
         );
       }
-      rows.addAll(
-        JsonCodec.unwrapList(result.value)
-            .whereType<Map>()
-            .map(JsonCodec.asMap),
-      );
+      for (final raw in JsonCodec.unwrapList(result.value).whereType<Map>()) {
+        final json = JsonCodec.asMap(raw);
+        final status =
+            (JsonCodec.string(json['status']) ?? '').toLowerCase().trim();
+        if (status != 'administered' &&
+            status != 'given' &&
+            status != 'late') {
+          continue;
+        }
+        if (JsonCodec.string(json['supersededById']) != null) continue;
+        rows.add(json);
+      }
       totalPages = JsonCodec.integerOr(
         JsonCodec.metaOf(result.value)?['totalPages'],
         1,

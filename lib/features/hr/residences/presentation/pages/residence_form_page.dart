@@ -401,14 +401,16 @@ class _ResidenceFormPageState extends State<ResidenceFormPage> {
                   icon: _step.index == 0 ? null : Icons.chevron_left_rounded,
                   onPressed: _submitting ? null : _back,
                 ),
-                if (!review)
+                // Create: web "Save as Draft" beside Next.
+                // Edit: Save only on the last step so it does not fight Next
+                // (Bug Report 003 — GPS toggle Save conflict).
+                if (!review && !_isEdit)
                   HandoverButton(
                     key: const ValueKey('residence-form-save'),
-                    label: _isEdit ? 'Save Changes' : 'Save as Draft',
+                    label: 'Save as Draft',
                     icon: Icons.save_outlined,
-                    onPressed: _submitting || _limitReached
-                        ? null
-                        : (_isEdit ? _create : _saveDraft),
+                    onPressed:
+                        _submitting || _limitReached ? null : _saveDraft,
                   ),
                 if (!review)
                   HandoverButton(

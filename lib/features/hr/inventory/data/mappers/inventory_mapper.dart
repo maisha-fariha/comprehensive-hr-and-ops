@@ -267,6 +267,7 @@ class InventoryMapper {
   static PurchaseOrder? orderFrom(Map<String, dynamic> json) {
     final id = JsonCodec.string(json['id']);
     if (id == null) return null;
+    final supplier = JsonCodec.mapAt(json, 'supplier');
     return PurchaseOrder(
       id: id,
       reference: JsonCodec.string(json['reference']),
@@ -275,9 +276,15 @@ class InventoryMapper {
       residenceName: _nameOf(json, 'residence'),
       supplierId: JsonCodec.string(json['supplierId']),
       supplierName: _nameOf(json, 'supplier'),
+      supplierEmail: JsonCodec.string(supplier?['email'] ?? json['supplierEmail']),
+      supplierPhone: JsonCodec.string(supplier?['phone'] ?? json['supplierPhone']),
       notes: JsonCodec.string(json['notes']),
       expectedAt: JsonCodec.string(json['expectedAt']),
+      createdAt: JsonCodec.dateTime(json['createdAt']),
       rejectionReason: JsonCodec.string(json['rejectionReason']),
+      sentAt: JsonCodec.dateTime(json['sentAt']),
+      sentVia: JsonCodec.string(json['sentVia']),
+      sentTo: JsonCodec.string(json['sentTo']),
       items: [
         for (final raw in JsonCodec.listAt(json, 'items').whereType<Map>())
           if (JsonCodec.string(raw['id']) case final lineId?)

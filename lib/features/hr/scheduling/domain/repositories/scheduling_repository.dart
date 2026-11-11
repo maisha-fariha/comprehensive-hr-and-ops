@@ -64,7 +64,9 @@ abstract class SchedulingRepository {
 
   /// Tenant staff for the Create Shift "Assigned Staff" picker
   /// (`GET /staff?page=1&limit=100`, searched client-side like the web).
-  Future<Result<List<ShiftStaffOption>>> getStaffOptions();
+  /// Optional `residenceId` matches web Create Shift — only staff assigned to
+  /// that home are selectable.
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions({String? residenceId});
 
   /// Residents of one home for "One-to-one with"
   /// (`GET /clients?residenceId=`).

@@ -544,6 +544,14 @@ class _FakeRepo implements InventoryRepository {
       Result.success(const InventoryListPage(items: _orders, total: 3));
 
   @override
+  Future<Result<PurchaseOrder>> purchaseOrder(String id) async {
+    for (final order in _orders) {
+      if (order.id == id) return Result.success(order);
+    }
+    return Result.success(_orders.first);
+  }
+
+  @override
   Future<Result<void>> createOrder(Map<String, dynamic> body) => _ok('createOrder', body);
 
   @override
@@ -569,6 +577,14 @@ class _FakeRepo implements InventoryRepository {
 
   @override
   Future<Result<void>> cancelOrder(String id) => _ok('cancelOrder', id);
+
+  @override
+  Future<Result<void>> sendOrder(
+    String id, {
+    required String via,
+    String? message,
+  }) =>
+      _ok('sendOrder', {'id': id, 'via': via, if (message != null) 'message': message});
 }
 
 Future<_FakeRepo> _pumpInventory(
@@ -1050,6 +1066,9 @@ void main() {
       expect(find.text('Not priced'), findsNWidgets(2));
       expect(find.text('5 of 9'), findsOneWidget);
       expect(find.text('Pending approval'), findsOneWidget);
+      expect(find.byKey(const ValueKey('order-view-o1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('order-view-o2')), findsOneWidget);
+      expect(find.byKey(const ValueKey('order-view-o3')), findsOneWidget);
       expect(_onPressed(tester, 'order-submit-o1'), isNull);
       expect(find.byKey(const ValueKey('order-edit-o1')), findsOneWidget);
       expect(find.byKey(const ValueKey('order-edit-o2')), findsNothing);

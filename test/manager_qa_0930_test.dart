@@ -132,7 +132,7 @@ class _FakeSchedulingRepo implements SchedulingRepository {
       Result.success(const []);
 
   @override
-  Future<Result<List<ShiftStaffOption>>> getStaffOptions() async =>
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions({String? residenceId}) async =>
       Result.success(const [
         ShiftStaffOption(
           id: 'staff-shakib',

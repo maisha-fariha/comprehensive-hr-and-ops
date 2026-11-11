@@ -1,9 +1,12 @@
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'package:get/get.dart';
+
 import '../network/api_endpoints.dart';
 import '../network/app_api_client.dart';
 import '../network/json_codec.dart';
+import '../roles/user_session.dart';
 
 /// Wall-clock times for the organisation, matching Settings → General timezone.
 ///
@@ -14,6 +17,10 @@ abstract final class TenantClock {
   static String? timeZone;
   static String dateFormat = 'DD/MM/YYYY';
   static String timeFormat = '12h';
+  /// Settings → General `logoUrl` (web sidebar brand image).
+  static String? logoUrl;
+  /// Settings → General `platformName` when set (else tenant name from session).
+  static String? platformName;
   static bool _ready = false;
   static Future<void>? _loading;
   static int _syncGeneration = 0;
@@ -32,6 +39,7 @@ abstract final class TenantClock {
       timeZone = null;
       dateFormat = 'DD/MM/YYYY';
       timeFormat = '12h';
+      // Keep logo/platformName across timezone clears from incomplete payloads.
     } else {
       _ensure();
       try {
@@ -95,6 +103,17 @@ abstract final class TenantClock {
           dateFmt: JsonCodec.string(general['dateFormat']),
           timeFmt: JsonCodec.string(general['timeFormat']),
         );
+        final nextLogo = JsonCodec.string(general['logoUrl'])?.trim();
+        logoUrl = (nextLogo == null || nextLogo.isEmpty) ? null : nextLogo;
+        final nextPlatform = JsonCodec.string(general['platformName'])?.trim();
+        platformName =
+            (nextPlatform == null || nextPlatform.isEmpty) ? null : nextPlatform;
+        if (Get.isRegistered<UserSession>()) {
+          Get.find<UserSession>().applyOrgBranding(
+            name: platformName,
+            logoUrl: logoUrl,
+          );
+        }
       },
       failure: (_) {},
     );

@@ -180,11 +180,14 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
     var current = page;
     var totalPages = 1;
     do {
+      // Web Given tab: `status=administered` (excludes missed / refused /
+      // Not Given so those do not inflate the Given count).
       final result = await _api.get(
         ApiEndpoints.marAdministrations,
         query: {
           'page': current,
           'limit': limit < 100 ? 100 : limit,
+          'status': 'administered',
           if (filter != null && filter.isNotEmpty) 'residenceId': filter,
         },
         silent: true,
@@ -198,6 +201,15 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       for (final row in JsonCodec.unwrapList(result.value)) {
         if (row is! Map) continue;
         final json = JsonCodec.asMap(row);
+        final status =
+            (JsonCodec.string(json['status']) ?? '').toLowerCase().trim();
+        if (status != 'administered' &&
+            status != 'given' &&
+            status != 'late') {
+          continue;
+        }
+        // Corrections replace the prior charted dose — count the live one.
+        if (JsonCodec.string(json['supersededById']) != null) continue;
         final mapped = StaffMedicationMapper.administrationsFrom([json]).first;
         final rid = JsonCodec.string(json['residenceId']);
         final house = mapped.residenceName.isNotEmpty

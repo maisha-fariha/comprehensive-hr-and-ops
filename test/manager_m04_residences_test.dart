@@ -646,7 +646,11 @@ void main() {
       expect(find.text('Elm House'), findsWidgets);
 
       await tester.enterText(_key('residence-field-name'), 'Elm House North');
-      await _tap(tester, _key('residence-form-save'));
+      // Edit saves on the last step only (no Save beside Next on earlier steps).
+      for (var i = 0; i < 4; i++) {
+        await _tap(tester, _key('residence-form-next'));
+      }
+      await _tap(tester, _key('residence-form-submit'));
 
       expect(repo.updated, isTrue);
       expect(repo.updatedBody!['name'], 'Elm House North');
@@ -781,7 +785,10 @@ void main() {
 
       await _tap(tester, _key('residence-detail-edit'));
       expect(find.byType(ResidenceFormPage), findsOneWidget);
-      await _tap(tester, _key('residence-form-save'));
+      for (var i = 0; i < 4; i++) {
+        await _tap(tester, _key('residence-form-next'));
+      }
+      await _tap(tester, _key('residence-form-submit'));
 
       expect(repo.updatedAssignments, [
         (staffId: 's1', role: 'primary_manager'),
