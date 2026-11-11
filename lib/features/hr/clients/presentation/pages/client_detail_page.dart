@@ -360,7 +360,7 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
             Align(
               alignment: Alignment.centerRight,
               child: Obx(() {
-                final busy = _controller.isExporting.value;
+                final busy = _controller.isExportingProgress.value;
                 return HandoverButton(
                   key: const ValueKey('client-export-progress'),
                   label: busy ? 'Preparing…' : 'Export Progress Report',

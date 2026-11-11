@@ -169,7 +169,11 @@ class FinanceRunsView extends StatelessWidget {
                     }
                     if (ctx.mounted) Navigator.pop(ctx, true);
                   },
-                  child: Text(controller.busy.value ? 'Computing…' : 'Create run'),
+                  child: Text(
+                    controller.busyAction.value == 'createRun'
+                        ? 'Computing…'
+                        : 'Create run',
+                  ),
                 ),
               ],
             );
@@ -420,7 +424,9 @@ class _RunDetailSheetState extends State<_RunDetailSheet> {
                       )
                     else if (controller.canWritePayroll)
                       HandoverButton(
-                        label: controller.busy.value ? 'Sending…' : 'Send Run to QuickBooks',
+                        label: controller.busyAction.value == 'sendQb'
+                            ? 'Sending…'
+                            : 'Send Run to QuickBooks',
                         filled: true,
                         compact: true,
                         onPressed: controller.busy.value

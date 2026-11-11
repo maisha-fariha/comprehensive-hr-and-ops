@@ -225,7 +225,7 @@ class _ClientsPageState extends State<ClientsPage> {
 
   Widget _actions(BuildContext context) {
     final c = _controller;
-    final exporting = c.isExporting.value;
+    final exporting = c.isExportingList.value;
     return Wrap(
       spacing: 8,
       runSpacing: 8,

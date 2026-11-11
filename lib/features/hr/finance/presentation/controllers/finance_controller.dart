@@ -16,6 +16,18 @@ class FinanceController extends GetxController {
 
   final isLoading = false.obs;
   final busy = false.obs;
+  /// Which mutation owns [busy] so only that control shows Queueing…/Sending….
+  final busyAction = RxnString();
+
+  void _beginBusy(String action) {
+    busy.value = true;
+    busyAction.value = action;
+  }
+
+  void _endBusy() {
+    busy.value = false;
+    busyAction.value = null;
+  }
   final loadError = RxnString();
 
   final runs = <PayrollRun>[].obs;
@@ -402,7 +414,7 @@ class FinanceController extends GetxController {
     required String periodEnd,
   }) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('createRun');
     final result = await repository.createRun(
       periodType: periodType,
       periodStart: periodStart,
@@ -417,13 +429,13 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
   Future<String?> finalizeRun(String id) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('finalizeRun');
     final result = await repository.finalizeRun(id);
     String? error;
     await result.when(
@@ -434,7 +446,7 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -446,7 +458,7 @@ class FinanceController extends GetxController {
     String? reason,
   }) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('adjustEntry');
     final result = await repository.adjustEntry(
       entryId: entryId,
       manualAdjustment: manualAdjustment,
@@ -464,7 +476,7 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -494,7 +506,7 @@ class FinanceController extends GetxController {
     String? description,
   }) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('adjustEntry');
     final result = await repository.createExpenseClaim(
       staffId: staffId,
       residenceId: residenceId,
@@ -510,7 +522,7 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -521,7 +533,7 @@ class FinanceController extends GetxController {
     required String unit,
   }) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('adjustEntry');
     final result = await repository.createMileageClaim(
       staffId: staffId,
       residenceId: residenceId,
@@ -537,7 +549,7 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -547,7 +559,7 @@ class FinanceController extends GetxController {
     required String effectiveFrom,
   }) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('adjustEntry');
     final result = await repository.createMileageRate(
       unit: unit,
       rateAmount: rateAmount,
@@ -558,13 +570,13 @@ class FinanceController extends GetxController {
       success: (_) async => _loadMileageRates(),
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
   Future<String?> endMileageRate(String rateId) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('adjustEntry');
     final result = await repository.endMileageRate(
       rateId: rateId,
       effectiveTo: FinanceLabels.ymd(DateTime.now()),
@@ -574,7 +586,7 @@ class FinanceController extends GetxController {
       success: (_) async => _loadMileageRates(),
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -587,7 +599,7 @@ class FinanceController extends GetxController {
     String? description,
   }) async {
     if (!canWriteFinance) return 'You need finance write access.';
-    busy.value = true;
+    _beginBusy('adjustEntry');
     final result = await repository.createLedgerEntry(
       residenceId: residenceId,
       entryType: entryType,
@@ -603,13 +615,13 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
   Future<String?> deleteLedgerEntry(String id) async {
     if (!canWriteFinance) return 'You need finance write access.';
-    busy.value = true;
+    _beginBusy('deleteLedgerEntry');
     final result = await repository.deleteLedgerEntry(id);
     String? error;
     await result.when(
@@ -618,7 +630,7 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -636,7 +648,7 @@ class FinanceController extends GetxController {
 
   Future<String?> setPayrollEngine({required bool runHere}) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('deleteLedgerEntry');
     final result = await repository.setEngine(runHere: runHere);
     String? error;
     await result.when(
@@ -646,14 +658,14 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
   Future<ResultOrError<String>> connectQuickBooks() async {
-    busy.value = true;
+    _beginBusy('deleteLedgerEntry');
     final result = await repository.quickBooksConnectUrl();
-    busy.value = false;
+    _endBusy();
     return result.when(
       success: (url) => ResultOrError.value(url),
       failure: (e) => ResultOrError.error(e.message),
@@ -674,7 +686,7 @@ class FinanceController extends GetxController {
     if (!canReadPii || sensitiveStaffId.value.isEmpty) {
       return 'You need staff PII read access.';
     }
-    busy.value = true;
+    _beginBusy('revealSensitive');
     final result = await repository.staffSensitive(
       sensitiveStaffId.value,
       reveal: true,
@@ -684,7 +696,7 @@ class FinanceController extends GetxController {
       success: (value) async => sensitive.value = value,
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -697,7 +709,7 @@ class FinanceController extends GetxController {
     if (!canWritePii || sensitiveStaffId.value.isEmpty) {
       return 'You need staff PII write access.';
     }
-    busy.value = true;
+    _beginBusy('revealSensitive');
     final result = await repository.updateStaffSensitive(
       staffId: sensitiveStaffId.value,
       sin: sin,
@@ -710,13 +722,13 @@ class FinanceController extends GetxController {
       success: (value) async => sensitive.value = value,
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
   Future<String?> exportPayrollCsv() async {
     if (!canReadPayroll) return 'You need payroll read access.';
-    busy.value = true;
+    _beginBusy('exportPayroll');
     final result = await repository.exportPayrollEntries();
     String? error;
     await result.when(
@@ -729,7 +741,7 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -738,9 +750,9 @@ class FinanceController extends GetxController {
     if (job == null) {
       return const ResultOrError.error('No payroll export yet.');
     }
-    busy.value = true;
+    _beginBusy('downloadPayroll');
     final result = await repository.downloadPayrollExport(job);
-    busy.value = false;
+    _endBusy();
     return result.when(
       success: (bytes) => ResultOrError.value(bytes),
       failure: (e) => ResultOrError.error(e.message),
@@ -758,7 +770,7 @@ class FinanceController extends GetxController {
           'payroll — pay, deductions, payslips and paying staff happen there. '
           'This platform sends it the hours.';
     }
-    busy.value = true;
+    _beginBusy('setEntryPayment');
     final result = await repository.setEntryPayment(
       entryId: entryId,
       status: status,
@@ -773,7 +785,7 @@ class FinanceController extends GetxController {
       },
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 
@@ -789,14 +801,14 @@ class FinanceController extends GetxController {
 
   Future<String?> sendRunToQuickBooks(String runId) async {
     if (!canWritePayroll) return 'You need payroll write access.';
-    busy.value = true;
+    _beginBusy('sendQb');
     final result = await repository.sendRunToQuickBooks(runId);
     String? error;
     await result.when(
       success: (_) async {},
       failure: (e) async => error = e.message,
     );
-    busy.value = false;
+    _endBusy();
     return error;
   }
 

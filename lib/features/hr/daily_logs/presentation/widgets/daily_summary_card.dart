@@ -47,6 +47,8 @@ class _DailySummaryCardState extends State<DailySummaryCard> {
   bool? _enabled;
   bool _loading = false;
   bool _busy = false;
+  /// 'generate' | 'share' — only that control shows a busy label.
+  String? _busyAction;
   DailySummary? _summary;
 
   String get _firstName {
@@ -95,13 +97,19 @@ class _DailySummaryCardState extends State<DailySummaryCard> {
 
   Future<void> _generate() async {
     if (_busy || !widget.canReview) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _busyAction = 'generate';
+    });
     final result = await _repo.generateDaySummary(
       clientId: widget.clientId,
       day: widget.logDate,
     );
     if (!mounted) return;
-    setState(() => _busy = false);
+    setState(() {
+      _busy = false;
+      _busyAction = null;
+    });
     result.when(
       success: (summary) {
         if (summary == null) {
@@ -141,12 +149,18 @@ class _DailySummaryCardState extends State<DailySummaryCard> {
       );
       return;
     }
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _busyAction = 'share';
+    });
     final result = current.isShared
         ? await _repo.unshareDaySummary(current.id)
         : await _repo.shareDaySummary(current.id);
     if (!mounted) return;
-    setState(() => _busy = false);
+    setState(() {
+      _busy = false;
+      _busyAction = null;
+    });
     result.when(
       success: (summary) {
         setState(() => _summary = summary);
@@ -221,7 +235,7 @@ class _DailySummaryCardState extends State<DailySummaryCard> {
               ),
               if (widget.canReview)
                 HandoverButton(
-                  label: _busy
+                  label: _busyAction == 'generate'
                       ? 'Generating…'
                       : summary == null
                           ? 'Generate summary'
@@ -246,7 +260,11 @@ class _DailySummaryCardState extends State<DailySummaryCard> {
                   onPressed: _busy ? null : _edit,
                 ),
                 HandoverButton(
-                  label: summary.isShared ? 'Stop sharing' : 'Share with family',
+                  label: _busyAction == 'share'
+                      ? (summary.isShared ? 'Updating…' : 'Sharing…')
+                      : (summary.isShared
+                          ? 'Stop sharing'
+                          : 'Share with family'),
                   icon: summary.isShared
                       ? Icons.undo_rounded
                       : Icons.ios_share_rounded,

@@ -69,7 +69,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   CreateShiftStep _step = CreateShiftStep.shiftInformation;
   Map<String, String> _errors = const {};
   String? _submitError;
-  bool _isSubmitting = false;
+  /// Which footer action is in flight (Bug Report 002 — only that button spins).
+  String? _busyAction;
   Future<void>? _clockReady;
 
   final List<ShiftResidenceOption> _residences = [];
@@ -511,9 +512,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   }
 
   Future<void> _submit({bool asDraft = false}) async {
-    if (_isSubmitting) return;
+    if (_busyAction != null) return;
     await _clockReady;
-    if (!mounted || _isSubmitting) return;
+    if (!mounted || _busyAction != null) return;
     final errors = _draft.validate();
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
@@ -532,7 +533,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
     FocusScope.of(context).unfocus();
     setState(() {
-      _isSubmitting = true;
+      _busyAction = asDraft
+          ? CreateShiftBusyAction.draft
+          : CreateShiftBusyAction.submit;
       _submitError = null;
     });
     if (_isEdit) {
@@ -557,7 +560,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       },
       failure: (error) {
         setState(() {
-          _isSubmitting = false;
+          _busyAction = null;
           _submitError = error.message;
         });
         if (_isStaffingConflictCode(error.code)) {
@@ -570,7 +573,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   Future<void> _deleteShift() async {
     final id = widget.editShiftId;
-    if (id == null || _isSubmitting) return;
+    if (id == null || _busyAction != null) return;
     final confirmed = await showAppPopup<bool>(
       context: context,
       builder: (dialogContext) => AppSheetDialog(
@@ -623,7 +626,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     );
     if (confirmed != true || !mounted) return;
     setState(() {
-      _isSubmitting = true;
+      _busyAction = CreateShiftBusyAction.delete;
       _submitError = null;
     });
     final result = await _repository.deleteShift(id);
@@ -637,7 +640,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       },
       failure: (error) {
         setState(() {
-          _isSubmitting = false;
+          _busyAction = null;
           _submitError = error.message;
         });
       },
@@ -679,7 +682,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       },
       failure: (error) {
         setState(() {
-          _isSubmitting = false;
+          _busyAction = null;
           _submitError = error.message;
         });
         if (_isStaffingConflictCode(error.code)) {
@@ -691,9 +694,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   }
 
   Future<void> _publishDraft() async {
-    if (_isSubmitting) return;
+    if (_busyAction != null) return;
     await _clockReady;
-    if (!mounted || _isSubmitting) return;
+    if (!mounted || _busyAction != null) return;
     final errors = _draft.validate();
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
@@ -711,14 +714,14 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     }
     FocusScope.of(context).unfocus();
     setState(() {
-      _isSubmitting = true;
+      _busyAction = CreateShiftBusyAction.publish;
       _submitError = null;
     });
     await _saveEdit(publishDraft: true);
   }
 
   Future<void> _requestClose() async {
-    if (_isSubmitting) return;
+    if (_busyAction != null) return;
     if (!_isDirty) {
       Navigator.of(context).pop();
       return;
@@ -1106,7 +1109,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                 title: _isEdit
                     ? (_draft.isLoadedDraft ? 'Edit Draft Shift' : 'Edit Shift')
                     : 'Add New Shift',
-                onClose: _isSubmitting ? null : _requestClose,
+                onClose: _busyAction != null ? null : _requestClose,
               ),
               if (_isLoadingShift || _shiftError != null)
                 Expanded(child: _shiftLoadState())
@@ -1114,7 +1117,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                 CreateShiftStepTabs(
                   selected: _step,
                   completed: completed,
-                  onSelected: _isSubmitting ? null : _goToGuarded,
+                  onSelected: _busyAction != null ? null : _goToGuarded,
                 ),
                 CreateShiftCompletionBar(
                   currentStep: CreateShiftStepX.visibleSteps
@@ -1145,7 +1148,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                 CreateShiftFooter(
                   isFirstStep: isFirst,
                   isLastStep: isLast,
-                  isSubmitting: _isSubmitting,
+                  busyAction: _busyAction,
                   plannedOccurrences: _draft.plannedOccurrences(),
                   onCancel: _requestClose,
                   onBack: _back,

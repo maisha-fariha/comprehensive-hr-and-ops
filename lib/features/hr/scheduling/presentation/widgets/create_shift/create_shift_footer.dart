@@ -3,11 +3,23 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
 
+/// Which footer action currently owns the loading indicator (Bug Report 002).
+abstract final class CreateShiftBusyAction {
+  static const submit = 'submit';
+  static const draft = 'draft';
+  static const publish = 'publish';
+  static const delete = 'delete';
+}
+
 /// Wizard footer: Cancel/Back, optional Draft / Delete / Publish, and Next/Create.
+///
+/// Only the active [busyAction] shows a spinner / “Saving…” label. Sibling
+/// buttons disable so double-submit is blocked, but they keep their idle labels.
 class CreateShiftFooter extends StatelessWidget {
   final bool isFirstStep;
   final bool isLastStep;
-  final bool isSubmitting;
+  /// One of [CreateShiftBusyAction], or null when idle.
+  final String? busyAction;
   final int plannedOccurrences;
   final VoidCallback? onCancel;
   final VoidCallback? onBack;
@@ -30,7 +42,7 @@ class CreateShiftFooter extends StatelessWidget {
     super.key,
     required this.isFirstStep,
     required this.isLastStep,
-    this.isSubmitting = false,
+    this.busyAction,
     this.plannedOccurrences = 1,
     this.onCancel,
     this.onBack,
@@ -42,8 +54,9 @@ class CreateShiftFooter extends StatelessWidget {
     this.isEdit = false,
   });
 
-  String get _submitLabel {
-    if (isSubmitting) return 'Saving…';
+  bool get _locked => busyAction != null;
+
+  String get _submitIdleLabel {
     if (plannedOccurrences > 1) return 'Create $plannedOccurrences shifts';
     // Web edit-draft footer: "Save as Draft" keeps status; Publish promotes.
     if (isEdit && onPublish != null) return 'Save as Draft';
@@ -73,6 +86,9 @@ class CreateShiftFooter extends StatelessWidget {
     // Web: only one filled primary. When Publish Shift is present it is that
     // primary — Next / Save as Draft stay outlined so they do not compete.
     final primaryFilled = onPublish == null;
+    final submitBusy = busyAction == CreateShiftBusyAction.submit;
+    final draftBusy = busyAction == CreateShiftBusyAction.draft;
+    final publishBusy = busyAction == CreateShiftBusyAction.publish;
 
     final secondary = isFirstStep
         ? _FooterButton(
@@ -80,24 +96,24 @@ class CreateShiftFooter extends StatelessWidget {
             label: 'Cancel',
             filled: false,
             expanded: true,
-            onTap: isSubmitting ? null : onCancel,
+            onTap: _locked ? null : onCancel,
           )
         : _FooterButton(
             key: const ValueKey('create-shift-back'),
             label: 'Back',
             filled: false,
             expanded: true,
-            onTap: isSubmitting ? null : onBack,
+            onTap: _locked ? null : onBack,
           );
 
     final primary = isLastStep
         ? _FooterButton(
             key: const ValueKey('create-shift-submit'),
-            label: _submitLabel,
+            label: submitBusy ? 'Saving…' : _submitIdleLabel,
             filled: primaryFilled,
             expanded: true,
-            isLoading: isSubmitting,
-            onTap: isSubmitting ? null : onSubmit,
+            isLoading: submitBusy,
+            onTap: _locked ? null : onSubmit,
           )
         : _FooterButton(
             key: const ValueKey('create-shift-next'),
@@ -110,10 +126,11 @@ class CreateShiftFooter extends StatelessWidget {
     final draft = !isEdit && onSaveDraft != null
         ? _FooterButton(
             key: const ValueKey('create-shift-draft'),
-            label: isSubmitting ? 'Saving…' : 'Save as Draft',
+            label: draftBusy ? 'Saving…' : 'Save as Draft',
             filled: false,
             expanded: true,
-            onTap: isSubmitting ? null : onSaveDraft,
+            isLoading: draftBusy,
+            onTap: _locked ? null : onSaveDraft,
           )
         : null;
 
@@ -121,21 +138,25 @@ class CreateShiftFooter extends StatelessWidget {
     final publish = isEdit && onPublish != null
         ? _FooterButton(
             key: const ValueKey('create-shift-publish'),
-            label: isSubmitting ? 'Publishing…' : 'Publish Shift',
+            label: publishBusy ? 'Publishing…' : 'Publish Shift',
             filled: true,
             expanded: true,
-            onTap: isSubmitting ? null : onPublish,
+            isLoading: publishBusy,
+            onTap: _locked ? null : onPublish,
           )
         : null;
 
     final delete = isEdit && onDelete != null
         ? _FooterButton(
             key: const ValueKey('create-shift-delete'),
-            label: 'Delete',
+            label: busyAction == CreateShiftBusyAction.delete
+                ? 'Deleting…'
+                : 'Delete',
             filled: false,
             expanded: true,
             danger: true,
-            onTap: isSubmitting ? null : onDelete,
+            isLoading: busyAction == CreateShiftBusyAction.delete,
+            onTap: _locked ? null : onDelete,
           )
         : null;
 

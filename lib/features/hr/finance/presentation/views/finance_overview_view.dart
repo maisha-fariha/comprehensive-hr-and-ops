@@ -304,7 +304,7 @@ class FinanceOverviewView extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     HandoverButton(
-                      label: controller.busy.value
+                      label: controller.busyAction.value == 'exportPayroll'
                           ? 'Queueing…'
                           : 'Export payroll entries (CSV)',
                       filled: true,
@@ -327,7 +327,10 @@ class FinanceOverviewView extends StatelessWidget {
                         ),
                         if (export != null && export.isReady)
                           HandoverButton(
-                            label: 'Download',
+                            label: controller.busyAction.value ==
+                                    'downloadPayroll'
+                                ? 'Downloading…'
+                                : 'Download',
                             compact: true,
                             onPressed: controller.busy.value
                                 ? null

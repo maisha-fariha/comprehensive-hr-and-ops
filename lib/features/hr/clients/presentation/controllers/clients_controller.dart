@@ -55,7 +55,9 @@ class ClientsController extends GetxController {
 
   final RxMap<String, String> residenceNames = <String, String>{}.obs;
   final RxnInt clientLimit = RxnInt();
-  final RxBool isExporting = false.obs;
+  /// Separate flags so Export List and Export Progress never share a spinner.
+  final RxBool isExportingList = false.obs;
+  final RxBool isExportingProgress = false.obs;
 
   final Map<String, List<ClientRoom>> _rooms = {};
   Worker? _searchWorker;
@@ -456,8 +458,8 @@ class ClientsController extends GetxController {
 
   /// Web "Export List" (`client_roster`).
   Future<void> exportList() async {
-    if (isExporting.value) return;
-    isExporting.value = true;
+    if (isExportingList.value) return;
+    isExportingList.value = true;
     try {
       final result = await repository.exportRosterCsv();
       await result.when(
@@ -473,7 +475,7 @@ class ClientsController extends GetxController {
         failure: (error) async => AppSnackbar.show(error.message, '', force: true),
       );
     } finally {
-      isExporting.value = false;
+      isExportingList.value = false;
     }
   }
 
@@ -484,8 +486,8 @@ class ClientsController extends GetxController {
     required DateTime to,
     String? clientName,
   }) async {
-    if (isExporting.value) return;
-    isExporting.value = true;
+    if (isExportingProgress.value) return;
+    isExportingProgress.value = true;
     try {
       String ymd(DateTime d) =>
           '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -518,7 +520,7 @@ class ClientsController extends GetxController {
             AppSnackbar.show(error.message, '', force: true),
       );
     } finally {
-      isExporting.value = false;
+      isExportingProgress.value = false;
     }
   }
 
