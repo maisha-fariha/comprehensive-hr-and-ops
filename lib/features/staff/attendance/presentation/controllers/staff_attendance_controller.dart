@@ -155,39 +155,22 @@ class StaffAttendanceController
     final context = Get.context;
     if (context == null || !context.mounted) return;
     final current = overview;
-    if (isCheckIn && current != null && current.requiresGeofence) {
-      if (geofenceCheckBusy.value) {
-        AppSnackbar.show(
-          'Checking location',
-          'Wait a moment while we confirm you are at the residence.',
-        );
-        await _refreshLiveGeofence(current);
-      }
-      final latest = overview ?? current;
-      if (!latest.isWithinGeofence) {
-        AppSnackbar.show(
-          'Outside residence GPS area',
-          'Move inside the configured geofence radius before clocking in.',
-        );
-        return;
-      }
-    }
     // Without `residences:read`, GET /residences is empty — still offer the
     // home from /mobile/home (same as web clock-in with a rostered shift).
     final residences = _clockResidenceOptions(current);
+    final rosteredNow = current?.hasRosteredShiftNow ?? false;
 
     final saved = await StaffClockActionSheet.show(
       context,
       isCheckIn: isCheckIn,
       residences: residences,
       initialResidenceId: current?.residenceId,
-      shiftId: current?.shiftId,
+      // Web only posts shiftId while the shift is current. Overview may still
+      // carry the next upcoming shift id for the warning copy — do not send it.
+      shiftId: (!isCheckIn || rosteredNow) ? current?.shiftId : null,
       shiftEndsAt: current?.shiftEndsAt,
-      showNotRosteredWarning:
-          isCheckIn && !(current?.hasRosteredShiftNow ?? false),
-      nextShiftStartsAt: (current?.hasRosteredShiftNow ?? false)
-          ? null
-          : current?.shiftStartsAt,
+      showNotRosteredWarning: isCheckIn && !rosteredNow,
+      nextShiftStartsAt: rosteredNow ? null : current?.shiftStartsAt,
     );
     if (saved == true) {
       Get.snackbar(

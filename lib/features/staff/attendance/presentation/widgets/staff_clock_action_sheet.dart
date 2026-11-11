@@ -178,6 +178,11 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   bool get _shouldCaptureLocation =>
       _requiresGeofenceGate || _askLocation;
 
+  /// Web: Clock in is only enabled while a rostered shift is current
+  /// (`AttendanceClockPage._canSubmit`). Clock out is always allowed.
+  bool get _canSubmit =>
+      !widget.isCheckIn || !widget.showNotRosteredWarning;
+
   /// Web disables Clock in while the residence geofence gate fails.
   bool get _geofenceBlocksClockIn {
     if (!widget.isCheckIn || !_requiresGeofenceGate) return false;
@@ -186,6 +191,16 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     if (fix == null) return true;
     return !(_geofence?.isWithin(fix.latitude, fix.longitude) ?? false);
   }
+
+  /// Where is required; empty residence keeps Clock in disabled.
+  bool get _residenceMissing =>
+      _residenceId == null || _residenceId!.trim().isEmpty;
+
+  bool get _submitDisabled =>
+      _submitting ||
+      !_canSubmit ||
+      _residenceMissing ||
+      _geofenceBlocksClockIn;
 
   @override
   void initState() {
@@ -370,7 +385,11 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   }
 
   Future<void> _submit() async {
-    final residenceId = _residenceId;
+    if (!_canSubmit) {
+      _showSubmitError(_rosterWarning());
+      return;
+    }
+    final residenceId = _residenceId?.trim();
     if (residenceId == null || residenceId.isEmpty) {
       _showSubmitError(
         'Where is required — pick the residence you are clocking at.',
@@ -415,9 +434,26 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
       selfieUrl = upload.value;
     }
 
+    // Web only attaches shiftId while the rostered shift is current.
+    // A future shift id, or a current shift id paired with a different
+    // residence, is rejected by the API as "residenceId is invalid".
+    final shiftHome = widget.initialResidenceId?.trim();
+    final shiftIdForBody = () {
+      if (!widget.isCheckIn) return widget.shiftId;
+      if (widget.showNotRosteredWarning) return null;
+      final shiftId = widget.shiftId?.trim();
+      if (shiftId == null || shiftId.isEmpty) return null;
+      if (shiftHome != null &&
+          shiftHome.isNotEmpty &&
+          shiftHome != residenceId) {
+        return null;
+      }
+      return shiftId;
+    }();
+
     final result = widget.isCheckIn
         ? await _repo.checkIn(
-            shiftId: widget.shiftId,
+            shiftId: shiftIdForBody,
             residenceId: residenceId,
             latitude: fix?.latitude,
             longitude: fix?.longitude,
@@ -425,7 +461,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
             selfieUrl: selfieUrl,
           )
         : await _repo.checkOut(
-            shiftId: widget.shiftId,
+            shiftId: shiftIdForBody,
             residenceId: residenceId,
             latitude: fix?.latitude,
             longitude: fix?.longitude,
@@ -875,9 +911,8 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                   ),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _submitting || _geofenceBlocksClockIn
-                          ? null
-                          : _submit,
+                      key: const Key('staff-clock-submit'),
+                      onPressed: _submitDisabled ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryNavy,
                         foregroundColor: Colors.white,

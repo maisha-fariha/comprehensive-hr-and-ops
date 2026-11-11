@@ -192,16 +192,19 @@ class StaffDashboardPage extends StatelessWidget {
       );
       return;
     }
+    final isCheckIn = !shift.clockedIn;
+    final rosteredNow = shift.clockOpen;
     final saved = await StaffClockActionSheet.show(
       context,
-      isCheckIn: !shift.clockedIn,
+      isCheckIn: isCheckIn,
       residences: residences.value ?? const [],
       initialResidenceId: shift.residenceId,
-      shiftId: shift.shiftId,
+      // Same as Attendance: only post shiftId while the clock window is open.
+      shiftId: (!isCheckIn || rosteredNow) ? shift.shiftId : null,
       shiftEndsAt: shift.endsAt,
-      showNotRosteredWarning: !shift.clockedIn && !shift.clockOpen,
+      showNotRosteredWarning: isCheckIn && !rosteredNow,
       nextShiftStartsAt:
-          shift.clockedIn || shift.clockOpen ? null : shift.startsAt,
+          shift.clockedIn || rosteredNow ? null : shift.startsAt,
     );
     if (saved == true) {
       await controller.refresh();

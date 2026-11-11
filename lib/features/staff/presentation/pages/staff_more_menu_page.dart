@@ -177,7 +177,7 @@ class StaffMoreMenuPage extends StatelessWidget {
               iconBackground: AppColors.nightBackground,
               iconColor: AppColors.nightPurple,
               title: 'My Profile',
-              subtitle: 'Account, assigned clients & preferences',
+              subtitle: 'Account & preferences',
             ),
           ];
 
