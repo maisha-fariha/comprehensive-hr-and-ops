@@ -178,21 +178,42 @@ class _HistoryRow extends StatelessWidget {
                       height: 1.2,
                     ),
                   ),
-                  SizedBox(
-                    height: ResponsiveHelper.getResponsiveHeight(context, 4),
-                  ),
-                  Text(
-                    'Worked',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w400,
-                      fontSize: ResponsiveHelper.getResponsiveFontSize(
-                        context,
-                        11,
-                      ),
-                      color: AttendanceHistorySection._secondary,
+                  // Web Worked secondary: "7m break" under the primary value.
+                  if (item.breakLabel.isNotEmpty) ...[
+                    SizedBox(
+                      height:
+                          ResponsiveHelper.getResponsiveHeight(context, 2),
                     ),
-                  ),
+                    Text(
+                      item.breakLabel,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w500,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          11.5,
+                        ),
+                        color: AppColors.infoBlue,
+                      ),
+                    ),
+                  ] else ...[
+                    SizedBox(
+                      height:
+                          ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ),
+                    Text(
+                      'Worked',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          11,
+                        ),
+                        color: AttendanceHistorySection._secondary,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],

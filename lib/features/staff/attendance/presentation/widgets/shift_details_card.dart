@@ -10,6 +10,7 @@ class ShiftDetailsCard extends StatelessWidget {
   final String locationName;
   final String timeRange;
   final String elapsedTimeLabel;
+  final String breakLabel;
   final bool isWithinGeofence;
   final String geofenceStatusLabel;
   final String geofenceAddress;
@@ -25,6 +26,7 @@ class ShiftDetailsCard extends StatelessWidget {
     required this.locationName,
     required this.timeRange,
     required this.elapsedTimeLabel,
+    this.breakLabel = '',
     required this.isWithinGeofence,
     required this.geofenceStatusLabel,
     required this.geofenceAddress,
@@ -105,7 +107,10 @@ class ShiftDetailsCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-          TimeWorkedCard(elapsedTimeLabel: elapsedTimeLabel),
+          TimeWorkedCard(
+            elapsedTimeLabel: elapsedTimeLabel,
+            breakLabel: breakLabel,
+          ),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
           const Divider(height: 1, thickness: 1, color: Color(0xFFEEF1F4)),
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),

@@ -172,6 +172,9 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
                         locationName: overview.shiftLocationName,
                         timeRange: overview.shiftTimeRange,
                         elapsedTimeLabel: controller.liveElapsedLabel.value,
+                        breakLabel: overview.breakMinutes > 0
+                            ? '${overview.breakMinutes}m break'
+                            : '',
                         isWithinGeofence: overview.isWithinGeofence,
                         geofenceStatusLabel: overview.geofenceStatusLabel,
                         geofenceAddress: overview.geofenceAddress,

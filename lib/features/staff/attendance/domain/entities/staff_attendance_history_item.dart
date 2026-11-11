@@ -6,7 +6,12 @@ class StaffAttendanceHistoryItem {
   final String id;
   final String dateLabel;
   final String timeRange;
+
+  /// Primary Worked value — web uses "—" while still clocked in.
   final String durationLabel;
+
+  /// Web Worked secondary line, e.g. "7m break" (empty when none).
+  final String breakLabel;
   final DateTime? occurredAt;
   final bool isOpen;
   final String status;
@@ -21,6 +26,7 @@ class StaffAttendanceHistoryItem {
     required this.dateLabel,
     required this.timeRange,
     required this.durationLabel,
+    this.breakLabel = '',
     this.occurredAt,
     this.isOpen = false,
     this.status = '',

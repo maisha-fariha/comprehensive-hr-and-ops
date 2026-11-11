@@ -339,9 +339,25 @@ abstract final class StaffAttendanceMapper {
       hasPhoto ? 'Photo on file' : 'No photo',
     ];
 
+    final isOpen = checkIn != null && checkOut == null && status != 'missed';
+    // Web In/Out: "3:22 PM – Still in" while open.
     final timeRange = checkIn == null && checkOut == null
         ? (status == 'missed' ? 'No clock-in' : '')
-        : IsoDateRange.rangeLabel(checkIn, checkOut);
+        : (isOpen
+              ? '${IsoDateRange.timeLabel(checkIn)} – Still in'
+              : IsoDateRange.rangeLabel(checkIn, checkOut));
+
+    // Web Worked: "—" while still in (no workedMinutes yet); break is a
+    // separate secondary line under Worked.
+    final worked = fromMinutes.isNotEmpty
+        ? fromMinutes
+        : (isOpen
+              ? '—'
+              : (checkIn == null || checkOut == null
+                    ? '—'
+                    : IsoDateRange.workedMinutesLabel(
+                        checkOut.difference(checkIn).inMinutes,
+                      )));
 
     return StaffAttendanceHistoryItem(
       id: JsonCodec.stringOr(json['id'], checkIn?.toIso8601String() ?? 'row'),
@@ -349,22 +365,10 @@ abstract final class StaffAttendanceMapper {
           ? JsonCodec.stringOr(json['date'], '—')
           : IsoDateRange.formatShortDate(occurredAt),
       timeRange: timeRange,
-      durationLabel: () {
-        final worked = fromMinutes.isNotEmpty
-            ? fromMinutes
-            : (checkIn == null || checkOut == null
-                  ? (checkOut == null && checkIn != null ? 'In progress' : '—')
-                  : IsoDateRange.workedMinutesLabel(
-                      checkOut.difference(checkIn).inMinutes,
-                    ));
-        // Web Worked cell: append completed unpaid break total.
-        if (breakMinutes > 0 && worked != '—') {
-          return '$worked · ${breakMinutes}m break';
-        }
-        return worked;
-      }(),
+      durationLabel: worked,
+      breakLabel: breakMinutes > 0 ? '${breakMinutes}m break' : '',
       occurredAt: occurredAt,
-      isOpen: checkIn != null && checkOut == null && status != 'missed',
+      isOpen: isOpen,
       status: status,
       statusLabel: _statusLabel(status, isManual: JsonCodec.boolean(json['isManual']) ?? false),
       residenceId: residenceId,
