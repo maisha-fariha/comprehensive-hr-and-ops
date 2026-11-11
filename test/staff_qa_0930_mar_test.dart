@@ -2,6 +2,7 @@ import 'package:comprehensive_hr_and_ops/core/constants/app_colors.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_role.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_medication_stock.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_round.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/data/mappers/staff_medication_mapper.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/domain/entities/administered_dose.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/domain/entities/due_dose.dart';
@@ -322,6 +323,10 @@ class _FakeRepo implements StaffMedicationRepository {
   @override
   Future<Result<void>> discontinuePrnMedication(String id) async =>
       Result.success(null);
+
+  @override
+  Future<Result<MarResidentChart>> residentChart(String clientId) async =>
+      Result.success(const MarResidentChart());
 
   @override
   Future<Result<void>> recordAdministration({

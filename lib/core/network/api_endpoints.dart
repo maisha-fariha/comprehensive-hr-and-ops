@@ -195,6 +195,8 @@ abstract final class ApiEndpoints {
   static const String marDue = '/mar/due';
   static const String marRound = '/mar/round';
   static const String marAdministrations = '/mar/administrations';
+  static String marResidentChart(String clientId) =>
+      '/mar/residents/$clientId/chart';
   static const String medications = '/medications';
   static const String prnMedications = '/prn-medications';
   /// Web MAR Stock tab trolley counts.

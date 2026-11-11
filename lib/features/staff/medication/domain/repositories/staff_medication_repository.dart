@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../hr/medication/domain/entities/mar_medication_stock.dart';
+import '../../../../hr/medication/domain/entities/mar_round.dart';
 import '../entities/administered_dose.dart';
 import '../entities/staff_client_medication_item.dart';
 import '../entities/staff_med_options.dart';
@@ -97,6 +98,9 @@ abstract class StaffMedicationRepository {
 
   /// `POST /prn-medications/:id/discontinue`.
   Future<Result<void>> discontinuePrnMedication(String id);
+
+  /// `GET /mar/residents/:clientId/chart` — web Resident chart tab.
+  Future<Result<MarResidentChart>> residentChart(String clientId);
 
   /// `GET /residences` for Add Medicine house picker.
   Future<Result<List<StaffMedResidenceOption>>> getResidences();

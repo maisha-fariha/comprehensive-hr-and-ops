@@ -7,6 +7,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/medication/data/mappers/medication_mapper.dart';
 import '../../../../hr/medication/domain/entities/mar_medication_stock.dart';
+import '../../../../hr/medication/domain/entities/mar_round.dart';
 import '../../domain/entities/administered_dose.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_med_options.dart';
@@ -516,6 +517,19 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
           allowQueue: false,
         ),
       );
+
+  @override
+  Future<Result<MarResidentChart>> residentChart(String clientId) async {
+    final result = await _api.get(
+      ApiEndpoints.marResidentChart(clientId),
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(MedicationMapper.chartFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<List<StaffMedResidenceOption>>> getResidences() async {

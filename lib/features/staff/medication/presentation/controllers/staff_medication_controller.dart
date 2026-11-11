@@ -9,6 +9,7 @@ import '../../../../../core/offline/outbox_context.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/medication/domain/entities/mar_medication_stock.dart';
 import '../../../../hr/medication/domain/entities/mar_options.dart';
+import '../../../../hr/medication/domain/entities/mar_round.dart';
 import '../../domain/entities/administered_dose.dart';
 import '../../domain/entities/due_dose.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
@@ -33,6 +34,11 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   final RxList<AdministeredDose> givenItems = <AdministeredDose>[].obs;
   final RxList<StaffMedClientOption> chartClients =
       <StaffMedClientOption>[].obs;
+
+  /// Web Resident chart tab selection + `GET /mar/residents/:id/chart`.
+  final RxString chartClientId = ''.obs;
+  final Rxn<MarResidentChart> residentChart = Rxn<MarResidentChart>();
+  final RxBool chartLoading = false.obs;
 
   /// `GET /residences` — the web "All residences" options.
   final RxList<StaffMedResidenceOption> residences =
@@ -311,6 +317,11 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     chartClients.assignAll(clientsResult.value ?? const []);
     if (homesResult.value case final homes?) residences.assignAll(homes);
     loadingExtras.value = false;
+    if (selectedTab.value == StaffMedicationTab.residentChart &&
+        chartClientId.value.isEmpty &&
+        chartClients.isNotEmpty) {
+      await loadResidentChart(chartClients.first.id);
+    }
   }
 
   /// Web Edit on a MAR row: the prescription behind it, from `/medications`.
@@ -446,6 +457,27 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   void selectTab(StaffMedicationTab tab) {
     selectedTab.value = tab;
     if (tab == StaffMedicationTab.stock) loadStock();
+    if (tab == StaffMedicationTab.residentChart &&
+        chartClientId.value.isEmpty &&
+        chartClients.isNotEmpty) {
+      loadResidentChart(chartClients.first.id);
+    }
+  }
+
+  Future<void> loadResidentChart(String clientId) async {
+    chartClientId.value = clientId;
+    if (clientId.isEmpty) {
+      residentChart.value = null;
+      return;
+    }
+    chartLoading.value = true;
+    final result = await repository.residentChart(clientId);
+    if (chartClientId.value != clientId) return;
+    result.when(
+      success: (chart) => residentChart.value = chart,
+      failure: (_) => residentChart.value = null,
+    );
+    chartLoading.value = false;
   }
 
   void setStockResidence(String residenceId) {

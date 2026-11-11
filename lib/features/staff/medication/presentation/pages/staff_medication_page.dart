@@ -18,7 +18,7 @@ import '../../../../hr/medication/presentation/widgets/mar_stock_tab.dart';
 import '../widgets/given_tab_view.dart';
 import '../widgets/mar_registry_tab_view.dart';
 import '../widgets/prn_registry_tab_view.dart';
-import '../widgets/resident_chart_tab_view.dart';
+import '../../../../hr/medication/presentation/widgets/mar_resident_chart_tab.dart';
 import '../widgets/staff_client_medications_sheet.dart';
 import '../widgets/staff_medication_header.dart';
 import '../widgets/staff_medication_metrics_strip.dart';
@@ -263,24 +263,26 @@ class StaffMedicationPage extends StatelessWidget {
                           ),
                         ),
                       StaffMedicationTab.residentChart =>
-                        ResidentChartTabView(
-                          clients: controller.chartClients.toList(),
-                          loading: controller.loadingExtras.value &&
-                              controller.chartClients.isEmpty,
-                          onOpenChart: (client) {
-                            showStaffClientMedicationsSheet(
-                              context,
-                              clientId: client.id,
-                              clientName: client.name,
-                            );
-                          },
+                        MarResidentChartTab(
+                          clientId: controller.chartClientId.value,
+                          clientOptions: [
+                            for (final c in controller.chartClients)
+                              (c.id, c.name),
+                          ],
+                          chart: controller.residentChart.value,
+                          loading: controller.chartLoading.value ||
+                              (controller.loadingExtras.value &&
+                                  controller.chartClients.isEmpty),
+                          onClientChange: controller.loadResidentChart,
                         ),
                     },
-                    // Web right column — once under MAR / PRN registry only.
+                    // Web right column — MAR / PRN / Resident chart.
                     if (controller.selectedTab.value ==
                             StaffMedicationTab.mar ||
                         controller.selectedTab.value ==
-                            StaffMedicationTab.prn) ...[
+                            StaffMedicationTab.prn ||
+                        controller.selectedTab.value ==
+                            StaffMedicationTab.residentChart) ...[
                       SizedBox(
                         height:
                             ResponsiveHelper.getResponsiveHeight(context, 12),
