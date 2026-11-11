@@ -544,25 +544,32 @@ class AppApiClient implements OutboxTransport {
           final refreshError = refreshFailure;
           // The server asked us to wait. Keep the session, do not show a
           // warning, and try the call again with the token already stored.
-          if (refreshError != null && _isRateLimited(refreshError)) {
-            final again = await request();
-            if (again.success) {
-              _connectivity?.reportReachable();
-              if (canCache) {
-                await _cache?.put(
-                  method: method,
-                  path: path,
-                  query: query,
-                  body: again.data,
-                );
+          if (refreshError != null &&
+              (_isRateLimited(refreshError) ||
+                  refreshError.code == 'refresh_rejected')) {
+            if (_isRateLimited(refreshError)) {
+              final again = await request();
+              if (again.success) {
+                _connectivity?.reportReachable();
+                if (canCache) {
+                  await _cache?.put(
+                    method: method,
+                    path: path,
+                    query: query,
+                    body: again.data,
+                  );
+                }
+                return Result.success(again.data);
               }
-              return Result.success(again.data);
+              if (method == 'GET' && canCache) {
+                final cached = await _readCache(method, path, query);
+                if (cached != null) return Result.success(cached);
+              }
+              // Soft failure — never pass "Too many token refreshes" to UI.
+              return Result.failure(rawError);
             }
-            if (method == 'GET' && canCache) {
-              final cached = await _readCache(method, path, query);
-              if (cached != null) return Result.success(cached);
-            }
-            return Result.failure(rawError);
+            // refresh_rejected: tokenRefresher already signed the user out.
+            return Result.failure(refreshError);
           }
           // Network / 5xx on refresh: keep the tokens. Only a 401 from the
           // refresh call itself signs the user out.

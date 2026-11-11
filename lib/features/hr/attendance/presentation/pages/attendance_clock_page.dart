@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:gems_core/gems_core.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
@@ -429,7 +430,9 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
           Navigator.of(context).pop(true);
         },
         failure: (error) {
-          if (widget.clockOut && handoverRequired(error)) {
+          // Location / geofence failures must not re-open the handover prompt.
+          final locationish = _isLocationClockError(error);
+          if (widget.clockOut && !locationish && handoverRequired(error)) {
             setState(() {
               _submitError = error.message;
               _writeHandover = true;
@@ -742,6 +745,25 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
       shiftId: shiftId,
       residenceId: residenceId,
     );
+  }
+
+  bool _isLocationClockError(AppError? error) {
+    String? raw;
+    if (error is ApiError) {
+      final data = error.responseData;
+      final nested = data?['error'];
+      raw =
+          '${data?['code'] ?? data?['errorCode'] ?? (nested is Map ? nested['code'] : '') ?? ''}';
+    } else if (error is ValidationError) {
+      final codes = error.fieldErrors?['code'];
+      if (codes != null && codes.isNotEmpty) raw = codes.first;
+    }
+    raw ??= error?.code;
+    final code = (raw ?? '').trim().toUpperCase();
+    if (code.isEmpty || int.tryParse(code) != null) return false;
+    return code.startsWith('LOCATION') ||
+        code.contains('GEOFENCE') ||
+        code == 'GPS_REQUIRED';
   }
 
   Future<void> _pickEarlyReason() async {

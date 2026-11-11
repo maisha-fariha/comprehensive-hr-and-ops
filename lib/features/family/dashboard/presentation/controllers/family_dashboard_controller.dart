@@ -22,7 +22,13 @@ class FamilyDashboardController extends BaseController<FamilyDashboardOverview> 
     final result = await repository.getOverview();
     result.when(
       success: setSuccess,
-      failure: (error) => setError(error.message),
+      failure: (error) {
+        if (error?.code == 'RATE_LIMITED' ||
+            (error?.message ?? '').toLowerCase().contains('token refresh')) {
+          return;
+        }
+        setError(error.message);
+      },
     );
     setLoading(false);
   }

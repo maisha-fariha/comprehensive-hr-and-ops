@@ -65,8 +65,16 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       }
     }
     homeBody['tiles'] = tiles;
-    StaffHomeMapper.applyOpenPunch(homeBody, await _openPunch());
-    _applyRosteredShift(homeBody, await _rosteredShift());
+    final open = await _openPunch();
+    StaffHomeMapper.applyOpenPunch(homeBody, open);
+    final openShiftId = JsonCodec.string(
+      open?['shiftId'] ?? JsonCodec.mapAt(open ?? const {}, 'shift')?['id'],
+    );
+    _applyRosteredShift(
+      homeBody,
+      await _rosteredShift(preferShiftId: openShiftId),
+      hasOpenPunch: open != null,
+    );
 
     var unread = 0;
     final notifications = await _api.get(
@@ -91,7 +99,7 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
 
   /// `/mobile/home` can keep a shift from an earlier day. Today's Shift and
   /// clock-in follow the web window: this person, 14 hours either side of now.
-  Future<Map<String, dynamic>?> _rosteredShift() async {
+  Future<Map<String, dynamic>?> _rosteredShift({String? preferShiftId}) async {
     final now = DateTime.now().toUtc();
     final staffId = _session.staffId;
     final result = await _api.get(
@@ -107,25 +115,60 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       silent: true,
     );
     if (result.isFailure) return null;
-    final window = AttendanceMapper.shiftWindowFrom(result.value, DateTime.now());
-    if (window == null) return const {};
-    return {
-      'id': window.shiftId,
-      'startsAt': window.startsAt.toUtc().toIso8601String(),
-      'endsAt': window.endsAt.toUtc().toIso8601String(),
-      'clockOpen': window.isCurrent,
-      if (window.residenceId != null) 'residenceId': window.residenceId,
-      if (window.residenceName != null) 'residenceName': window.residenceName,
-    };
+    final wallNow = DateTime.now();
+    final window = AttendanceMapper.shiftWindowFrom(result.value, wallNow);
+    if (window != null) {
+      return {
+        'id': window.shiftId,
+        'startsAt': window.startsAt.toUtc().toIso8601String(),
+        'endsAt': window.endsAt.toUtc().toIso8601String(),
+        'clockOpen': window.isCurrent,
+        if (window.residenceId != null) 'residenceId': window.residenceId,
+        if (window.residenceName != null) 'residenceName': window.residenceName,
+      };
+    }
+
+    // Still clocked into a just-ended shift — keep its times / id for Home
+    // and clock-out (missing shiftId re-triggers HANDOVER_REQUIRED).
+    final prefer = preferShiftId?.trim();
+    if (prefer != null && prefer.isNotEmpty) {
+      for (final item in JsonCodec.unwrapList(result.value)) {
+        if (item is! Map) continue;
+        final json = JsonCodec.asMap(item);
+        if (JsonCodec.string(json['status']) == 'cancelled') continue;
+        if (JsonCodec.string(json['id']) != prefer) continue;
+        final startsAt = JsonCodec.dateTime(json['startsAt']);
+        final endsAt = JsonCodec.dateTime(json['endsAt']);
+        if (startsAt == null || endsAt == null) continue;
+        return {
+          'id': prefer,
+          'startsAt': startsAt.toUtc().toIso8601String(),
+          'endsAt': endsAt.toUtc().toIso8601String(),
+          'clockOpen': !startsAt
+                  .subtract(const Duration(minutes: 15))
+                  .isAfter(wallNow) &&
+              !endsAt.isBefore(wallNow),
+          if (JsonCodec.string(json['residenceId']) != null)
+            'residenceId': JsonCodec.string(json['residenceId']),
+          if (JsonCodec.string(json['residenceName']) != null)
+            'residenceName': JsonCodec.string(json['residenceName']),
+        };
+      }
+    }
+    return const {};
   }
 
   void _applyRosteredShift(
     Map<String, dynamic> home,
-    Map<String, dynamic>? shift,
-  ) {
+    Map<String, dynamic>? shift, {
+    bool hasOpenPunch = false,
+  }) {
     // A failed lookup leaves the home payload alone.
     if (shift == null) return;
     if (shift.isEmpty) {
+      // Do not blank Today's Shift while an open punch keeps us On Shift —
+      // that produced "On Shift" + "No shift today" and dropped shiftId.
+      if (hasOpenPunch) return;
       home['shift'] = <String, dynamic>{};
       return;
     }

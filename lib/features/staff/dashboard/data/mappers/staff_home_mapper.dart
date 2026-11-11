@@ -31,6 +31,52 @@ abstract final class StaffHomeMapper {
     final residence = open['residence'];
     if (residence != null) attendance['residence'] = residence;
     home['attendance'] = attendance;
+
+    // Keep Today's Shift id/times when /mobile/home omitted `shift` (or the
+    // roster window later clears it) while the open punch still names one.
+    final shift = Map<String, dynamic>.from(
+      JsonCodec.mapAt(home, 'shift') ?? const {},
+    );
+    final nested = JsonCodec.mapAt(open, 'shift') ?? const {};
+    final shiftId = JsonCodec.string(
+      open['shiftId'] ?? nested['id'] ?? shift['id'] ?? shift['shiftId'],
+    );
+    if (shiftId != null && shiftId.isNotEmpty) {
+      shift.putIfAbsent('id', () => shiftId);
+      shift.putIfAbsent('shiftId', () => shiftId);
+    }
+    final start = open['shiftStartsAt'] ??
+        open['startsAt'] ??
+        nested['startsAt'] ??
+        nested['startAt'] ??
+        nested['startTime'];
+    final end = open['shiftEndsAt'] ??
+        open['endsAt'] ??
+        nested['endsAt'] ??
+        nested['endAt'] ??
+        nested['endTime'];
+    if (start != null) {
+      shift.putIfAbsent('startsAt', () => start);
+      shift.putIfAbsent('startAt', () => start);
+    }
+    if (end != null) {
+      shift.putIfAbsent('endsAt', () => end);
+      shift.putIfAbsent('endAt', () => end);
+    }
+    final openResidenceId = JsonCodec.string(
+      open['residenceId'] ?? nested['residenceId'],
+    );
+    if (openResidenceId != null) {
+      shift.putIfAbsent('residenceId', () => openResidenceId);
+    }
+    final openResidenceName = JsonCodec.string(
+      nested['residenceName'] ??
+          JsonCodec.mapAt(open, 'residence')?['name'],
+    );
+    if (openResidenceName != null) {
+      shift.putIfAbsent('residenceName', () => openResidenceName);
+    }
+    if (shift.isNotEmpty) home['shift'] = shift;
   }
 
   static StaffDashboardOverview compose({
@@ -101,7 +147,7 @@ abstract final class StaffHomeMapper {
                 ? 'On Shift'
                 : 'Off Shift',
         dateLabel: IsoDateRange.formatMonthDay(clock),
-        timeRange: _shiftRange(shift),
+        timeRange: _shiftRange(shift, clockedIn: clockedIn, checkInAt: checkIn),
         onShift: inShift,
         clockedIn: clockedIn,
         onBreak: onBreak,
@@ -199,8 +245,11 @@ abstract final class StaffHomeMapper {
     return !instant.isBefore(start.toUtc()) && !instant.isAfter(end.toUtc());
   }
 
-  static String _shiftRange(Map<String, dynamic> shift) {
-    if (shift.isEmpty) return 'No shift today';
+  static String _shiftRange(
+    Map<String, dynamic> shift, {
+    bool clockedIn = false,
+    DateTime? checkInAt,
+  }) {
     final start = JsonCodec.dateTime(
       shift['startAt'] ?? shift['startsAt'] ?? shift['startTime'] ?? shift['from'],
     );
@@ -209,7 +258,17 @@ abstract final class StaffHomeMapper {
     );
     final labeled = IsoDateRange.rangeLabel(start, end);
     if (labeled.isNotEmpty) return labeled;
-    return JsonCodec.stringOr(shift['timeRange'] ?? shift['label'], 'No shift today');
+    final named = JsonCodec.string(shift['timeRange'] ?? shift['label']);
+    if (named != null && named.trim().isNotEmpty) return named.trim();
+    // Open punch without roster hours — never contradict "On Shift" with
+    // "No shift today".
+    if (clockedIn) {
+      if (checkInAt != null) {
+        return 'In since ${IsoDateRange.timeLabel(checkInAt)}';
+      }
+      return 'On shift';
+    }
+    return 'No shift today';
   }
 
   static List<StaffOverviewStat> _stats({

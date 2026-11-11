@@ -228,19 +228,24 @@ class AuthRepositoryImpl implements AuthRepository {
     required bool silent,
     required bool force,
   }) async {
-    final heldUntil = _refreshNotBefore;
-    if (heldUntil != null && DateTime.now().isBefore(heldUntil)) {
-      return Result.failure(
-        ApiError(
-          message: 'Too many token refreshes. Waiting before trying again.',
-          statusCode: 429,
-          code: 'RATE_LIMITED',
-        ),
-      );
-    }
     // Access token still has more than a minute left — do not exchange.
     if (!force && !_tokens.accessExpiresSoon) {
       return Result.success(null);
+    }
+    final heldUntil = _refreshNotBefore;
+    if (heldUntil != null && DateTime.now().isBefore(heldUntil)) {
+      // Still have a usable access token — keep working quietly.
+      if (!_tokens.accessExpiresSoon) {
+        return Result.success(null);
+      }
+      // Access is dead and we must wait — never show "Too many token
+      // refreshes" on Home; send the user to sign in instead.
+      return Result.failure(
+        const AuthError(
+          message: 'Your session has expired. Sign in again.',
+          code: 'refresh_rejected',
+        ),
+      );
     }
     final refreshToken = _tokens.refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) {

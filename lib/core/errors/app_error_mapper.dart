@@ -122,10 +122,12 @@ abstract final class AppErrorMapper {
       return false;
     }
     if (error is ApiError) {
+      if (error.code == 'RATE_LIMITED') return true;
       final code = error.statusCode;
       return code == null ||
           code == 0 ||
           code == 408 ||
+          code == 429 ||
           code == 504 ||
           code >= 500;
     }

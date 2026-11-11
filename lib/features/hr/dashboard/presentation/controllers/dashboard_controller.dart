@@ -22,7 +22,15 @@ class DashboardController extends BaseController<DashboardOverview> {
     if (generation != _loadGeneration) return;
     result.when(
       success: setSuccess,
-      failure: (error) => setError(error.message),
+      failure: (error) {
+        // Rate-limit / refresh cooldown must not replace Home with a warning.
+        if (error?.code == 'RATE_LIMITED' ||
+            (error?.message ?? '').toLowerCase().contains('token refresh')) {
+          setLoading(false);
+          return;
+        }
+        setError(error.message);
+      },
     );
     setLoading(false);
   }

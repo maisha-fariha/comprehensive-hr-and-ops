@@ -433,9 +433,12 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     // Web only attaches shiftId while the rostered shift is current.
     // A future shift id, or a current shift id paired with a different
     // residence, is rejected by the API as "residenceId is invalid".
+    // Clock-out always sends the open punch's shiftId when known — without
+    // it, a GPS-off check-out can re-raise HANDOVER_REQUIRED after a
+    // completed handover.
     final shiftHome = widget.initialResidenceId?.trim();
     final shiftIdForBody = () {
-      if (!widget.isCheckIn) return widget.shiftId;
+      if (!widget.isCheckIn) return widget.shiftId?.trim();
       if (widget.showNotRosteredWarning) return null;
       final shiftId = widget.shiftId?.trim();
       if (shiftId == null || shiftId.isEmpty) return null;
@@ -470,12 +473,20 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     if (!mounted) return;
 
     if (result.isFailure) {
-      final handover =
-          !widget.isCheckIn && handoverRequired(result.error);
-      if (handover) {
-        _handoverShiftId = _handoverShiftFrom(result.error);
+      final err = result.error;
+      final locationCode = _locationErrorCode(err);
+      if (!widget.isCheckIn && locationCode != null) {
         _showSubmitError(
-          result.error?.message ??
+          err?.message ??
+              'Location is required to finish clock-out. Turn GPS on and try again.',
+        );
+        return;
+      }
+      final handover = !widget.isCheckIn && handoverRequired(err);
+      if (handover) {
+        _handoverShiftId = _handoverShiftFrom(err);
+        _showSubmitError(
+          err?.message ??
               'Write the handover for this shift before clocking out.',
           writeHandover: true,
         );
@@ -483,7 +494,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
       }
       // Show the server's error.message (SHIFT_REQUIRED, geofence, etc.).
       _showSubmitError(
-        result.error?.message ??
+        err?.message ??
             (widget.isCheckIn
                 ? 'Could not clock in.'
                 : 'Could not clock out.'),
@@ -491,6 +502,29 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
       return;
     }
     Navigator.of(context).pop(true);
+  }
+
+  /// LOCATION_* / geofence codes must never surface as "Write the handover".
+  String? _locationErrorCode(AppError? error) {
+    String? raw;
+    if (error is ApiError) {
+      final data = error.responseData;
+      final nested = data?['error'];
+      raw =
+          '${data?['code'] ?? data?['errorCode'] ?? (nested is Map ? nested['code'] : '') ?? ''}';
+    } else if (error is ValidationError) {
+      final codes = error.fieldErrors?['code'];
+      if (codes != null && codes.isNotEmpty) raw = codes.first;
+    }
+    raw ??= error?.code;
+    final code = (raw ?? '').trim().toUpperCase();
+    if (code.isEmpty || int.tryParse(code) != null) return null;
+    if (code.startsWith('LOCATION') ||
+        code.contains('GEOFENCE') ||
+        code == 'GPS_REQUIRED') {
+      return code;
+    }
+    return null;
   }
 
   /// Web "Write it" leaves clock-out and opens Shift Handovers for this shift.

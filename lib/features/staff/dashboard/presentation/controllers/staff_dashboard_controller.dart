@@ -37,7 +37,14 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
         }
         setSuccess(data);
       },
-      failure: (error) => setError(error.message),
+      failure: (error) {
+        if (error?.code == 'RATE_LIMITED' ||
+            (error?.message ?? '').toLowerCase().contains('token refresh')) {
+          setLoading(false);
+          return;
+        }
+        setError(error.message);
+      },
     );
     setLoading(false);
   }

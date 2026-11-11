@@ -191,6 +191,16 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
     if (mounted) await _load();
   }
 
+  /// Match web `canTake`: the author never acknowledges their own handover.
+  bool _isOwnHandover(StaffShiftHandover handover) {
+    final author = handover.authorId.trim();
+    if (author.isEmpty) return false;
+    final userId = _session.userId?.trim();
+    final staffId = _session.staffId?.trim();
+    return (userId != null && userId.isNotEmpty && author == userId) ||
+        (staffId != null && staffId.isNotEmpty && author == staffId);
+  }
+
   Future<void> _acknowledge(StaffShiftHandover handover) async {
     final result = await _repository.acknowledgeHandover(
       handoverId: handover.id,
@@ -477,11 +487,14 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
                                 ),
                                 itemBuilder: (context, index) {
                                   final handover = _items[index];
+                                  // Web: author never "takes" their own note —
+                                  // delete only. Incoming staff get Acknowledge.
+                                  final own = _isOwnHandover(handover);
                                   return StaffShiftHandoverCard(
                                     handover: handover,
                                     residenceFallback:
                                         _session.residenceName ?? '',
-                                    onAcknowledge: canWrite
+                                    onAcknowledge: canWrite && !own
                                         ? () => _acknowledge(handover)
                                         : null,
                                     onDelete: canWrite
