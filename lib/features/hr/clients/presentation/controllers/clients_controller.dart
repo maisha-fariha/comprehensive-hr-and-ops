@@ -477,6 +477,51 @@ class ClientsController extends GetxController {
     }
   }
 
+  /// Web Client Details "Export Progress Report" PDF.
+  Future<void> exportProgressReport({
+    required String clientId,
+    required DateTime from,
+    required DateTime to,
+    String? clientName,
+  }) async {
+    if (isExporting.value) return;
+    isExporting.value = true;
+    try {
+      String ymd(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final result = await repository.exportProgressReportPdf(
+        clientId: clientId,
+        from: ymd(from),
+        to: ymd(to),
+      );
+      await result.when(
+        success: (bytes) async {
+          final safe = (clientName ?? 'client')
+              .trim()
+              .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
+              .replaceAll(RegExp(r'_+'), '_');
+          final name =
+              'client_progress_${safe.isEmpty ? clientId : safe}_${ymd(from)}_${ymd(to)}.pdf';
+          final saved = await MediaStoreDownload.savePdfAndOpen(
+            fileName: name,
+            bytes: Uint8List.fromList(bytes),
+          );
+          AppSnackbar.show(
+            saved.success
+                ? 'Progress report ready'
+                : (saved.error ?? 'Could not save or open the PDF.'),
+            '',
+            force: true,
+          );
+        },
+        failure: (error) async =>
+            AppSnackbar.show(error.message, '', force: true),
+      );
+    } finally {
+      isExporting.value = false;
+    }
+  }
+
   static Future<String?> _saveToDevice(String fileName, List<int> bytes) async {
     final saved = await MediaStoreDownload.saveFileAndOpen(
       fileName: fileName,

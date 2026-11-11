@@ -274,51 +274,103 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
         child: HandoverPanel(padding: const EdgeInsets.all(16), child: child),
       );
 
+  Future<void> _exportProgressReport(ClientSummary c) async {
+    if (!_controller.canExport && !_controller.can('reports:read')) return;
+    // Web exports immediately with the last 30 days (no date dialog).
+    final now = TenantClock.now();
+    final to = DateTime(now.year, now.month, now.day);
+    final from = to.subtract(const Duration(days: 30));
+    await _controller.exportProgressReport(
+      clientId: c.id,
+      from: from,
+      to: to,
+      clientName: c.fullName,
+    );
+  }
+
   Widget _header(BuildContext context, ClientSummary c) {
     final photo = c.photoUrl;
+    final canExportProgress =
+        _controller.canExport || _controller.can('reports:read');
     return Container(
       width: double.infinity,
       color: AppColors.surfaceWhite,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: const Color(0xFFB4805A),
-            foregroundImage: photo == null ? null : OfflineImage.provider(photo),
-            onForegroundImageError: photo == null ? null : (_, _) {},
-            child: const Icon(Icons.person_outline_rounded, color: AppColors.surfaceWhite),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFFB4805A),
+                foregroundImage:
+                    photo == null ? null : OfflineImage.provider(photo),
+                onForegroundImageError: photo == null ? null : (_, _) {},
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: AppColors.surfaceWhite,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(c.fullName, style: handoverText(context, 16, weight: FontWeight.w700)),
-                    ClientPill(
-                      label: ClientsLabels.humanise(c.status).toUpperCase(),
-                      tone: ClientToneColors.forStatus(c.status),
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          c.fullName,
+                          style: handoverText(
+                            context,
+                            16,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        ClientPill(
+                          label: ClientsLabels.humanise(c.status).toUpperCase(),
+                          tone: ClientToneColors.forStatus(c.status),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        c.fullName,
+                        'ID #${c.shortId}',
+                        ?c.residenceName,
+                        if (c.careLevel != null) 'Care ${c.careLevel}',
+                      ].join(' · '),
+                      style: handoverText(
+                        context,
+                        12.5,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    c.fullName,
-                    'ID #${c.shortId}',
-                    ?c.residenceName,
-                    if (c.careLevel != null) 'Care ${c.careLevel}',
-                  ].join(' · '),
-                  style: handoverText(context, 12.5, color: AppColors.textMuted),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (canExportProgress) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Obx(() {
+                final busy = _controller.isExporting.value;
+                return HandoverButton(
+                  key: const ValueKey('client-export-progress'),
+                  label: busy ? 'Preparing…' : 'Export Progress Report',
+                  icon: Icons.description_outlined,
+                  compact: true,
+                  onPressed: busy ? null : () => _exportProgressReport(c),
+                );
+              }),
+            ),
+          ],
         ],
       ),
     );

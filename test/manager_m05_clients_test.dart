@@ -323,6 +323,14 @@ class _FakeRepo implements ClientsRepository {
       ClientsRepositoryImpl.rosterCsv(rows).codeUnits,
     );
   }
+
+  @override
+  Future<Result<List<int>>> exportProgressReportPdf({
+    required String clientId,
+    required String from,
+    required String to,
+  }) async =>
+      Result.success('%PDF-1.4 progress'.codeUnits);
 }
 
 late _FakeRepo _repo;
