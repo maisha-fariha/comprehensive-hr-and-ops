@@ -85,6 +85,9 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
   final Set<String> _reviewDecisions = {};
   bool _busy = false;
   bool _formReady = false;
+  /// Owned by the sheet so ListView recycling cannot wipe confirm ticks.
+  bool _signOffConfirmed = false;
+  bool _reviewConfirmed = false;
   List<_CheckDraft> _checks = const [];
 
   @override
@@ -312,6 +315,10 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
         widget.onChanged?.call();
       },
     );
+  }
+
+  void _setReviewConfirmed(bool value) {
+    setState(() => _reviewConfirmed = value);
   }
 
   Future<void> _review(String decision) async {
@@ -630,13 +637,17 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                       ),
                     ].where((part) => part.isNotEmpty).join(' · ');
 
-                    return ListView(
+                    // Keep the whole form mounted so confirm checkboxes and
+                    // review fields survive scroll (web modal parity).
+                    return SingleChildScrollView(
                       padding: ResponsiveHelper.getResponsivePadding(
                         context,
                         horizontal: 16,
                         bottom: 16,
                       ),
-                      children: [
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                         _DetailsCard(
                           statusLabel: statusLabel,
                           awaitingReview: _awaitingReview(detail, statusRaw),
@@ -879,12 +890,16 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                           _TaskSignOffBox(
                             signerName: _signerDisplayName(),
                             busy: _busy,
+                            confirmed: _signOffConfirmed,
+                            onConfirmedChanged: (v) =>
+                                setState(() => _signOffConfirmed = v),
                             onConfirm: () => _complete(signOff: true),
                           ),
                         ],
                         if (_canReview(detail, statusRaw))
-                          ..._reviewBox(context),
+                          ..._reviewBox(context, detail),
                       ],
+                      ),
                     );
                   },
                 ),
@@ -1107,7 +1122,14 @@ bool _canReview(Map<String, dynamic> detail, String status) {
 }
 
 extension on _TaskDetailSheetState {
-  List<Widget> _reviewBox(BuildContext context) {
+  List<Widget> _reviewBox(BuildContext context, Map<String, dynamic> detail) {
+    final signedName =
+        JsonCodec.string(detail['signedOffName'])?.trim() ?? '';
+    final signedAt = JsonCodec.dateTime(detail['signedOffAt']);
+    final signedIp =
+        JsonCodec.string(detail['signedOffIp'])?.trim() ?? '';
+    final canApprove =
+        _reviewConfirmed && !_reviewDecisions.contains('approve');
     return [
       const SizedBox(height: 12),
       Text(
@@ -1121,46 +1143,172 @@ extension on _TaskDetailSheetState {
       ),
       const SizedBox(height: 4),
       const Text(
-        'Inspect the completed work, then approve or send it back before closure.',
+        'Verify completion details and record your supervisory sign-off.',
         style: TextStyle(
           fontFamily: 'Outfit',
           fontSize: 12,
           color: AppColors.textSecondary,
         ),
       ),
-      const SizedBox(height: 6),
+      if (signedName.isNotEmpty || signedAt != null) ...[
+        const SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.scaffoldBackground,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'STAFF EXECUTION SIGN-OFF',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        letterSpacing: 0.4,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.activeBackground,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Text(
+                      'Signed by Assignee',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        color: AppColors.successGreen,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (signedName.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Signed by: $signedName',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: AppColors.textBody,
+                  ),
+                ),
+              ],
+              if (signedAt != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Date & Time: ${WebFormat.dateTime(signedAt)}',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: AppColors.textBody,
+                  ),
+                ),
+              ],
+              if (signedIp.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Audit IP: $signedIp',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: AppColors.textBody,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+      const SizedBox(height: 10),
       TextField(
         controller: _reviewNotes,
         minLines: 2,
         maxLines: 4,
         decoration: const InputDecoration(
-          hintText: 'Review notes',
+          hintText:
+              'Add supervisory feedback or instructions (required when sending back for correction)...',
           border: OutlineInputBorder(),
         ),
       ),
       const SizedBox(height: 4),
       const Text(
-        'Required when sending it back, so the person redoing it knows what to fix',
-        style: TextStyle(fontFamily: 'Outfit', fontSize: 11.5, color: AppColors.textSecondary),
+        'Included in the audit history, and sent to the assignee if requesting rework.',
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 11.5,
+          color: AppColors.textSecondary,
+        ),
+      ),
+      const SizedBox(height: 8),
+      InkWell(
+        key: const Key('task-review-confirm'),
+        onTap: () => _setReviewConfirmed(!_reviewConfirmed),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: _reviewConfirmed,
+              activeColor: AppColors.secondaryTeal,
+              onChanged: (v) => _setReviewConfirmed(v ?? false),
+            ),
+            const Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text(
+                  'I confirm I have inspected this task, verified the completed '
+                  'checklist items and evidence, and approve it for completion.',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 8),
       Wrap(
         spacing: 8,
+        runSpacing: 8,
         children: [
-          FilledButton(
-            onPressed: _reviewDecisions.contains('approve')
-                ? null
-                : () => _review('approve'),
-            child: Text(
-              _reviewDecisions.contains('approve') ? 'Approving…' : 'Approve',
+          FilledButton.icon(
+            key: const Key('task-review-approve'),
+            onPressed: canApprove ? () => _review('approve') : null,
+            icon: const Icon(Icons.draw_outlined, size: 16),
+            label: Text(
+              _reviewDecisions.contains('approve')
+                  ? 'Approving…'
+                  : 'Sign off & Approve',
             ),
           ),
           OutlinedButton(
+            key: const Key('task-review-reject'),
             onPressed: _reviewDecisions.contains('reject')
                 ? null
                 : () => _review('reject'),
             child: Text(
-              _reviewDecisions.contains('reject') ? 'Sending…' : 'Send back',
+              _reviewDecisions.contains('reject')
+                  ? 'Sending…'
+                  : 'Send back for rework',
             ),
           ),
         ],
@@ -1743,26 +1891,24 @@ class _BarButton extends StatelessWidget {
 }
 
 /// Sign-Off Confirmation Card: confirm checkbox + Sign and complete.
-class _TaskSignOffBox extends StatefulWidget {
+class _TaskSignOffBox extends StatelessWidget {
   final String signerName;
   final bool busy;
+  final bool confirmed;
+  final ValueChanged<bool> onConfirmedChanged;
   final VoidCallback onConfirm;
 
   const _TaskSignOffBox({
     required this.signerName,
     required this.busy,
+    required this.confirmed,
+    required this.onConfirmedChanged,
     required this.onConfirm,
   });
 
   @override
-  State<_TaskSignOffBox> createState() => _TaskSignOffBoxState();
-}
-
-class _TaskSignOffBoxState extends State<_TaskSignOffBox> {
-  bool _confirmed = false;
-
-  @override
   Widget build(BuildContext context) {
+    final canSubmit = confirmed && !busy;
     return Container(
       key: const Key('task-sign-off'),
       width: double.infinity,
@@ -1799,7 +1945,7 @@ class _TaskSignOffBoxState extends State<_TaskSignOffBox> {
                             'This task requires staff sign-off. Confirming below records that ',
                       ),
                       TextSpan(
-                        text: widget.signerName,
+                        text: signerName,
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const TextSpan(
@@ -1815,14 +1961,14 @@ class _TaskSignOffBoxState extends State<_TaskSignOffBox> {
           const SizedBox(height: 8),
           InkWell(
             key: const Key('task-sign-off-confirm'),
-            onTap: () => setState(() => _confirmed = !_confirmed),
+            onTap: () => onConfirmedChanged(!confirmed),
             child: Row(
               children: [
                 Checkbox(
-                  value: _confirmed,
+                  value: confirmed,
                   activeColor: AppColors.secondaryTeal,
                   onChanged: (value) =>
-                      setState(() => _confirmed = value ?? false),
+                      onConfirmedChanged(value ?? false),
                 ),
                 const Expanded(
                   child: Text(
@@ -1839,15 +1985,13 @@ class _TaskSignOffBoxState extends State<_TaskSignOffBox> {
           ),
           const SizedBox(height: 4),
           Material(
-            color: _confirmed && !widget.busy
+            color: canSubmit
                 ? AppColors.secondaryTeal
                 : const Color(0xFFCBD5E1),
             borderRadius: BorderRadius.circular(10),
             child: InkWell(
               key: const Key('task-sign-off-submit'),
-              onTap: (!_confirmed || widget.busy)
-                  ? null
-                  : widget.onConfirm,
+              onTap: canSubmit ? onConfirm : null,
               borderRadius: BorderRadius.circular(10),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1857,20 +2001,16 @@ class _TaskSignOffBoxState extends State<_TaskSignOffBox> {
                     Icon(
                       Icons.draw_outlined,
                       size: 16,
-                      color: _confirmed && !widget.busy
-                          ? Colors.white
-                          : AppColors.textMuted,
+                      color: canSubmit ? Colors.white : AppColors.textMuted,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      widget.busy ? 'Signing…' : 'Sign and complete',
+                      busy ? 'Signing…' : 'Sign and complete',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5,
-                        color: _confirmed && !widget.busy
-                            ? Colors.white
-                            : AppColors.textMuted,
+                        color: canSubmit ? Colors.white : AppColors.textMuted,
                       ),
                     ),
                   ],

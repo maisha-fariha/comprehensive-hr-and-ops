@@ -77,6 +77,8 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
   String? _busyDocumentUrl;
   bool _checksReady = false;
   List<StaffTaskCheckItem> _checks = const [];
+  /// Owned by the sheet so ListView recycling cannot wipe the confirm tick.
+  bool _signOffConfirmed = false;
   final _noteController = TextEditingController();
   final _noticeKey = GlobalKey();
   String? _notice;
@@ -449,12 +451,15 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
       top: 16,
       bottom: 16,
     );
-    // One bottomsheet scroll (web modal pattern) — no nested list / scroll hints.
-    return ListView(
+    // Keep the whole form mounted (web modal pattern). A lazy ListView was
+    // disposing confirm-checkbox state when those rows scrolled off-screen.
+    return SingleChildScrollView(
       padding: pad.copyWith(
         bottom: pad.bottom + MediaQuery.paddingOf(context).bottom,
       ),
-      children: [
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         if (_notice != null)
           Padding(
             key: _noticeKey,
@@ -896,11 +901,15 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
             const SizedBox(height: 12),
             _SignOffBox(
               busy: _completing,
+              confirmed: _signOffConfirmed,
+              onConfirmedChanged: (v) =>
+                  setState(() => _signOffConfirmed = v),
               onConfirm: () => _complete(signOff: true),
             ),
           ],
         ],
       ],
+      ),
     );
   }
 }
@@ -1345,26 +1354,23 @@ class _AssigneeLine extends StatelessWidget {
 }
 
 /// Sign-Off Confirmation Card: checkbox + "Sign and complete" (disabled until checked).
-class _SignOffBox extends StatefulWidget {
+class _SignOffBox extends StatelessWidget {
   final bool busy;
+  final bool confirmed;
+  final ValueChanged<bool> onConfirmedChanged;
   final VoidCallback onConfirm;
 
   const _SignOffBox({
     required this.busy,
+    required this.confirmed,
+    required this.onConfirmedChanged,
     required this.onConfirm,
   });
 
   @override
-  State<_SignOffBox> createState() => _SignOffBoxState();
-}
-
-class _SignOffBoxState extends State<_SignOffBox> {
-  bool _confirmed = false;
-
-  @override
   Widget build(BuildContext context) {
     const text = TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textBody);
-    final canSubmit = _confirmed && !widget.busy;
+    final canSubmit = confirmed && !busy;
     return Container(
       key: const Key('task-sign-off'),
       padding: const EdgeInsets.all(14),
@@ -1393,13 +1399,13 @@ class _SignOffBoxState extends State<_SignOffBox> {
           const SizedBox(height: 8),
           InkWell(
             key: const Key('task-sign-off-confirm'),
-            onTap: () => setState(() => _confirmed = !_confirmed),
+            onTap: () => onConfirmedChanged(!confirmed),
             child: Row(
               children: [
                 Checkbox(
-                  value: _confirmed,
+                  value: confirmed,
                   activeColor: AppColors.secondaryTeal,
-                  onChanged: (v) => setState(() => _confirmed = v ?? false),
+                  onChanged: (v) => onConfirmedChanged(v ?? false),
                 ),
                 const Expanded(
                   child: Text(
@@ -1417,10 +1423,10 @@ class _SignOffBoxState extends State<_SignOffBox> {
           const SizedBox(height: 4),
           _SheetButton(
             key: const Key('task-sign-off-submit'),
-            label: widget.busy ? 'Signing…' : 'Sign and complete',
+            label: busy ? 'Signing…' : 'Sign and complete',
             filled: true,
             dimmed: !canSubmit,
-            onPressed: canSubmit ? widget.onConfirm : null,
+            onPressed: canSubmit ? onConfirm : null,
           ),
         ],
       ),
