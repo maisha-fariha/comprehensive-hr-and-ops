@@ -101,8 +101,6 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     (label: 'Other / missed', status: 'missed', doseReason: 'other'),
   ];
 
-  Future<void>? _overviewInFlight;
-
   StaffMedicationController({
     required this.repository,
     UserSession? session,
@@ -301,19 +299,22 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   /// Reloads every list a medicine or dose can appear in — the round, the
   /// PRN register, the prescriptions, the Given history and the pickers —
   /// the way the web invalidates every `mar` query after a save.
+  ///
+  /// Latest-wins: a post-create refresh must not join a stale in-flight load
+  /// that started before the POST (common on slower devices/networks).
   Future<void> loadOverview() {
-    return _overviewInFlight ??= _loadOverviewBody().whenComplete(() {
-      _overviewInFlight = null;
-    });
+    final serial = ++_loadSerial;
+    return _loadOverviewBody(serial);
   }
 
-  Future<void> _loadOverviewBody() async {
-    final serial = ++_loadSerial;
+  Future<void> _loadOverviewBody(int serial) async {
     final residence = filterResidenceId.value.isEmpty
         ? null
         : filterResidenceId.value;
-    setLoading(true);
-    loadingExtras.value = true;
+    if (serial == _loadSerial) {
+      setLoading(true);
+      loadingExtras.value = true;
+    }
     final result = await repository.getOverview(residenceId: residence);
     if (serial != _loadSerial) return;
     result.when(
@@ -332,12 +333,17 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       repository.getResidences(),
     ).wait;
     if (serial != _loadSerial) return;
-    prnItems.assignAll(prnResult.value ?? const []);
-    final given = givenResult.value;
-    givenItems.assignAll(given?.items ?? const []);
-    givenTotal.value = given?.total ?? givenItems.length;
-    medications.assignAll(medsResult.value ?? const []);
-    chartClients.assignAll(clientsResult.value ?? const []);
+    // Keep prior lists when a silent extras call fails — wiping to [] made
+    // newly added medicines disappear on flaky devices.
+    if (prnResult.value case final prns?) prnItems.assignAll(prns);
+    if (givenResult.value case final given?) {
+      givenItems.assignAll(given.items);
+      givenTotal.value = given.total;
+    }
+    if (medsResult.value case final meds?) medications.assignAll(meds);
+    if (clientsResult.value case final clients?) {
+      chartClients.assignAll(clients);
+    }
     if (homesResult.value case final homes?) residences.assignAll(homes);
     loadingExtras.value = false;
     if (selectedTab.value == StaffMedicationTab.residentChart &&
@@ -345,6 +351,36 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
         chartClients.isNotEmpty) {
       await loadResidentChart(chartClients.first.id);
     }
+  }
+
+  /// After add/edit: show the right tab, clear filters that would hide the
+  /// new row, and force a fresh overview (does not relax MAR count rules).
+  Future<void> refreshAfterMedicineSave(StaffAddMedicineResult saved) async {
+    filterSearch.value = '';
+    searchController.clear();
+    filterClientId.value = '';
+    filterMedication.value = '';
+    filterState.value = '';
+    final home = saved.residenceId.trim();
+    if (home.isNotEmpty &&
+        filterResidenceId.value.isNotEmpty &&
+        filterResidenceId.value != home) {
+      filterResidenceId.value = home;
+    }
+    selectTab(
+      saved.isPrn ? StaffMedicationTab.prn : StaffMedicationTab.mar,
+    );
+    await loadOverview();
+    final name = saved.name.trim().toLowerCase();
+    if (name.isEmpty) return;
+    final visible = saved.isPrn
+        ? prnItems.any((p) => p.name.trim().toLowerCase() == name)
+        : allScheduledDoses
+            .any((d) => d.medicationName.trim().toLowerCase() == name);
+    if (visible) return;
+    // Some tenants' round/register lag briefly after POST — one retry only.
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    await loadOverview();
   }
 
   /// Web Edit on a MAR row: the prescription behind it, from `/medications`.
@@ -375,7 +411,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       return;
     }
     final saved = await StaffAddMedicineSheet.show(context, editing: item);
-    if (saved == true) await loadOverview();
+    if (saved != null) await refreshAfterMedicineSave(saved);
   }
 
   StaffClientMedicationItem? medicationForDose(DueDose dose) {
@@ -693,7 +729,7 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       context,
       initialPrn: selectedTab.value == StaffMedicationTab.prn,
     );
-    if (created == true) await loadOverview();
+    if (created != null) await refreshAfterMedicineSave(created);
   }
 
   Future<void> startRecordAdministration(BuildContext context) async {

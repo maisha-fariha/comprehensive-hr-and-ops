@@ -10,6 +10,22 @@ import '../../domain/entities/staff_med_options.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
+/// Successful save from [StaffAddMedicineSheet] — used to refresh the right
+/// MAR/PRN tab without re-inflating off-round counts.
+class StaffAddMedicineResult {
+  final bool isPrn;
+  final String residenceId;
+  final String? clientId;
+  final String name;
+
+  const StaffAddMedicineResult({
+    required this.isPrn,
+    required this.residenceId,
+    this.clientId,
+    required this.name,
+  });
+}
+
 /// Add Medicine / Add PRN, or the web "Correct a medicine" when [editing] is
 /// set — styled to match staff form field theme.
 class StaffAddMedicineSheet extends StatefulWidget {
@@ -26,7 +42,7 @@ class StaffAddMedicineSheet extends StatefulWidget {
     this.initialPrn = false,
   });
 
-  static Future<bool?> show(
+  static Future<StaffAddMedicineResult?> show(
     BuildContext context, {
     VoidCallback? onCreated,
     StaffClientMedicationItem? editing,
@@ -35,7 +51,7 @@ class StaffAddMedicineSheet extends StatefulWidget {
     final height = MediaQuery.sizeOf(context).height;
     final wide = MediaQuery.sizeOf(context).width >= 720;
     if (wide) {
-      return showAppPopup<bool>(
+      return showAppPopup<StaffAddMedicineResult>(
         context: context,
         barrierDismissible: false,
         builder: (_) => AppSheetPanel(
@@ -56,7 +72,7 @@ class StaffAddMedicineSheet extends StatefulWidget {
         ),
       );
     }
-    return showAppBottomSheet<bool>(
+    return showAppBottomSheet<StaffAddMedicineResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -486,7 +502,15 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
           : '$saved medicines prescribed';
     }
     AppSnackbar.show(toast, '');
-    Navigator.of(context).pop(true);
+    final first = _medicines.first;
+    Navigator.of(context).pop(
+      StaffAddMedicineResult(
+        isPrn: _isPrn,
+        residenceId: _residence!.id,
+        clientId: _client?.id,
+        name: first.name.text.trim(),
+      ),
+    );
   }
 
   Future<void> _pickDate(_MedicineDraft m, {required bool start}) async {

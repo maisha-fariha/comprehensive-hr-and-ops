@@ -551,36 +551,58 @@ class MedicationController extends GetxController {
     busy.value = true;
     final result = await action();
     busy.value = false;
-    return result.when(
-      success: (_) {
-        AppSnackbar.show(success, '');
-        refreshAll();
-        return null;
-      },
-      failure: (e) => e.message,
-    );
+    if (result.isFailure) return result.error?.message;
+    AppSnackbar.show(success, '');
+    // Await the reload so slower devices do not briefly show a stale list
+    // after create/update (same race staff hit with coalesced overview).
+    await refreshAll();
+    return null;
   }
 
   /// Adds one or several medicines, or saves a correction to [editing].
   /// Returns the error for the form banner.
-  Future<String?> saveMedicines(List<MarMedicineDraft> drafts, {MarMedication? editing}) {
+  Future<String?> saveMedicines(
+    List<MarMedicineDraft> drafts, {
+    MarMedication? editing,
+  }) async {
     final first = drafts.first;
+    final Future<String?> run;
     if (editing != null) {
-      return first.isPrn
+      run = first.isPrn
           ? _run(() => repository.updatePrn(editing.id, first), 'Medicine updated')
-          : _run(() => repository.updateMedication(editing.id, first), 'Prescription updated');
-    }
-    if (drafts.length > 1) {
-      return first.isPrn
-          ? _run(() => repository.createPrnBatch(drafts), '${drafts.length} medicines added')
+          : _run(
+              () => repository.updateMedication(editing.id, first),
+              'Prescription updated',
+            );
+    } else if (drafts.length > 1) {
+      run = first.isPrn
+          ? _run(
+              () => repository.createPrnBatch(drafts),
+              '${drafts.length} medicines added',
+            )
           : _run(
               () => repository.createMedicationBatch(drafts),
               '${drafts.length} medicines prescribed',
             );
+    } else {
+      run = first.isPrn
+          ? _run(() => repository.createPrn(first), 'Medicine added')
+          : _run(
+              () => repository.createMedication(first),
+              'Prescription added',
+            );
     }
-    return first.isPrn
-        ? _run(() => repository.createPrn(first), 'Medicine added')
-        : _run(() => repository.createMedication(first), 'Prescription added');
+    final error = await run;
+    if (error == null) {
+      // Land on the register that holds the saved row (PRN ≠ MAR count).
+      tab.value = first.isPrn ? 'prn' : 'mar';
+      page.value = 1;
+      filterClient.value = '';
+      filterMedication.value = '';
+      filterState.value = '';
+      search.value = '';
+    }
+    return error;
   }
 
   Future<void> discontinue(MarMedication m) async {
