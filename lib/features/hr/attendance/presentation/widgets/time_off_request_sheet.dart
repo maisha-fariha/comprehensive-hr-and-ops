@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/entities/time_off_request.dart';
@@ -234,10 +235,20 @@ class _TimeOffRequestSheetState extends State<_TimeOffRequestSheet> {
   void _submit() {
     if (widget.pickStaff && (_staff == null || _staff!.id.isEmpty)) {
       setState(() => _error = 'Select a staff member');
+      scrollToFirstFormError(
+        context,
+        errors: const {'staff': 'Select a staff member'},
+        fieldKeys: const {'staff': ValueKey('time-off-staff')},
+      );
       return;
     }
     if (_start == null || _end == null) {
       setState(() => _error = 'Start and end dates are required');
+      scrollToFirstFormError(
+        context,
+        errors: const {'dates': 'Start and end dates are required'},
+        fieldKeys: const {'dates': ValueKey('time-off-dates')},
+      );
       return;
     }
     Navigator.of(context).pop((
@@ -284,11 +295,14 @@ class _TimeOffRequestSheetState extends State<_TimeOffRequestSheet> {
               const SizedBox(height: 18),
               if (widget.pickStaff) ...[
                 const ManualEntryFieldLabel('Staff member', required: true),
-                ManualEntrySearchField(
-                  controller: _staffSearch,
-                  hint: 'Search staff…',
-                  onChanged: _searchStaff,
-                  onFocus: _onStaffFocus,
+                KeyedSubtree(
+                  key: const ValueKey('time-off-staff'),
+                  child: ManualEntrySearchField(
+                    controller: _staffSearch,
+                    hint: 'Search staff…',
+                    onChanged: _searchStaff,
+                    onFocus: _onStaffFocus,
+                  ),
                 ),
                 if (_searching)
                   const Padding(
@@ -358,43 +372,46 @@ class _TimeOffRequestSheetState extends State<_TimeOffRequestSheet> {
                 onTap: _pickType,
               ),
               const SizedBox(height: 14),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const ManualEntryFieldLabel(
-                          'Start date',
-                          required: true,
-                        ),
-                        ManualEntryDateTimeField(
-                          value: _dateLabel(_start),
-                          placeholder: 'Pick a date',
-                          onTap: () => _pickDate(start: true),
-                        ),
-                      ],
+              KeyedSubtree(
+                key: const ValueKey('time-off-dates'),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const ManualEntryFieldLabel(
+                            'Start date',
+                            required: true,
+                          ),
+                          ManualEntryDateTimeField(
+                            value: _dateLabel(_start),
+                            placeholder: 'Pick a date',
+                            onTap: () => _pickDate(start: true),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const ManualEntryFieldLabel(
-                          'End date',
-                          required: true,
-                        ),
-                        ManualEntryDateTimeField(
-                          value: _dateLabel(_end),
-                          placeholder: 'Pick a date',
-                          onTap: () => _pickDate(start: false),
-                        ),
-                      ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const ManualEntryFieldLabel(
+                            'End date',
+                            required: true,
+                          ),
+                          ManualEntryDateTimeField(
+                            value: _dateLabel(_end),
+                            placeholder: 'Pick a date',
+                            onTap: () => _pickDate(start: false),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               const ManualEntryFieldLabel('Reason (optional)'),

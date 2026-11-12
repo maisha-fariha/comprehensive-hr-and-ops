@@ -141,9 +141,29 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 10),
-                          const CreateShiftFieldLabel(
-                            'Reason to roster anyway',
-                            required: true,
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: CreateShiftFieldLabel(
+                                  'Reason to roster anyway',
+                                  required: true,
+                                ),
+                              ),
+                              Text(
+                                CreateShiftRestOverride.counterLabel(
+                                  restOverrideReasonController!.text,
+                                ),
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    11,
+                                  ),
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
                           ),
                           CreateShiftTextField(
                             key: const ValueKey('shift-rest-override-reason'),
@@ -151,6 +171,7 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
                             hint:
                                 'e.g. Emergency cover — two carers off sick, no one else available',
                             maxLines: 3,
+                            maxLength: CreateShiftRestOverride.maxLength,
                             keyboardType: TextInputType.multiline,
                             hasError: restOverrideReasonError != null,
                             onChanged: onRestOverrideReasonChanged,

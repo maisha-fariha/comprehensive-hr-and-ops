@@ -337,10 +337,15 @@ abstract final class StaffTasksMessagesMapper {
       documents: _documents(json['evidence']),
       requiresSignOff: JsonCodec.boolean(json['requiresSignOff']) ?? false,
       requiresReview: JsonCodec.boolean(json['requiresReview']) ?? false,
+      reviewedBy: JsonCodec.string(json['reviewedBy']),
+      reviewedByName: JsonCodec.string(json['reviewedByName']),
+      reviewedByIp: JsonCodec.string(json['reviewedByIp']),
       reviewedAt: JsonCodec.dateTime(json['reviewedAt']),
       reviewNotes: JsonCodec.stringOr(json['reviewNotes'], ''),
+      signedOffBy: JsonCodec.string(json['signedOffBy']),
       signedOffName: JsonCodec.string(json['signedOffName']),
       signedOffAt: JsonCodec.dateTime(json['signedOffAt']),
+      signedOffIp: JsonCodec.string(json['signedOffIp']),
     );
   }
 

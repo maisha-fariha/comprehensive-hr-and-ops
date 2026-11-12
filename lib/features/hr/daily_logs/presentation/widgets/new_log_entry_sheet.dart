@@ -14,7 +14,15 @@ import 'daily_log_common.dart';
 import 'entry_sheets.dart';
 import 'tidy_my_note_sheet.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+
+const _newLogErrorKeys = <String, Key>{
+  'body': ValueKey('dl-new-body'),
+  'outingNotes': ValueKey('dl-new-outing'),
+  'flagCategory': ValueKey('dl-new-flag-category'),
+  'flagNote': ValueKey('dl-new-flag-block'),
+};
 
 typedef DailyLogFilePicker = Future<List<(String path, String name)>> Function();
 
@@ -218,7 +226,14 @@ class _NewLogEntrySheetState extends State<NewLogEntrySheet> {
         _moreOpen = true;
       }
     });
-    if (errors.isNotEmpty) return;
+    if (errors.isNotEmpty) {
+      scrollToFirstFormError(
+        context,
+        errors: errors,
+        fieldKeys: _newLogErrorKeys,
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await widget.controller.createEntry(_requestBody());

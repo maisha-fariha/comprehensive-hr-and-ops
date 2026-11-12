@@ -12,6 +12,7 @@ import '../../domain/repositories/emergency_repository.dart';
 import '../emergency_labels.dart';
 import 'emergency_alert_motion.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 
 typedef EmergencyLocator = Future<({double latitude, double longitude})?> Function();
 
@@ -128,6 +129,13 @@ class _RaiseEmergencySheetState extends State<RaiseEmergencySheet> {
     final residenceId = _effectiveResidence;
     if (residenceId == null) {
       setState(() => _error = 'Choose where help is needed.');
+      scrollToFirstFormError(
+        context,
+        errors: const {'residenceId': 'Choose where help is needed.'},
+        fieldKeys: const {
+          'residenceId': ValueKey('raise-emergency-residence'),
+        },
+      );
       return;
     }
     setState(() => _raising = true);

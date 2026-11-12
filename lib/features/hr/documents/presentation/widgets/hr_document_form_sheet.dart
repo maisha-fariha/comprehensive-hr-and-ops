@@ -2,12 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/formatting/web_formats.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/hr_document.dart';
 import '../../domain/entities/hr_document_draft.dart';
 import '../../domain/entities/hr_document_row.dart';
 import '../controllers/hr_documents_controller.dart';
 import 'hr_documents_common.dart';
+
+const _documentErrorKeys = <String, Key>{
+  'name': ValueKey('document-form-name'),
+  'ownerId': ValueKey('document-form-owner'),
+  'files': ValueKey('document-form-file'),
+  'expiryDate': ValueKey('document-form-expiry-date'),
+};
 
 Future<void> showHrDocumentFormSheet(
   BuildContext context, {
@@ -128,7 +136,15 @@ class _HrDocumentFormSheetState extends State<HrDocumentFormSheet> {
       _submitted = true;
       _saveError = null;
     });
-    if (_draft.validate().isNotEmpty) return;
+    final errors = _draft.validate();
+    if (errors.isNotEmpty) {
+      scrollToFirstFormError(
+        context,
+        errors: errors,
+        fieldKeys: _documentErrorKeys,
+      );
+      return;
+    }
     setState(() => _saving = true);
     final result = await _c.save(_draft, documentId: widget.editing?.id);
     if (!mounted) return;

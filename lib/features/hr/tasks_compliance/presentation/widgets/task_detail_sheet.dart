@@ -650,6 +650,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                               typePriority.isEmpty ? null : typePriority,
                           reviewTitle: _reviewTitle(detail),
                           reviewNote: _reviewNote(detail),
+                          reviewMeta: _reviewMeta(detail),
                           signOffTitle: _signOffTitle(detail),
                           signOffTime: _signOffTime(detail),
                         ),
@@ -867,21 +868,18 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                             ),
                           ),
                         ],
-                        // Web: Sign-off box when required and not yet complete.
+                        // Sign-Off Confirmation Card while staff sign-off is still owed.
                         if (canMutate &&
                             !completed &&
                             !cancelled &&
-                            detail['requiresSignOff'] == true) ...[
+                            detail['requiresSignOff'] == true &&
+                            !_awaitingReview(detail, statusRaw) &&
+                            detail['signedOffAt'] == null) ...[
                           const SizedBox(height: 12),
                           _TaskSignOffBox(
                             signerName: _signerDisplayName(),
                             busy: _busy,
                             onConfirm: () => _complete(signOff: true),
-                            onNeedConfirm: () => AppSnackbar.show(
-                              'Confirm sign-off',
-                              'Confirm this task was completed as described.',
-                              force: true,
-                            ),
                           ),
                         ],
                         if (_canReview(detail, statusRaw))
@@ -901,7 +899,11 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                 onSave: canMutate && _load.detail != null ? _saveProgress : null,
                 onComplete: canMutate &&
                         _load.detail != null &&
-                        _load.detail?['requiresSignOff'] != true
+                        _load.detail?['requiresSignOff'] != true &&
+                        !_awaitingReview(
+                          _load.detail ?? const {},
+                          _statusRaw(_load.detail),
+                        )
                     ? () => _complete()
                     : null,
                 // Web still offers Cancel while the row is "Awaiting review",
@@ -1058,6 +1060,8 @@ String _reviewTitle(Map<String, dynamic> detail) {
   if (detail['requiresReview'] != true) return 'Not required';
   final reviewed = JsonCodec.dateTime(detail['reviewedAt']);
   if (reviewed == null) return 'Waiting on a reviewer';
+  final name = JsonCodec.string(detail['reviewedByName'])?.trim() ?? '';
+  if (name.isNotEmpty) return 'Reviewed by $name';
   return 'Reviewed ${WebFormat.dateTime(reviewed)}';
 }
 
@@ -1065,6 +1069,15 @@ String? _reviewNote(Map<String, dynamic> detail) {
   final note = JsonCodec.string(detail['reviewNotes']);
   if (note == null || note.trim().isEmpty) return null;
   return note.trim();
+}
+
+String? _reviewMeta(Map<String, dynamic> detail) {
+  final parts = <String>[];
+  final at = JsonCodec.dateTime(detail['reviewedAt']);
+  if (at != null) parts.add(WebFormat.dateTime(at));
+  final ip = JsonCodec.string(detail['reviewedByIp'])?.trim() ?? '';
+  if (ip.isNotEmpty) parts.add('IP $ip');
+  return parts.isEmpty ? null : parts.join(' · ');
 }
 
 String _signOffTitle(Map<String, dynamic> detail) {
@@ -1078,9 +1091,12 @@ String _signOffTitle(Map<String, dynamic> detail) {
 }
 
 String? _signOffTime(Map<String, dynamic> detail) {
+  final parts = <String>[];
   final at = JsonCodec.dateTime(detail['signedOffAt']);
-  if (at == null) return null;
-  return WebFormat.dateTime(at);
+  if (at != null) parts.add(WebFormat.dateTime(at));
+  final ip = JsonCodec.string(detail['signedOffIp'])?.trim() ?? '';
+  if (ip.isNotEmpty) parts.add('IP $ip');
+  return parts.isEmpty ? null : parts.join(' · ');
 }
 
 bool _canReview(Map<String, dynamic> detail, String status) {
@@ -1095,12 +1111,21 @@ extension on _TaskDetailSheetState {
     return [
       const SizedBox(height: 12),
       Text(
-        'Review',
+        'Manager Review & Sign-Off',
         style: TextStyle(
           fontFamily: 'Outfit',
           fontWeight: FontWeight.w700,
           fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
           color: AppColors.textHeading,
+        ),
+      ),
+      const SizedBox(height: 4),
+      const Text(
+        'Inspect the completed work, then approve or send it back before closure.',
+        style: TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 12,
+          color: AppColors.textSecondary,
         ),
       ),
       const SizedBox(height: 6),
@@ -1214,6 +1239,7 @@ class _DetailsCard extends StatelessWidget {
   final String? typePriority;
   final String reviewTitle;
   final String? reviewNote;
+  final String? reviewMeta;
   final String signOffTitle;
   final String? signOffTime;
 
@@ -1229,6 +1255,7 @@ class _DetailsCard extends StatelessWidget {
     required this.typePriority,
     required this.reviewTitle,
     required this.reviewNote,
+    required this.reviewMeta,
     required this.signOffTitle,
     required this.signOffTime,
   });
@@ -1379,6 +1406,15 @@ class _DetailsCard extends StatelessWidget {
                         color: AppColors.textHeading,
                       ),
                     ),
+                    if (reviewMeta != null)
+                      Text(
+                        reviewMeta!,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
                     if (reviewNote != null)
                       Text(
                         reviewNote!,
@@ -1706,18 +1742,16 @@ class _BarButton extends StatelessWidget {
   }
 }
 
-/// Web sign-off block: confirm checkbox + Sign and complete.
+/// Sign-Off Confirmation Card: confirm checkbox + Sign and complete.
 class _TaskSignOffBox extends StatefulWidget {
   final String signerName;
   final bool busy;
   final VoidCallback onConfirm;
-  final VoidCallback onNeedConfirm;
 
   const _TaskSignOffBox({
     required this.signerName,
     required this.busy,
     required this.onConfirm,
-    required this.onNeedConfirm,
   });
 
   @override
@@ -1762,14 +1796,15 @@ class _TaskSignOffBoxState extends State<_TaskSignOffBox> {
                     children: [
                       const TextSpan(
                         text:
-                            'This task requires sign-off. Confirming below records that ',
+                            'This task requires staff sign-off. Confirming below records that ',
                       ),
                       TextSpan(
                         text: widget.signerName,
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const TextSpan(
-                        text: ' completed it, with the date and time.',
+                        text:
+                            ' completed it, with the date, time, and IP.',
                       ),
                     ],
                   ),
@@ -1810,15 +1845,9 @@ class _TaskSignOffBoxState extends State<_TaskSignOffBox> {
             borderRadius: BorderRadius.circular(10),
             child: InkWell(
               key: const Key('task-sign-off-submit'),
-              onTap: widget.busy
+              onTap: (!_confirmed || widget.busy)
                   ? null
-                  : () {
-                      if (!_confirmed) {
-                        widget.onNeedConfirm();
-                        return;
-                      }
-                      widget.onConfirm();
-                    },
+                  : widget.onConfirm,
               borderRadius: BorderRadius.circular(10),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),

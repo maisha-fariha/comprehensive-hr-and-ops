@@ -5,6 +5,7 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/tasks_compliance/data/mappers/tasks_compliance_mapper.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/message_contact.dart';
 import '../../domain/entities/message_thread.dart';
@@ -1001,42 +1002,12 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     };
   }
 
+  /// Same label + newest-first order as HR Create Task / Assign shift menu.
   static List<TaskCreationOption> _shiftOptionsFrom(dynamic body) {
-    return JsonCodec.unwrapList(body)
-        .whereType<Map>()
-        .map((item) {
-          final json = JsonCodec.asMap(item);
-          final start = JsonCodec.dateTime(
-            json['startAt'] ??
-                json['startsAt'] ??
-                json['startTime'] ??
-                json['from'],
-          );
-          final end = JsonCodec.dateTime(
-            json['endAt'] ?? json['endsAt'] ?? json['endTime'] ?? json['to'],
-          );
-          final title = JsonCodec.stringOr(
-            json['title'] ??
-                json['name'] ??
-                json['shiftType'] ??
-                json['period'],
-            'Shift',
-          );
-          final time = IsoDateRange.rangeLabel(start, end);
-          final date = start == null
-              ? ''
-              : IsoDateRange.formatShortDate(start.toLocal());
-          return TaskCreationOption(
-            id: JsonCodec.stringOr(json['id'], title),
-            label: title,
-            subtitle: [
-              if (date.isNotEmpty) date,
-              if (time.isNotEmpty) time,
-            ].join(' · '),
-          );
-        })
-        .where((option) => option.id.isNotEmpty)
-        .toList();
+    return [
+      for (final shift in TasksComplianceMapper.shiftOptionsFrom(body))
+        TaskCreationOption(id: shift.id, label: shift.label),
+    ];
   }
 
   static List<TaskCreationOption> _staffOptionsFrom(dynamic body) {

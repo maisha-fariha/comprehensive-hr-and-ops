@@ -11,7 +11,15 @@ import '../daily_activity_labels.dart';
 import 'daily_activity_common.dart';
 import 'daily_activity_person_picker.dart';
 import '../../../../../core/media/app_file_picker.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+
+const _dailyActivityErrorKeys = <String, Key>{
+  'client': ValueKey('daily-activity-form-resident'),
+  'type': ValueKey('daily-activity-form-type'),
+  'status': ValueKey('daily-activity-form-status'),
+  'description': ValueKey('daily-activity-form-description'),
+};
 
 /// Picks one document; returns the file and its size in bytes.
 typedef DailyActivityFilePicker = Future<(DailyActivityLocalFile, int)?> Function();
@@ -184,7 +192,14 @@ class _DailyActivityFormSheetState extends State<DailyActivityFormSheet> {
       _errors = errors;
       _banner = null;
     });
-    if (errors.isNotEmpty) return;
+    if (errors.isNotEmpty) {
+      scrollToFirstFormError(
+        context,
+        errors: errors,
+        fieldKeys: _dailyActivityErrorKeys,
+      );
+      return;
+    }
 
     final t = _time;
     final draft = DailyActivityDraft(

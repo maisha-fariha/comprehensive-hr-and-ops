@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 import '../../domain/entities/task_creation_options.dart';
 import '../../domain/repositories/staff_tasks_messages_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
@@ -106,7 +107,7 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
       _shifts = results[0].value ?? const [];
       _rooms = results[1].value ?? const [];
       _clients = results[2].value ?? const [];
-      if (_shifts.isNotEmpty) _shiftId = _shifts.first.id;
+      // Do not auto-pick: list is newest-first like web; user chooses the shift.
       _loadingLookups = false;
     });
   }
@@ -202,14 +203,19 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
     if (_isSubmitting) return;
     if (_residenceId.isEmpty) {
       AppSnackbar.show('Residence required', 'Select a residence.');
+      scrollToFirstField(context, const [Key('staff-create-task-residence')]);
       return;
     }
     if (!_isRecurring && (_shiftId == null || _shiftId!.isEmpty)) {
       AppSnackbar.show('Shift required', 'Pick a residence first, then a shift.');
+      scrollToFirstField(context, [
+        Key('staff-create-task-shift-$_residenceId'),
+      ]);
       return;
     }
     if (_titleController.text.trim().isEmpty) {
       AppSnackbar.show('Title required', 'Enter a task title.');
+      scrollToFirstField(context, const [Key('staff-create-task-title')]);
       return;
     }
 
@@ -531,32 +537,10 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
                   ],
                   const SizedBox(height: 12),
                   SwitchListTile(
-                    key: const Key('staff-create-task-needs-review'),
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Needs a review',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Somebody with review rights has to agree it was done before it counts',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 12,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                    value: _requiresReview,
-                    activeThumbColor: AppColors.secondaryTeal,
-                    onChanged: (value) => setState(() => _requiresReview = value),
-                  ),
-                  SwitchListTile(
                     key: const Key('staff-task-requires-sign-off'),
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
-                      'Require sign-off to complete',
+                      'Require Staff Sign-Off',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w600,
@@ -564,8 +548,8 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
                       ),
                     ),
                     subtitle: const Text(
-                      'Whoever completes this task confirms it with their name before it '
-                      "counts as done. Optional — most tasks won't need this.",
+                      'Assigned staff must confirm with their signature when completing '
+                      'work. Records staff name, date, time, and IP.',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontSize: 12,
@@ -575,6 +559,29 @@ class _StaffCreateTaskPageState extends State<StaffCreateTaskPage> {
                     value: _requiresSignOff,
                     activeThumbColor: AppColors.secondaryTeal,
                     onChanged: (value) => setState(() => _requiresSignOff = value),
+                  ),
+                  SwitchListTile(
+                    key: const Key('staff-create-task-needs-review'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Require Manager Review & Sign-Off',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'A manager or supervisor must review the completed work and sign '
+                      'off before this task is marked complete.',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    value: _requiresReview,
+                    activeThumbColor: AppColors.secondaryTeal,
+                    onChanged: (value) => setState(() => _requiresReview = value),
                   ),
                   const SizedBox(height: 8),
                   const Text(

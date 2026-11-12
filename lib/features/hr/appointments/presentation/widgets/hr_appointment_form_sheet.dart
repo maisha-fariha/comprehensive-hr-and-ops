@@ -10,6 +10,13 @@ import '../hr_appointments_labels.dart';
 import 'hr_appointment_day_log_panel.dart';
 import 'hr_appointments_common.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
+
+const _appointmentErrorKeys = <String, Key>{
+  'clientId': ValueKey('appointment-form-resident'),
+  'date': ValueKey('appointment-form-date'),
+  'time': ValueKey('appointment-form-time'),
+};
 
 /// "Create Appointment" / "Edit Appointment". Resolves true once saved.
 Future<bool> showHrAppointmentFormSheet(
@@ -122,7 +129,14 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
       _submitted = true;
       _saveError = null;
     });
-    if (_errors.isNotEmpty) return;
+    if (_errors.isNotEmpty) {
+      scrollToFirstFormError(
+        context,
+        errors: _errors,
+        fieldKeys: _appointmentErrorKeys,
+      );
+      return;
+    }
     final d = _date!;
     final t = _time!;
     final client = _client!;
@@ -261,7 +275,10 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
                       title: 'Resident & Residence',
                       description: 'Who this appointment is for',
                       children: [
-                        _residentPicker(context),
+                        KeyedSubtree(
+                          key: const ValueKey('appointment-form-resident'),
+                          child: _residentPicker(context),
+                        ),
                         const SizedBox(height: 14),
                         _ReadOnlyField(
                           label: 'Residence',

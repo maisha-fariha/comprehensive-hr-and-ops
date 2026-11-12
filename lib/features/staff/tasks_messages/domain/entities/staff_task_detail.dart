@@ -97,10 +97,15 @@ class StaffTaskDetail {
   /// The person completing it must confirm with their name (web sign-off).
   final bool requiresSignOff;
   final bool requiresReview;
+  final String? reviewedBy;
+  final String? reviewedByName;
+  final String? reviewedByIp;
   final DateTime? reviewedAt;
   final String reviewNotes;
+  final String? signedOffBy;
   final String? signedOffName;
   final DateTime? signedOffAt;
+  final String? signedOffIp;
 
   const StaffTaskDetail({
     required this.id,
@@ -119,10 +124,15 @@ class StaffTaskDetail {
     this.documents = const [],
     this.requiresSignOff = false,
     this.requiresReview = false,
+    this.reviewedBy,
+    this.reviewedByName,
+    this.reviewedByIp,
     this.reviewedAt,
     this.reviewNotes = '',
+    this.signedOffBy,
     this.signedOffName,
     this.signedOffAt,
+    this.signedOffIp,
   });
 
   bool get isCompleted {
@@ -174,7 +184,10 @@ class StaffTaskDetail {
   /// Web Task Details → Review.
   String get reviewTitle {
     if (!requiresReview) return 'Not required';
-    if (reviewedAt != null) return 'Reviewed';
+    final name = reviewedByName?.trim() ?? '';
+    if (reviewedAt != null) {
+      return name.isNotEmpty ? 'Reviewed by $name' : 'Reviewed';
+    }
     if (awaitingReview) return 'Waiting on a reviewer';
     return 'Required';
   }
@@ -184,6 +197,12 @@ class StaffTaskDetail {
     return note.isEmpty ? null : note;
   }
 
+  /// IP recorded with manager review sign-off.
+  String? get reviewIpLabel {
+    final ip = reviewedByIp?.trim() ?? '';
+    return ip.isEmpty ? null : 'IP $ip';
+  }
+
   /// Web Task Details → Sign-Off (“Needed to complete” when still open).
   String get signOffTitle {
     if (!requiresSignOff) return 'Not required';
@@ -191,6 +210,12 @@ class StaffTaskDetail {
     if (name.isNotEmpty) return 'Signed off by $name';
     if (signedOffAt != null) return 'Signed off';
     return 'Needed to complete';
+  }
+
+  /// IP recorded with staff execution sign-off (shown under the timestamp).
+  String? get signOffIpLabel {
+    final ip = signedOffIp?.trim() ?? '';
+    return ip.isEmpty ? null : 'IP $ip';
   }
 
   String get typeLabel => _words(taskTypeRaw.replaceAll('_', ' '));

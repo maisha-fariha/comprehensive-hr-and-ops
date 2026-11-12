@@ -1150,8 +1150,8 @@ void main() {
   });
 
   group('BUG12 New Task shift', () {
-    test('shift options use the web New Task label (no staff), skip cancelled '
-        'shifts, soonest first', () {
+    test('shift options use the web Create Task label (with staff), skip '
+        'cancelled shifts, newest start first', () {
       final options = TasksComplianceMapper.shiftOptionsFrom({
         'data': [
           {
@@ -1181,14 +1181,14 @@ void main() {
           },
         ],
       });
-      expect(options.map((o) => o.id), ['early', 'late']);
+      expect(options.map((o) => o.id), ['late', 'early']);
       expect(
         options.first.label,
-        'Morning — Day shift · Tue 29/09/2026 7:00 am–3:00 pm',
+        'Evening · Tue 29/09/2026 3:00 pm–11:00 pm',
       );
       expect(
         options.last.label,
-        'Evening · Tue 29/09/2026 3:00 pm–11:00 pm',
+        'Morning — Day shift · Tue 29/09/2026 7:00 am–3:00 pm · Jamal Uddin +1',
       );
       expect(
         WebFormat.describeShift(

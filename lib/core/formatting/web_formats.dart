@@ -48,7 +48,7 @@ abstract final class WebFormat {
   /// `Morning — Day shift · Elm House · Tue 29/09/2026 07:00–15:00 · Jamal +1`.
   ///
   /// [staffNames] must already exclude declined and bid-pending assignments.
-  /// New Task’s shift dropdown on web omits staff — pass [includeStaff]: false.
+  /// Create Task / Assign shift menus on web include rostered staff names.
   static String describeShift({
     String? shiftType,
     String? title,

@@ -106,6 +106,46 @@ abstract final class CreateShiftField {
   static const restOverrideReason = 'restOverrideReason';
 }
 
+/// Web "Reason to roster anyway" rules (`restOverrideReason` min 10 / max 500).
+abstract final class CreateShiftRestOverride {
+  static const minLength = 10;
+  static const maxLength = 500;
+
+  /// Web copy: `At least 10 characters required (2 more needed).`
+  ///
+  /// [submitted] forces the message when the field is still empty (Next /
+  /// Create). While typing with some text, the same message updates live.
+  static String? validationError(String value, {bool submitted = false}) {
+    final length = value.trim().length;
+    if (length >= minLength) return null;
+    if (!submitted && value.isEmpty) return null;
+    final needed = minLength - length;
+    return 'At least 10 characters required ($needed more needed).';
+  }
+
+  /// Web counter: `8/500 chars • 2 words`.
+  static String counterLabel(String value) {
+    final chars = value.length.clamp(0, maxLength);
+    final words = _wordCount(value);
+    final wordLabel = words == 1 ? '1 word' : '$words words';
+    return '$chars/$maxLength chars • $wordLabel';
+  }
+
+  /// True when an API / Zod message is the rest-reason min-length rule.
+  static bool matchesApiMinLengthMessage(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('at least 10 character') ||
+        lower.contains('must contain at least 10 character') ||
+        (lower.contains('restoverridereason') && lower.contains('10'));
+  }
+
+  static int _wordCount(String value) {
+    final parts = value.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1 && parts.first.isEmpty) return 0;
+    return parts.length;
+  }
+}
+
 class ShiftChecklistItem {
   final String id;
   final String label;

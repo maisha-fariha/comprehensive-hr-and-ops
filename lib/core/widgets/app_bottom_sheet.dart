@@ -7,6 +7,10 @@ import '../constants/app_colors.dart';
 
 /// Shared modal sheet. Every popup in the app goes through here so the
 /// sheet stays below the status bar and above the system navigation bar.
+///
+/// After form validation fails inside a sheet, use
+/// `form_scroll_to_error.dart` (`scrollToFirstFormError`) so the topmost
+/// invalid field scrolls into view.
 abstract final class AppBottomSheet {
   static int _open = 0;
 

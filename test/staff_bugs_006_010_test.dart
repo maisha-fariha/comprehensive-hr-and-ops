@@ -1146,7 +1146,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Checklist'), findsOneWidget);
-      expect(find.text('Needs a review'), findsOneWidget);
+      expect(find.text('Require Manager Review & Sign-Off'), findsOneWidget);
+      expect(find.text('Require Staff Sign-Off'), findsOneWidget);
       expect(find.text('Notes'), findsOneWidget);
       expect(find.text('Docs (Optional)'), findsOneWidget);
       expect(find.text('Recurring Task'), findsOneWidget);

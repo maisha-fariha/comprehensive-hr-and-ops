@@ -224,6 +224,15 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
     );
   }
 
+  /// Staff Sign-Off Confirmation Card — only while execution sign-off is still owed.
+  bool _needsStaffSignOff(StaffTaskDetail detail, bool isCompleted) {
+    if (!detail.requiresSignOff || isCompleted || detail.awaitingReview) {
+      return false;
+    }
+    return detail.signedOffAt == null &&
+        (detail.signedOffName == null || detail.signedOffName!.trim().isEmpty);
+  }
+
   Future<void> _complete({bool signOff = false}) async {
     if (_completing || !_canMutateTasks) return;
     if (_requiredChecksOpen) {
@@ -237,10 +246,11 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
       _showNotice(_clockInRequiredMessage, error: true);
       return;
     }
+    final needsSignOff = _detail?.requiresSignOff ?? false;
     setState(() => _completing = true);
     final error = await widget.controller.completeTask(
       widget.taskId,
-      signOff: signOff,
+      signOff: signOff || needsSignOff,
       checklist: _checks.isEmpty ? null : _checklistBody,
       requiresReview: _detail?.requiresReview ?? false,
     );
@@ -571,6 +581,24 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(detail.reviewTitle, style: _valueStyle),
+                    if (detail.reviewedAt != null)
+                      Text(
+                        TenantClock.formatDateTime(detail.reviewedAt!),
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    if (detail.reviewIpLabel != null)
+                      Text(
+                        detail.reviewIpLabel!,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
                     if (detail.reviewNote != null)
                       Text(
                         detail.reviewNote!,
@@ -593,6 +621,15 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                     if (detail.signedOffAt != null)
                       Text(
                         TenantClock.formatDateTime(detail.signedOffAt!),
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    if (detail.signOffIpLabel != null)
+                      Text(
+                        detail.signOffIpLabel!,
                         style: const TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 12,
@@ -827,38 +864,39 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                   onPressed: _addingNote ? null : _addNote,
                 ),
               ),
-              if (!detail.requiresSignOff || isCompleted) ...[
+              if (!_needsStaffSignOff(detail, isCompleted)) ...[
                 SizedBox(
                   width: ResponsiveHelper.getResponsiveWidth(context, 10),
                 ),
                 Expanded(
                   child: _SheetButton(
-                    label: isCompleted
-                        ? 'Completed'
-                        : _completing
-                            ? (detail.requiresReview
-                                ? 'Submitting…'
-                                : 'Completing…')
-                            : detail.requiresReview
-                                ? 'Submit for review'
-                                : 'Complete',
+                    label: detail.awaitingReview
+                        ? 'Awaiting review'
+                        : isCompleted
+                            ? 'Completed'
+                            : _completing
+                                ? (detail.requiresReview
+                                    ? 'Submitting…'
+                                    : 'Completing…')
+                                : detail.requiresReview
+                                    ? 'Submit for review'
+                                    : 'Complete',
                     filled: true,
-                    onPressed:
-                        (_completing || isCompleted) ? null : _complete,
+                    onPressed: (_completing ||
+                            isCompleted ||
+                            detail.awaitingReview)
+                        ? null
+                        : _complete,
                   ),
                 ),
               ],
             ],
           ),
-          if (detail.requiresSignOff && !isCompleted) ...[
+          if (_needsStaffSignOff(detail, isCompleted)) ...[
             const SizedBox(height: 12),
             _SignOffBox(
               busy: _completing,
               onConfirm: () => _complete(signOff: true),
-              onNeedConfirm: () => _showNotice(
-                'Confirm this task was completed as described.',
-                error: true,
-              ),
             ),
           ],
         ],
@@ -1306,16 +1344,14 @@ class _AssigneeLine extends StatelessWidget {
   }
 }
 
-/// The web sign-off box: the person completing the task confirms it.
+/// Sign-Off Confirmation Card: checkbox + "Sign and complete" (disabled until checked).
 class _SignOffBox extends StatefulWidget {
   final bool busy;
   final VoidCallback onConfirm;
-  final VoidCallback onNeedConfirm;
 
   const _SignOffBox({
     required this.busy,
     required this.onConfirm,
-    required this.onNeedConfirm,
   });
 
   @override
@@ -1328,6 +1364,7 @@ class _SignOffBoxState extends State<_SignOffBox> {
   @override
   Widget build(BuildContext context) {
     const text = TextStyle(fontFamily: 'Outfit', fontSize: 13, color: AppColors.textBody);
+    final canSubmit = _confirmed && !widget.busy;
     return Container(
       key: const Key('task-sign-off'),
       padding: const EdgeInsets.all(14),
@@ -1346,8 +1383,8 @@ class _SignOffBoxState extends State<_SignOffBox> {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'This task requires sign-off. Confirming below records that you '
-                  'completed it, with the date and time.',
+                  'This task requires staff sign-off. Confirming below records your '
+                  'name, date, time, and IP.',
                   style: text,
                 ),
               ),
@@ -1382,16 +1419,8 @@ class _SignOffBoxState extends State<_SignOffBox> {
             key: const Key('task-sign-off-submit'),
             label: widget.busy ? 'Signing…' : 'Sign and complete',
             filled: true,
-            dimmed: !_confirmed,
-            onPressed: widget.busy
-                ? null
-                : () {
-                    if (!_confirmed) {
-                      widget.onNeedConfirm();
-                      return;
-                    }
-                    widget.onConfirm();
-                  },
+            dimmed: !canSubmit,
+            onPressed: canSubmit ? widget.onConfirm : null,
           ),
         ],
       ),

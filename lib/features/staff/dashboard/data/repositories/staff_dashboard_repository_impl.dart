@@ -50,20 +50,20 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       );
     }
 
-    // `/mobile/home` tiles.tasksDue is currently 0 while the web tasks
-    // screen uses `GET /tasks/stats` → `today.due`. Prefer that figure.
+    // Web Staff Home does not show `/mobile/home` tiles.alerts (often an
+    // unscoped total like 1016). Match web: drop it. Prefer `/tasks/stats`
+    // for Tasks Due the same way the web tasks screen does.
     final homeBody = Map<String, dynamic>.from(JsonCodec.unwrapMap(home.value));
     final tiles = Map<String, dynamic>.from(
       JsonCodec.mapAt(homeBody, 'tiles') ?? const {},
     );
-    if (tiles.containsKey('tasksDue') && tiles['tasksDue'] != null) {
-      final stats = await _api.get(ApiEndpoints.tasksStats, silent: true);
-      if (stats.isSuccess) {
-        final due = JsonCodec.integer(
-          JsonCodec.mapAt(JsonCodec.unwrapMap(stats.value), 'today')?['due'],
-        );
-        if (due != null) tiles['tasksDue'] = due;
-      }
+    tiles.remove('alerts');
+    final stats = await _api.get(ApiEndpoints.tasksStats, silent: true);
+    if (stats.isSuccess) {
+      final due = JsonCodec.integer(
+        JsonCodec.mapAt(JsonCodec.unwrapMap(stats.value), 'today')?['due'],
+      );
+      if (due != null) tiles['tasksDue'] = due;
     }
     homeBody['tiles'] = tiles;
     final open = await _openPunch();

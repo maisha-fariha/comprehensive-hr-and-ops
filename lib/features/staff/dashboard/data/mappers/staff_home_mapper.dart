@@ -143,7 +143,8 @@ abstract final class StaffHomeMapper {
     final clients = _tileInt(tiles, 'clients');
     final tasksDue = _tileInt(tiles, 'tasksDue');
     final medsDue = _tileInt(tiles, 'medicationsDue');
-    final alerts = _tileInt(tiles, 'alerts') ?? 0;
+    // Web Staff Home does not surface tiles.alerts (often unscoped/wrong).
+    final alerts = 0;
 
     return StaffDashboardOverview(
       organizationName: session.organizationName ??

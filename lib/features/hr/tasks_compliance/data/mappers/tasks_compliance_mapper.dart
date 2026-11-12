@@ -473,14 +473,16 @@ abstract final class TasksComplianceMapper {
           endsAt != null &&
           !now.isBefore(startsAt) &&
           !now.isAfter(endsAt);
-      // Web New Task shift menu: "Morning — Title · Mon 09/11/2026 07:00 am–03:00 pm"
-      // (no staff names, no “[Active]” prefix).
+      final staffNames = rosteredNames(json);
+      // Web Create Task / Assign shift menu:
+      // "Custom · Thu 12/11/2026 5:00 pm–5:30 pm · Rina …"
       final label = WebFormat.describeShift(
         shiftType: JsonCodec.string(json['shiftType']),
         title: JsonCodec.string(json['title']),
         startsAt: startsAt,
         endsAt: endsAt,
-        includeStaff: false,
+        staffNames: staffNames,
+        includeStaff: staffNames.isNotEmpty,
       );
       options.add(
         TaskShiftOption(
@@ -492,14 +494,13 @@ abstract final class TasksComplianceMapper {
         ),
       );
     }
-    // Web: current/active shift first, then soonest-starting.
+    // Web lists newest start first (descending by startsAt).
     options.sort((a, b) {
-      if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
       final x = a.startsAt, y = b.startsAt;
       if (x == null && y == null) return 0;
       if (x == null) return 1;
       if (y == null) return -1;
-      return x.compareTo(y);
+      return y.compareTo(x);
     });
     return options;
   }

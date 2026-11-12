@@ -7,6 +7,13 @@ import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../clients_labels.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
+export 'package:comprehensive_hr_and_ops/core/widgets/form_scroll_to_error.dart'
+    show
+        scrollToFirstField,
+        scrollToFirstFormError,
+        FormFieldAnchor,
+        FormScrollToError;
+
 class ClientPill extends StatelessWidget {
   final String label;
   final ClientTone tone;
@@ -873,36 +880,6 @@ Future<T?> showClientSheet<T>(BuildContext context, Widget sheet) =>
       backgroundColor: Colors.transparent,
       builder: (_) => sheet,
     );
-
-/// After the next frame, scrolls the first of [fieldKeys] found under
-/// [context] into view (the web `scrollToFirstError`).
-void scrollToFirstField(BuildContext context, Iterable<Key> fieldKeys) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (!context.mounted) return;
-    for (final key in fieldKeys) {
-      Element? found;
-      void visit(Element element) {
-        if (found != null) return;
-        if (element.widget.key == key) {
-          found = element;
-          return;
-        }
-        element.visitChildElements(visit);
-      }
-
-      context.visitChildElements(visit);
-      final target = found;
-      if (target != null) {
-        Scrollable.ensureVisible(
-          target,
-          alignment: 0.1,
-          duration: const Duration(milliseconds: 250),
-        );
-        return;
-      }
-    }
-  });
-}
 
 /// Filled red / teal confirm button.
 class ClientToneButton extends StatelessWidget {

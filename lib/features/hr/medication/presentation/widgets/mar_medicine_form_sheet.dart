@@ -7,6 +7,19 @@ import '../../domain/entities/mar_options.dart';
 import '../medication_labels.dart';
 import 'medication_common.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
+
+const _marMedicineErrorKeys = <String, Key>{
+  'name': ValueKey('mar-form-name'),
+  'house': ValueKey('mar-form-house'),
+  'resident': ValueKey('mar-form-resident'),
+  'dose': ValueKey('mar-form-dose'),
+  'route': ValueKey('mar-form-route'),
+  'stock': ValueKey('mar-form-stock'),
+  'times': ValueKey('mar-form-time-input'),
+  'weekdays': ValueKey('mar-form-weekdays'),
+  'ends': ValueKey('mar-form-ends'),
+};
 
 /// Web "Add a medicine" / "Correct a medicine" (and the PRN variants).
 /// [onSubmit] returns the error for the banner, or null once saved.
@@ -251,30 +264,74 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
     _check = '';
   }
 
+  ({String field, String message})? _firstFieldError() {
+    if (_name.text.trim().isEmpty) {
+      return (field: 'name', message: 'What is the medicine called?');
+    }
+    if (_house.isEmpty) {
+      return (field: 'house', message: 'Which house is this held at?');
+    }
+    if (!_prn && _resident.isEmpty) {
+      return (
+        field: 'resident',
+        message: 'A prescription is for one resident — choose who.',
+      );
+    }
+    if (!_prn && _dose.text.trim().isEmpty) {
+      return (field: 'dose', message: 'What dose is prescribed?');
+    }
+    if (_route.text.trim().isEmpty) {
+      return (field: 'route', message: 'How is it given — the route?');
+    }
+    if (_stock.text.trim().isEmpty) {
+      return (
+        field: 'stock',
+        message: 'How many stock units does one dose use?',
+      );
+    }
+    if (!_prn && _times.isEmpty && _timeInput.text.trim().isEmpty) {
+      return (
+        field: 'times',
+        message: 'A scheduled medication needs at least one time of day',
+      );
+    }
+    if (!_prn && _frequency == 'weekly' && _weekdays.isEmpty) {
+      return (
+        field: 'weekdays',
+        message: 'A weekly medicine has to say which days it falls on.',
+      );
+    }
+    if (_starts.isNotEmpty &&
+        _ends.isNotEmpty &&
+        _ends.compareTo(_starts) < 0) {
+      return (
+        field: 'ends',
+        message: 'A course cannot end before it starts',
+      );
+    }
+    return null;
+  }
+
+  void _showFieldError(String field, String message) {
+    setState(() => _error = message);
+    scrollToFirstFormError(
+      context,
+      errors: {field: message},
+      fieldKeys: _marMedicineErrorKeys,
+    );
+  }
+
   void _addAnother() {
+    final error = _firstFieldError();
+    if (error != null) {
+      _showFieldError(error.field, error.message);
+      return;
+    }
     setState(() {
       _error = null;
-      if (_name.text.trim().isEmpty) {
-        _error = 'What is the medicine called?';
-      } else if (_house.isEmpty) {
-        _error = 'Which house is this held at?';
-      } else if (!_prn && _resident.isEmpty) {
-        _error = 'A prescription is for one resident — choose who.';
-      } else if (!_prn && _dose.text.trim().isEmpty) {
-        _error = 'What dose is prescribed?';
-      } else if (_route.text.trim().isEmpty) {
-        _error = 'How is it given — the route?';
-      } else if (_stock.text.trim().isEmpty) {
-        _error = 'How many stock units does one dose use?';
-      } else if (!_prn && _times.isEmpty && _timeInput.text.trim().isEmpty) {
-        _error = 'A scheduled medication needs at least one time of day';
-      } else if (!_prn && _frequency == 'weekly' && _weekdays.isEmpty) {
-        _error = 'A weekly medicine has to say which days it falls on.';
-      } else {
-        _commitTime();
-        _list.add(_current());
-        _resetMedicine();
-      }
+      _commitTime();
+      _list.add(_current());
+      _resetMedicine();
     });
   }
 
@@ -307,30 +364,9 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
 
   Future<void> _submit() async {
     setState(() => _error = null);
-    String? error;
-    if (_name.text.trim().isEmpty) {
-      error = 'What is the medicine called?';
-    } else if (_house.isEmpty) {
-      error = 'Which house is this held at?';
-    } else if (!_prn && _resident.isEmpty) {
-      error = 'A prescription is for one resident — choose who.';
-    } else if (!_prn && _dose.text.trim().isEmpty) {
-      error = 'What dose is prescribed?';
-    } else if (_route.text.trim().isEmpty) {
-      error = 'How is it given — the route?';
-    } else if (_stock.text.trim().isEmpty) {
-      error = 'How many stock units does one dose use?';
-    } else if (!_prn && _times.isEmpty && _timeInput.text.trim().isEmpty) {
-      error = 'A scheduled medication needs at least one time of day';
-    } else if (!_prn &&
-        _frequency == 'weekly' &&
-        _weekdays.isEmpty) {
-      error = 'A weekly medicine has to say which days it falls on.';
-    } else if (_starts.isNotEmpty && _ends.isNotEmpty && _ends.compareTo(_starts) < 0) {
-      error = 'A course cannot end before it starts';
-    }
-    if (error != null) {
-      setState(() => _error = error);
+    final fieldError = _firstFieldError();
+    if (fieldError != null) {
+      _showFieldError(fieldError.field, fieldError.message);
       return;
     }
     setState(() => _saving = true);
@@ -882,33 +918,41 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   }
 
   Widget _weekdaysField(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const MarLabel('On which days', required: true),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (final (value, label) in MedicationLabels.weekdays)
-              FilterChip(
-                key: ValueKey('mar-form-day-$value'),
-                label: Text(label, style: handoverText(context, 12, weight: FontWeight.w600)),
-                selected: _weekdays.contains(value),
-                selectedColor: AppColors.activeBackground,
-                checkmarkColor: AppColors.secondaryTeal,
-                onSelected: (on) => setState(() {
-                  on ? _weekdays.add(value) : _weekdays.remove(value);
-                }),
-              ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        Text(
-          _weekdays.isEmpty ? 'Pick the days…' : 'A weekly medicine has to say which days it falls on.',
-          style: handoverText(context, 12, color: AppColors.textMuted),
-        ),
-      ],
+    return KeyedSubtree(
+      key: const ValueKey('mar-form-weekdays'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const MarLabel('On which days', required: true),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final (value, label) in MedicationLabels.weekdays)
+                FilterChip(
+                  key: ValueKey('mar-form-day-$value'),
+                  label: Text(
+                    label,
+                    style: handoverText(context, 12, weight: FontWeight.w600),
+                  ),
+                  selected: _weekdays.contains(value),
+                  selectedColor: AppColors.activeBackground,
+                  checkmarkColor: AppColors.secondaryTeal,
+                  onSelected: (on) => setState(() {
+                    on ? _weekdays.add(value) : _weekdays.remove(value);
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            _weekdays.isEmpty
+                ? 'Pick the days…'
+                : 'A weekly medicine has to say which days it falls on.',
+            style: handoverText(context, 12, color: AppColors.textMuted),
+          ),
+        ],
+      ),
     );
   }
 

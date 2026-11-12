@@ -9,7 +9,8 @@ class TaskShiftOption {
   final DateTime? startsAt;
   final DateTime? endsAt;
 
-  /// Web prefixes the in-progress shift with `[Active]` and lists it first.
+  /// True while [startsAt]–[endsAt] contains now (for selection helpers).
+  /// Create Task menus list newest start first; they do not reorder on this.
   final bool isActive;
 
   const TaskShiftOption({

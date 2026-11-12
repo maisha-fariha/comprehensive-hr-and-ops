@@ -14,6 +14,7 @@ import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 import '../../../incidents/presentation/widgets/wizard_form_fields.dart';
 import '../../domain/entities/create_task_request.dart';
 import '../../domain/entities/task_client_option.dart';
@@ -23,6 +24,17 @@ import '../../domain/entities/task_shift_option.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+
+/// Visual order of Create Task fields that can fail validation.
+const _createTaskErrorKeys = <String, Key>{
+  'residenceId': ValueKey('create-task-residence'),
+  'shiftId': ValueKey('create-task-shift'),
+  'assignedStaffIds': ValueKey('create-task-assigned-staff'),
+  'title': ValueKey('create-task-title'),
+  'weekdays': ValueKey('create-task-weekdays'),
+  'dayOfMonth': ValueKey('create-task-day-of-month'),
+  'endDate': ValueKey('create-task-end-date'),
+};
 
 /// Opens the "New Task" create form matched to the Tasks & Compliance
 /// reference screens.
@@ -779,7 +791,14 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     if (_submitting) return;
     final errors = _validate();
     setState(() => _errors = errors);
-    if (errors.isNotEmpty) return;
+    if (errors.isNotEmpty) {
+      scrollToFirstFormError(
+        context,
+        errors: errors,
+        fieldKeys: _createTaskErrorKeys,
+      );
+      return;
+    }
 
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
@@ -940,49 +959,67 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                     ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                   const WizardFieldLabel('Assigned Staff'),
-                  TapRegion(
-                    groupId: 'create_task_staff_search',
-                    onTapOutside: (_) => _dismissStaffSuggestions(),
+                  KeyedSubtree(
+                    key: const ValueKey('create-task-assigned-staff'),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _AssignedStaffSearchField(
-                          controller: _staffController,
-                          selected: _selectedStaff,
-                          hint: 'Add staff',
-                          onFocus: _onStaffFocus,
-                          onChanged: _onStaffQueryChanged,
-                          onRemove: _removeStaff,
+                        TapRegion(
+                          groupId: 'create_task_staff_search',
+                          onTapOutside: (_) => _dismissStaffSuggestions(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _AssignedStaffSearchField(
+                                controller: _staffController,
+                                selected: _selectedStaff,
+                                hint: 'Add staff',
+                                onFocus: _onStaffFocus,
+                                onChanged: _onStaffQueryChanged,
+                                onRemove: _removeStaff,
+                              ),
+                              if (_showStaffSuggestions) ...[
+                                SizedBox(
+                                  height: ResponsiveHelper.getResponsiveHeight(
+                                    context,
+                                    8,
+                                  ),
+                                ),
+                                _StaffSuggestionsPanel(
+                                  searching: _searchingStaff,
+                                  error: _staffSearchError,
+                                  suggestions: _staffSuggestions,
+                                  onSelected: _addStaff,
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                        if (_showStaffSuggestions) ...[
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsiveHeight(
-                              context,
-                              8,
-                            ),
-                          ),
-                          _StaffSuggestionsPanel(
-                            searching: _searchingStaff,
-                            error: _staffSearchError,
-                            suggestions: _staffSuggestions,
-                            onSelected: _addStaff,
-                          ),
-                        ],
+                        SizedBox(
+                          height: ResponsiveHelper.getResponsiveHeight(context, 6),
+                        ),
+                        const _Hint(
+                          'A task can wait unassigned, but somebody has to pick it up',
+                        ),
+                        _FieldError(_errors['assignedStaffIds']),
                       ],
                     ),
                   ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-                  const _Hint(
-                    'A task can wait unassigned, but somebody has to pick it up',
-                  ),
-                  _FieldError(_errors['assignedStaffIds']),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                   const WizardFieldLabel('Task Title', required: true),
-                  WizardTextField(
-                    controller: _titleController,
-                    hint: 'e.g. Fridge Temperature Check',
+                  KeyedSubtree(
+                    key: const ValueKey('create-task-title'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        WizardTextField(
+                          controller: _titleController,
+                          hint: 'e.g. Fridge Temperature Check',
+                        ),
+                        _FieldError(_errors['title']),
+                      ],
+                    ),
                   ),
-                  _FieldError(_errors['title']),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                   const WizardFieldLabel('Description'),
                   WizardTextField(
@@ -1046,20 +1083,22 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                   ],
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                   _ToggleBlock(
-                    title: 'Needs a review',
+                    key: const ValueKey('task-requires-sign-off'),
+                    title: 'Require Staff Sign-Off',
                     subtitle:
-                        'Somebody with review rights has to agree it was done before it counts',
-                    value: _requiresReview,
-                    onChanged: (value) => setState(() => _requiresReview = value),
+                        'Assigned staff must confirm with their signature when completing '
+                        'work. Records staff name, date, time, and IP.',
+                    value: _requiresSignOff,
+                    onChanged: (value) => setState(() => _requiresSignOff = value),
                     bordered: false,
                   ),
                   _ToggleBlock(
-                    key: const ValueKey('task-requires-sign-off'),
-                    title: 'Require sign-off to complete',
-                    subtitle: 'Whoever completes this task confirms it with their name '
-                        "before it counts as done. Optional — most tasks won't need this.",
-                    value: _requiresSignOff,
-                    onChanged: (value) => setState(() => _requiresSignOff = value),
+                    title: 'Require Manager Review & Sign-Off',
+                    subtitle:
+                        'A manager or supervisor must review the completed work and sign '
+                        'off before this task is marked complete.',
+                    value: _requiresReview,
+                    onChanged: (value) => setState(() => _requiresReview = value),
                     bordered: false,
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
@@ -1157,26 +1196,34 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
         ),
         if (_frequency == 'weekly') ...[
           gap,
-          const WizardFieldLabel('Days'),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final (day, label) in _weekdayOptions)
-                FilterChip(
-                  key: ValueKey('create-task-weekday-$day'),
-                  label: Text(label),
-                  selected: _weekdays.contains(day),
-                  selectedColor: AppColors.activeBackground,
-                  checkmarkColor: AppColors.secondaryTeal,
-                  onSelected: (on) => setState(() {
-                    on ? _weekdays.add(day) : _weekdays.remove(day);
-                    _errors = Map.of(_errors)..remove('weekdays');
-                  }),
+          KeyedSubtree(
+            key: const ValueKey('create-task-weekdays'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const WizardFieldLabel('Days'),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final (day, label) in _weekdayOptions)
+                      FilterChip(
+                        key: ValueKey('create-task-weekday-$day'),
+                        label: Text(label),
+                        selected: _weekdays.contains(day),
+                        selectedColor: AppColors.activeBackground,
+                        checkmarkColor: AppColors.secondaryTeal,
+                        onSelected: (on) => setState(() {
+                          on ? _weekdays.add(day) : _weekdays.remove(day);
+                          _errors = Map.of(_errors)..remove('weekdays');
+                        }),
+                      ),
+                  ],
                 ),
-            ],
+                _FieldError(_errors['weekdays']),
+              ],
+            ),
           ),
-          _FieldError(_errors['weekdays']),
         ],
         if (_frequency == 'monthly') ...[
           gap,

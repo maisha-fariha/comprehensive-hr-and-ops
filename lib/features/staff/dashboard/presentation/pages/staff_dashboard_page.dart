@@ -18,7 +18,6 @@ import '../../../search/presentation/pages/staff_search_page.dart';
 import '../../../staff_shell.dart';
 import '../../../tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
 import '../controllers/staff_dashboard_controller.dart';
-import '../widgets/staff_alerts_banner.dart';
 import '../widgets/staff_dashboard_header.dart';
 import '../widgets/staff_home_search_bar.dart';
 import '../widgets/staff_overview_section.dart';
@@ -129,16 +128,13 @@ class StaffDashboardPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       StaffHomeSearchBar(onTap: StaffSearchPage.open),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 8),
+                      ),
                       StaffOverviewSection(stats: overview.overviewStats),
-                      if (overview.alertCount > 0) ...[
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                        StaffAlertsBanner(
-                          count: overview.alertCount,
-                          label: overview.alertLabel,
-                        ),
-                      ],
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 18),
+                      ),
                       StaffQuickActionsSection(
                         actions: overview.quickActions,
                         clockBusy: controller.clockBusy.value,

@@ -23,6 +23,22 @@ import '../widgets/create_shift/create_shift_open_shift_form.dart';
 import '../widgets/create_shift/create_shift_recurring_form.dart';
 import '../widgets/create_shift/create_shift_staff_assignment_form.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
+
+/// Visual order of Create Shift fields that can fail validation.
+const _createShiftErrorKeys = <String, Key>{
+  CreateShiftField.residenceId: ValueKey('create-shift-residence'),
+  CreateShiftField.shiftType: ValueKey('create-shift-type'),
+  CreateShiftField.shiftDate: ValueKey('create-shift-date'),
+  CreateShiftField.startTime: ValueKey('create-shift-start'),
+  CreateShiftField.endTime: ValueKey('create-shift-end'),
+  CreateShiftField.assignedStaff: ValueKey('create-shift-add-staff'),
+  CreateShiftField.biddingDeadline: ValueKey('create-shift-bid-deadline'),
+  CreateShiftField.endDate: ValueKey('create-shift-end-date'),
+  CreateShiftField.occurrenceCount: ValueKey('create-shift-occurrences'),
+  CreateShiftField.restOverrideReason:
+      ValueKey('shift-rest-override-reason'),
+};
 
 /// "Add New Shift" wizard — same steps, fields, validation and
 /// `POST /shifts` body as the web scheduling dialog.
@@ -388,7 +404,11 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       }
       return true;
     }
-    if (_draft.restOverrideReason.trim().isNotEmpty) {
+    final message = CreateShiftRestOverride.validationError(
+      _draft.restOverrideReason,
+      submitted: true,
+    );
+    if (message == null) {
       if (_errors.containsKey(CreateShiftField.restOverrideReason)) {
         setState(() {
           _errors = {
@@ -403,11 +423,61 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     setState(() {
       _errors = {
         ..._errors,
-        CreateShiftField.restOverrideReason:
-            'Say why you are rostering them with less rest',
+        CreateShiftField.restOverrideReason: message,
       };
     });
     return false;
+  }
+
+  void _onRestOverrideReasonChanged(String value) {
+    _update(() {
+      _draft.restOverrideReason = value;
+      final message = CreateShiftRestOverride.validationError(
+        value,
+        submitted: _errors.containsKey(CreateShiftField.restOverrideReason),
+      );
+      if (message == null) {
+        _errors = {
+          for (final entry in _errors.entries)
+            if (entry.key != CreateShiftField.restOverrideReason)
+              entry.key: entry.value,
+        };
+      } else if (_errors.containsKey(CreateShiftField.restOverrideReason) ||
+          value.trim().isNotEmpty) {
+        // Live web-parity hint once they type, or after a failed submit.
+        _errors = {
+          ..._errors,
+          CreateShiftField.restOverrideReason: message,
+        };
+      }
+    });
+  }
+
+  /// Map cryptic Zod min-length failures back onto the reason field.
+  bool _applyRestOverrideApiError(String message) {
+    if (_conflicts.rest.isEmpty) return false;
+    final localMessage = CreateShiftRestOverride.validationError(
+      _draft.restOverrideReason,
+      submitted: true,
+    );
+    final fromApi =
+        CreateShiftRestOverride.matchesApiMinLengthMessage(message);
+    if (!fromApi && localMessage == null) return false;
+    final fieldMessage = localMessage ??
+        'At least 10 characters required for the reason to roster anyway.';
+    setState(() {
+      _busyAction = null;
+      _submitError = null;
+      _errors = {
+        ..._errors,
+        CreateShiftField.restOverrideReason: fieldMessage,
+      };
+    });
+    _goTo(CreateShiftStep.staffAssignment);
+    _scrollToFirstShiftError({
+      CreateShiftField.restOverrideReason: fieldMessage,
+    });
+    return true;
   }
 
   void _onTextChanged(String _) {
@@ -462,10 +532,20 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
+  void _scrollToFirstShiftError(Map<String, String> errors) {
+    if (errors.isEmpty) return;
+    scrollToFirstFormError(
+      context,
+      errors: errors,
+      fieldKeys: _createShiftErrorKeys,
+    );
+  }
+
   void _next() {
     final stepErrors = _draft.validateStep(_step);
     if (stepErrors.isNotEmpty) {
       setState(() => _errors = {..._errors, ...stepErrors});
+      _scrollToFirstShiftError(stepErrors);
       return;
     }
     if (_step == CreateShiftStep.staffAssignment &&
@@ -518,10 +598,17 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
       _goTo(CreateShiftDraft.stepOf(errors.keys.first));
+      _scrollToFirstShiftError(errors);
       return;
     }
     if (!asDraft && !_validateRestOverrideReason()) {
       _goTo(CreateShiftStep.staffAssignment);
+      final reasonError = _errors[CreateShiftField.restOverrideReason];
+      if (reasonError != null) {
+        _scrollToFirstShiftError({
+          CreateShiftField.restOverrideReason: reasonError,
+        });
+      }
       return;
     }
     if (!asDraft && _staffingBlocked) {
@@ -558,6 +645,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         });
       },
       failure: (error) {
+        if (_applyRestOverrideApiError(error.message)) return;
         setState(() {
           _busyAction = null;
           _submitError = error.message;
@@ -680,6 +768,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         });
       },
       failure: (error) {
+        if (_applyRestOverrideApiError(error.message)) return;
         setState(() {
           _busyAction = null;
           _submitError = error.message;
@@ -700,6 +789,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
       _goTo(CreateShiftDraft.stepOf(errors.keys.first));
+      _scrollToFirstShiftError(errors);
       return;
     }
     if (!_validateRestOverrideReason()) {
@@ -1288,9 +1378,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           restOverrideReasonController: _restOverrideReasonController,
           restOverrideReasonError:
               _errors[CreateShiftField.restOverrideReason],
-          onRestOverrideReasonChanged: (value) => _update(() {
-            _draft.restOverrideReason = value;
-          }),
+          onRestOverrideReasonChanged: _onRestOverrideReasonChanged,
           residenceName: _residenceLabel,
           pendingBids: _draft.pendingBids,
           onAcceptBid: _isEdit ? _acceptPendingBid : null,
