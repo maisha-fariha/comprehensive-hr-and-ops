@@ -25,8 +25,15 @@ class StaffShift {
   final String apiStatus;
   final StaffingLevel staffingLevel;
   final DateTime? startAt;
+  final DateTime? endAt;
   final String? residenceId;
   final List<String> staffIds;
+
+  /// Pending open-shift bids count when API includes `bids` / `bid_pending`.
+  final int pendingBidCount;
+
+  /// True when the signed-in staff already has a pending bid on this open shift.
+  final bool ownBidPending;
 
   const StaffShift({
     required this.id,
@@ -44,8 +51,11 @@ class StaffShift {
     required this.staffingLevel,
     this.apiStatus = '',
     this.startAt,
+    this.endAt,
     this.residenceId,
     this.staffIds = const [],
+    this.pendingBidCount = 0,
+    this.ownBidPending = false,
   });
 
   /// Web "Shifts you can swap" / Request swap: future start, not cancelled.

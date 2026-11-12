@@ -8,7 +8,6 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../staff_shell.dart';
 import '../controllers/staff_schedule_controller.dart';
-import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/staff_shift.dart';
 import '../widgets/my_shifts_section.dart';
 import '../widgets/staff_swap_request_sheet.dart';
@@ -84,13 +83,14 @@ class StaffSchedulePage extends StatelessWidget {
           final selectedShifts = controller.shiftsForSelectedDay;
           final dayLabel = controller.selectedDayShiftsLabel;
           final session = Get.find<UserSession>();
-          final canBid = session.can('scheduling:bid') ||
-              session.can('scheduling:write');
-          final now = TenantClock.now();
-          final openShifts = [
-            for (final shift in overview.openShiftRequests)
-              if (shift.startAt != null && shift.startAt!.isAfter(now)) shift,
-          ];
+          final roleRaw = (session.roleRaw ?? '').toLowerCase();
+          final isTenantAdmin = roleRaw.contains('tenant_admin') ||
+              roleRaw.contains('tenant admin');
+          // Web: Bid only with scheduling:bid (tenant admin never bids).
+          final canBid =
+              !isTenantAdmin && session.can('scheduling:bid');
+          final canWrite = session.can('scheduling:write');
+          final openShifts = overview.openShiftRequests;
           void openSwap(StaffShift shift) {
             if (!shift.canRequestSwap) return;
             showStaffSwapRequestSheet(context, controller, shift);
@@ -205,6 +205,7 @@ class StaffSchedulePage extends StatelessWidget {
                       ),
                       OpenShiftRequestsSection(
                         shifts: openShifts,
+                        canWrite: canWrite,
                         onRequestTap: canBid
                             ? (shift) => controller.requestOpenShift(shift.id)
                             : null,

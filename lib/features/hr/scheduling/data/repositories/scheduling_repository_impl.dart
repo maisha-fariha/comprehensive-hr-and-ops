@@ -467,6 +467,42 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
+  Future<Result<void>> rejectShiftBid({
+    required String shiftId,
+    required String bidId,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftBidReject(shiftId, bidId),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> placeShiftBid({
+    required String shiftId,
+    required String staffId,
+    String? note,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftBids(shiftId),
+      data: {
+        'staffId': staffId,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<void>> openShift(String shiftId) async {
     final result = await _api.post(
       ApiEndpoints.shiftOpen(shiftId),

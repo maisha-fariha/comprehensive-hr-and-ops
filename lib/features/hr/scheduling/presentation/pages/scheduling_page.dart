@@ -96,19 +96,96 @@ class _SchedulingPageState extends State<SchedulingPage> {
     }
   }
 
-  /// Web open-shift rail: pending bids → Accept actions; otherwise Edit.
+  /// Web Open shift dialog — always opens for write; never skips to edit.
   Future<void> _openOpenShift(
     BuildContext context,
     SchedulingController controller,
     CalendarShift shift,
   ) async {
-    if (controller.canWrite && shift.pendingBids.isNotEmpty) {
-      await showOpenShiftBidsSheet(
-        context: context,
-        controller: controller,
-        shift: shift,
-        onEditShift: () => _openEditShift(controller, shift.id),
-      );
+    if (!controller.canWrite) return;
+    await showOpenShiftBidsSheet(
+      context: context,
+      controller: controller,
+      shift: shift,
+      onEditShift: () => _openEditShift(controller, shift.id),
+      onCancelShift: () => _confirmCancelShift(context, controller, shift),
+      onDeleteShift: () => _confirmDeleteShift(context, controller, shift),
+    );
+  }
+
+  Future<void> _confirmCancelShift(
+    BuildContext context,
+    SchedulingController controller,
+    CalendarShift shift,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel this shift?'),
+        content: const Text(
+          'The shift will be cancelled and staff will be notified.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Cancel shift',
+              style: TextStyle(color: AppColors.urgentAmber),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.cancelShift(shift.id);
+    }
+  }
+
+  Future<void> _confirmDeleteShift(
+    BuildContext context,
+    SchedulingController controller,
+    CalendarShift shift,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this open shift?'),
+        content: Text(
+          '${shift.title?.trim().isNotEmpty == true ? shift.title : shift.name}'
+          ' will be removed permanently.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.criticalRed),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await controller.deleteShift(shift.id);
+    }
+  }
+
+  Future<void> _onCalendarShiftTap(
+    BuildContext context,
+    SchedulingController controller,
+    CalendarShift shift,
+  ) async {
+    if (!controller.canWrite) return;
+    if (shift.apiStatus.toLowerCase() == 'open') {
+      await _openOpenShift(context, controller, shift);
       return;
     }
     await _openEditShift(controller, shift.id);
@@ -238,8 +315,24 @@ class _SchedulingPageState extends State<SchedulingPage> {
                         shifts: overview.calendar.weekShifts,
                         coverage: overview.weekCoverage,
                         onOpenShift: controller.canWrite
-                            ? (shiftId) =>
-                                _openEditShift(controller, shiftId)
+                            ? (shiftId) {
+                                CalendarShift? match;
+                                for (final s in overview.openShifts) {
+                                  if (s.id == shiftId) {
+                                    match = s;
+                                    break;
+                                  }
+                                }
+                                if (match != null) {
+                                  _openOpenShift(
+                                    context,
+                                    controller,
+                                    match,
+                                  );
+                                  return;
+                                }
+                                _openEditShift(controller, shiftId);
+                              }
                             : null,
                       ),
                       ScheduleSpan.week => CalendarTabView(
@@ -249,8 +342,11 @@ class _SchedulingPageState extends State<SchedulingPage> {
                         onDaySelected: (day) =>
                             controller.selectCalendarDay(day.date),
                         onShiftTap: controller.canWrite
-                            ? (shift) =>
-                                _openEditShift(controller, shift.id)
+                            ? (shift) => _onCalendarShiftTap(
+                                  context,
+                                  controller,
+                                  shift,
+                                )
                             : null,
                         leading: [
                           ScheduleSpanSwitch(
@@ -262,13 +358,35 @@ class _SchedulingPageState extends State<SchedulingPage> {
                           OpenShiftsRail(
                             controller: controller,
                             openShifts: overview.openShifts,
-                            // Web: card / “Click for actions” opens bids or edit.
                             onOpenShift: controller.canWrite
                                 ? (shift) => _openOpenShift(
                                       context,
                                       controller,
                                       shift,
                                     )
+                                : null,
+                            onEditShift: controller.canWrite
+                                ? (shift) =>
+                                    _openEditShift(controller, shift.id)
+                                : null,
+                            onCancelShift: controller.canWrite
+                                ? (shift) => _confirmCancelShift(
+                                      context,
+                                      controller,
+                                      shift,
+                                    )
+                                : null,
+                            onDeleteShift: controller.canWrite
+                                ? (shift) => _confirmDeleteShift(
+                                      context,
+                                      controller,
+                                      shift,
+                                    )
+                                : null,
+                            onBid: controller.canBid
+                                ? (shift) async {
+                                    await controller.placeShiftBid(shift.id);
+                                  }
                                 : null,
                           ),
                           StaffRosteredHoursRail(
@@ -300,7 +418,24 @@ class _SchedulingPageState extends State<SchedulingPage> {
                           ? controller.declineRequest
                           : null,
                       onOpenShift: controller.canWrite
-                          ? (id) => _openEditShift(controller, id)
+                          ? (id) {
+                              CalendarShift? match;
+                              for (final s in overview.openShifts) {
+                                if (s.id == id) {
+                                  match = s;
+                                  break;
+                                }
+                              }
+                              if (match != null) {
+                                _openOpenShift(
+                                  context,
+                                  controller,
+                                  match,
+                                );
+                                return;
+                              }
+                              _openEditShift(controller, id);
+                            }
                           : null,
                     ),
                   },

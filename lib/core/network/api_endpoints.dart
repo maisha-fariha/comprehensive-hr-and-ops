@@ -287,6 +287,8 @@ abstract final class ApiEndpoints {
       '$attendanceTimeOffRequests/$id/cancel';
   static String shiftBidAccept(String shiftId, String bidId) =>
       '$shifts/$shiftId/bids/$bidId/accept';
+  static String shiftBidReject(String shiftId, String bidId) =>
+      '$shifts/$shiftId/bids/$bidId/reject';
   static String shiftBids(String shiftId) => '$shifts/$shiftId/bids';
   static String shiftSwapRequests(String shiftId) =>
       '$shifts/$shiftId/swap-requests';

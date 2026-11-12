@@ -382,6 +382,51 @@ class SchedulingController extends BaseController<SchedulingOverview> {
     );
   }
 
+  Future<bool> rejectShiftBid({
+    required String shiftId,
+    required String bidId,
+  }) async {
+    final result = await repository.rejectShiftBid(
+      shiftId: shiftId,
+      bidId: bidId,
+    );
+    return result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid rejected', '');
+        await loadOverview();
+        return true;
+      },
+      failure: (error) async {
+        AppSnackbar.show('Could not reject bid', error.message);
+        return false;
+      },
+    );
+  }
+
+  Future<bool> placeShiftBid(String shiftId, {String? note}) async {
+    final staffId = session?.staffId ?? session?.userId;
+    if (staffId == null || staffId.isEmpty) {
+      AppSnackbar.show('Could not bid', 'Your staff profile is not loaded.');
+      return false;
+    }
+    final result = await repository.placeShiftBid(
+      shiftId: shiftId,
+      staffId: staffId,
+      note: note,
+    );
+    return result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid submitted', 'Waiting on a manager.');
+        await loadOverview();
+        return true;
+      },
+      failure: (error) async {
+        AppSnackbar.show('Could not bid', error.message);
+        return false;
+      },
+    );
+  }
+
   Future<void> _decideSwap(ShiftRequest request, {required bool approve}) async {
     if (!request.canManagerDecide) {
       AppSnackbar.show(

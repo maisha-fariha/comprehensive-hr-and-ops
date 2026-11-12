@@ -7,17 +7,25 @@ import '../../domain/entities/calendar_shift.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../controllers/scheduling_controller.dart';
 
-/// Web "Open shifts" rail: Upcoming vs Past unstaffed, with delete.
+/// Web "Open shifts" rail: Upcoming vs Past unstaffed + Bid / manager actions.
 class OpenShiftsRail extends StatefulWidget {
   final SchedulingController controller;
   final List<CalendarShift> openShifts;
   final ValueChanged<CalendarShift>? onOpenShift;
+  final ValueChanged<CalendarShift>? onEditShift;
+  final ValueChanged<CalendarShift>? onCancelShift;
+  final ValueChanged<CalendarShift>? onDeleteShift;
+  final Future<void> Function(CalendarShift shift)? onBid;
 
   const OpenShiftsRail({
     super.key,
     required this.controller,
     required this.openShifts,
     this.onOpenShift,
+    this.onEditShift,
+    this.onCancelShift,
+    this.onDeleteShift,
+    this.onBid,
   });
 
   @override
@@ -26,6 +34,7 @@ class OpenShiftsRail extends StatefulWidget {
 
 class _OpenShiftsRailState extends State<OpenShiftsRail> {
   bool _past = true;
+  String? _biddingId;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +51,9 @@ class _OpenShiftsRailState extends State<OpenShiftsRail> {
     }
     final rows = _past ? past : upcoming;
     final canWrite = widget.controller.canWrite;
+    final canBid = widget.controller.canBid;
+    final ownStaffId =
+        widget.controller.session?.staffId ?? widget.controller.session?.userId;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -111,8 +123,10 @@ class _OpenShiftsRailState extends State<OpenShiftsRail> {
               if (rows.isEmpty)
                 Text(
                   _past
-                      ? 'No past unstaffed opens.'
-                      : 'No upcoming open shifts.',
+                      ? 'No past unstaffed shifts.'
+                      : canWrite
+                          ? 'Nothing is open for bidding. Opening a shift lets staff put their name forward for it.'
+                          : 'Nothing is open to bid for at the moment.',
                   style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 13,
@@ -124,11 +138,23 @@ class _OpenShiftsRailState extends State<OpenShiftsRail> {
                   _OpenShiftCard(
                     shift: shift,
                     canWrite: canWrite,
-                    onOpen: widget.onOpenShift == null
-                        ? null
-                        : () => widget.onOpenShift!(shift),
-                    onDelete: canWrite
-                        ? () => _confirmDelete(context, shift)
+                    canBid: canBid,
+                    ownStaffId: ownStaffId,
+                    bidding: _biddingId == shift.id,
+                    onOpen: canWrite && widget.onOpenShift != null
+                        ? () => widget.onOpenShift!(shift)
+                        : null,
+                    onEdit: canWrite && widget.onEditShift != null
+                        ? () => widget.onEditShift!(shift)
+                        : null,
+                    onCancel: canWrite && widget.onCancelShift != null
+                        ? () => widget.onCancelShift!(shift)
+                        : null,
+                    onDelete: canWrite && widget.onDeleteShift != null
+                        ? () => widget.onDeleteShift!(shift)
+                        : null,
+                    onBid: canBid && widget.onBid != null
+                        ? () => _bid(shift)
                         : null,
                   ),
                   const SizedBox(height: 10),
@@ -140,32 +166,13 @@ class _OpenShiftsRailState extends State<OpenShiftsRail> {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, CalendarShift shift) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete this open shift?'),
-        content: Text(
-          '${shift.title?.trim().isNotEmpty == true ? shift.title : shift.name}'
-          ' will be removed permanently.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: AppColors.criticalRed),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await widget.controller.deleteShift(shift.id);
+  Future<void> _bid(CalendarShift shift) async {
+    if (_biddingId != null || widget.onBid == null) return;
+    setState(() => _biddingId = shift.id);
+    try {
+      await widget.onBid!(shift);
+    } finally {
+      if (mounted) setState(() => _biddingId = null);
     }
   }
 }
@@ -209,14 +216,26 @@ class _Tab extends StatelessWidget {
 class _OpenShiftCard extends StatelessWidget {
   final CalendarShift shift;
   final bool canWrite;
+  final bool canBid;
+  final String? ownStaffId;
+  final bool bidding;
   final VoidCallback? onOpen;
+  final VoidCallback? onEdit;
+  final VoidCallback? onCancel;
   final VoidCallback? onDelete;
+  final VoidCallback? onBid;
 
   const _OpenShiftCard({
     required this.shift,
     required this.canWrite,
+    required this.canBid,
+    this.ownStaffId,
+    this.bidding = false,
     this.onOpen,
+    this.onEdit,
+    this.onCancel,
     this.onDelete,
+    this.onBid,
   });
 
   static String _bidSummary(CalendarShift shift) {
@@ -226,13 +245,35 @@ class _OpenShiftCard extends StatelessWidget {
         'Click for actions.';
   }
 
+  bool get _ownBidPending {
+    final id = ownStaffId;
+    if (id == null || id.isEmpty) return false;
+    return shift.pendingBids.any((b) => b.staffId == id);
+  }
+
+  bool get _ownAssigned {
+    final id = ownStaffId;
+    if (id == null || id.isEmpty) return false;
+    return shift.staffIds.contains(id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = (shift.title ?? '').trim().isEmpty ? 'SHIFT' : shift.title!;
+    final duration = WebFormat.durationHours(shift.startsAt, shift.endsAt);
     final when = [
       if (shift.startsAt != null) WebFormat.date(shift.startsAt),
-      if (shift.timeRange.isNotEmpty) shift.timeRange,
+      if (shift.startsAt != null && shift.endsAt != null)
+        '${WebFormat.time(shift.startsAt)} – ${WebFormat.time(shift.endsAt)}'
+      else if (shift.timeRange.isNotEmpty)
+        shift.timeRange,
     ].join(' · ');
+    final open = (shift.total - shift.filled).clamp(0, 999);
+    final meta = [
+      if ((shift.residenceName ?? '').isNotEmpty) shift.residenceName!,
+      if (open > 0) '$open open',
+    ].join(' · ');
+
     return Material(
       color: AppColors.filterButtonBackground,
       borderRadius: BorderRadius.circular(12),
@@ -266,20 +307,44 @@ class _OpenShiftCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  if (onDelete != null)
+                  if (canWrite &&
+                      (onEdit != null ||
+                          onCancel != null ||
+                          onDelete != null))
                     PopupMenuButton<String>(
                       padding: EdgeInsets.zero,
                       onSelected: (value) {
-                        if (value == 'delete') onDelete!();
+                        switch (value) {
+                          case 'edit':
+                            onEdit?.call();
+                          case 'cancel':
+                            onCancel?.call();
+                          case 'delete':
+                            onDelete?.call();
+                        }
                       },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text(
-                            'Delete shift',
-                            style: TextStyle(color: AppColors.criticalRed),
+                      itemBuilder: (_) => [
+                        if (onEdit != null)
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit shift'),
                           ),
-                        ),
+                        if (onCancel != null)
+                          const PopupMenuItem(
+                            value: 'cancel',
+                            child: Text(
+                              'Cancel shift',
+                              style: TextStyle(color: AppColors.urgentAmber),
+                            ),
+                          ),
+                        if (onDelete != null)
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text(
+                              'Delete shift',
+                              style: TextStyle(color: AppColors.criticalRed),
+                            ),
+                          ),
                       ],
                       icon: const Icon(
                         Icons.more_vert_rounded,
@@ -290,19 +355,32 @@ class _OpenShiftCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              Text(
-                when,
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textHeading,
+              Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textHeading,
+                  ),
+                  children: [
+                    TextSpan(text: when),
+                    if (duration != null)
+                      TextSpan(
+                        text: ' ($duration)',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w400,
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              if ((shift.residenceName ?? '').isNotEmpty) ...[
+              if (meta.isNotEmpty) ...[
                 const SizedBox(height: 2),
                 Text(
-                  shift.residenceName!,
+                  meta,
                   style: const TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 12.5,
@@ -310,15 +388,74 @@ class _OpenShiftCard extends StatelessWidget {
                   ),
                 ),
               ],
-              const SizedBox(height: 4),
-              Text(
-                _bidSummary(shift),
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 12.5,
-                  color: AppColors.secondaryTeal,
+              if (canWrite) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _bidSummary(shift),
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                    color: AppColors.secondaryTeal,
+                  ),
                 ),
-              ),
+              ],
+              if (canBid && !_ownAssigned && onBid != null) ...[
+                const SizedBox(height: 8),
+                if (_ownBidPending)
+                  const Text(
+                    'Your bid is in — waiting on a manager',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11.5,
+                      color: AppColors.secondaryTeal,
+                    ),
+                  )
+                else
+                  OutlinedButton(
+                    onPressed: bidding ? null : onBid,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textHeading,
+                      side: const BorderSide(color: AppColors.textHeading),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: bidding
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Bid for this shift',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                  ),
+              ],
+              if (canBid && _ownAssigned) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'You are assigned to this shift',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11.5,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

@@ -79,4 +79,18 @@ abstract final class WebFormat {
       if (includeStaff) who,
     ].join(' · ');
   }
+
+  /// Web `formatDurationHours` — e.g. `8h`, `7.5h`.
+  static String? durationHours(DateTime? startsAt, DateTime? endsAt) {
+    if (startsAt == null || endsAt == null) return null;
+    final minutes = endsAt.difference(startsAt).inMinutes;
+    if (minutes <= 0) return null;
+    final hours = minutes / 60.0;
+    if ((hours - hours.roundToDouble()).abs() < 0.05) {
+      return '${hours.round()}h';
+    }
+    final one = hours.toStringAsFixed(1);
+    if (one.endsWith('.0')) return '${hours.round()}h';
+    return '${one}h';
+  }
 }

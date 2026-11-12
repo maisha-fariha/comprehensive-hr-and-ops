@@ -964,13 +964,21 @@ abstract final class SchedulingMapper {
         map['assignmentId'] ?? map['bidId'] ?? map['id'],
       );
       if (bidId == null || !seen.add(bidId)) return;
-      final staffId = JsonCodec.string(map['staffId'] ?? map['id']) ?? bidId;
+      final staffMap = JsonCodec.asMap(map['staff']);
+      final staffId = JsonCodec.string(
+            map['staffId'] ?? staffMap['id'] ?? map['id'],
+          ) ??
+          bidId;
+      final nestedName = _fullName(staffMap);
+      final name = JsonCodec.string(map['name']) ??
+          (nestedName.isNotEmpty ? nestedName : null) ??
+          'Staff member';
       out.add(
         ShiftBid(
           bidId: bidId,
           staffId: staffId,
-          staffName: JsonCodec.string(map['name']) ?? 'Unnamed',
-          note: JsonCodec.string(map['note']) ?? '',
+          staffName: name,
+          note: JsonCodec.string(map['note'] ?? staffMap['note']) ?? '',
         ),
       );
     }

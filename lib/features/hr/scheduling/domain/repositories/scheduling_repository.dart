@@ -125,4 +125,17 @@ abstract class SchedulingRepository {
     required String shiftId,
     required String bidId,
   });
+
+  /// Reject a staff bid (`POST /shifts/{shiftId}/bids/{bidId}/reject`).
+  Future<Result<void>> rejectShiftBid({
+    required String shiftId,
+    required String bidId,
+  });
+
+  /// Place a bid (`POST /shifts/{shiftId}/bids`) — same as staff Open shifts.
+  Future<Result<void>> placeShiftBid({
+    required String shiftId,
+    required String staffId,
+    String? note,
+  });
 }

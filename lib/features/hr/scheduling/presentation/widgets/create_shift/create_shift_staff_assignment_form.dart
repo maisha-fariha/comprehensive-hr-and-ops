@@ -25,6 +25,7 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
   final VoidCallback onAddStaff;
   final ValueChanged<String> onRemoveStaff;
   final Future<void> Function(PendingShiftBid bid)? onAcceptBid;
+  final Future<void> Function(PendingShiftBid bid)? onRejectBid;
   final List<ShiftScheduleConflict> scheduleConflicts;
   final List<ShiftLeaveConflict> leaveConflicts;
   final List<ShiftRestConflict> restConflicts;
@@ -43,6 +44,7 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
     required this.onRemoveStaff,
     this.pendingBids = const [],
     this.onAcceptBid,
+    this.onRejectBid,
     this.openShiftFields,
     this.isLoadingStaff = false,
     this.scheduleConflicts = const [],
@@ -83,11 +85,13 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
           if (isOpenShift) ...[
             _OpenShiftBroadcast(residenceName: residenceName),
-            if (pendingBids.isNotEmpty && onAcceptBid != null) ...[
+            if (pendingBids.isNotEmpty &&
+                (onAcceptBid != null || onRejectBid != null)) ...[
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
               _PendingBidsSection(
                 bids: pendingBids,
-                onAccept: onAcceptBid!,
+                onAccept: onAcceptBid,
+                onReject: onRejectBid,
               ),
             ],
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
@@ -374,11 +378,13 @@ class _MethodChip extends StatelessWidget {
 
 class _PendingBidsSection extends StatefulWidget {
   final List<PendingShiftBid> bids;
-  final Future<void> Function(PendingShiftBid bid) onAccept;
+  final Future<void> Function(PendingShiftBid bid)? onAccept;
+  final Future<void> Function(PendingShiftBid bid)? onReject;
 
   const _PendingBidsSection({
     required this.bids,
-    required this.onAccept,
+    this.onAccept,
+    this.onReject,
   });
 
   @override
@@ -387,6 +393,19 @@ class _PendingBidsSection extends StatefulWidget {
 
 class _PendingBidsSectionState extends State<_PendingBidsSection> {
   String? _busyBidId;
+
+  Future<void> _run(
+    PendingShiftBid bid,
+    Future<void> Function(PendingShiftBid bid)? action,
+  ) async {
+    if (action == null || _busyBidId != null) return;
+    setState(() => _busyBidId = bid.bidId);
+    try {
+      await action(bid);
+    } finally {
+      if (mounted) setState(() => _busyBidId = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -447,25 +466,34 @@ class _PendingBidsSectionState extends State<_PendingBidsSection> {
                     ],
                   ),
                 ),
-                TextButton(
-                  onPressed: _busyBidId != null
-                      ? null
-                      : () async {
-                          setState(() => _busyBidId = bid.bidId);
-                          await widget.onAccept(bid);
-                          if (mounted) setState(() => _busyBidId = null);
-                        },
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.secondaryTeal,
-                  ),
-                  child: _busyBidId == bid.bidId
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Accept'),
-                ),
+                if (_busyBidId == bid.bidId)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else ...[
+                  if (widget.onReject != null)
+                    TextButton(
+                      onPressed: _busyBidId != null
+                          ? null
+                          : () => _run(bid, widget.onReject),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.criticalRed,
+                      ),
+                      child: const Text('Reject'),
+                    ),
+                  if (widget.onAccept != null)
+                    TextButton(
+                      onPressed: _busyBidId != null
+                          ? null
+                          : () => _run(bid, widget.onAccept),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.secondaryTeal,
+                      ),
+                      child: const Text('Accept'),
+                    ),
+                ],
               ],
             ),
           ),
