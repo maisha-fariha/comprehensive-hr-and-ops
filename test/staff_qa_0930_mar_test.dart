@@ -657,11 +657,16 @@ void main() {
       'oral',
     );
     await tester.enterText(find.widgetWithText(TextField, 'e.g. 1'), '1');
+    // Web PRN shortest-gap presets (required).
+    await tester.ensureVisible(find.text('4 hrs'));
+    await tester.tap(find.text('4 hrs'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('staff-mar-add-medicine-save')));
     await tester.pumpAndSettle();
 
     expect(repo.createdPrns.single.name, 'Ibuprofen');
     expect(repo.createdPrns.single.route, 'oral');
+    expect(repo.createdPrns.single.minIntervalMinutes, 240);
     expect(controller.prnTabCount, 1);
 
     controller.selectTab(StaffMedicationTab.prn);

@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../common/widgets/prn_shortest_gap_field.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_med_options.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
@@ -109,7 +110,9 @@ class _MedicineDraft {
   final cost = TextEditingController();
   final whenToGive = TextEditingController();
   final timeInput = TextEditingController();
-  final minGap = TextEditingController();
+  /// Web PRN shortest-gap: hours + minutes → API `minIntervalMinutes`.
+  final gapHours = TextEditingController();
+  final gapMinutes = TextEditingController();
   bool controlled = false;
   String frequency = 'daily';
   final List<String> times = ['08:00'];
@@ -117,6 +120,11 @@ class _MedicineDraft {
   DateTime? startsAt;
   DateTime? endsAt;
   String? requiresCheckScheduleId;
+
+  int? get gapTotalMinutes => PrnShortestGapField.totalMinutes(
+        hours: gapHours,
+        minutes: gapMinutes,
+      );
 
   void dispose() {
     name.dispose();
@@ -126,7 +134,8 @@ class _MedicineDraft {
     cost.dispose();
     whenToGive.dispose();
     timeInput.dispose();
-    minGap.dispose();
+    gapHours.dispose();
+    gapMinutes.dispose();
   }
 }
 
@@ -134,6 +143,7 @@ class _MedicineDraft {
 InputDecoration _medFieldDecoration({
   String? hint,
   bool dense = true,
+  Widget? suffix,
 }) {
   const radius = 12.0;
   return InputDecoration(
@@ -147,6 +157,8 @@ InputDecoration _medFieldDecoration({
     filled: true,
     fillColor: AppColors.surfaceWhite,
     isDense: dense,
+    suffixIcon: suffix,
+    suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(radius),
@@ -252,7 +264,11 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     draft.whenToGive.text = m.instructions ?? '';
     draft.stock.text = m.stockUnitsPerDose?.toString() ?? '';
     draft.cost.text = _costText(m.costPerDose);
-    draft.minGap.text = m.minIntervalMinutes?.toString() ?? '';
+    PrnShortestGapField.applyMinutes(
+      m.minIntervalMinutes,
+      hours: draft.gapHours,
+      minutes: draft.gapMinutes,
+    );
     draft.controlled = m.isControlled;
     // Kept from the record so a correction does not wipe the round times.
     if (_frequencies.any((f) => f.$1 == m.frequency)) {
@@ -387,6 +403,10 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
       if (m.stock.text.trim().isEmpty) {
         return '$n: how many stock units does one dose use?';
       }
+      if (_isPrn && m.gapTotalMinutes == null) {
+        return '$n: set the shortest gap between doses '
+            '(preset or hours/minutes).';
+      }
       if (!_isPrn && m.times.isEmpty) {
         return '$n: a scheduled medication needs at least one time of day.';
       }
@@ -419,7 +439,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     for (final m in _medicines) {
       final stock = int.tryParse(m.stock.text.trim());
       final cost = num.tryParse(m.cost.text.trim());
-      final gap = int.tryParse(m.minGap.text.trim());
+      final gap = m.gapTotalMinutes;
       final prnInput = StaffCreatePrnMedicationInput(
         residenceId: _residence!.id,
         clientId: _client?.id,
@@ -1520,18 +1540,12 @@ class _MedicineCard extends StatelessWidget {
             ),
             if (isPrn) ...[
               const SizedBox(height: 14),
-              _Labeled(
-                label: 'Shortest gap between doses (minutes)',
-                hint:
-                    '240 for a medicine prescribed no more often than four hourly.',
-                child: TextField(
-                  controller: draft.minGap,
-                  style: _fieldTextStyle,
-                  keyboardType: TextInputType.number,
-                  decoration: _medFieldDecoration(
-                    hint: 'Leave blank for no minimum',
-                  ),
-                ),
+              PrnShortestGapField(
+                hours: draft.gapHours,
+                minutes: draft.gapMinutes,
+                onChanged: onChanged,
+                decoration: _medFieldDecoration,
+                fieldStyle: _fieldTextStyle,
               ),
             ],
             const SizedBox(height: 8),

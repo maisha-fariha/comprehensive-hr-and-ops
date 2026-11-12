@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../common/widgets/prn_shortest_gap_field.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/mar_medication.dart';
 import '../../domain/entities/mar_options.dart';
@@ -19,6 +20,7 @@ const _marMedicineErrorKeys = <String, Key>{
   'times': ValueKey('mar-form-time-input'),
   'weekdays': ValueKey('mar-form-weekdays'),
   'ends': ValueKey('mar-form-ends'),
+  'gap': ValueKey('prn-shortest-gap'),
 };
 
 /// Web "Add a medicine" / "Correct a medicine" (and the PRN variants).
@@ -111,7 +113,8 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   final _route = TextEditingController();
   final _stock = TextEditingController();
   final _cost = TextEditingController();
-  final _gap = TextEditingController();
+  final _gapHours = TextEditingController();
+  final _gapMinutes = TextEditingController();
   final _instructions = TextEditingController();
   final _within = TextEditingController(text: '60');
   String _frequency = 'daily';
@@ -140,7 +143,11 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
     buf.route = _route.text;
     buf.stock = _stock.text;
     buf.cost = _cost.text;
-    buf.gap = _gap.text;
+    buf.gap = PrnShortestGapField.totalMinutes(
+          hours: _gapHours,
+          minutes: _gapMinutes,
+        )?.toString() ??
+        '';
     buf.instructions = _instructions.text;
     buf.within = _within.text;
     buf.frequency = _frequency;
@@ -164,7 +171,11 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
     _route.text = buf.route;
     _stock.text = buf.stock;
     _cost.text = buf.cost;
-    _gap.text = buf.gap;
+    PrnShortestGapField.applyMinutes(
+      int.tryParse(buf.gap),
+      hours: _gapHours,
+      minutes: _gapMinutes,
+    );
     _instructions.text = buf.instructions;
     _within.text = buf.within.isEmpty ? '60' : buf.within;
     _frequency = buf.frequency;
@@ -200,7 +211,11 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       _ends = m.endsAt;
       _stock.text = m.stockUnitsPerDose?.toString() ?? '';
       _cost.text = _costText(m.costPerDose);
-      _gap.text = m.minIntervalMinutes?.toString() ?? '';
+      PrnShortestGapField.applyMinutes(
+        m.minIntervalMinutes,
+        hours: _gapHours,
+        minutes: _gapMinutes,
+      );
       _check = m.requiresCheckScheduleId ?? '';
       _within.text = '${m.requiresCheckWithinMinutes ?? 60}';
       // Kept from the record so a correction does not wipe the round times.
@@ -214,7 +229,18 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _dose, _timeInput, _route, _stock, _cost, _gap, _instructions, _within]) {
+    for (final c in [
+      _name,
+      _dose,
+      _timeInput,
+      _route,
+      _stock,
+      _cost,
+      _gapHours,
+      _gapMinutes,
+      _instructions,
+      _within,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -242,7 +268,11 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       endsAt: _ends,
       stockUnitsPerDose: _stock.text,
       costPerDose: _cost.text,
-      minIntervalMinutes: _gap.text,
+      minIntervalMinutes: PrnShortestGapField.totalMinutes(
+            hours: _gapHours,
+            minutes: _gapMinutes,
+          )?.toString() ??
+          '',
       instructions: _instructions.text.trim(),
       isControlled: _controlled,
       requiresCheckScheduleId: _check,
@@ -251,7 +281,17 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   }
 
   void _resetMedicine() {
-    for (final c in [_name, _dose, _route, _stock, _cost, _gap, _instructions, _timeInput]) {
+    for (final c in [
+      _name,
+      _dose,
+      _route,
+      _stock,
+      _cost,
+      _gapHours,
+      _gapMinutes,
+      _instructions,
+      _timeInput,
+    ]) {
       c.clear();
     }
     _within.text = '60';
@@ -287,6 +327,18 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       return (
         field: 'stock',
         message: 'How many stock units does one dose use?',
+      );
+    }
+    if (_prn &&
+        PrnShortestGapField.totalMinutes(
+              hours: _gapHours,
+              minutes: _gapMinutes,
+            ) ==
+            null) {
+      return (
+        field: 'gap',
+        message:
+            'Set the shortest gap between doses (preset or hours/minutes).',
       );
     }
     if (!_prn && _times.isEmpty && _timeInput.text.trim().isEmpty) {
@@ -735,13 +787,33 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       ),
       if (_prn) ...[
         gap,
-        MarTextField(
-          key: const ValueKey('mar-form-gap'),
-          label: 'Shortest gap between doses (minutes)',
-          controller: _gap,
-          numeric: true,
-          placeholder: 'Leave blank for no minimum',
-          helper: '240 for a medicine prescribed no more often than four hourly.',
+        PrnShortestGapField(
+          hours: _gapHours,
+          minutes: _gapMinutes,
+          onChanged: () => setState(() {}),
+          fieldStyle: handoverText(context, 13.5),
+          decoration: ({String? hint, Widget? suffix}) {
+            OutlineInputBorder border(Color c) => OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: BorderSide(color: c),
+                );
+            return InputDecoration(
+              isDense: true,
+              hintText: hint,
+              hintStyle:
+                  handoverText(context, 13.5, color: AppColors.textMuted),
+              filled: true,
+              fillColor: AppColors.surfaceWhite,
+              suffixIcon: suffix,
+              suffixIconConstraints:
+                  const BoxConstraints(minWidth: 0, minHeight: 0),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              border: border(AppColors.searchBorder),
+              enabledBorder: border(AppColors.searchBorder),
+              focusedBorder: border(AppColors.secondaryTeal),
+            );
+          },
         ),
       ],
       gap,
