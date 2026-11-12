@@ -45,41 +45,33 @@ abstract final class StaffMedicationMapper {
         continue;
       }
 
-      // Missed (+ overdue also appears under Missed per B6 map)
+      // Missed / Overdue panel — web keeps these out of Due Now.
       if (state == 'missed' || state == 'overdue') {
         missed.add(_missed(row));
         if (state == 'overdue') overdueFromOcc += 1;
-        if (state == 'missed') continue;
-        // overdue also stays in Due Now below
+        continue;
       }
 
-      // Due Now / Later Today: due | upcoming | overdue
-      if (state == 'upcoming') {
-        later.add(
-          _due(
-            row,
-            DueDoseSection.laterToday,
-            DueDoseStatus.upcoming,
-            webState: 'upcoming',
-          ),
-        );
-      } else if (state == 'due' ||
-          state == 'overdue' ||
+      // Web / HR Due Now: due + upcoming (earliest first), not overdue.
+      if (state == 'due' ||
+          state == 'upcoming' ||
           state.isEmpty ||
           state == 'pending') {
-        final webState = state == 'overdue'
-            ? 'overdue'
-            : (state.isEmpty || state == 'pending' ? 'due' : state);
+        final isUpcoming = state == 'upcoming';
+        final webState =
+            state.isEmpty || state == 'pending' ? 'due' : state;
         dueNow.add(
           _due(
             row,
             DueDoseSection.dueNow,
-            DueDoseStatus.pending,
+            isUpcoming ? DueDoseStatus.upcoming : DueDoseStatus.pending,
             webState: webState,
           ),
         );
       }
     }
+
+    dueNow.sort(_byDueAt);
 
     final summary = JsonCodec.mapAt(json, 'summary') ?? const {};
     final dueSummary = JsonCodec.integer(summary['due']);
@@ -235,13 +227,18 @@ abstract final class StaffMedicationMapper {
       'upcoming' => DueDoseStatus.upcoming,
       _ => DueDoseStatus.pending,
     };
+    // Registry cards keep section for layout only; Due Now panel uses dueNowDoses.
     return _due(
       json,
-      state == 'upcoming' ? DueDoseSection.laterToday : DueDoseSection.dueNow,
+      DueDoseSection.dueNow,
       status,
       webState: state,
     );
   }
+
+  static int _byDueAt(DueDose a, DueDose b) =>
+      (a.dueAt?.toIso8601String() ?? a.timeLabel)
+          .compareTo(b.dueAt?.toIso8601String() ?? b.timeLabel);
 
   static DueDose _due(
     Map<String, dynamic> json,
@@ -253,7 +250,13 @@ abstract final class StaffMedicationMapper {
     final scheduled = JsonCodec.dateTime(
       json['scheduledAt'] ?? json['dueAt'] ?? json['time'],
     );
-    final inRound = JsonCodec.boolean(json['scheduled']) ?? true;
+    final isPrn = _isPrn(json);
+    // Web MAR registry is scheduled-round only. PRN / off-round chartings
+    // come back on `/mar/round` with `scheduled: false` (and sometimes omit
+    // the flag) — never treat those as in-round MAR rows.
+    final inRound = isPrn
+        ? false
+        : (JsonCodec.boolean(json['scheduled']) ?? true);
     final scheduledTime = JsonCodec.stringOr(json['scheduledTime'], '');
     final dueLocal = (scheduled == null ? null : TenantClock.wallOf(scheduled));
     final dueHhmm = dueLocal == null
@@ -313,7 +316,7 @@ abstract final class StaffMedicationMapper {
             JsonCodec.mapAt(json, 'prnMedication')?['id'],
         '',
       ),
-      isPrn: _isPrn(json),
+      isPrn: isPrn,
     );
   }
 

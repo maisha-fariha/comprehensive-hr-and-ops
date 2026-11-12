@@ -36,25 +36,36 @@ abstract final class MedicationMapper {
                 .trim(),
           );
 
-  static MarOccurrence occurrenceFrom(Map<String, dynamic> json) => MarOccurrence(
-        id: JsonCodec.stringOr(json['id'], ''),
-        medicationId: JsonCodec.stringOr(json['medicationId'], ''),
-        clientId: JsonCodec.stringOr(json['clientId'], ''),
-        clientName: JsonCodec.string(json['clientName']),
-        allergies: _strings(json['clientAllergies']),
-        residenceId: JsonCodec.stringOr(json['residenceId'], ''),
-        residenceName: JsonCodec.string(json['residenceName']),
-        name: JsonCodec.stringOr(json['name'], ''),
-        dose: JsonCodec.string(json['dose']),
-        isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
-        scheduledTime: JsonCodec.stringOr(json['scheduledTime'], ''),
-        dueAt: JsonCodec.dateTime(json['dueAt']),
-        state: JsonCodec.stringOr(json['state'], 'upcoming'),
-        scheduled: JsonCodec.boolean(json['scheduled']) ?? true,
-        administrationId: JsonCodec.string(json['administrationId']),
-        administeredAt: JsonCodec.dateTime(json['administeredAt']),
-        administeredBy: JsonCodec.string(json['administeredBy']),
-      );
+  static MarOccurrence occurrenceFrom(Map<String, dynamic> json) {
+    final source = (JsonCodec.string(json['source']) ?? '').toLowerCase();
+    final isPrnOccurrence = json['prnMedicationId'] != null ||
+        JsonCodec.mapAt(json, 'prnMedication') != null ||
+        source == 'prn';
+    // Web MAR tab = scheduled round only. PRN givens reappear on the round
+    // payload as off-round rows — never default them into the MAR registry.
+    final scheduled = isPrnOccurrence
+        ? false
+        : (JsonCodec.boolean(json['scheduled']) ?? true);
+    return MarOccurrence(
+      id: JsonCodec.stringOr(json['id'], ''),
+      medicationId: JsonCodec.stringOr(json['medicationId'], ''),
+      clientId: JsonCodec.stringOr(json['clientId'], ''),
+      clientName: JsonCodec.string(json['clientName']),
+      allergies: _strings(json['clientAllergies']),
+      residenceId: JsonCodec.stringOr(json['residenceId'], ''),
+      residenceName: JsonCodec.string(json['residenceName']),
+      name: JsonCodec.stringOr(json['name'], ''),
+      dose: JsonCodec.string(json['dose']),
+      isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
+      scheduledTime: JsonCodec.stringOr(json['scheduledTime'], ''),
+      dueAt: JsonCodec.dateTime(json['dueAt']),
+      state: JsonCodec.stringOr(json['state'], 'upcoming'),
+      scheduled: scheduled,
+      administrationId: JsonCodec.string(json['administrationId']),
+      administeredAt: JsonCodec.dateTime(json['administeredAt']),
+      administeredBy: JsonCodec.string(json['administeredBy']),
+    );
+  }
 
   static MarRound roundFrom(dynamic body) {
     final json = JsonCodec.unwrapMap(body);

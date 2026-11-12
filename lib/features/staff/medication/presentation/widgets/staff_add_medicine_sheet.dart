@@ -1511,23 +1511,26 @@ class _MedicineCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 8),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: draft.controlled,
-              onChanged: (v) {
-                draft.controlled = v ?? false;
-                onChanged();
-              },
-              title: const Text(
-                'Controlled drug — a witness is required to chart a dose',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 13,
-                  color: AppColors.textHeading,
+            Material(
+              color: Colors.transparent,
+              child: CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: draft.controlled,
+                onChanged: (v) {
+                  draft.controlled = v ?? false;
+                  onChanged();
+                },
+                title: const Text(
+                  'Controlled drug — a witness is required to chart a dose',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: AppColors.textHeading,
+                  ),
                 ),
+                controlAffinity: ListTileControlAffinity.leading,
+                activeColor: AppColors.secondaryTeal,
               ),
-              controlAffinity: ListTileControlAffinity.leading,
-              activeColor: AppColors.secondaryTeal,
             ),
             _Labeled(
               label: 'Requires a check first',

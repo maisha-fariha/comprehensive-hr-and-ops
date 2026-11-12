@@ -24,18 +24,8 @@ class OpenShiftRequestsSection extends StatefulWidget {
 }
 
 class _OpenShiftRequestsSectionState extends State<OpenShiftRequestsSection> {
+  /// Match HR Open shifts rail: Upcoming selected by default.
   bool _past = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final now = TenantClock.now();
-    final pastCount = widget.shifts.where((s) {
-      final end = s.endAt ?? s.startAt;
-      return end != null && end.isBefore(now);
-    }).length;
-    _past = pastCount > 0;
-  }
 
   @override
   Widget build(BuildContext context) {

@@ -179,15 +179,12 @@ class _SchedulingPageState extends State<SchedulingPage> {
   }
 
   Future<void> _onCalendarShiftTap(
-    BuildContext context,
     SchedulingController controller,
     CalendarShift shift,
   ) async {
     if (!controller.canWrite) return;
-    if (shift.apiStatus.toLowerCase() == 'open') {
-      await _openOpenShift(context, controller, shift);
-      return;
-    }
+    // Shift list / calendar rows always open Edit for writers. Accept/reject
+    // stays on the Open shifts section only — do not route list taps there.
     await _openEditShift(controller, shift.id);
   }
 
@@ -315,24 +312,7 @@ class _SchedulingPageState extends State<SchedulingPage> {
                         shifts: overview.calendar.weekShifts,
                         coverage: overview.weekCoverage,
                         onOpenShift: controller.canWrite
-                            ? (shiftId) {
-                                CalendarShift? match;
-                                for (final s in overview.openShifts) {
-                                  if (s.id == shiftId) {
-                                    match = s;
-                                    break;
-                                  }
-                                }
-                                if (match != null) {
-                                  _openOpenShift(
-                                    context,
-                                    controller,
-                                    match,
-                                  );
-                                  return;
-                                }
-                                _openEditShift(controller, shiftId);
-                              }
+                            ? (shiftId) => _openEditShift(controller, shiftId)
                             : null,
                       ),
                       ScheduleSpan.week => CalendarTabView(
@@ -342,11 +322,7 @@ class _SchedulingPageState extends State<SchedulingPage> {
                         onDaySelected: (day) =>
                             controller.selectCalendarDay(day.date),
                         onShiftTap: controller.canWrite
-                            ? (shift) => _onCalendarShiftTap(
-                                  context,
-                                  controller,
-                                  shift,
-                                )
+                            ? (shift) => _onCalendarShiftTap(controller, shift)
                             : null,
                         leading: [
                           ScheduleSpanSwitch(

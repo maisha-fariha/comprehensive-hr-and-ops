@@ -130,12 +130,21 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       filterMedication.value.isNotEmpty ||
       filterState.value.isNotEmpty;
 
-  /// Web MAR tab rows: every occurrence on today's round.
+  /// Web MAR tab rows: today's **scheduled** round only.
+  ///
+  /// Off-round chartings (`scheduled === false`, including PRN given as
+  /// "outside a round") stay on the Given KPI / Given tab — they must not
+  /// inflate the MAR badge the way they did when every registry row counted.
   List<DueDose> get allScheduledDoses {
     final current = overview;
     if (current == null) return const [];
-    if (current.registryDoses.isNotEmpty) return current.registryDoses;
-    return [...current.dueNowDoses, ...current.laterTodayDoses];
+    final rows = current.registryDoses.isNotEmpty
+        ? current.registryDoses
+        : [...current.dueNowDoses, ...current.laterTodayDoses];
+    return [
+      for (final d in rows)
+        if (d.scheduled && !d.isPrn) d,
+    ];
   }
 
   List<({String value, String label})> get residenceFilterOptions {
@@ -752,6 +761,8 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       residenceName: item.residenceName,
       medicationId: item.id,
       isPrn: item.isPrn,
+      // PRN chartings are off-round — never reuse as a scheduled MAR slot.
+      scheduled: !item.isPrn,
     );
     final dialogContext = Get.overlayContext ?? Get.context;
     if (dialogContext == null) return;

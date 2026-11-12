@@ -127,9 +127,10 @@ class AuthRepositoryImpl implements AuthRepository {
             ),
           );
         }
-        // `/mobile/me` is enough for the session. `/auth/me` is only for a
-        // missing avatar, and not on the silent refresh path.
-        if (profile.avatarUrl == null && !silent) {
+        // `/mobile/me` omits the profile photo. Always enrich from `/auth/me`
+        // when avatarUrl is missing — including silent restore/refresh — so
+        // the photo survives app relaunch (upload alone only updates memory).
+        if (profile.avatarUrl == null) {
           body = await _withAuthMeAvatar(body);
           profile = AuthMapper.profileFromJson(body) ?? profile;
         }

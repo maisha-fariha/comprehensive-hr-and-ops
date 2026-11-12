@@ -214,11 +214,12 @@ class MedicationController extends GetxController {
   Map<String, String> get residenceNames => {for (final r in residences) r.id: r.label};
   Map<String, String> get staffNames => {for (final s in staff) s.id: s.label};
 
+  /// Web MAR registry: scheduled round doses only (not PRN / off-round given).
   List<MarRow> get marRows {
     final names = staffNames;
     return [
       for (final o in round.value?.occurrences ?? const <MarOccurrence>[])
-        MarRow.fromOccurrence(o, staffNames: names),
+        if (o.scheduled) MarRow.fromOccurrence(o, staffNames: names),
     ];
   }
 

@@ -33,7 +33,8 @@ class OpenShiftsRail extends StatefulWidget {
 }
 
 class _OpenShiftsRailState extends State<OpenShiftsRail> {
-  bool _past = true;
+  /// Web default: Upcoming (not Past unstaffed).
+  bool _past = false;
   String? _biddingId;
 
   @override

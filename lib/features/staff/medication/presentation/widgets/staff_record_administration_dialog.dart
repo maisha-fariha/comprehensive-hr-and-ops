@@ -304,11 +304,19 @@ class _StaffRecordAdministrationDialogState
     final prescribed = await _repo.getClientMedications(client.id);
     final prn = await _repo.getClientPrnMedications(client.id);
     if (!mounted || _client != client) return;
-    final list = <StaffClientMedicationItem>[
-      ...?prescribed.value?.where((m) => m.isActive),
-      ...?prn.value?.where((m) => m.isActive),
-    ];
-    final keep = previous != null && previous.clientId == client.id
+    // Web `_choices`: only this resident's chart + same-home house stock.
+    // Without this filter, over-broad PRN API payloads leak other residents'
+    // PRNs into the medicine dropdown (mobile vs web mismatch).
+    final list = StaffClientMedicationItem.scopedForRecordAdministration(
+      clientId: client.id,
+      residenceId: client.residenceId,
+      prescribed: prescribed.value ?? const [],
+      prns: prn.value ?? const [],
+    );
+    final keep = previous != null &&
+            (previous.clientId == client.id ||
+                (previous.clientId.isEmpty &&
+                    previous.residenceId == (client.residenceId ?? '')))
         ? previous
         : null;
     if (keep != null && !list.contains(keep)) list.insert(0, keep);

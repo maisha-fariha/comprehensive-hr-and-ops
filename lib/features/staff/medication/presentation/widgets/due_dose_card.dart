@@ -113,6 +113,7 @@ class DueDoseCard extends StatelessWidget {
                     ),
                   ),
                   Container(
+                    key: ValueKey('staff-mar-state-${dose.id}'),
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
@@ -207,7 +208,7 @@ class DueDoseCard extends StatelessWidget {
                     ),
                   if (onEdit != null)
                     _Action(
-                      key: ValueKey('mar-edit-${dose.id}'),
+                      key: ValueKey('staff-mar-edit-${dose.id}'),
                       icon: Icons.edit_outlined,
                       label: 'Edit prescription',
                       onTap: onEdit!,
