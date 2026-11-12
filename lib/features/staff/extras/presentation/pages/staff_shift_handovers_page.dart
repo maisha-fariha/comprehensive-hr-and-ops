@@ -179,11 +179,16 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
     final controller = owned
         ? Get.put(GetIt.instance<HandoversController>(), tag: tag)
         : Get.find<HandoversController>(tag: tag);
+    await controller.ensureOptionsLoaded();
+    final home = (residenceId ?? '').trim().isNotEmpty
+        ? residenceId!.trim()
+        : (_session.residenceId?.trim() ?? '');
+    if (!mounted) return;
     await showRecordHandoverSheet(
       context,
       controller: controller,
       initialFromShiftId: shiftId,
-      initialResidenceId: residenceId,
+      initialResidenceId: home.isEmpty ? null : home,
     );
     if (owned && Get.isRegistered<HandoversController>(tag: tag)) {
       Get.delete<HandoversController>(tag: tag);

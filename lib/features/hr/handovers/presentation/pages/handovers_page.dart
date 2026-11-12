@@ -160,7 +160,19 @@ class _HandoversPageState extends State<HandoversPage> {
                       HrHeaderPrimaryAction(
                         actionKey: const ValueKey('handovers-record'),
                         label: 'Handover',
-                        onTap: () => showRecordHandoverSheet(context, controller: _c),
+                        onTap: () async {
+                          await _c.ensureOptionsLoaded();
+                          if (!context.mounted) return;
+                          final home =
+                              _c.residenceId.value?.trim().isNotEmpty == true
+                                  ? _c.residenceId.value
+                                  : _c.session.residenceId;
+                          await showRecordHandoverSheet(
+                            context,
+                            controller: _c,
+                            initialResidenceId: home,
+                          );
+                        },
                       ),
                   ],
                 ),

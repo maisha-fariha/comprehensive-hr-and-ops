@@ -47,6 +47,7 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
                 dueTimeLabel: t.dueTimeLabel,
                 location: t.location,
                 status: TaskStatus.done,
+                awaitingReview: t.awaitingReview,
               )
             : t,
     ];

@@ -32,6 +32,251 @@ Future<void> showTaskDetailSheet(
   );
 }
 
+/// Review-queue Approve gate — same supervisory checkbox as the detail sheet.
+Future<bool?> showTaskReviewSignOffSheet(
+  BuildContext context, {
+  required String title,
+}) {
+  return showAppBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _TaskReviewSignOffSheet(taskTitle: title),
+  );
+}
+
+/// Review-queue Send back — notes required like the detail sheet.
+Future<String?> showTaskReviewSendBackSheet(
+  BuildContext context, {
+  required String title,
+}) {
+  return showAppBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _TaskReviewSendBackSheet(taskTitle: title),
+  );
+}
+
+class _TaskReviewSignOffSheet extends StatefulWidget {
+  final String taskTitle;
+
+  const _TaskReviewSignOffSheet({required this.taskTitle});
+
+  @override
+  State<_TaskReviewSignOffSheet> createState() =>
+      _TaskReviewSignOffSheetState();
+}
+
+class _TaskReviewSignOffSheetState extends State<_TaskReviewSignOffSheet> {
+  bool _confirmed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Manager Review & Sign-Off',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+                  color: AppColors.textHeading,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Verify completion details and record your supervisory sign-off for “${widget.taskTitle}”.',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 14),
+              InkWell(
+                key: const Key('task-review-queue-confirm'),
+                onTap: () => setState(() => _confirmed = !_confirmed),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _confirmed,
+                      activeColor: AppColors.secondaryTeal,
+                      onChanged: (v) =>
+                          setState(() => _confirmed = v ?? false),
+                    ),
+                    const Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: Text(
+                          'I confirm I have inspected this task, verified the completed '
+                          'checklist items and evidence, and approve it for completion.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12.5,
+                            height: 1.35,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      key: const Key('task-review-queue-approve'),
+                      onPressed: _confirmed
+                          ? () => Navigator.of(context).pop(true)
+                          : null,
+                      icon: const Icon(Icons.draw_outlined, size: 16),
+                      label: const Text('Sign off & Approve'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskReviewSendBackSheet extends StatefulWidget {
+  final String taskTitle;
+
+  const _TaskReviewSendBackSheet({required this.taskTitle});
+
+  @override
+  State<_TaskReviewSendBackSheet> createState() =>
+      _TaskReviewSendBackSheetState();
+}
+
+class _TaskReviewSendBackSheetState extends State<_TaskReviewSendBackSheet> {
+  final _notes = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _notes.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _notes.text.trim();
+    if (text.isEmpty) {
+      setState(
+        () => _error =
+            'Add supervisory feedback before sending this task back.',
+      );
+      return;
+    }
+    Navigator.of(context).pop(text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Send back for rework',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
+                  color: AppColors.textHeading,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tell the assignee what still needs doing on “${widget.taskTitle}”.',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                key: const Key('task-review-queue-notes'),
+                controller: _notes,
+                minLines: 2,
+                maxLines: 4,
+                onChanged: (_) {
+                  if (_error != null) setState(() => _error = null);
+                },
+                decoration: InputDecoration(
+                  hintText:
+                      'Add supervisory feedback or instructions (required)…',
+                  border: const OutlineInputBorder(),
+                  errorText: _error,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      key: const Key('task-review-queue-send-back'),
+                      onPressed: _submit,
+                      child: const Text('Send back'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TaskDetailSheet extends StatefulWidget {
   final TaskItem task;
   final VoidCallback? onChanged;

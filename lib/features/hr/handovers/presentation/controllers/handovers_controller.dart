@@ -95,6 +95,12 @@ class HandoversController extends GetxController {
     }
   }
 
+  /// Record-handover form waits on this so residence / staff pickers are ready.
+  Future<void> ensureOptionsLoaded() async {
+    if (residences.isNotEmpty) return;
+    await _loadOptions();
+  }
+
   void setStatus(String? value) {
     status.value = value;
     load();

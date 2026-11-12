@@ -166,14 +166,17 @@ class HandoversRepositoryImpl implements HandoversRepository {
     final shifts = await shiftsRequest;
     final clockedIn = await attendanceRequest;
     if (shifts.isFailure) return Result.failure(shifts.error!);
-    if (clockedIn.isFailure) return Result.failure(clockedIn.error!);
+    final rostered = shifts.value!
+        .where((s) => s.staff.any((p) => p.id == staffId && p.rostered))
+        .toList()
+      ..sort(_newestFirst);
+    // Attendance is best-effort: if it fails, still offer rostered shifts so
+    // Record handover is not blank. When attendance succeeds, keep the web
+    // clocked-in filter.
+    if (clockedIn.isFailure) return Result.success(rostered);
     final worked = clockedIn.value!;
     return Result.success(
-      shifts.value!
-          .where((s) => s.staff.any((p) => p.id == staffId && p.rostered))
-          .where((s) => worked.contains(s.id))
-          .toList()
-        ..sort(_newestFirst),
+      rostered.where((s) => worked.contains(s.id)).toList(),
     );
   }
 

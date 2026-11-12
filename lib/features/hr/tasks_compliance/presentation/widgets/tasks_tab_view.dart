@@ -524,7 +524,9 @@ class _ReviewActionsRowState extends State<_ReviewActionsRow> {
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
         Expanded(
           child: _ActionChip(
-            label: _busy.contains('approve') ? 'Approving…' : 'Approve',
+            label: _busy.contains('approve')
+                ? 'Approving…'
+                : 'Sign off & Approve',
             filled: true,
             onTap: _busy.contains('approve')
                 ? null

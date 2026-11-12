@@ -55,7 +55,8 @@ abstract final class StaffTasksMessagesMapper {
         case TaskStatus.pending:
           pending++;
         case TaskStatus.done:
-          done++;
+          // Web: awaiting manager review is not “Done” yet.
+          if (!task.awaitingReview) done++;
       }
     }
     return TaskStats(
@@ -277,6 +278,8 @@ abstract final class StaffTasksMessagesMapper {
     final due = JsonCodec.dateTime(
       json['dueAt'] ?? json['dueDate'] ?? json['due'],
     );
+    final statusRaw = (json['status'] ?? '').toString().toLowerCase().trim();
+    final awaiting = _awaitingReview(json, statusRaw);
     return StaffTask(
       id: JsonCodec.stringOr(json['id'], json['title'] ?? 'task'),
       title: JsonCodec.stringOr(json['title'] ?? json['name'], 'Task'),
@@ -289,7 +292,8 @@ abstract final class StaffTasksMessagesMapper {
             json['location'],
         '',
       ),
-      status: _taskStatus(json['status'], due),
+      status: _taskStatus(statusRaw, due),
+      awaitingReview: awaiting,
     );
   }
 
@@ -674,11 +678,15 @@ abstract final class StaffTasksMessagesMapper {
   }
 
   static TaskStatus _taskStatus(dynamic raw, DateTime? due) {
-    final status = (raw ?? '').toString().toLowerCase();
+    final status = (raw ?? '').toString().toLowerCase().trim();
     if (status.contains('complete') ||
         status == 'done' ||
         status == 'closed' ||
-        status == 'approved') {
+        status == 'approved' ||
+        status == 'pending_review' ||
+        status == 'awaiting_review' ||
+        status == 'in_review' ||
+        status == 'review') {
       return TaskStatus.done;
     }
     if (status.contains('overdue') || status == 'late') {
@@ -689,6 +697,27 @@ abstract final class StaffTasksMessagesMapper {
       return TaskStatus.overdue;
     }
     return TaskStatus.pending;
+  }
+
+  /// Web list: finished + review required + no `reviewedAt` → Awaiting review.
+  static bool _awaitingReview(Map<String, dynamic> json, String statusRaw) {
+    final reviewed = json['reviewedAt'];
+    final notReviewed = reviewed == null ||
+        (reviewed is String && reviewed.trim().isEmpty);
+    if (!notReviewed) return false;
+    if (statusRaw == 'pending_review' ||
+        statusRaw == 'awaiting_review' ||
+        statusRaw == 'in_review' ||
+        statusRaw == 'review') {
+      return true;
+    }
+    final finished = statusRaw == 'completed' ||
+        statusRaw == 'done' ||
+        statusRaw == 'complete' ||
+        statusRaw.contains('complete');
+    final requires = json['requiresReview'] == true ||
+        JsonCodec.boolean(json['requiresReview']) == true;
+    return finished && requires;
   }
 
   static MessagePriority _priority(dynamic raw) {
@@ -713,8 +742,9 @@ abstract final class StaffTasksMessagesMapper {
         tasks.where((t) => t.status == TaskStatus.overdue).toList(),
       TaskFilter.dueToday =>
         tasks.where((t) => t.status == TaskStatus.pending).toList(),
-      TaskFilter.done =>
-        tasks.where((t) => t.status == TaskStatus.done).toList(),
+      TaskFilter.done => tasks
+          .where((t) => t.status == TaskStatus.done && !t.awaitingReview)
+          .toList(),
     };
   }
 

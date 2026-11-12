@@ -15,11 +15,16 @@ class StaffTask {
   final String location;
   final TaskStatus status;
 
+  /// Finished, review required, and not reviewed yet — list shows
+  /// “Awaiting review” instead of “Done” (web / HR parity).
+  final bool awaitingReview;
+
   const StaffTask({
     required this.id,
     required this.title,
     required this.dueTimeLabel,
     required this.location,
     required this.status,
+    this.awaitingReview = false,
   });
 }

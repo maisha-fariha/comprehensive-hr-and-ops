@@ -1,3 +1,4 @@
+import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/handover_options.dart';
 import '../../domain/entities/shift_handover.dart';
@@ -12,10 +13,28 @@ abstract final class HandoversMapper {
     final id = JsonCodec.string(json['id']);
     if (id == null) return null;
     final flag = JsonCodec.mapAt(json, 'flagForAttention');
+    final residence = JsonCodec.mapAt(json, 'residence');
+    final author = JsonCodec.mapAt(json, 'author') ??
+        JsonCodec.mapAt(json, 'createdByUser') ??
+        JsonCodec.mapAt(json, 'createdByStaff');
+    final authorLabel = () {
+      final raw = JsonCodec.string(
+        author?['name'] ?? json['createdByName'] ?? json['authorName'],
+      );
+      if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+      if (author == null) return null;
+      final composed = IsoDateRange.personName(author);
+      return composed == 'Unknown' ? null : composed;
+    }();
     return ShiftHandover(
       id: id,
-      residenceId: JsonCodec.stringOr(json['residenceId'], ''),
-      residenceName: JsonCodec.string(JsonCodec.mapAt(json, 'residence')?['name']),
+      residenceId: JsonCodec.stringOr(
+        json['residenceId'] ?? residence?['id'],
+        '',
+      ),
+      residenceName: JsonCodec.string(
+        residence?['name'] ?? json['residenceName'],
+      ),
       fromShiftId: JsonCodec.string(json['fromShiftId']),
       fromShiftStartsAt:
           JsonCodec.dateTime(JsonCodec.mapAt(json, 'fromShift')?['startsAt']),
@@ -25,10 +44,12 @@ abstract final class HandoversMapper {
       status: JsonCodec.stringOr(json['status'], 'submitted'),
       pendingActions: [
         for (final action in JsonCodec.listAt(json, 'pendingActions'))
-          if (action is String)
-            action
+          if (action is String && action.trim().isNotEmpty)
+            action.trim()
           else if (action is Map)
-            ?JsonCodec.string(action['title']),
+            if (JsonCodec.string(action['title']) case final title?
+                when title.trim().isNotEmpty)
+              title.trim(),
       ],
       clientUpdates: [
         for (final row in JsonCodec.listAt(json, 'clientUpdates').whereType<Map>())
@@ -63,8 +84,10 @@ abstract final class HandoversMapper {
           _acknowledgement(JsonCodec.asMap(row)),
       ],
       flagCategory: flag?['category'] is String ? flag!['category'] as String : null,
-      createdBy: JsonCodec.string(json['createdBy']),
-      authorName: JsonCodec.string(JsonCodec.mapAt(json, 'author')?['name']),
+      createdBy: JsonCodec.string(
+        json['createdBy'] ?? author?['id'] ?? json['createdByStaffId'],
+      ),
+      authorName: authorLabel,
       createdAt: JsonCodec.dateTime(json['createdAt']),
     );
   }
@@ -190,9 +213,20 @@ abstract final class HandoversMapper {
 
   static HandoverClientUpdate _clientUpdate(Map<String, dynamic> json) {
     final care = JsonCodec.mapAt(json, 'care');
+    final client = JsonCodec.mapAt(json, 'client');
+    final clientName = JsonCodec.string(json['clientName']) ??
+        (client == null
+            ? null
+            : () {
+                final composed = IsoDateRange.personName(client);
+                return composed == 'Unknown' ? null : composed;
+              }());
     return HandoverClientUpdate(
-      id: JsonCodec.stringOr(json['id'], JsonCodec.stringOr(json['clientId'], '')),
-      clientName: JsonCodec.string(json['clientName']),
+      id: JsonCodec.stringOr(
+        json['id'] ?? json['clientId'] ?? client?['id'],
+        '',
+      ),
+      clientName: clientName,
       status: JsonCodec.stringOr(json['status'], 'stable'),
       health: _textEntries(JsonCodec.mapAt(json, 'health')),
       medication: _textEntries(JsonCodec.mapAt(json, 'medication')),
@@ -201,7 +235,7 @@ abstract final class HandoversMapper {
           : HandoverCare(
               completed: [
                 for (final item in JsonCodec.listAt(care, 'completed'))
-                  if (item is String) item,
+                  if (item is String && item.trim().isNotEmpty) item.trim(),
               ],
               otherCompleted: _nonBlank(care['otherCompleted']),
               pending: _nonBlank(care['pending']),
@@ -293,19 +327,34 @@ abstract final class HandoversMapper {
             if (JsonCodec.string(row['status']) != 'cancelled')
               HandoverShift(
                 id: id,
-                residenceId: JsonCodec.string(row['residenceId']),
-                residenceName: JsonCodec.string(row['residenceName']),
+                residenceId: JsonCodec.string(
+                  row['residenceId'] ??
+                      JsonCodec.mapAt(JsonCodec.asMap(row), 'residence')?['id'],
+                ),
+                residenceName: JsonCodec.string(
+                  row['residenceName'] ??
+                      JsonCodec.mapAt(JsonCodec.asMap(row), 'residence')?['name'],
+                ),
                 title: JsonCodec.string(row['title']),
                 shiftType: JsonCodec.string(row['shiftType']),
                 startsAt: JsonCodec.dateTime(row['startsAt']),
                 endsAt: JsonCodec.dateTime(row['endsAt']),
                 staff: [
                   for (final person
-                      in JsonCodec.listAt(JsonCodec.asMap(row), 'staff').whereType<Map>())
-                    if (JsonCodec.string(person['id']) case final staffId?)
+                      in JsonCodec.listAt(JsonCodec.asMap(row), 'staff')
+                          .whereType<Map>())
+                    if (JsonCodec.string(person['id'] ?? person['staffId'])
+                        case final staffId?)
                       HandoverShiftStaff(
                         id: staffId,
-                        name: JsonCodec.string(person['name']),
+                        name: () {
+                          final direct = JsonCodec.string(person['name']);
+                          if (direct != null && direct.trim().isNotEmpty) {
+                            return direct.trim();
+                          }
+                          final composed = IsoDateRange.personName(person);
+                          return composed == 'Unknown' ? null : composed;
+                        }(),
                         status: JsonCodec.string(person['status']),
                       ),
                 ],

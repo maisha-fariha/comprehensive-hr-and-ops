@@ -124,16 +124,29 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
   @override
   void initState() {
     super.initState();
+    // Prefer the focused shift's home, then the signed-in residence, then the
+    // list filter — never start blank when the session already knows a home.
     final home = widget.initialResidenceId?.trim() ?? '';
-    _residenceId = home.isNotEmpty ? home : (_c.residenceId.value ?? '');
+    final sessionHome = _c.session.residenceId?.trim() ?? '';
+    final filterHome = _c.residenceId.value?.trim() ?? '';
+    _residenceId = home.isNotEmpty
+        ? home
+        : (sessionHome.isNotEmpty ? sessionHome : filterHome);
     final pin = _pinnedShiftId;
     if (pin.isNotEmpty) _shiftId = pin;
-    _loadMyShifts();
-    _loadResidenceShifts();
+    _bootstrapForm();
     aiDraftingEnabled().then((enabled) {
       if (!mounted) return;
       setState(() => _aiDraftingEnabled = enabled);
     });
+  }
+
+  /// Wait for residence options if the controller is still loading them, then
+  /// pull my / home shifts so the dropdowns are filled on first paint.
+  Future<void> _bootstrapForm() async {
+    await _c.ensureOptionsLoaded();
+    if (!mounted) return;
+    await Future.wait([_loadMyShifts(), _loadResidenceShifts()]);
   }
 
   @override
@@ -283,22 +296,32 @@ class _RecordHandoverSheetState extends State<RecordHandoverSheet> {
       return;
     }
     setState(() => _saving = true);
-    final entryIds = _selectedEntryIds;
-    final taskIds = _selectedTaskIds;
-    final incidentIds = _selectedIncidentIds;
+    final entryIds = _selectedEntryIds.where((id) => id.trim().isNotEmpty).toList();
+    final taskIds = _selectedTaskIds.where((id) => id.trim().isNotEmpty).toList();
+    final incidentIds =
+        _selectedIncidentIds.where((id) => id.trim().isNotEmpty).toList();
+    final fromShift = _shiftId.trim();
+    final toShift = _toShiftId.trim();
+    final flag = _flag.trim();
     final result = await _c.repository.create({
       'residenceId': residence,
       'summary': summary,
-      'pendingActions': [for (final job in _jobs) job.toJson()],
+      'pendingActions': [
+        for (final job in _jobs)
+          if (job.title.trim().isNotEmpty) job.toJson(),
+      ],
       if (_updates.isNotEmpty)
-        'clientUpdates': [for (final update in _updates) update.toJson()],
+        'clientUpdates': [
+          for (final update in _updates)
+            if (update.clientId.trim().isNotEmpty) update.toJson(),
+        ],
       'status': draft ? 'draft' : 'submitted',
-      if (_shiftId.isNotEmpty) 'fromShiftId': _shiftId,
-      if (_toShiftId.isNotEmpty) 'toShiftId': _toShiftId,
+      if (fromShift.isNotEmpty) 'fromShiftId': fromShift,
+      if (toShift.isNotEmpty) 'toShiftId': toShift,
       if (entryIds.isNotEmpty) 'entryIds': entryIds,
       if (taskIds.isNotEmpty) 'taskIds': taskIds,
       if (incidentIds.isNotEmpty) 'incidentIds': incidentIds,
-      if (_flag.isNotEmpty) 'flagForAttention': {'category': _flag},
+      if (flag.isNotEmpty) 'flagForAttention': {'category': flag},
     });
     if (!mounted) return;
     setState(() => _saving = false);

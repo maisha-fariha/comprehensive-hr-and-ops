@@ -48,10 +48,17 @@ class TasksCompliancePage extends StatelessWidget {
   TasksComplianceRepository get _repository =>
       GetIt.instance<TasksComplianceRepository>();
 
+  /// Web Manager Review: Approve is gated by the supervisory sign-off checkbox.
   Future<void> _approveReview(
+    BuildContext context,
     TasksComplianceController controller,
     TaskItem task,
   ) async {
+    final confirmed = await showTaskReviewSignOffSheet(
+      context,
+      title: task.title,
+    );
+    if (confirmed != true) return;
     final result = await _repository.reviewTask(
       taskId: task.id,
       decision: 'approve',
@@ -68,13 +75,16 @@ class TasksCompliancePage extends StatelessWidget {
   }
 
   Future<void> _rejectReview(
+    BuildContext context,
     TasksComplianceController controller,
     TaskItem task,
   ) async {
+    final notes = await showTaskReviewSendBackSheet(context, title: task.title);
+    if (notes == null) return;
     final result = await _repository.reviewTask(
       taskId: task.id,
       decision: 'reject',
-      reviewNotes: 'Needs more work before approval.',
+      reviewNotes: notes,
     );
     result.when(
       success: (_) async {
@@ -254,10 +264,12 @@ class TasksCompliancePage extends StatelessWidget {
                             onChanged: controller.refresh,
                           ),
                           onApproveReview: _canReviewTasks()
-                              ? (task) => _approveReview(controller, task)
+                              ? (task) =>
+                                  _approveReview(context, controller, task)
                               : null,
                           onRejectReview: _canReviewTasks()
-                              ? (task) => _rejectReview(controller, task)
+                              ? (task) =>
+                                  _rejectReview(context, controller, task)
                               : null,
                           onPauseRecurring: _canWriteTasks()
                               ? (task) => _pauseRecurring(controller, task)
