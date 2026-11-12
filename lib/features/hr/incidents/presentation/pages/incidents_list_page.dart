@@ -30,11 +30,15 @@ class IncidentsListPage extends StatelessWidget {
   const IncidentsListPage({super.key});
 
   IncidentsController _resolveController() {
+    IncidentsController controller;
     try {
-      return Get.find<IncidentsController>();
+      controller = Get.find<IncidentsController>();
     } catch (_) {
-      return Get.put(GetIt.instance<IncidentsController>(), permanent: true);
+      controller =
+          Get.put(GetIt.instance<IncidentsController>(), permanent: true);
     }
+    controller.ensureLoaded();
+    return controller;
   }
 
   Future<void> _openCreationWizard(IncidentsController controller) async {

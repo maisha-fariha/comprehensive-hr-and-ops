@@ -24,19 +24,20 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
   @override
   Future<Result<StaffDashboardOverview>> getOverview() async {
     // B1 map: Greeting & residence name → GET /mobile/me
-    final me = await _api.get(ApiEndpoints.mobileMe, silent: true);
-    if (me.isSuccess) {
-      final profile = AuthMapper.profileFromJson(me.value);
-      if (profile != null) {
-        // `/mobile/me` omits the picture. Keep the account photo from
-        // `/auth/me` (the same file the web header shows).
-        final previous = _session.avatarUrl;
-        _session.applyProfile(profile);
-        if (profile.avatarUrl == null) {
-          final kept = (previous != null && previous.isNotEmpty)
-              ? previous
-              : await _accountAvatarUrl();
-          if (kept != null) _session.updateAvatarUrl(kept);
+    // Prefer the in-memory session when already loaded (login / restore) so
+    // home refresh does not re-hit /mobile/me + /auth/me every time.
+    if (_session.userId == null || _session.userId!.isEmpty) {
+      final me = await _api.get(ApiEndpoints.mobileMe, silent: true);
+      if (me.isSuccess) {
+        final profile = AuthMapper.profileFromJson(me.value);
+        if (profile != null) {
+          final previous = _session.avatarUrl;
+          _session.applyProfile(profile);
+          if (profile.avatarUrl == null &&
+              previous != null &&
+              previous.isNotEmpty) {
+            _session.updateAvatarUrl(previous);
+          }
         }
       }
     }
@@ -257,9 +258,4 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
     );
   }
 
-  Future<String?> _accountAvatarUrl() async {
-    final result = await _api.get(ApiEndpoints.authMe, silent: true);
-    if (result.isFailure) return null;
-    return JsonCodec.string(JsonCodec.unwrapMap(result.value)['avatarUrl']);
-  }
 }

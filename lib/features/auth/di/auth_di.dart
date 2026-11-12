@@ -110,6 +110,8 @@ Future<void> setupAuthDependencies() async {
     );
     client.refreshFailure = result.isSuccess ? null : result.error;
     if (result.isFailure && result.error?.code == 'refresh_rejected') {
+      // Stop further API traffic immediately (before async sign-out finishes).
+      client.noteSessionClosed();
       final session = Get.isRegistered<UserSession>()
           ? Get.find<UserSession>()
           : null;

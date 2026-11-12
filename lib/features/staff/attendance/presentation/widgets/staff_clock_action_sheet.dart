@@ -385,6 +385,11 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
       _showSubmitError(_rosterWarning());
       return;
     }
+    // After HANDOVER_REQUIRED, do not re-POST clock-out until handover is done.
+    if (!widget.isCheckIn && _writeHandover) {
+      _openHandover();
+      return;
+    }
     final residenceId = _residenceId?.trim();
     if (residenceId == null || residenceId.isEmpty) {
       _showSubmitError(
@@ -396,7 +401,6 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     setState(() {
       _submitting = true;
       _submitError = null;
-      _writeHandover = false;
     });
     await _locationTask;
     if (!mounted) return;

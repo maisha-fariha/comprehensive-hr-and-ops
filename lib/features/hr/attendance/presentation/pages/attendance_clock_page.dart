@@ -336,6 +336,10 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
   }
 
   Future<void> _submit() async {
+    if (widget.clockOut && _writeHandover) {
+      _openHandover();
+      return;
+    }
     if (_staffId.isEmpty) {
       AppSnackbar.show(
         'Attendance',

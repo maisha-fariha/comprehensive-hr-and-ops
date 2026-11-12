@@ -29,7 +29,7 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
     DateTime? weekStart,
     DateTime? selectedDate,
   }) async {
-    await TenantClock.syncFromApi(_api, force: true);
+    await TenantClock.syncFromApi(_api);
     final start = IsoDateRange.startOfWeek(weekStart ?? TenantClock.now());
     final end = start.add(const Duration(days: 7));
     // Open bidding look-ahead: two weeks so next-week opens aren't missed

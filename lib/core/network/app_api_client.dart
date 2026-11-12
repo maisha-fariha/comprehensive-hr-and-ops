@@ -47,6 +47,13 @@ class AppApiClient implements OutboxTransport {
   /// Shared in-flight refresh so concurrent 401s only refresh once.
   Future<bool>? _refreshInFlight;
 
+  /// After refresh is rejected (or sign-out starts), block further API calls
+  /// so shell tabs / prewarm cannot flood the backend with 401s.
+  bool _sessionClosed = false;
+
+  /// Coalesce identical in-flight GETs (e.g. many modules hitting /residences).
+  final Map<String, Future<Result<dynamic>>> _inFlightGets = {};
+
   AppApiClient(
     this._api,
     this._tenant, {
@@ -57,6 +64,23 @@ class AppApiClient implements OutboxTransport {
   })  : _cache = cache,
         _sync = sync,
         _connectivity = connectivity;
+
+  /// Call when refresh is rejected or sign-out begins — stops new HTTP.
+  void noteSessionClosed() => _sessionClosed = true;
+
+  /// Call after a successful login / session restore.
+  void noteSessionOpened() => _sessionClosed = false;
+
+  bool get _apiBlocked {
+    if (_sessionClosed) return true;
+    try {
+      if (Get.isRegistered<UserSession>() &&
+          Get.find<UserSession>().isSigningOut) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
 
   Options _options({
     bool includeTenant = true,
@@ -135,7 +159,17 @@ class AppApiClient implements OutboxTransport {
         OfflineOverlay.forTempPath(path, outbox!.overlayItems),
       ));
     }
-    return _send(
+    final key = _getCoalesceKey(
+      path: path,
+      query: query,
+      includeTenant: includeTenant,
+      allowTokenRefresh: allowTokenRefresh,
+    );
+    final existing = _inFlightGets[key];
+    if (existing != null) return existing;
+
+    late final Future<Result<dynamic>> tracked;
+    tracked = _send(
       method: 'GET',
       path: path,
       query: query,
@@ -146,7 +180,29 @@ class AppApiClient implements OutboxTransport {
         queryParameters: query,
         options: _options(includeTenant: includeTenant),
       ),
-    );
+    ).whenComplete(() {
+      if (identical(_inFlightGets[key], tracked)) {
+        _inFlightGets.remove(key);
+      }
+    });
+    _inFlightGets[key] = tracked;
+    return tracked;
+  }
+
+  String _getCoalesceKey({
+    required String path,
+    required Map<String, dynamic>? query,
+    required bool includeTenant,
+    required bool allowTokenRefresh,
+  }) {
+    final parts = <String>[
+      path,
+      if (query != null)
+        ...(query.entries.map((e) => '${e.key}=${e.value}').toList()..sort()),
+      't=$includeTenant',
+      'r=$allowTokenRefresh',
+    ];
+    return parts.join('|');
   }
 
   /// File uploads (and any upload inside `OutboxContext.run(stageUploads:
@@ -515,6 +571,13 @@ class AppApiClient implements OutboxTransport {
       return Result.failure(error);
     }
 
+    // Session closed / signing out: do not hit the network (auth paths OK).
+    if (_apiBlocked && !_isAuthPath(path)) {
+      return Result.failure(
+        const AuthError(message: 'Sign-in needed', code: '401'),
+      );
+    }
+
     try {
       final response = await request();
       if (!response.success) {
@@ -525,6 +588,11 @@ class AppApiClient implements OutboxTransport {
             !alreadyRetriedAfterRefresh &&
             _isUnauthorized(rawError, response.statusCode) &&
             !_isAuthPath(path)) {
+          if (_apiBlocked) {
+            return Result.failure(
+              const AuthError(message: 'Sign-in needed', code: '401'),
+            );
+          }
           final refreshed = await _tryRefreshToken();
           if (refreshed) {
             return await _send(
@@ -548,6 +616,9 @@ class AppApiClient implements OutboxTransport {
               (_isRateLimited(refreshError) ||
                   refreshError.code == 'refresh_rejected')) {
             if (_isRateLimited(refreshError)) {
+              if (_apiBlocked) {
+                return Result.failure(rawError);
+              }
               final again = await request();
               if (again.success) {
                 _connectivity?.reportReachable();
@@ -569,6 +640,7 @@ class AppApiClient implements OutboxTransport {
               return Result.failure(rawError);
             }
             // refresh_rejected: tokenRefresher already signed the user out.
+            noteSessionClosed();
             return Result.failure(refreshError);
           }
           // Network / 5xx on refresh: keep the tokens. Only a 401 from the

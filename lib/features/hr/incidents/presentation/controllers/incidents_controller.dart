@@ -17,12 +17,14 @@ import '../../domain/repositories/incidents_repository.dart';
 class IncidentsController extends BaseController<IncidentsBoard> {
   final IncidentsRepository repository;
 
-  IncidentsController({required this.repository}) {
-    loadBoard();
-  }
+  IncidentsController({required this.repository});
 
   final Rx<IncidentsTab> selectedTab = IncidentsTab.open.obs;
   final RxBool isExporting = false.obs;
+
+  /// Lightweight Alerts-tab badge (summary only — not the full board).
+  final RxnInt badgeOpenCount = RxnInt();
+  bool _badgeLoading = false;
 
   IncidentsBoard? get board => state.value.data;
 
@@ -30,13 +32,37 @@ class IncidentsController extends BaseController<IncidentsBoard> {
 
   int _loadGeneration = 0;
 
+  /// Call from the Alerts tab page — loads the full 4-request board once.
+  void ensureLoaded() {
+    if (board != null || isLoading.value) return;
+    loadBoard();
+  }
+
+  /// Shell badge: one `GET /incidents/summary` (coalesced), never the board.
+  void ensureBadge() {
+    if (badgeOpenCount.value != null || _badgeLoading) return;
+    _badgeLoading = true;
+    repository.getOpenCount().then((result) {
+      _badgeLoading = false;
+      result.when(
+        success: (count) => badgeOpenCount.value = count,
+        failure: (_) {
+          if (badgeOpenCount.value == null) badgeOpenCount.value = 0;
+        },
+      );
+    });
+  }
+
   Future<void> loadBoard() async {
     final generation = ++_loadGeneration;
     setLoading(true);
     final result = await repository.getBoard();
     if (generation != _loadGeneration) return;
     result.when(
-      success: setSuccess,
+      success: (data) {
+        setSuccess(data);
+        badgeOpenCount.value = data.open.activeCount;
+      },
       failure: (error) => setError(error.message),
     );
     setLoading(false);

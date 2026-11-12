@@ -408,9 +408,7 @@ class StaffAttendanceController
 
   @override
   Future<void> refresh() async {
-    if (Get.isRegistered<UserSession>()) {
-      await Get.find<UserSession>().refreshProfile();
-    }
+    // Profile refresh is owned by AppRefreshIndicator — avoid double /mobile/me.
     await Future.wait([
       loadOverview(),
       _loadResidences(),

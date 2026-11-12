@@ -9,6 +9,7 @@ import '../../features/auth/domain/entities/mobile_profile.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../errors/app_error_dialog.dart';
 import '../errors/app_error_mapper.dart';
+import '../network/app_api_client.dart';
 import '../widgets/app_bottom_sheet.dart';
 import '../push/device_registration_service.dart';
 import '../routing/app_routes.dart';
@@ -347,6 +348,11 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   Future<void> signOut() async {
     _signingOut = true;
     try {
+      // Block new HTTP immediately so IndexedStack / prewarm cannot keep
+      // firing 401s while navigation and controller teardown finish.
+      try {
+        GetIt.instance<AppApiClient>().noteSessionClosed();
+      } catch (_) {}
       // Leave the portal first. If we clear tokens / delete controllers while
       // StaffShell is still mounted, Obx rebuilds recreate controllers and
       // fire unauthenticated GETs → "Sign-in needed" on the login screen.

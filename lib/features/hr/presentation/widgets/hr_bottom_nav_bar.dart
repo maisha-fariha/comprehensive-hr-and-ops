@@ -30,14 +30,18 @@ int? hrAlertsBadgeCount() {
       // Inventory Manager and other roles without incidents access must
       // not boot the incidents board. That GET is 403 and the client
       // shows "Access denied" as soon as the shell opens.
-      if (session.permissionsReady && !session.can('incidents:read')) {
+      // Wait for permissions — otherwise we boot Incidents and 403.
+      if (!session.permissionsReady || !session.can('incidents:read')) {
         return null;
       }
     }
+    // Badge uses summary only — do not boot the full incidents board here.
     if (!Get.isRegistered<IncidentsController>()) {
       Get.put(GetIt.instance<IncidentsController>(), permanent: true);
     }
-    final count = Get.find<IncidentsController>().board?.open.activeCount ?? 0;
+    final controller = Get.find<IncidentsController>();
+    controller.ensureBadge();
+    final count = controller.badgeOpenCount.value ?? 0;
     return count > 0 ? count : null;
   } catch (_) {
     return null;

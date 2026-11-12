@@ -15,6 +15,9 @@ import '../entities/incidents_board.dart';
 abstract class IncidentsRepository {
   Future<Result<IncidentsBoard>> getBoard();
 
+  /// Open-incident count for the shell badge (`GET /incidents/summary` only).
+  Future<Result<int>> getOpenCount();
+
   /// Investigation summary for Under Review → View Investigation.
   ///
   /// Loads `GET /incidents/:id` (per-incident detail). Board counters still

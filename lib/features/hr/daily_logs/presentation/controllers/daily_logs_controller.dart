@@ -230,6 +230,10 @@ class DailyLogsController extends GetxController {
   }
 
   Future<void> _loadStaff() async {
+    if (!session.can('staff:read') && !session.can('staff:directory')) {
+      staff.clear();
+      return;
+    }
     final result = await repository.staff();
     result.when(success: staff.assignAll, failure: (_) => staff.clear());
   }

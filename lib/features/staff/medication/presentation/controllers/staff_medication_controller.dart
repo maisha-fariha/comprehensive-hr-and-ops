@@ -101,6 +101,8 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
     (label: 'Other / missed', status: 'missed', doseReason: 'other'),
   ];
 
+  Future<void>? _overviewInFlight;
+
   StaffMedicationController({
     required this.repository,
     UserSession? session,
@@ -290,7 +292,13 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   /// Reloads every list a medicine or dose can appear in — the round, the
   /// PRN register, the prescriptions, the Given history and the pickers —
   /// the way the web invalidates every `mar` query after a save.
-  Future<void> loadOverview() async {
+  Future<void> loadOverview() {
+    return _overviewInFlight ??= _loadOverviewBody().whenComplete(() {
+      _overviewInFlight = null;
+    });
+  }
+
+  Future<void> _loadOverviewBody() async {
     final serial = ++_loadSerial;
     final residence = filterResidenceId.value.isEmpty
         ? null

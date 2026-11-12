@@ -382,6 +382,7 @@ class AuthRepositoryImpl implements AuthRepository {
       refreshToken: tokens.refreshToken,
       accessExpiresAt: tokens.accessExpiresAt,
     );
+    _api.noteSessionOpened();
     return Result.success(null);
   }
 

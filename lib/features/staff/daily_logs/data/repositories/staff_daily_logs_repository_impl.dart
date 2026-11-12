@@ -49,6 +49,7 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
       if (hasClient) 'clientId': clientId,
     };
 
+    final canFlags = _session.can('care-flags:read');
     final futures = <Future<Result<dynamic>>>[
       _api.get(
         ApiEndpoints.dailyLogs,
@@ -79,17 +80,20 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
         },
         silent: true,
       ),
-      _api.get(
-        ApiEndpoints.careFlags,
-        query: {
-          'state': 'open',
-          'page': 1,
-          'limit': 50,
-          'residenceId': residenceId,
-          if (hasClient) 'clientId': clientId,
-        },
-        silent: true,
-      ),
+      if (canFlags)
+        _api.get(
+          ApiEndpoints.careFlags,
+          query: {
+            'state': 'open',
+            'page': 1,
+            'limit': 50,
+            'residenceId': residenceId,
+            if (hasClient) 'clientId': clientId,
+          },
+          silent: true,
+        )
+      else
+        Future.value(Result.success(const {'data': <dynamic>[]})),
     ];
 
     final results = await Future.wait(futures);

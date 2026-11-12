@@ -51,7 +51,7 @@ class PortalInboxRepositoryImpl implements PortalInboxRepository {
     int limit = 30,
   }) async {
     // Force-sync so reminder bodies use Settings → General timeFormat (12h/24h).
-    await TenantClock.syncFromApi(_api, force: true);
+    await TenantClock.syncFromApi(_api);
     final result = await _api.get(
       ApiEndpoints.notifications,
       query: {'page': page, 'limit': limit},

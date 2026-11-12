@@ -147,11 +147,20 @@ class SchedulingController extends BaseController<SchedulingOverview> {
     await loadOverview();
   }
 
-  Future<void> loadOverview() async {
+  Future<void>? _overviewInFlight;
+
+  Future<void> loadOverview() {
+    // Coalesce overlapping week/nav/refresh calls (was ×3–4 shift-swap bursts).
+    return _overviewInFlight ??= _loadOverviewBody().whenComplete(() {
+      _overviewInFlight = null;
+    });
+  }
+
+  Future<void> _loadOverviewBody() async {
     final generation = ++_loadGeneration;
     setLoading(true);
-    // Keep scheduling:write / bid gates in sync with tenant role edits.
-    await session?.refreshProfile();
+    // Profile refresh is owned by AppRefreshIndicator / explicit refresh —
+    // not every overview (avoids /mobile/me storms).
 
     // Until the user picks a day, always request today's selection when the
     // visible week contains today.

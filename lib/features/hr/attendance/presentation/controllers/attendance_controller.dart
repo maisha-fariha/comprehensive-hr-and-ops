@@ -71,9 +71,7 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
 
   @override
   Future<void> refresh() async {
-    // Tenant-admin role edits are stored on the access token — refresh so
-    // Residences / Scheduling gates match the web without signing out.
-    await _session.refreshProfile();
+    // Profile refresh is owned by AppRefreshIndicator — avoid double /mobile/me.
     await _loadResidences();
     if (mainTab.value == AttendanceMainTab.timeOff) {
       await loadTimeOffRequests();

@@ -19,13 +19,21 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
 
   StaffDashboardOverview? get overview => state.value.data;
 
+  Future<void>? _overviewInFlight;
+
   @override
   void onInit() {
     super.onInit();
     loadOverview();
   }
 
-  Future<void> loadOverview() async {
+  Future<void> loadOverview() {
+    return _overviewInFlight ??= _loadOverviewBody().whenComplete(() {
+      _overviewInFlight = null;
+    });
+  }
+
+  Future<void> _loadOverviewBody() async {
     setLoading(true);
     final result = await repository.getOverview();
     result.when(

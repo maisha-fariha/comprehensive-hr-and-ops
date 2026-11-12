@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 
 /// Residence GPS gate used by the web Clock in / out dialog.
 class ResidenceClockGeofence {
@@ -89,6 +91,15 @@ class ClockVerificationPrefs {
     if (!GetIt.instance.isRegistered<AppApiClient>()) {
       return const ClockVerificationPrefs();
     }
+    // Avoid 403 when the role cannot read org settings — use safe defaults.
+    try {
+      if (Get.isRegistered<UserSession>()) {
+        final session = Get.find<UserSession>();
+        if (session.permissionsReady && !session.can('settings:read')) {
+          return const ClockVerificationPrefs();
+        }
+      }
+    } catch (_) {}
     final result = await GetIt.instance<AppApiClient>().get(
       ApiEndpoints.settings,
       silent: true,

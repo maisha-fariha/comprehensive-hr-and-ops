@@ -37,6 +37,23 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
         _tenant = tenant;
 
   @override
+  Future<Result<int>> getOpenCount() async {
+    final result = await _api.get(ApiEndpoints.incidentsSummary, silent: true);
+    return result.when(
+      success: (body) async {
+        final summary = JsonCodec.unwrapMap(body);
+        return Result.success(
+          JsonCodec.integerOr(
+            summary['open'] ?? summary['openCount'],
+            0,
+          ),
+        );
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<IncidentsBoard>> getBoard() async {
     // Web Incidents lists the whole tenant until a residence filter is chosen.
     // Session home-house injection made nurse/manager boards disagree with web.

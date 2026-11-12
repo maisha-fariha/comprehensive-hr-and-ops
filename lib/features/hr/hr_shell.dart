@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../core/roles/permission_gate.dart';
 import '../../core/roles/user_session.dart';
+import '../../core/widgets/lazy_indexed_tab.dart';
 import 'attendance/presentation/pages/attendance_page.dart';
 import 'dashboard/presentation/pages/manager_dashboard_page.dart';
 import 'incidents/presentation/pages/incidents_list_page.dart';
@@ -38,21 +39,15 @@ class HrShell extends StatefulWidget {
 
 class _HrShellState extends State<HrShell> {
   late int _currentIndex;
+  late final Set<int> _opened;
 
   static const int _scheduleTabIndex = 1;
-
-  static const _tabs = <Widget>[
-    ManagerDashboardPage(),
-    SchedulingPage(),
-    AttendancePage(),
-    IncidentsListPage(),
-    HrMoreMenuPage(),
-  ];
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, _tabs.length - 1);
+    _currentIndex = widget.initialIndex.clamp(0, 4);
+    _opened = {_currentIndex};
     if (_currentIndex == _scheduleTabIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _applyScheduleFocusOrToday();
@@ -61,7 +56,10 @@ class _HrShellState extends State<HrShell> {
   }
 
   void _onBottomNavTap(int index) {
-    setState(() => _currentIndex = index);
+    setState(() {
+      _opened.add(index);
+      _currentIndex = index;
+    });
     if (index == _scheduleTabIndex) {
       _applyScheduleFocusOrToday(fromBottomNav: true);
     }
@@ -86,6 +84,16 @@ class _HrShellState extends State<HrShell> {
     controller.resetCalendarToToday();
   }
 
+  WidgetBuilder _builderFor(int index) {
+    return switch (index) {
+      0 => (_) => const ManagerDashboardPage(),
+      1 => (_) => const SchedulingPage(),
+      2 => (_) => const AttendancePage(),
+      3 => (_) => const IncidentsListPage(),
+      _ => (_) => const HrMoreMenuPage(),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
@@ -96,13 +104,23 @@ class _HrShellState extends State<HrShell> {
           session == null || managerTabAllowed(session, index);
       final index = allowed(_currentIndex)
           ? _currentIndex
-          : firstAllowedTab(length: _tabs.length, allowed: allowed, fallback: 4);
+          : firstAllowedTab(length: 5, allowed: allowed, fallback: 4);
+      if (!_opened.contains(index)) {
+        // Landing tab may change when permissions resolve.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _opened.add(index));
+        });
+      }
       return Scaffold(
         body: IndexedStack(
           index: index,
           children: [
-            for (var i = 0; i < _tabs.length; i++)
-              allowed(i) ? _tabs[i] : const SizedBox.shrink(),
+            for (var i = 0; i < 5; i++)
+              LazyIndexedTab(
+                active: allowed(i) && _opened.contains(i),
+                builder: _builderFor(i),
+              ),
           ],
         ),
         bottomNavigationBar: HrBottomNavBar(

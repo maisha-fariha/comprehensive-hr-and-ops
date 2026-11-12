@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/config/app_env.dart';
 import '../../../../../core/network/api_endpoints.dart';
@@ -10,6 +11,7 @@ import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/report_export_item.dart';
 import '../../domain/entities/staff_sensitive.dart';
 import '../../domain/entities/team_reports_page_data.dart';
@@ -32,6 +34,9 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
         _tokens = tokens,
         _tenant = tenant;
 
+  UserSession? get _session =>
+      Get.isRegistered<UserSession>() ? Get.find<UserSession>() : null;
+
   /// Web Team Reports is tenant-wide; do not inject session.residenceId.
   Map<String, dynamic> get _residenceQuery => const <String, dynamic>{};
 
@@ -45,24 +50,29 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
   Future<Result<TeamReportsPageData>> getPageData() async {
     final residenceQuery = _residenceQuery;
 
-    // Team tab — Total Staff
-    var staffResult = await _api.get(
-      ApiEndpoints.staff,
-      query: {'page': 1, 'limit': 20, ...residenceQuery},
-      silent: true,
-    );
-    if (staffResult.isFailure) {
+    // Team tab — Total Staff (skip when role cannot read staff → avoids 403).
+    final canStaff = _session?.can('staff:read') == true ||
+        _session?.can('staff:directory') == true;
+    Result<dynamic> staffResult = Result.success(const {'data': <dynamic>[]});
+    if (canStaff) {
       staffResult = await _api.get(
-        ApiEndpoints.staffDirectory,
-        query: residenceQuery,
+        ApiEndpoints.staff,
+        query: {'page': 1, 'limit': 20, ...residenceQuery},
         silent: true,
       );
-    }
-    if (staffResult.isFailure) {
-      return Result.failure(
-        staffResult.error ??
-            const ApiError(message: 'Could not load the team directory.'),
-      );
+      if (staffResult.isFailure) {
+        staffResult = await _api.get(
+          ApiEndpoints.staffDirectory,
+          query: residenceQuery,
+          silent: true,
+        );
+      }
+      if (staffResult.isFailure) {
+        return Result.failure(
+          staffResult.error ??
+              const ApiError(message: 'Could not load the team directory.'),
+        );
+      }
     }
 
     final range = _rangeQuery;
@@ -86,15 +96,14 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
       ),
       // Reports — Available Reports list + Team Top Reports
       _api.get(ApiEndpoints.reportsSummary, query: range, silent: true),
-      // Reports — KPI counters
-      _api.get(ApiEndpoints.reportsKpis, query: range, silent: true),
       // Team / Messages — conversations
       _api.get(
         ApiEndpoints.conversations,
         query: const {'page': 1, 'limit': 50},
         silent: true,
       ),
-      // Reports — Analytics view
+      // Reports — Analytics view (tenant KPIs live here; /reports/kpis is
+      // platform-admin only and 404s for tenants).
       _api.get(ApiEndpoints.reportsAnalytics, query: range, silent: true),
       // Reports — Export list
       _api.get(ApiEndpoints.reportsExports, silent: true),
@@ -126,17 +135,17 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
         ),
     ]);
 
-    if (extras[2].isFailure && extras[3].isFailure) {
+    if (extras[2].isFailure && extras[4].isFailure) {
       return Result.failure(
         extras[2].error ??
-            extras[3].error ??
+            extras[4].error ??
             const ApiError(message: 'Could not load team reports.'),
       );
     }
 
     final seriesBodies = <String, dynamic>{};
     for (var i = 0; i < _seriesMetrics.length; i++) {
-      final result = extras[11 + i];
+      final result = extras[10 + i];
       if (result.isSuccess) {
         seriesBodies[_seriesMetrics[i]] = result.value;
       }
@@ -148,14 +157,14 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
         onDutyBody: extras[0].isSuccess ? extras[0].value : null,
         openShiftsBody: extras[1].isSuccess ? extras[1].value : null,
         summaryBody: extras[2].isSuccess ? extras[2].value : null,
-        kpisBody: extras[3].isSuccess ? extras[3].value : null,
-        conversationsBody: extras[4].isSuccess ? extras[4].value : null,
-        analyticsBody: extras[5].isSuccess ? extras[5].value : null,
-        exportsBody: extras[6].isSuccess ? extras[6].value : null,
-        documentsBody: extras[7].isSuccess ? extras[7].value : null,
-        documentsSummaryBody: extras[8].isSuccess ? extras[8].value : null,
-        documentTypesBody: extras[9].isSuccess ? extras[9].value : null,
-        notificationsBody: extras[10].isSuccess ? extras[10].value : null,
+        kpisBody: null,
+        conversationsBody: extras[3].isSuccess ? extras[3].value : null,
+        analyticsBody: extras[4].isSuccess ? extras[4].value : null,
+        exportsBody: extras[5].isSuccess ? extras[5].value : null,
+        documentsBody: extras[6].isSuccess ? extras[6].value : null,
+        documentsSummaryBody: extras[7].isSuccess ? extras[7].value : null,
+        documentTypesBody: extras[8].isSuccess ? extras[8].value : null,
+        notificationsBody: extras[9].isSuccess ? extras[9].value : null,
         seriesBodies: seriesBodies,
       ),
     );

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../core/roles/permission_gate.dart';
 import '../../core/roles/user_session.dart';
+import '../../core/widgets/lazy_indexed_tab.dart';
 import 'attendance/presentation/pages/staff_attendance_page.dart';
 import 'dashboard/presentation/controllers/staff_dashboard_controller.dart';
 import 'dashboard/presentation/pages/staff_dashboard_page.dart';
@@ -18,6 +19,8 @@ import 'scheduling/presentation/pages/staff_schedule_page.dart';
 ///
 /// Tabs the signed-in user cannot read are left out of the bar. Home and More
 /// stay so there is always a place to land.
+///
+/// Unvisited tabs are not built (no controller / API load) until first open.
 class StaffShell extends StatefulWidget {
   final int initialIndex;
 
@@ -40,17 +43,24 @@ class StaffShell extends StatefulWidget {
 
 class _StaffShellState extends State<StaffShell> {
   late int _currentIndex;
+  late final Set<int> _opened;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, 5);
-    _refreshHomeIfReturning();
+    _opened = {_currentIndex};
+    // Home loads once via StaffDashboardController.onInit — do not refresh
+    // again in the same open (was a duplicate /mobile/home + shifts burst).
   }
 
   void _refreshHomeIfReturning() {
     if (!Get.isRegistered<StaffDashboardController>()) return;
-    Get.find<StaffDashboardController>().refresh();
+    final controller = Get.find<StaffDashboardController>();
+    // Re-tap Home only: refresh if data already exists (returning to tab).
+    if (controller.overview != null) {
+      controller.refresh();
+    }
   }
 
   @override
@@ -63,45 +73,64 @@ class _StaffShellState extends State<StaffShell> {
       final userKey = session.userId ?? session.email;
 
       bool allowed(int tab) => staffTabAllowed(session, tab);
-      final tabs = <Widget>[
-        const StaffDashboardPage(),
-        allowed(1)
-            ? StaffSchedulePage(
-                focusDate: widget.scheduleFocusDate,
-                focusShiftId: widget.scheduleFocusShiftId,
-              )
-            : const SizedBox.shrink(),
-        allowed(2)
-            ? const StaffAttendancePage(showStaffBottomNav: false)
-            : const SizedBox.shrink(),
-        allowed(3)
-            ? const StaffDailyLogsPage()
-            : const SizedBox.shrink(),
-        allowed(4)
-            ? const StaffMarTasksMenuPage()
-            : const SizedBox.shrink(),
-        const StaffMoreMenuPage(),
-      ];
       final index = allowed(_currentIndex)
-          ? _currentIndex.clamp(0, tabs.length - 1)
+          ? _currentIndex.clamp(0, 5)
           : firstAllowedTab(
-              length: tabs.length,
+              length: 6,
               allowed: allowed,
               fallback: 5,
             );
+      if (!_opened.contains(index)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _opened.add(index));
+        });
+      }
 
       return Scaffold(
         key: ValueKey('staff-shell-$userKey'),
         body: IndexedStack(
           key: ValueKey('staff-tabs-$userKey'),
           index: index,
-          children: tabs,
+          children: [
+            LazyIndexedTab(
+              active: allowed(0) && _opened.contains(0),
+              builder: (_) => const StaffDashboardPage(),
+            ),
+            LazyIndexedTab(
+              active: allowed(1) && _opened.contains(1),
+              builder: (_) => StaffSchedulePage(
+                focusDate: widget.scheduleFocusDate,
+                focusShiftId: widget.scheduleFocusShiftId,
+              ),
+            ),
+            LazyIndexedTab(
+              active: allowed(2) && _opened.contains(2),
+              builder: (_) =>
+                  const StaffAttendancePage(showStaffBottomNav: false),
+            ),
+            LazyIndexedTab(
+              active: allowed(3) && _opened.contains(3),
+              builder: (_) => const StaffDailyLogsPage(),
+            ),
+            LazyIndexedTab(
+              active: allowed(4) && _opened.contains(4),
+              builder: (_) => const StaffMarTasksMenuPage(),
+            ),
+            LazyIndexedTab(
+              active: allowed(5) && _opened.contains(5),
+              builder: (_) => const StaffMoreMenuPage(),
+            ),
+          ],
         ),
         bottomNavigationBar: StaffBottomNavBar(
           currentIndex: index,
           onTap: (value) {
             if (!allowed(value)) return;
-            setState(() => _currentIndex = value);
+            setState(() {
+              _opened.add(value);
+              _currentIndex = value;
+            });
             if (value == 0) _refreshHomeIfReturning();
           },
         ),

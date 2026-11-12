@@ -35,7 +35,8 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     DateTime? monthOf,
   }) async {
     // Always refresh org timezone so Settings → General changes match the web.
-    await TenantClock.syncFromApi(_api, force: true);
+    // Reuse cached org timezone unless unset (force only wastes /settings/general).
+    await TenantClock.syncFromApi(_api);
     // Web schedule is tenant-wide until a residence filter is chosen.
     // Do not fall back to session.residenceId (role/home-house scoping gap).
     final scopedResidenceId = residenceId?.trim().isNotEmpty == true

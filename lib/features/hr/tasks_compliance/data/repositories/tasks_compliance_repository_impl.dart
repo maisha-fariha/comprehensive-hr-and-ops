@@ -32,12 +32,12 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       if (residenceId != null && residenceId.isNotEmpty) 'residenceId': residenceId,
     };
 
-    // Compliance tab (A12):
-    // - GET /compliance/score          → overall % + breakdown
-    // - GET /compliance/overview       → Completed / Pending Review / Needs Attention
-    // - GET /compliance/checks?…&outstanding=true → checklist
-    // - GET /compliance/requirements   → Upcoming Compliance Reviews
-    // - GET /compliance/alerts         → Compliance tab alert badge
+    // Compliance endpoints require compliance:read — skip to avoid 403 storms
+    // when the user only has tasks:read (Tasks tab still works).
+    final canCompliance = _session.can('compliance:read');
+    Future<Result<dynamic>> skipped() async =>
+        Result.success(const <String, dynamic>{});
+
     final results = await Future.wait([
       _api.get(
         ApiEndpoints.tasksStats,
@@ -72,70 +72,98 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
         },
         silent: true,
       ),
-      _api.get(ApiEndpoints.complianceScore, query: residenceQuery, silent: true),
-      _api.get(
-        ApiEndpoints.complianceOverview,
-        query: residenceQuery,
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceChecks,
-        query: {
-          'page': 1,
-          'limit': 20,
-          'outstanding': true,
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceRequirements,
-        query: {
-          'page': 1,
-          'limit': 20,
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceAlerts,
-        query: residenceQuery,
-        silent: true,
-      ),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceScore,
+          query: residenceQuery,
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceOverview,
+          query: residenceQuery,
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceChecks,
+          query: {
+            'page': 1,
+            'limit': 20,
+            'outstanding': true,
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceRequirements,
+          query: {
+            'page': 1,
+            'limit': 20,
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceAlerts,
+          query: residenceQuery,
+          silent: true,
+        )
+      else
+        skipped(),
       // Corrective tab:
       // - Active: status=open,in_progress
       // - Overdue badge: overdue=true
       // - Recent Resolutions: status=completed
-      _api.get(
-        ApiEndpoints.complianceCorrectiveActions,
-        query: {
-          'page': 1,
-          'limit': 20,
-          'status': 'open,in_progress',
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceCorrectiveActions,
-        query: {
-          'page': 1,
-          'limit': 20,
-          'overdue': true,
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceCorrectiveActions,
-        query: {
-          'page': 1,
-          'limit': 20,
-          'status': 'completed',
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceCorrectiveActions,
+          query: {
+            'page': 1,
+            'limit': 20,
+            'status': 'open,in_progress',
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceCorrectiveActions,
+          query: {
+            'page': 1,
+            'limit': 20,
+            'overdue': true,
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceCorrectiveActions,
+          query: {
+            'page': 1,
+            'limit': 20,
+            'status': 'completed',
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
     ]);
 
     final tasks = results[1];
