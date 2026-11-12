@@ -14,7 +14,7 @@ import '../widgets/staff_emergency_details_sheet.dart';
 import '../widgets/staff_raise_emergency_dialog.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
-enum _EmergencyStatusFilter {
+enum StaffEmergencyStatusFilter {
   all,
   active,
   acknowledged,
@@ -25,7 +25,13 @@ enum _EmergencyStatusFilter {
 
 /// Staff Emergency list — cards from `GET /emergency-alerts`.
 class StaffEmergencyPage extends StatefulWidget {
-  const StaffEmergencyPage({super.key});
+  /// Matches web "View Active Queue" from the raise-alarm banner.
+  final StaffEmergencyStatusFilter initialStatus;
+
+  const StaffEmergencyPage({
+    super.key,
+    this.initialStatus = StaffEmergencyStatusFilter.all,
+  });
 
   @override
   State<StaffEmergencyPage> createState() => _StaffEmergencyPageState();
@@ -37,11 +43,12 @@ class _StaffEmergencyPageState extends State<StaffEmergencyPage> {
   bool _loading = true;
   String? _error;
   List<StaffEmergencyAlert> _items = const [];
-  _EmergencyStatusFilter _filter = _EmergencyStatusFilter.all;
+  late StaffEmergencyStatusFilter _filter;
 
   @override
   void initState() {
     super.initState();
+    _filter = widget.initialStatus;
     _api = GetIt.instance<AppApiClient>();
     _session = Get.find<UserSession>();
     _load();
@@ -73,36 +80,36 @@ class _StaffEmergencyPageState extends State<StaffEmergencyPage> {
     );
   }
 
-  int _countFor(_EmergencyStatusFilter filter) {
+  int _countFor(StaffEmergencyStatusFilter filter) {
     switch (filter) {
-      case _EmergencyStatusFilter.all:
+      case StaffEmergencyStatusFilter.all:
         return _items.length;
-      case _EmergencyStatusFilter.active:
+      case StaffEmergencyStatusFilter.active:
         return _items.where((a) => a.isActive).length;
-      case _EmergencyStatusFilter.acknowledged:
+      case StaffEmergencyStatusFilter.acknowledged:
         return _items.where((a) => a.isAcknowledged).length;
-      case _EmergencyStatusFilter.inProgress:
+      case StaffEmergencyStatusFilter.inProgress:
         return _items.where((a) => a.isInProgress).length;
-      case _EmergencyStatusFilter.resolved:
+      case StaffEmergencyStatusFilter.resolved:
         return _items.where((a) => a.isResolved).length;
-      case _EmergencyStatusFilter.cancelled:
+      case StaffEmergencyStatusFilter.cancelled:
         return _items.where((a) => a.isCancelled).length;
     }
   }
 
   List<StaffEmergencyAlert> get _visibleItems {
     switch (_filter) {
-      case _EmergencyStatusFilter.all:
+      case StaffEmergencyStatusFilter.all:
         return _items;
-      case _EmergencyStatusFilter.active:
+      case StaffEmergencyStatusFilter.active:
         return _items.where((a) => a.isActive).toList();
-      case _EmergencyStatusFilter.acknowledged:
+      case StaffEmergencyStatusFilter.acknowledged:
         return _items.where((a) => a.isAcknowledged).toList();
-      case _EmergencyStatusFilter.inProgress:
+      case StaffEmergencyStatusFilter.inProgress:
         return _items.where((a) => a.isInProgress).toList();
-      case _EmergencyStatusFilter.resolved:
+      case StaffEmergencyStatusFilter.resolved:
         return _items.where((a) => a.isResolved).toList();
-      case _EmergencyStatusFilter.cancelled:
+      case StaffEmergencyStatusFilter.cancelled:
         return _items.where((a) => a.isCancelled).toList();
     }
   }
@@ -248,28 +255,28 @@ class _StaffEmergencyPageState extends State<StaffEmergencyPage> {
     );
   }
 
-  String _filterLabel(_EmergencyStatusFilter filter) {
+  String _filterLabel(StaffEmergencyStatusFilter filter) {
     switch (filter) {
-      case _EmergencyStatusFilter.all:
+      case StaffEmergencyStatusFilter.all:
         return 'All';
-      case _EmergencyStatusFilter.active:
+      case StaffEmergencyStatusFilter.active:
         return 'Active';
-      case _EmergencyStatusFilter.acknowledged:
+      case StaffEmergencyStatusFilter.acknowledged:
         return 'Acknowledged';
-      case _EmergencyStatusFilter.inProgress:
+      case StaffEmergencyStatusFilter.inProgress:
         return 'In Progress';
-      case _EmergencyStatusFilter.resolved:
+      case StaffEmergencyStatusFilter.resolved:
         return 'Resolved';
-      case _EmergencyStatusFilter.cancelled:
+      case StaffEmergencyStatusFilter.cancelled:
         return 'Cancelled';
     }
   }
 }
 
 class _EmergencyStatusChips extends StatelessWidget {
-  final _EmergencyStatusFilter selected;
-  final int Function(_EmergencyStatusFilter filter) countFor;
-  final ValueChanged<_EmergencyStatusFilter> onSelected;
+  final StaffEmergencyStatusFilter selected;
+  final int Function(StaffEmergencyStatusFilter filter) countFor;
+  final ValueChanged<StaffEmergencyStatusFilter> onSelected;
 
   static const Color _selectedBg = Color(0xFF0E7C7B);
   static const Color _unselectedInk = Color(0xFF6B7280);
@@ -288,8 +295,8 @@ class _EmergencyStatusChips extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       child: Row(
         children: [
-          for (final filter in _EmergencyStatusFilter.values) ...[
-            if (filter != _EmergencyStatusFilter.values.first)
+          for (final filter in StaffEmergencyStatusFilter.values) ...[
+            if (filter != StaffEmergencyStatusFilter.values.first)
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
             _StatusChip(
               label: '${_label(filter)} (${countFor(filter)})',
@@ -302,19 +309,19 @@ class _EmergencyStatusChips extends StatelessWidget {
     );
   }
 
-  String _label(_EmergencyStatusFilter filter) {
+  String _label(StaffEmergencyStatusFilter filter) {
     switch (filter) {
-      case _EmergencyStatusFilter.all:
+      case StaffEmergencyStatusFilter.all:
         return 'All';
-      case _EmergencyStatusFilter.active:
+      case StaffEmergencyStatusFilter.active:
         return 'Active';
-      case _EmergencyStatusFilter.acknowledged:
+      case StaffEmergencyStatusFilter.acknowledged:
         return 'Acknowledged';
-      case _EmergencyStatusFilter.inProgress:
+      case StaffEmergencyStatusFilter.inProgress:
         return 'In Progress';
-      case _EmergencyStatusFilter.resolved:
+      case StaffEmergencyStatusFilter.resolved:
         return 'Resolved';
-      case _EmergencyStatusFilter.cancelled:
+      case StaffEmergencyStatusFilter.cancelled:
         return 'Cancelled';
     }
   }

@@ -9,7 +9,9 @@ import '../../../../../core/roles/user_session.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/emergency_alert.dart';
 import '../../domain/repositories/emergency_repository.dart';
+import '../controllers/emergency_controller.dart';
 import '../emergency_labels.dart';
+import '../pages/emergency_page.dart';
 import 'emergency_alert_motion.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/widgets/form_scroll_to_error.dart';
@@ -215,6 +217,17 @@ class _RaiseEmergencySheetState extends State<RaiseEmergencySheet> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                ActiveEmergencyQueueBanner(
+                  onViewQueue: () {
+                    Navigator.of(context).pop(false);
+                    // Already on the board when raised from EmergencyPage.
+                    if (Get.isRegistered<EmergencyController>()) {
+                      Get.find<EmergencyController>().setStatus('active');
+                      return;
+                    }
+                    Get.to(() => const EmergencyPage());
+                  },
+                ),
                 if (_error != null) ...[
                   Container(
                     key: const ValueKey('raise-emergency-error'),

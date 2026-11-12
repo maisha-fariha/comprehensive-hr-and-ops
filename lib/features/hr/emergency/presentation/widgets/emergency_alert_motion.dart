@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/repositories/emergency_repository.dart';
 
@@ -229,6 +230,82 @@ class _EmergencyBounceState extends State<EmergencyBounce>
           child: child,
         );
       },
+    );
+  }
+}
+
+/// Web raise-modal banner: active-queue count + "View Active Queue →".
+///
+/// Hidden while the active total is zero. Polls via [EmergencyAlertWatch] so
+/// the sheet still shows the message when opened away from the header pill.
+class ActiveEmergencyQueueBanner extends StatelessWidget {
+  final VoidCallback onViewQueue;
+
+  const ActiveEmergencyQueueBanner({super.key, required this.onViewQueue});
+
+  @override
+  Widget build(BuildContext context) {
+    return EmergencyAlertWatch(
+      child: Obx(() {
+        final count = ActiveEmergencyAlerts.count.value;
+        if (count <= 0) return const SizedBox.shrink();
+        final noun = count == 1 ? 'alert' : 'alerts';
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Material(
+            color: AppColors.criticalBackgroundSoft,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              key: const ValueKey('raise-emergency-active-queue'),
+              borderRadius: BorderRadius.circular(10),
+              onTap: onViewQueue,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.criticalRed.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.crisis_alert_rounded,
+                      size: 16,
+                      color: AppColors.criticalRed.withValues(alpha: 0.95),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$count active emergency $noun in progress',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: AppColors.criticalRed,
+                          height: 1.25,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'View Active Queue →',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                        color: Color(0xFFDC2626),
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 }
