@@ -8,7 +8,6 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/permission_gate.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
-import '../../staff_shell.dart';
 import '../../extras/presentation/pages/staff_admissions_page.dart';
 import '../../extras/presentation/pages/staff_appointments_page.dart';
 import '../../../common/support_tickets/presentation/pages/support_tickets_page.dart';
@@ -142,14 +141,6 @@ class StaffMoreMenuPage extends StatelessWidget {
                 iconColor: AppColors.infoBlue,
                 title: 'Support & Tickets',
                 subtitle: 'Tenant support requests and replies',
-              ),
-            if (session.can('attendance:read'))
-              const StaffMenuEntry(
-                icon: Icons.access_time_rounded,
-                iconBackground: AppColors.infoBackground,
-                iconColor: AppColors.infoBlue,
-                title: 'Attendance',
-                subtitle: 'Clock in/out and shift history',
               ),
             if (session.canAccessIncidents)
               const StaffMenuEntry(
@@ -290,8 +281,6 @@ class StaffMoreMenuPage extends StatelessWidget {
           anyOf: const ['tickets:view_own', 'tickets:view_tenant'],
           builder: () => const SupportTicketsPage(),
         );
-      case 'Attendance':
-        Get.offAll(() => const StaffShell(initialIndex: 2));
       case 'Incidents':
         openPermittedPage(
           title: title,
