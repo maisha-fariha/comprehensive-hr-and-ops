@@ -608,16 +608,32 @@ abstract final class TasksComplianceMapper {
     final statusRaw = (JsonCodec.string(json['status'] ?? json['state']) ?? '')
         .toLowerCase();
     final awaitingReview = _awaitingReview(json, statusRaw);
+    final finished = statusRaw == 'completed' ||
+        statusRaw == 'done' ||
+        statusRaw == 'complete' ||
+        statusRaw == 'closed' ||
+        statusRaw == 'approved';
+    // Web marks open / in-progress tasks Overdue once dueAt is in the past,
+    // even when the API still sends status "pending".
+    final pastDue = due != null && due.toUtc().isBefore(now.toUtc());
     final status = switch (statusRaw) {
       'overdue' || 'late' => TaskStatus.overdue,
-      'upcoming' || 'scheduled' => TaskStatus.upcoming,
+      'upcoming' || 'scheduled' =>
+        pastDue ? TaskStatus.overdue : TaskStatus.upcoming,
       'completed' || 'done' || 'complete' || 'closed' || 'approved' =>
         TaskStatus.completed,
       'pending_review' || 'awaiting_review' || 'in_review' || 'review' =>
         TaskStatus.due,
-      'due' || 'in_progress' || 'pending' || 'open' =>
-        isToday ? TaskStatus.due : TaskStatus.upcoming,
-      _ => isToday ? TaskStatus.due : TaskStatus.upcoming,
+      'due' || 'in_progress' || 'pending' || 'open' => pastDue && !awaitingReview
+          ? TaskStatus.overdue
+          : isToday
+              ? TaskStatus.due
+              : TaskStatus.upcoming,
+      _ => pastDue && !finished && !awaitingReview
+          ? TaskStatus.overdue
+          : isToday
+              ? TaskStatus.due
+              : TaskStatus.upcoming,
     };
     final typeRaw = JsonCodec.stringOr(
       json['taskType'] ?? json['type'] ?? json['category'],

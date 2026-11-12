@@ -21,6 +21,7 @@ import '../../extras/presentation/pages/staff_residences_page.dart';
 import '../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../extras/presentation/pages/staff_training_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
+import '../../../hr/ai_alerts/presentation/pages/ai_alerts_page.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../../hr/org_settings/presentation/pages/org_settings_page.dart';
 import '../open_staff_profile.dart';
@@ -158,6 +159,17 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Incidents',
                 subtitle: 'My reports & all residence incidents',
               ),
+            // Web tenantNav: AI Alerts when dashboard:read OR notifications:read.
+            if (session.can('dashboard:read') ||
+                session.can('notifications:read'))
+              const StaffMenuEntry(
+                icon: Icons.auto_awesome_outlined,
+                iconBackground: AppColors.nightBackground,
+                iconColor: AppColors.nightPurple,
+                title: 'AI Alerts & Insights',
+                subtitle:
+                    'Scheduled AI checks — medication, incidents, rotas, stock',
+              ),
             if (session.can('settings:read'))
               const StaffMenuEntry(
                 icon: Icons.settings_outlined,
@@ -289,6 +301,12 @@ class StaffMoreMenuPage extends StatelessWidget {
           title: title,
           anyOf: const ['incidents:read'],
           builder: () => const StaffIncidentsListPage(),
+        );
+      case 'AI Alerts & Insights':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['dashboard:read', 'notifications:read'],
+          builder: () => const AiAlertsPage(),
         );
       case 'Settings':
         openPermittedPage(

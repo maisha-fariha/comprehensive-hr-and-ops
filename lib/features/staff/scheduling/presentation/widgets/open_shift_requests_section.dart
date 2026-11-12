@@ -5,6 +5,9 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../domain/entities/staff_shift.dart';
 
 /// "Open Shift Requests" list from `GET /shifts?status=open`.
+///
+/// Web Open shifts rail: the whole card is tappable (“Click for actions” /
+/// “Bid for this shift”).
 class OpenShiftRequestsSection extends StatelessWidget {
   final List<StaffShift> shifts;
   final ValueChanged<StaffShift>? onRequestTap;
@@ -62,93 +65,131 @@ class _OpenShiftCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 14,
-        vertical: 14,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
+    final canBid = onRequestTap != null;
+    final bidLabel = shift.filled <= 0
+        ? 'No bids yet'
+        : '${shift.filled} staff ${shift.filled == 1 ? 'has' : 'have'} bid for this shift';
+
+    return Material(
+      color: AppColors.surfaceWhite,
+      borderRadius: BorderRadius.circular(radius),
+      child: InkWell(
+        onTap: canBid ? () => onRequestTap!(shift) : null,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  shift.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14.5),
-                    color: AppColors.textHeading,
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
-                Text(
-                  shift.dateTimeLabel,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textMuted,
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
-                Text(
-                  '${shift.location} · ${shift.openSlots} open · ${shift.roleTag}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w500,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
+        child: Ink(
+          width: double.infinity,
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 14,
+            vertical: 14,
           ),
-          if (onRequestTap != null) ...[
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          GestureDetector(
-            onTap: () => onRequestTap!(shift),
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: ResponsiveHelper.getResponsivePadding(
-                context,
-                horizontal: 12,
-                vertical: 9,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.activeBackground,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        shift.title.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 11),
+                          color: AppColors.secondaryTeal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceWhite,
-                borderRadius: BorderRadius.circular(
-                  ResponsiveHelper.getResponsiveRadius(context, 10),
-                ),
-                border: Border.all(color: AppColors.secondaryTeal),
-              ),
-              child: Text(
-                'Request',
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+              Text(
+                shift.dateTimeLabel,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                  color: AppColors.textHeading,
+                ),
+              ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+              Text(
+                '${shift.location} · ${shift.openSlots} open'
+                '${shift.roleTag.isEmpty ? '' : ' · ${shift.roleTag}'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w500,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
+              Text(
+                canBid
+                    ? (shift.filled <= 0
+                        ? 'No bids yet'
+                        : '$bidLabel. Tap to bid.')
+                    : bidLabel,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
                   fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
                   color: AppColors.secondaryTeal,
                 ),
               ),
-            ),
+              if (canBid) ...[
+                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: ResponsiveHelper.getResponsivePadding(
+                      context,
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceWhite,
+                      borderRadius: BorderRadius.circular(
+                        ResponsiveHelper.getResponsiveRadius(context, 10),
+                      ),
+                      border: Border.all(color: AppColors.textHeading),
+                    ),
+                    child: Text(
+                      'Bid for this shift',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize:
+                            ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
-          ],
-        ],
+        ),
       ),
     );
   }

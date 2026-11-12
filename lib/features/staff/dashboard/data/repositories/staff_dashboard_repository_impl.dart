@@ -98,19 +98,25 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
   }
 
   /// `/mobile/home` can keep a shift from an earlier day. Today's Shift and
-  /// clock-in follow the web window: this person, 14 hours either side of now.
+  /// clock-in follow the web window: this person, ±14h (wider when an open
+  /// punch's shiftId must still be found after the window ends).
   Future<Map<String, dynamic>?> _rosteredShift({String? preferShiftId}) async {
     final now = DateTime.now().toUtc();
     final staffId = _session.staffId;
+    final prefer = preferShiftId?.trim();
+    final lookBackHours = prefer != null && prefer.isNotEmpty ? 48 : 14;
+    final lookAheadHours = prefer != null && prefer.isNotEmpty ? 24 : 14;
     final result = await _api.get(
       ApiEndpoints.shifts,
       query: {
         if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
         if (staffId == null || staffId.isEmpty) 'mine': true,
-        'from': now.subtract(const Duration(hours: 14)).toIso8601String(),
-        'to': now.add(const Duration(hours: 14)).toIso8601String(),
+        'from': now
+            .subtract(Duration(hours: lookBackHours))
+            .toIso8601String(),
+        'to': now.add(Duration(hours: lookAheadHours)).toIso8601String(),
         'page': 1,
-        'limit': 20,
+        'limit': 50,
       },
       silent: true,
     );
@@ -130,7 +136,6 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
 
     // Still clocked into a just-ended shift — keep its times / id for Home
     // and clock-out (missing shiftId re-triggers HANDOVER_REQUIRED).
-    final prefer = preferShiftId?.trim();
     if (prefer != null && prefer.isNotEmpty) {
       for (final item in JsonCodec.unwrapList(result.value)) {
         if (item is! Map) continue;
@@ -176,6 +181,15 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       JsonCodec.mapAt(home, 'shift') ?? const {},
     );
     current.addAll(shift);
+    for (final key in ['timeRange', 'label', 'timeLabel']) {
+      final value = JsonCodec.string(current[key])?.trim().toLowerCase() ?? '';
+      if (value.isEmpty ||
+          value == 'no shift today' ||
+          value == 'no shift' ||
+          value == 'off shift') {
+        current.remove(key);
+      }
+    }
     home['shift'] = current;
   }
 

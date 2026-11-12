@@ -246,6 +246,8 @@ class TaskListTile extends StatelessWidget {
                   _MetaChip(
                     icon: Icons.schedule_rounded,
                     text: task.timeLabel,
+                    emphasize: task.status == TaskStatus.overdue &&
+                        !task.awaitingReview,
                   ),
               ],
             ),
@@ -290,15 +292,25 @@ class TaskListTile extends StatelessWidget {
 class _MetaChip extends StatelessWidget {
   final IconData icon;
   final String text;
+  final bool emphasize;
 
-  const _MetaChip({required this.icon, required this.text});
+  const _MetaChip({
+    required this.icon,
+    required this.text,
+    this.emphasize = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final color = emphasize ? const Color(0xFFD64545) : AppColors.textBody;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: AppColors.textMuted),
+        Icon(
+          icon,
+          size: 14,
+          color: emphasize ? const Color(0xFFD64545) : AppColors.textMuted,
+        ),
         const SizedBox(width: 4),
         ConstrainedBox(
           constraints: BoxConstraints(
@@ -310,9 +322,9 @@ class _MetaChip extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'Outfit',
-              fontWeight: FontWeight.w500,
+              fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-              color: AppColors.textBody,
+              color: color,
             ),
           ),
         ),

@@ -18,6 +18,7 @@ import '../../../../../core/offline/offline_outbox.dart';
 import '../../../../../core/offline/outbox_context.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_sync_chip.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../dashboard/presentation/controllers/staff_dashboard_controller.dart';
 import '../../domain/entities/staff_task.dart';
 import '../../domain/entities/staff_task_detail.dart';
@@ -77,10 +78,7 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
   bool _checksReady = false;
   List<StaffTaskCheckItem> _checks = const [];
   final _noteController = TextEditingController();
-  final _detailScroll = ScrollController();
   final _noticeKey = GlobalKey();
-  bool _moreAbove = false;
-  bool _moreBelow = false;
   String? _notice;
   bool _noticeError = false;
 
@@ -88,29 +86,13 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
   void initState() {
     super.initState();
     _repository = GetIt.instance<StaffTasksMessagesRepository>();
-    _detailScroll.addListener(_syncScrollHints);
     _load();
   }
 
   @override
   void dispose() {
-    _detailScroll.removeListener(_syncScrollHints);
-    _detailScroll.dispose();
     _noteController.dispose();
     super.dispose();
-  }
-
-  void _syncScrollHints() {
-    if (!_detailScroll.hasClients) return;
-    final position = _detailScroll.position;
-    final above = position.pixels > 8;
-    final below = position.maxScrollExtent > 8 &&
-        position.pixels < position.maxScrollExtent - 8;
-    if (above == _moreAbove && below == _moreBelow) return;
-    setState(() {
-      _moreAbove = above;
-      _moreBelow = below;
-    });
   }
 
   void _showNotice(String message, {required bool error}) {
@@ -457,30 +439,21 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
       top: 16,
       bottom: 16,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _syncScrollHints();
-    });
-    return Column(
+    // One bottomsheet scroll (web modal pattern) — no nested list / scroll hints.
+    return ListView(
+      padding: pad.copyWith(
+        bottom: pad.bottom + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
         if (_notice != null)
           Padding(
             key: _noticeKey,
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            padding: const EdgeInsets.only(bottom: 12),
             child: _SheetNotice(
               message: _notice!,
               error: _noticeError,
             ),
           ),
-        Expanded(
-          child: Stack(
-            children: [
-              Scrollbar(
-                controller: _detailScroll,
-                thumbVisibility: true,
-                child: ListView(
-                  controller: _detailScroll,
-                  padding: pad,
-                  children: [
         if (_summaryOnly)
           Container(
             key: const Key('task-detail-offline-summary'),
@@ -553,9 +526,23 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                       : detail.assigneeName,
                 ),
                 rightLabel: 'Residence',
-                right: Text(
-                  detail.location.isEmpty ? '—' : detail.location,
-                  style: _valueStyle,
+                right: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      detail.location.isEmpty ? '—' : detail.location,
+                      style: _valueStyle,
+                    ),
+                    if (detail.clientName.isNotEmpty)
+                      Text(
+                        detail.clientName,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
@@ -580,34 +567,60 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                   ],
                 ),
                 rightLabel: 'Review',
-                right: Text(
-                  detail.requiresReview ? 'Required' : 'Not required',
-                  style: _valueStyle,
+                right: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(detail.reviewTitle, style: _valueStyle),
+                    if (detail.reviewNote != null)
+                      Text(
+                        detail.reviewNote!,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: Color(0xFFD64545),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
               _DetailField(
                 label: 'Sign-off',
-                child: Text(
-                  detail.requiresSignOff ? 'Required' : 'Not required',
-                  style: _valueStyle,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(detail.signOffTitle, style: _valueStyle),
+                    if (detail.signedOffAt != null)
+                      Text(
+                        TenantClock.formatDateTime(detail.signedOffAt!),
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                  ],
                 ),
               ),
+              if (detail.description.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _DetailField(
+                  label: 'Description',
+                  child: Text(
+                    detail.description,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                      color: AppColors.textBody,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
-        if (detail.description.isNotEmpty) ...[
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          Text(
-            detail.description,
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-              color: AppColors.textBody,
-              height: 1.4,
-            ),
-          ),
-        ],
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         _DetailCard(
           title: 'Checklist Progress',
@@ -644,6 +657,7 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
                               _checks[i].copyWith(done: !_checks[i].done),
                         ),
                       ),
+
                   ],
                 ),
         ),
@@ -768,117 +782,86 @@ class _StaffTaskDetailSheetState extends State<_StaffTaskDetailSheet> {
               ),
             ),
           ],
-                  ],
+        if (_canMutateTasks) ...[
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+          if (_checks.isNotEmpty && !isCompleted)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SheetButton(
+                label: _savingProgress ? 'Saving…' : 'Save progress',
+                onPressed: _savingProgress ? null : _saveProgress,
+              ),
+            ),
+          TextField(
+            controller: _noteController,
+            maxLines: 2,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 13.5,
+              color: AppColors.textHeading,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Add a note',
+              hintStyle: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 13.5,
+                color: AppColors.textMuted,
+              ),
+              filled: true,
+              fillColor: AppColors.surfaceWhite,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: _noteBorder(AppColors.cardBorder),
+              enabledBorder: _noteBorder(AppColors.cardBorder),
+              focusedBorder: _noteBorder(AppColors.secondaryTeal),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _SheetButton(
+                  label: _addingNote ? 'Adding…' : 'Add note',
+                  onPressed: _addingNote ? null : _addNote,
                 ),
               ),
-              if (_moreAbove)
-                const Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: _ScrollHint(up: true),
+              if (!detail.requiresSignOff || isCompleted) ...[
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 10),
                 ),
-              if (_moreBelow)
-                const Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: _ScrollHint(up: false),
+                Expanded(
+                  child: _SheetButton(
+                    label: isCompleted
+                        ? 'Completed'
+                        : _completing
+                            ? (detail.requiresReview
+                                ? 'Submitting…'
+                                : 'Completing…')
+                            : detail.requiresReview
+                                ? 'Submit for review'
+                                : 'Complete',
+                    filled: true,
+                    onPressed:
+                        (_completing || isCompleted) ? null : _complete,
+                  ),
                 ),
+              ],
             ],
           ),
-        ),
-        if (_canMutateTasks)
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              12 + MediaQuery.paddingOf(context).bottom,
+          if (detail.requiresSignOff && !isCompleted) ...[
+            const SizedBox(height: 12),
+            _SignOffBox(
+              busy: _completing,
+              onConfirm: () => _complete(signOff: true),
+              onNeedConfirm: () => _showNotice(
+                'Confirm this task was completed as described.',
+                error: true,
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_checks.isNotEmpty && !isCompleted)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _SheetButton(
-                      label: _savingProgress ? 'Saving…' : 'Save progress',
-                      onPressed: _savingProgress ? null : _saveProgress,
-                    ),
-                  ),
-                TextField(
-                  controller: _noteController,
-                  maxLines: 2,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 13.5,
-                    color: AppColors.textHeading,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Add a note',
-                    hintStyle: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 13.5,
-                      color: AppColors.textMuted,
-                    ),
-                    filled: true,
-                    fillColor: AppColors.surfaceWhite,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    border: _noteBorder(AppColors.cardBorder),
-                    enabledBorder: _noteBorder(AppColors.cardBorder),
-                    focusedBorder: _noteBorder(AppColors.secondaryTeal),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _SheetButton(
-                        label: _addingNote ? 'Adding…' : 'Add note',
-                        onPressed: _addingNote ? null : _addNote,
-                      ),
-                    ),
-                    if (!detail.requiresSignOff || isCompleted) ...[
-                      SizedBox(
-                        width: ResponsiveHelper.getResponsiveWidth(context, 10),
-                      ),
-                      Expanded(
-                        child: _SheetButton(
-                          label: isCompleted
-                              ? 'Completed'
-                              : _completing
-                                  ? (detail.requiresReview
-                                      ? 'Submitting…'
-                                      : 'Completing…')
-                                  : detail.requiresReview
-                                      ? 'Submit for review'
-                                      : 'Complete',
-                          filled: true,
-                          onPressed:
-                              (_completing || isCompleted) ? null : _complete,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                if (detail.requiresSignOff && !isCompleted) ...[
-                  const SizedBox(height: 12),
-                  _SignOffBox(
-                    busy: _completing,
-                    onConfirm: () => _complete(signOff: true),
-                    onNeedConfirm: () => _showNotice(
-                      'Confirm this task was completed as described.',
-                      error: true,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          ],
+        ],
       ],
     );
   }
@@ -909,51 +892,6 @@ class _SheetNotice extends StatelessWidget {
           height: 1.35,
           fontWeight: FontWeight.w600,
           color: color,
-        ),
-      ),
-    );
-  }
-}
-
-class _ScrollHint extends StatelessWidget {
-  final bool up;
-
-  const _ScrollHint({required this.up});
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        height: 28,
-        alignment: up ? Alignment.topCenter : Alignment.bottomCenter,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: up ? Alignment.bottomCenter : Alignment.topCenter,
-            end: up ? Alignment.topCenter : Alignment.bottomCenter,
-            colors: [
-              AppColors.surfaceWhite.withValues(alpha: 0),
-              AppColors.surfaceWhite,
-            ],
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              up ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-              size: 18,
-              color: AppColors.secondaryTeal,
-            ),
-            Text(
-              up ? 'Scroll up' : 'Scroll for more',
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.secondaryTeal,
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -1005,7 +943,7 @@ class _CheckRow extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  item.label,
+                  item.displayLabel,
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 13.5,

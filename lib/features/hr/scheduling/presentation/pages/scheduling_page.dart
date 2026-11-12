@@ -217,9 +217,8 @@ class _SchedulingPageState extends State<SchedulingPage> {
                         controller: controller,
                         shifts: overview.calendar.weekShifts,
                         coverage: overview.weekCoverage,
-                        onOpenShift: controller.canWrite
-                            ? (shiftId) => _openEditShift(controller, shiftId)
-                            : null,
+                        onOpenShift: (shiftId) =>
+                            _openEditShift(controller, shiftId),
                       ),
                       ScheduleSpan.week => CalendarTabView(
                         data: overview.calendar,
@@ -227,9 +226,8 @@ class _SchedulingPageState extends State<SchedulingPage> {
                         onNextWeek: controller.goToNextWeek,
                         onDaySelected: (day) =>
                             controller.selectCalendarDay(day.date),
-                        onShiftTap: controller.canWrite
-                            ? (shift) => _openEditShift(controller, shift.id)
-                            : null,
+                        onShiftTap: (shift) =>
+                            _openEditShift(controller, shift.id),
                         leading: [
                           ScheduleSpanSwitch(
                             selected: ScheduleSpan.week,
@@ -240,9 +238,9 @@ class _SchedulingPageState extends State<SchedulingPage> {
                           OpenShiftsRail(
                             controller: controller,
                             openShifts: overview.openShifts,
-                            onOpenShift: controller.canWrite
-                                ? (id) => _openEditShift(controller, id)
-                                : null,
+                            // Web: card / “Click for actions” always opens.
+                            onOpenShift: (id) =>
+                                _openEditShift(controller, id),
                           ),
                           StaffRosteredHoursRail(
                             rows: overview.staffRosteredHours,
@@ -260,9 +258,8 @@ class _SchedulingPageState extends State<SchedulingPage> {
                     },
                     SchedulingTab.board => BoardTabView(
                       data: overview.board,
-                      onShiftTap: controller.canWrite
-                          ? (shift) => _openEditShift(controller, shift.id)
-                          : null,
+                      onShiftTap: (shift) =>
+                          _openEditShift(controller, shift.id),
                     ),
                     SchedulingTab.requests => RequestsTabView(
                       data: overview.requests,
@@ -272,6 +269,7 @@ class _SchedulingPageState extends State<SchedulingPage> {
                       onDecline: controller.canWrite
                           ? controller.declineRequest
                           : null,
+                      onOpenShift: (id) => _openEditShift(controller, id),
                     ),
                   },
                 ),

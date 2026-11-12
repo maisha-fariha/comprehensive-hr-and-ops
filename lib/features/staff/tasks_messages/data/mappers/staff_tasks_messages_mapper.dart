@@ -301,6 +301,12 @@ abstract final class StaffTasksMessagesMapper {
     final due = JsonCodec.dateTime(
       json['dueAt'] ?? json['dueDate'] ?? json['due'],
     );
+    final client = JsonCodec.mapAt(json, 'client');
+    final clientName = JsonCodec.stringOr(
+      json['clientName'] ??
+          (client == null ? null : IsoDateRange.personName(client)),
+      '',
+    );
     return StaffTaskDetail(
       id: JsonCodec.stringOr(json['id'], 'task'),
       title: JsonCodec.stringOr(json['title'] ?? json['name'], 'Task'),
@@ -312,12 +318,14 @@ abstract final class StaffTasksMessagesMapper {
       dueLabel: due == null
           ? JsonCodec.stringOr(json['dueLabel'], '')
           : _webDateTime(due),
+      dueAt: due,
       location: JsonCodec.stringOr(
         json['residenceName'] ??
             JsonCodec.mapAt(json, 'residence')?['name'] ??
             json['location'],
         '',
       ),
+      clientName: clientName == '—' ? '' : clientName,
       assigneeName: _assigneeNames(json),
       priorityRaw: JsonCodec.stringOr(json['priority'], ''),
       taskTypeRaw: JsonCodec.stringOr(
@@ -329,6 +337,10 @@ abstract final class StaffTasksMessagesMapper {
       documents: _documents(json['evidence']),
       requiresSignOff: JsonCodec.boolean(json['requiresSignOff']) ?? false,
       requiresReview: JsonCodec.boolean(json['requiresReview']) ?? false,
+      reviewedAt: JsonCodec.dateTime(json['reviewedAt']),
+      reviewNotes: JsonCodec.stringOr(json['reviewNotes'], ''),
+      signedOffName: JsonCodec.string(json['signedOffName']),
+      signedOffAt: JsonCodec.dateTime(json['signedOffAt']),
     );
   }
 
@@ -352,20 +364,29 @@ abstract final class StaffTasksMessagesMapper {
     return [
       for (final item in JsonCodec.unwrapList(raw))
         if (item is Map)
-          StaffTaskCheckItem(
-            id: JsonCodec.string(JsonCodec.asMap(item)['id']),
-            label: JsonCodec.stringOr(
-              JsonCodec.asMap(item)['label'] ??
-                  JsonCodec.asMap(item)['title'] ??
-                  JsonCodec.asMap(item)['text'] ??
-                  JsonCodec.asMap(item)['name'],
-              'Item',
-            ),
-            done: JsonCodec.asMap(item)['done'] == true ||
-                JsonCodec.asMap(item)['completed'] == true ||
-                JsonCodec.asMap(item)['checked'] == true,
-            required: JsonCodec.asMap(item)['required'] == true,
-          ),
+          () {
+            final map = JsonCodec.asMap(item);
+            return StaffTaskCheckItem(
+              id: JsonCodec.string(map['id']),
+              label: JsonCodec.stringOr(
+                map['label'] ?? map['title'] ?? map['text'] ?? map['name'],
+                'Item',
+              ),
+              done: map['done'] == true ||
+                  map['completed'] == true ||
+                  map['checked'] == true,
+              required: map['required'] == true,
+              // Web shows recorded values next to the step (e.g. temperature).
+              value: JsonCodec.stringOr(
+                map['value'] ??
+                    map['response'] ??
+                    map['answer'] ??
+                    map['recordedValue'] ??
+                    map['notes'],
+                '',
+              ),
+            );
+          }(),
     ];
   }
 
@@ -649,9 +670,17 @@ abstract final class StaffTasksMessagesMapper {
 
   static TaskStatus _taskStatus(dynamic raw, DateTime? due) {
     final status = (raw ?? '').toString().toLowerCase();
-    if (status.contains('complete') || status == 'done') return TaskStatus.done;
-    if (status.contains('overdue')) return TaskStatus.overdue;
-    if (due != null && due.isBefore(DateTime.now()) && status != 'completed') {
+    if (status.contains('complete') ||
+        status == 'done' ||
+        status == 'closed' ||
+        status == 'approved') {
+      return TaskStatus.done;
+    }
+    if (status.contains('overdue') || status == 'late') {
+      return TaskStatus.overdue;
+    }
+    // Web: still "pending" / "open" in the API becomes Overdue after dueAt.
+    if (due != null && due.toUtc().isBefore(TenantClock.now().toUtc())) {
       return TaskStatus.overdue;
     }
     return TaskStatus.pending;

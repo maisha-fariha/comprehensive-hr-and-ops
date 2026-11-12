@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/roles/permission_gate.dart';
 import '../../../common/support_tickets/presentation/pages/support_tickets_page.dart';
+import '../../../hr/ai_alerts/presentation/pages/ai_alerts_page.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../../hr/compliance/presentation/pages/compliance_page.dart';
 import '../../../hr/finance/presentation/pages/finance_page.dart';
@@ -329,6 +330,18 @@ List<StaffSearchDestination> staffSearchDestinations() {
         title: 'Communication',
         anyOf: const ['messaging:read'],
         builder: () => const CommunicationPage(showStaffBottomNav: true),
+      ),
+    ),
+    StaffSearchDestination(
+      label: 'AI Alerts & Insights',
+      permissions: const ['dashboard:read', 'notifications:read'],
+      icon: Icons.auto_awesome_outlined,
+      iconBackground: AppColors.nightBackground,
+      iconColor: AppColors.nightPurple,
+      open: () => openPermittedPage(
+        title: 'AI Alerts & Insights',
+        anyOf: const ['dashboard:read', 'notifications:read'],
+        builder: () => const AiAlertsPage(),
       ),
     ),
     StaffSearchDestination(

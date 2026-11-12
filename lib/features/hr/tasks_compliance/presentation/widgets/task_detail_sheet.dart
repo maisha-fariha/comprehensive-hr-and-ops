@@ -12,6 +12,7 @@ import '../../../../../core/media/app_file_picker.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
@@ -47,18 +48,28 @@ class _CheckDraft {
     required this.label,
     required this.done,
     required this.required,
+    this.value = '',
   });
 
   final String? id;
   final String label;
   bool done;
   final bool required;
+  final String value;
+
+  String get displayLabel {
+    final v = value.trim();
+    if (v.isEmpty) return label;
+    if (label.contains(v)) return label;
+    return '$label ($v)';
+  }
 
   Map<String, dynamic> toJson() => {
         if (id != null && id!.isNotEmpty) 'id': id,
         'label': label,
         'done': done,
         'required': required,
+        if (value.trim().isNotEmpty) 'value': value.trim(),
       };
 }
 
@@ -102,20 +113,28 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     _checks = [
       for (final raw in JsonCodec.unwrapList(detail['checklist']))
         if (raw is Map)
-          _CheckDraft(
-            id: JsonCodec.string(JsonCodec.asMap(raw)['id']),
-            label: JsonCodec.stringOr(
-              JsonCodec.asMap(raw)['label'] ??
-                  JsonCodec.asMap(raw)['title'] ??
-                  JsonCodec.asMap(raw)['text'] ??
-                  JsonCodec.asMap(raw)['name'],
-              'Item',
-            ),
-            done: JsonCodec.asMap(raw)['completed'] == true ||
-                JsonCodec.asMap(raw)['done'] == true ||
-                JsonCodec.asMap(raw)['checked'] == true,
-            required: JsonCodec.asMap(raw)['required'] == true,
-          ),
+          () {
+            final map = JsonCodec.asMap(raw);
+            return _CheckDraft(
+              id: JsonCodec.string(map['id']),
+              label: JsonCodec.stringOr(
+                map['label'] ?? map['title'] ?? map['text'] ?? map['name'],
+                'Item',
+              ),
+              done: map['completed'] == true ||
+                  map['done'] == true ||
+                  map['checked'] == true,
+              required: map['required'] == true,
+              value: JsonCodec.stringOr(
+                map['value'] ??
+                    map['response'] ??
+                    map['answer'] ??
+                    map['recordedValue'] ??
+                    map['notes'],
+                '',
+              ),
+            );
+          }(),
     ];
     if (mounted) setState(() {});
   }
@@ -152,6 +171,43 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
         AppSnackbar.show('Could not save progress', error.message, force: true);
       },
     );
+  }
+
+  /// Web Complete / Sign and complete — PATCH status completed (+ signOff).
+  Future<void> _complete({bool signOff = false}) async {
+    if (_busy || !_canMutate()) return;
+    final detail = _load.detail ?? const <String, dynamic>{};
+    final needsSignOff = detail['requiresSignOff'] == true;
+    setState(() => _busy = true);
+    final result = await _repository.updateTask(
+      taskId: widget.task.id,
+      body: {
+        ..._progressBody(status: 'completed'),
+        if (signOff || needsSignOff) 'signOff': true,
+      },
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    result.when(
+      success: (_) {
+        AppSnackbar.show(
+          signOff || needsSignOff ? 'Task signed off' : 'Task completed',
+          widget.task.title,
+          force: true,
+        );
+        widget.onChanged?.call();
+        Navigator.of(context).pop();
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not complete task', error.message, force: true);
+      },
+    );
+  }
+
+  String _signerDisplayName() {
+    if (!Get.isRegistered<UserSession>()) return 'you';
+    final name = Get.find<UserSession>().displayName.trim();
+    return name.isEmpty ? 'you' : name;
   }
 
   Future<void> _addNote() async {
@@ -545,6 +601,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                     final detail = _load.detail ?? const <String, dynamic>{};
                     final statusRaw = _statusRaw(detail);
                     final completed = _isCompleted(statusRaw);
+                    final cancelled = _isCancelled(statusRaw);
                     final statusLabel = _statusLabel(statusRaw, detail);
                     final files = [
                       for (final raw in JsonCodec.unwrapList(detail['evidence']))
@@ -648,16 +705,42 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                                   value ?? false,
                                             ),
                                     title: Text(
-                                      _checks[i].label,
-                                      style: const TextStyle(
+                                      _checks[i].displayLabel,
+                                      style: TextStyle(
                                         fontFamily: 'Outfit',
                                         fontSize: 13,
+                                        decoration: _checks[i].done
+                                            ? TextDecoration.lineThrough
+                                            : null,
                                       ),
                                     ),
                                   ),
                             ],
                           ),
                         ),
+                        if (JsonCodec.stringOr(
+                              detail['description'] ?? detail['body'],
+                              '',
+                            )
+                                .trim()
+                                .isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _SectionCard(
+                            title: 'Description',
+                            child: Text(
+                              JsonCodec.stringOr(
+                                detail['description'] ?? detail['body'],
+                                '',
+                              ).trim(),
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 13.5,
+                                color: AppColors.textBody,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         _SectionCard(
                           title: 'Documentation Uploads',
@@ -683,11 +766,11 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                         ),
                         const SizedBox(height: 12),
                         _SectionCard(
-                          title: 'Notes',
+                          title: 'Notes / Reminders',
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              if (canMutate) ...[
+                              if (canMutate && !completed) ...[
                                 TextField(
                                   controller: _note,
                                   minLines: 3,
@@ -711,8 +794,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                 ),
                                 const SizedBox(height: 8),
                               ],
-                              if (_load.notes.isEmpty &&
-                                  _completion.text.trim().isEmpty)
+                              if (_load.notes.isEmpty)
                                 const Text(
                                   'Nothing written yet.',
                                   style: TextStyle(
@@ -721,19 +803,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                     color: AppColors.textMuted,
                                   ),
                                 )
-                              else ...[
-                                if (_completion.text.trim().isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Text(
-                                      _completion.text.trim(),
-                                      style: const TextStyle(
-                                        fontFamily: 'Outfit',
-                                        fontSize: 13,
-                                        color: AppColors.textBody,
-                                      ),
-                                    ),
-                                  ),
+                              else
                                 for (final note in _load.notes)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 8),
@@ -751,10 +821,69 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                                       ),
                                     ),
                                   ),
-                              ],
                             ],
                           ),
                         ),
+                        // Web: Finishing up + completion notes for open tasks.
+                        if (!cancelled) ...[
+                          const SizedBox(height: 12),
+                          _SectionCard(
+                            title: 'Finishing up',
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const Text(
+                                  'Completion notes',
+                                  style: TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    color: AppColors.textHeading,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                if (canMutate && !completed)
+                                  TextField(
+                                    key: const Key('task-completion-notes'),
+                                    controller: _completion,
+                                    minLines: 3,
+                                    maxLines: 5,
+                                    decoration: _fieldDecoration(
+                                      'What was done, and anything the next person should know...',
+                                    ),
+                                  )
+                                else
+                                  Text(
+                                    _completion.text.trim().isEmpty
+                                        ? 'No completion notes.'
+                                        : _completion.text.trim(),
+                                    style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 13,
+                                      color: AppColors.textBody,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        // Web: Sign-off box when required and not yet complete.
+                        if (canMutate &&
+                            !completed &&
+                            !cancelled &&
+                            detail['requiresSignOff'] == true) ...[
+                          const SizedBox(height: 12),
+                          _TaskSignOffBox(
+                            signerName: _signerDisplayName(),
+                            busy: _busy,
+                            onConfirm: () => _complete(signOff: true),
+                            onNeedConfirm: () => AppSnackbar.show(
+                              'Confirm sign-off',
+                              'Confirm this task was completed as described.',
+                              force: true,
+                            ),
+                          ),
+                        ],
                         if (_canReview(detail, statusRaw))
                           ..._reviewBox(context),
                       ],
@@ -766,9 +895,15 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                 busy: _busy,
                 completed: _isCompleted(_statusRaw(_load.detail)),
                 cancelled: _isCancelled(_statusRaw(_load.detail)),
+                requiresSignOff: _load.detail?['requiresSignOff'] == true,
                 onClose: () => Navigator.of(context).pop(),
                 onEdit: canMutate && _load.detail != null ? _edit : null,
                 onSave: canMutate && _load.detail != null ? _saveProgress : null,
+                onComplete: canMutate &&
+                        _load.detail != null &&
+                        _load.detail?['requiresSignOff'] != true
+                    ? () => _complete()
+                    : null,
                 // Web still offers Cancel while the row is "Awaiting review",
                 // even though the API status may already be `completed`.
                 onCancelTask: _canCancelTask(_load.detail) ? _cancelTask : null,
@@ -853,7 +988,22 @@ String _client(Map<String, dynamic> detail) {
 
 String _statusLabel(String raw, Map<String, dynamic> detail) {
   if (_awaitingReview(detail, raw)) return 'Awaiting review';
-  switch (raw.toLowerCase()) {
+  final lower = raw.toLowerCase();
+  if (lower == 'completed' ||
+      lower == 'done' ||
+      lower == 'complete' ||
+      lower == 'closed' ||
+      lower == 'approved') {
+    return 'Completed';
+  }
+  if (lower == 'overdue' || lower == 'late') return 'Overdue';
+  final due = JsonCodec.dateTime(
+    detail['dueAt'] ?? detail['dueDate'] ?? detail['scheduledAt'],
+  );
+  if (due != null && due.toUtc().isBefore(TenantClock.now().toUtc())) {
+    return 'Overdue';
+  }
+  switch (lower) {
     case '':
     case 'open':
     case 'pending':
@@ -861,11 +1011,6 @@ String _statusLabel(String raw, Map<String, dynamic> detail) {
       return 'Pending';
     case 'in_progress':
       return 'In progress';
-    case 'completed':
-    case 'done':
-    case 'complete':
-    case 'closed':
-      return 'Completed';
     default:
       if (raw.isEmpty) return 'Pending';
       return raw[0].toUpperCase() + raw.substring(1);
@@ -926,7 +1071,8 @@ String _signOffTitle(Map<String, dynamic> detail) {
   if (detail['requiresSignOff'] != true) return 'Not required';
   final name = JsonCodec.string(detail['signedOffName']);
   if (name == null || name.trim().isEmpty) {
-    return detail['signedOffAt'] == null ? 'Required' : 'Signed off';
+    // Web copy when sign-off is still outstanding.
+    return detail['signedOffAt'] == null ? 'Needed to complete' : 'Signed off';
   }
   return 'Signed off by ${name.trim()}';
 }
@@ -1427,9 +1573,11 @@ class _ActionBar extends StatelessWidget {
   final bool busy;
   final bool completed;
   final bool cancelled;
+  final bool requiresSignOff;
   final VoidCallback onClose;
   final VoidCallback? onEdit;
   final VoidCallback? onSave;
+  final VoidCallback? onComplete;
   final VoidCallback? onCancelTask;
   final VoidCallback? onDelete;
 
@@ -1437,9 +1585,11 @@ class _ActionBar extends StatelessWidget {
     required this.busy,
     required this.completed,
     required this.cancelled,
+    required this.requiresSignOff,
     required this.onClose,
     required this.onEdit,
     required this.onSave,
+    this.onComplete,
     this.onCancelTask,
     this.onDelete,
   });
@@ -1467,6 +1617,14 @@ class _ActionBar extends StatelessWidget {
                 label: 'Save progress',
                 onTap: busy || completed || cancelled ? null : onSave,
               ),
+              // Web: plain Complete only when sign-off is not required.
+              if (!requiresSignOff && onComplete != null)
+                _BarButton(
+                  key: const Key('task-complete'),
+                  label: 'Complete task',
+                  filled: true,
+                  onTap: busy || completed || cancelled ? null : onComplete,
+                ),
               if (onCancelTask != null)
                 _BarButton(
                   key: const Key('task-cancel'),
@@ -1493,12 +1651,14 @@ class _BarButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
   final bool danger;
+  final bool filled;
 
   const _BarButton({
     super.key,
     required this.label,
     required this.onTap,
     this.danger = false,
+    this.filled = false,
   });
 
   @override
@@ -1506,11 +1666,15 @@ class _BarButton extends StatelessWidget {
     final enabled = onTap != null;
     final color = !enabled
         ? AppColors.textMuted
-        : danger
-            ? AppColors.criticalRed
-            : AppColors.textHeading;
+        : filled
+            ? Colors.white
+            : danger
+                ? AppColors.criticalRed
+                : AppColors.textHeading;
     return Material(
-      color: AppColors.surfaceWhite,
+      color: filled && enabled
+          ? AppColors.secondaryTeal
+          : AppColors.surfaceWhite,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -1520,9 +1684,11 @@ class _BarButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: danger && enabled
-                  ? AppColors.criticalRed.withValues(alpha: 0.35)
-                  : AppColors.searchBorder,
+              color: filled && enabled
+                  ? AppColors.secondaryTeal
+                  : danger && enabled
+                      ? AppColors.criticalRed.withValues(alpha: 0.35)
+                      : AppColors.searchBorder,
             ),
           ),
           child: Text(
@@ -1535,6 +1701,155 @@ class _BarButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Web sign-off block: confirm checkbox + Sign and complete.
+class _TaskSignOffBox extends StatefulWidget {
+  final String signerName;
+  final bool busy;
+  final VoidCallback onConfirm;
+  final VoidCallback onNeedConfirm;
+
+  const _TaskSignOffBox({
+    required this.signerName,
+    required this.busy,
+    required this.onConfirm,
+    required this.onNeedConfirm,
+  });
+
+  @override
+  State<_TaskSignOffBox> createState() => _TaskSignOffBoxState();
+}
+
+class _TaskSignOffBoxState extends State<_TaskSignOffBox> {
+  bool _confirmed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('task-sign-off'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCF5ED),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE8D5C0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.edit_outlined,
+                size: 18,
+                color: Color(0xFFB36B21),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 13,
+                      height: 1.35,
+                      color: AppColors.textBody,
+                    ),
+                    children: [
+                      const TextSpan(
+                        text:
+                            'This task requires sign-off. Confirming below records that ',
+                      ),
+                      TextSpan(
+                        text: widget.signerName,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const TextSpan(
+                        text: ' completed it, with the date and time.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            key: const Key('task-sign-off-confirm'),
+            onTap: () => setState(() => _confirmed = !_confirmed),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _confirmed,
+                  activeColor: AppColors.secondaryTeal,
+                  onChanged: (value) =>
+                      setState(() => _confirmed = value ?? false),
+                ),
+                const Expanded(
+                  child: Text(
+                    'I confirm this task was completed as described.',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 12.5,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Material(
+            color: _confirmed && !widget.busy
+                ? AppColors.secondaryTeal
+                : const Color(0xFFCBD5E1),
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              key: const Key('task-sign-off-submit'),
+              onTap: widget.busy
+                  ? null
+                  : () {
+                      if (!_confirmed) {
+                        widget.onNeedConfirm();
+                        return;
+                      }
+                      widget.onConfirm();
+                    },
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.draw_outlined,
+                      size: 16,
+                      color: _confirmed && !widget.busy
+                          ? Colors.white
+                          : AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.busy ? 'Signing…' : 'Sign and complete',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: _confirmed && !widget.busy
+                            ? Colors.white
+                            : AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

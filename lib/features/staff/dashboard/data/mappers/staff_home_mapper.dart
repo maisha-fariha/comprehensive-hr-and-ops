@@ -76,7 +76,21 @@ abstract final class StaffHomeMapper {
     if (openResidenceName != null) {
       shift.putIfAbsent('residenceName', () => openResidenceName);
     }
+    // Drop stale placeholder copy from a cached /mobile/home payload.
+    _stripShiftPlaceholders(shift);
     if (shift.isNotEmpty) home['shift'] = shift;
+  }
+
+  static void _stripShiftPlaceholders(Map<String, dynamic> shift) {
+    for (final key in ['timeRange', 'label', 'timeLabel']) {
+      final value = JsonCodec.string(shift[key])?.trim().toLowerCase() ?? '';
+      if (value.isEmpty ||
+          value == 'no shift today' ||
+          value == 'no shift' ||
+          value == 'off shift') {
+        shift.remove(key);
+      }
+    }
   }
 
   static StaffDashboardOverview compose({
@@ -88,7 +102,10 @@ abstract final class StaffHomeMapper {
     final json = JsonCodec.unwrapMap(body);
     final tiles = JsonCodec.mapAt(json, 'tiles') ?? {};
     final attendance = JsonCodec.mapAt(json, 'attendance') ?? {};
-    final shift = JsonCodec.mapAt(json, 'shift') ?? {};
+    final shift = Map<String, dynamic>.from(
+      JsonCodec.mapAt(json, 'shift') ?? const {},
+    );
+    _stripShiftPlaceholders(shift);
     final clock = now ?? TenantClock.now();
     final firstName = session.displayName.split(' ').first;
 
@@ -147,7 +164,12 @@ abstract final class StaffHomeMapper {
                 ? 'On Shift'
                 : 'Off Shift',
         dateLabel: IsoDateRange.formatMonthDay(clock),
-        timeRange: _shiftRange(shift, clockedIn: clockedIn, checkInAt: checkIn),
+        timeRange: _shiftRange(
+          shift,
+          onShift: inShift,
+          clockedIn: clockedIn,
+          checkInAt: checkIn,
+        ),
         onShift: inShift,
         clockedIn: clockedIn,
         onBreak: onBreak,
@@ -247,6 +269,7 @@ abstract final class StaffHomeMapper {
 
   static String _shiftRange(
     Map<String, dynamic> shift, {
+    bool onShift = false,
     bool clockedIn = false,
     DateTime? checkInAt,
   }) {
@@ -258,11 +281,19 @@ abstract final class StaffHomeMapper {
     );
     final labeled = IsoDateRange.rangeLabel(start, end);
     if (labeled.isNotEmpty) return labeled;
-    final named = JsonCodec.string(shift['timeRange'] ?? shift['label']);
-    if (named != null && named.trim().isNotEmpty) return named.trim();
-    // Open punch without roster hours — never contradict "On Shift" with
-    // "No shift today".
-    if (clockedIn) {
+    final named = (JsonCodec.string(
+              shift['timeRange'] ?? shift['label'] ?? shift['timeLabel'],
+            ) ??
+            '')
+        .trim();
+    final lower = named.toLowerCase();
+    final placeholder = named.isEmpty ||
+        lower == 'no shift today' ||
+        lower == 'no shift' ||
+        lower == 'off shift';
+    if (!placeholder) return named;
+    // On Shift / open punch without roster hours — never show "No shift today".
+    if (onShift || clockedIn) {
       if (checkInAt != null) {
         return 'In since ${IsoDateRange.timeLabel(checkInAt)}';
       }

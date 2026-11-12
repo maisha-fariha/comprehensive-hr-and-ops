@@ -26,11 +26,15 @@ class StaffTaskCheckItem {
   /// Web “Must be done”: the task cannot be closed without this step.
   final bool required;
 
+  /// Optional recorded value (e.g. temperature) shown beside the label on web.
+  final String value;
+
   const StaffTaskCheckItem({
     this.id,
     required this.label,
     this.done = false,
     this.required = false,
+    this.value = '',
   });
 
   StaffTaskCheckItem copyWith({bool? done}) {
@@ -39,7 +43,16 @@ class StaffTaskCheckItem {
       label: label,
       done: done ?? this.done,
       required: required,
+      value: value,
     );
+  }
+
+  /// Label as shown on web, including any recorded value.
+  String get displayLabel {
+    final v = value.trim();
+    if (v.isEmpty) return label;
+    if (label.contains(v)) return label;
+    return '$label ($v)';
   }
 
   /// Body the web sends on Save progress and Submit for review.
@@ -48,6 +61,7 @@ class StaffTaskCheckItem {
         'label': label,
         'done': done,
         'required': required,
+        if (value.trim().isNotEmpty) 'value': value.trim(),
       };
 }
 
@@ -70,7 +84,9 @@ class StaffTaskDetail {
   final String description;
   final String statusRaw;
   final String dueLabel;
+  final DateTime? dueAt;
   final String location;
+  final String clientName;
   final String assigneeName;
   final String priorityRaw;
   final String taskTypeRaw;
@@ -81,6 +97,10 @@ class StaffTaskDetail {
   /// The person completing it must confirm with their name (web sign-off).
   final bool requiresSignOff;
   final bool requiresReview;
+  final DateTime? reviewedAt;
+  final String reviewNotes;
+  final String? signedOffName;
+  final DateTime? signedOffAt;
 
   const StaffTaskDetail({
     required this.id,
@@ -88,7 +108,9 @@ class StaffTaskDetail {
     this.description = '',
     this.statusRaw = '',
     this.dueLabel = '',
+    this.dueAt,
     this.location = '',
+    this.clientName = '',
     this.assigneeName = '',
     this.priorityRaw = '',
     this.taskTypeRaw = '',
@@ -97,6 +119,10 @@ class StaffTaskDetail {
     this.documents = const [],
     this.requiresSignOff = false,
     this.requiresReview = false,
+    this.reviewedAt,
+    this.reviewNotes = '',
+    this.signedOffName,
+    this.signedOffAt,
   });
 
   bool get isCompleted {
@@ -104,9 +130,35 @@ class StaffTaskDetail {
     return s.contains('complete') || s == 'done';
   }
 
-  /// Web status pill. An open task is shown as Pending.
+  /// Web review box: finished (or already in a review status), review required,
+  /// and nobody has reviewed it yet.
+  bool get awaitingReview {
+    final raw = statusRaw.toLowerCase();
+    if (reviewedAt != null) return false;
+    if (raw == 'pending_review' ||
+        raw == 'awaiting_review' ||
+        raw == 'in_review' ||
+        raw == 'review') {
+      return true;
+    }
+    return isCompleted && requiresReview;
+  }
+
+  /// Web status pill. Past-due open tasks show Overdue (API may still say pending).
   String get statusLabel {
-    switch (statusRaw.toLowerCase()) {
+    if (awaitingReview) return 'Awaiting review';
+    final raw = statusRaw.toLowerCase();
+    if (raw.contains('complete') ||
+        raw == 'done' ||
+        raw == 'closed' ||
+        raw == 'approved') {
+      return 'Completed';
+    }
+    if (raw.contains('overdue') || raw == 'late') return 'Overdue';
+    if (dueAt != null && dueAt!.toUtc().isBefore(DateTime.now().toUtc())) {
+      return 'Overdue';
+    }
+    switch (raw) {
       case '':
       case 'open':
       case 'pending':
@@ -114,17 +166,31 @@ class StaffTaskDetail {
         return 'Pending';
       case 'in_progress':
         return 'In progress';
-      case 'completed':
-      case 'done':
-      case 'complete':
-      case 'closed':
-        return 'Completed';
-      case 'overdue':
-      case 'late':
-        return 'Overdue';
       default:
         return _words(statusRaw);
     }
+  }
+
+  /// Web Task Details → Review.
+  String get reviewTitle {
+    if (!requiresReview) return 'Not required';
+    if (reviewedAt != null) return 'Reviewed';
+    if (awaitingReview) return 'Waiting on a reviewer';
+    return 'Required';
+  }
+
+  String? get reviewNote {
+    final note = reviewNotes.trim();
+    return note.isEmpty ? null : note;
+  }
+
+  /// Web Task Details → Sign-Off (“Needed to complete” when still open).
+  String get signOffTitle {
+    if (!requiresSignOff) return 'Not required';
+    final name = signedOffName?.trim() ?? '';
+    if (name.isNotEmpty) return 'Signed off by $name';
+    if (signedOffAt != null) return 'Signed off';
+    return 'Needed to complete';
   }
 
   String get typeLabel => _words(taskTypeRaw.replaceAll('_', ' '));
