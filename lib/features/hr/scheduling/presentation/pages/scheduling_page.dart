@@ -13,10 +13,12 @@ import '../widgets/calendar_tab_view.dart';
 import '../widgets/requests_tab_view.dart';
 import '../widgets/scheduling_filter_bar.dart';
 import '../widgets/scheduling_segmented_tabs.dart';
+import '../widgets/open_shift_bids_sheet.dart';
 import '../widgets/schedule_side_rails.dart';
 import '../widgets/schedule_span_panel.dart';
 import '../widgets/scheduling_top_bar.dart';
 import '../widgets/staff_rostered_hours_sheet.dart';
+import '../../domain/entities/calendar_shift.dart';
 import 'create_shift_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
@@ -92,6 +94,24 @@ class _SchedulingPageState extends State<SchedulingPage> {
     if (saved == true) {
       await controller.refresh();
     }
+  }
+
+  /// Web open-shift rail: pending bids → Accept actions; otherwise Edit.
+  Future<void> _openOpenShift(
+    BuildContext context,
+    SchedulingController controller,
+    CalendarShift shift,
+  ) async {
+    if (controller.canWrite && shift.pendingBids.isNotEmpty) {
+      await showOpenShiftBidsSheet(
+        context: context,
+        controller: controller,
+        shift: shift,
+        onEditShift: () => _openEditShift(controller, shift.id),
+      );
+      return;
+    }
+    await _openEditShift(controller, shift.id);
   }
 
   Future<void> _pickDate(
@@ -217,8 +237,10 @@ class _SchedulingPageState extends State<SchedulingPage> {
                         controller: controller,
                         shifts: overview.calendar.weekShifts,
                         coverage: overview.weekCoverage,
-                        onOpenShift: (shiftId) =>
-                            _openEditShift(controller, shiftId),
+                        onOpenShift: controller.canWrite
+                            ? (shiftId) =>
+                                _openEditShift(controller, shiftId)
+                            : null,
                       ),
                       ScheduleSpan.week => CalendarTabView(
                         data: overview.calendar,
@@ -226,8 +248,10 @@ class _SchedulingPageState extends State<SchedulingPage> {
                         onNextWeek: controller.goToNextWeek,
                         onDaySelected: (day) =>
                             controller.selectCalendarDay(day.date),
-                        onShiftTap: (shift) =>
-                            _openEditShift(controller, shift.id),
+                        onShiftTap: controller.canWrite
+                            ? (shift) =>
+                                _openEditShift(controller, shift.id)
+                            : null,
                         leading: [
                           ScheduleSpanSwitch(
                             selected: ScheduleSpan.week,
@@ -238,9 +262,14 @@ class _SchedulingPageState extends State<SchedulingPage> {
                           OpenShiftsRail(
                             controller: controller,
                             openShifts: overview.openShifts,
-                            // Web: card / “Click for actions” always opens.
-                            onOpenShift: (id) =>
-                                _openEditShift(controller, id),
+                            // Web: card / “Click for actions” opens bids or edit.
+                            onOpenShift: controller.canWrite
+                                ? (shift) => _openOpenShift(
+                                      context,
+                                      controller,
+                                      shift,
+                                    )
+                                : null,
                           ),
                           StaffRosteredHoursRail(
                             rows: overview.staffRosteredHours,
@@ -258,8 +287,9 @@ class _SchedulingPageState extends State<SchedulingPage> {
                     },
                     SchedulingTab.board => BoardTabView(
                       data: overview.board,
-                      onShiftTap: (shift) =>
-                          _openEditShift(controller, shift.id),
+                      onShiftTap: controller.canWrite
+                          ? (shift) => _openEditShift(controller, shift.id)
+                          : null,
                     ),
                     SchedulingTab.requests => RequestsTabView(
                       data: overview.requests,
@@ -269,7 +299,9 @@ class _SchedulingPageState extends State<SchedulingPage> {
                       onDecline: controller.canWrite
                           ? controller.declineRequest
                           : null,
-                      onOpenShift: (id) => _openEditShift(controller, id),
+                      onOpenShift: controller.canWrite
+                          ? (id) => _openEditShift(controller, id)
+                          : null,
                     ),
                   },
                 ),

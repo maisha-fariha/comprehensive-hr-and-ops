@@ -103,8 +103,13 @@ abstract final class AttendanceMapper {
     for (final item in JsonCodec.unwrapList(body)) {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
-      if (JsonCodec.string(json['checkInAt']) == null) continue;
-      if (JsonCodec.string(json['checkOutAt']) != null) continue;
+      final checkIn = JsonCodec.string(
+        json['checkInAt'] ?? json['clockInAt'],
+      );
+      if (checkIn == null) continue;
+      if (JsonCodec.string(json['checkOutAt'] ?? json['clockOutAt']) != null) {
+        continue;
+      }
       final id = JsonCodec.string(json['id']);
       final residenceId = JsonCodec.string(json['residenceId']);
       if (id == null || residenceId == null) continue;
@@ -113,6 +118,9 @@ abstract final class AttendanceMapper {
         id: id,
         residenceId: residenceId,
         residenceName: JsonCodec.string(residence['name']),
+        shiftId: JsonCodec.string(
+          json['shiftId'] ?? JsonCodec.mapAt(json, 'shift')?['id'],
+        ),
         breakStartedAt: JsonCodec.dateTime(json['breakStartedAt']),
       );
     }

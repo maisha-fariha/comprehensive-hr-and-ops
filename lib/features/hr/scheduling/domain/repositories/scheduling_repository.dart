@@ -118,4 +118,11 @@ abstract class SchedulingRepository {
     required String swapId,
     required bool approve,
   });
+
+  /// Accept a staff bid on an open shift
+  /// (`POST /shifts/{shiftId}/bids/{bidId}/accept`).
+  Future<Result<void>> acceptShiftBid({
+    required String shiftId,
+    required String bidId,
+  });
 }

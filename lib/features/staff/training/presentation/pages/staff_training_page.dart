@@ -55,7 +55,7 @@ class _StaffTrainingPageState extends State<StaffTrainingPage> {
       key: const Key('staff-training-page'),
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: 4,
+        currentIndex: 5,
         onTap: (i) => Get.offAll(() => StaffShell(initialIndex: i)),
       ),
       body: SafeArea(

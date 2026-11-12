@@ -32,7 +32,7 @@ class CreateIncidentPage extends StatefulWidget {
   const CreateIncidentPage({super.key, this.incidentId});
 
   /// Index of the "More" slot in [StaffBottomNavBar.items].
-  static const int moreTabIndex = 4;
+  static const int moreTabIndex = 5;
 
   @override
   State<CreateIncidentPage> createState() => _CreateIncidentPageState();

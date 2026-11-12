@@ -11,7 +11,7 @@ import '../controllers/scheduling_controller.dart';
 class OpenShiftsRail extends StatefulWidget {
   final SchedulingController controller;
   final List<CalendarShift> openShifts;
-  final ValueChanged<String>? onOpenShift;
+  final ValueChanged<CalendarShift>? onOpenShift;
 
   const OpenShiftsRail({
     super.key,
@@ -126,7 +126,7 @@ class _OpenShiftsRailState extends State<OpenShiftsRail> {
                     canWrite: canWrite,
                     onOpen: widget.onOpenShift == null
                         ? null
-                        : () => widget.onOpenShift!(shift.id),
+                        : () => widget.onOpenShift!(shift),
                     onDelete: canWrite
                         ? () => _confirmDelete(context, shift)
                         : null,
@@ -219,6 +219,13 @@ class _OpenShiftCard extends StatelessWidget {
     this.onDelete,
   });
 
+  static String _bidSummary(CalendarShift shift) {
+    final bids = shift.pendingBids.length;
+    if (bids <= 0) return 'No bids yet';
+    return '$bids staff ${bids == 1 ? 'has' : 'have'} bid for this shift. '
+        'Click for actions.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = (shift.title ?? '').trim().isEmpty ? 'SHIFT' : shift.title!;
@@ -305,9 +312,7 @@ class _OpenShiftCard extends StatelessWidget {
               ],
               const SizedBox(height: 4),
               Text(
-                shift.filled == 0
-                    ? 'No bids yet'
-                    : '${shift.filled} staff on this open shift',
+                _bidSummary(shift),
                 style: const TextStyle(
                   fontFamily: 'Outfit',
                   fontSize: 12.5,

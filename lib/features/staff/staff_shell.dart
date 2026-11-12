@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../core/roles/permission_gate.dart';
 import '../../core/roles/user_session.dart';
+import 'attendance/presentation/pages/staff_attendance_page.dart';
 import 'dashboard/presentation/controllers/staff_dashboard_controller.dart';
 import 'dashboard/presentation/pages/staff_dashboard_page.dart';
 import 'daily_logs/presentation/pages/staff_daily_logs_page.dart';
@@ -12,7 +13,7 @@ import 'presentation/widgets/staff_bottom_nav_bar.dart';
 import 'scheduling/presentation/pages/staff_schedule_page.dart';
 
 /// Root shell for the Staff portal. Owns the bottom navigation bar and
-/// switches between its 5 tabs: Home (Dashboard), Schedule, Daily Logs,
+/// switches between its tabs: Home, Schedule, Attendance, Daily Logs,
 /// MAR/Tasks and More.
 ///
 /// Tabs the signed-in user cannot read are left out of the bar. Home and More
@@ -43,7 +44,7 @@ class _StaffShellState extends State<StaffShell> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, 4);
+    _currentIndex = widget.initialIndex.clamp(0, 5);
     _refreshHomeIfReturning();
   }
 
@@ -71,9 +72,12 @@ class _StaffShellState extends State<StaffShell> {
               )
             : const SizedBox.shrink(),
         allowed(2)
-            ? const StaffDailyLogsPage()
+            ? const StaffAttendancePage(showStaffBottomNav: false)
             : const SizedBox.shrink(),
         allowed(3)
+            ? const StaffDailyLogsPage()
+            : const SizedBox.shrink(),
+        allowed(4)
             ? const StaffMarTasksMenuPage()
             : const SizedBox.shrink(),
         const StaffMoreMenuPage(),
@@ -83,7 +87,7 @@ class _StaffShellState extends State<StaffShell> {
           : firstAllowedTab(
               length: tabs.length,
               allowed: allowed,
-              fallback: 4,
+              fallback: 5,
             );
 
       return Scaffold(

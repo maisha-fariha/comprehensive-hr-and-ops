@@ -19,7 +19,7 @@ class MessageThreadPage extends StatelessWidget {
   final String contactName;
 
   /// Index of the "MAR / Tasks" slot in [StaffBottomNavBar.items].
-  static const int _marTasksTabIndex = 3;
+  static const int _marTasksTabIndex = 4;
 
   const MessageThreadPage({
     super.key,

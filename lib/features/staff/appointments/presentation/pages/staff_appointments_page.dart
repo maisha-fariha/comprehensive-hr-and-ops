@@ -238,7 +238,7 @@ class _StaffAppointmentsPageState extends State<StaffAppointmentsPage> {
       key: const Key('staff-appointments-page'),
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: 4,
+        currentIndex: 5,
         onTap: (i) => Get.offAll(() => StaffShell(initialIndex: i)),
       ),
       body: SafeArea(

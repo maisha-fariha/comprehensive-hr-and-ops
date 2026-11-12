@@ -78,13 +78,17 @@ bool managerTabAllowed(UserSession session, int index) {
 
 /// Staff bottom-nav slots. Home and More stay so the shell always has a place
 /// to land; the home tiles themselves follow permissions.
+///
+/// Indices: 0 Home · 1 Schedule · 2 Attendance · 3 Daily Logs · 4 MAR/Tasks · 5 More
 bool staffTabAllowed(UserSession session, int index) {
   switch (index) {
     case 1:
       return session.can('scheduling:read');
     case 2:
-      return session.can('daily-logs:read');
+      return session.can('attendance:read');
     case 3:
+      return session.can('daily-logs:read');
+    case 4:
       return session.canAny(const [
         'mar:read',
         'tasks:read',

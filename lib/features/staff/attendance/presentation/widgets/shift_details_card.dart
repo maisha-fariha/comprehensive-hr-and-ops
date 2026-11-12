@@ -6,6 +6,9 @@ import 'geofence_row.dart';
 import 'time_worked_card.dart';
 
 /// White "Shift Details" card: location header, nested timer, and geofence.
+///
+/// Web attendance (on shift) has no "View Schedule" control here — schedule
+/// stays on the Schedule tab / More.
 class ShiftDetailsCard extends StatelessWidget {
   final String locationName;
   final String timeRange;
@@ -14,12 +17,10 @@ class ShiftDetailsCard extends StatelessWidget {
   final bool isWithinGeofence;
   final String geofenceStatusLabel;
   final String geofenceAddress;
-  final VoidCallback? onViewScheduleTap;
   final VoidCallback? onGeofenceTap;
 
   static const Color _primary = Color(0xFF1A2B3C);
   static const Color _secondary = Color(0xFF6A7C8A);
-  static const Color _viewSchedule = Color(0xFF006D69);
 
   const ShiftDetailsCard({
     super.key,
@@ -30,7 +31,6 @@ class ShiftDetailsCard extends StatelessWidget {
     required this.isWithinGeofence,
     required this.geofenceStatusLabel,
     required this.geofenceAddress,
-    this.onViewScheduleTap,
     this.onGeofenceTap,
   });
 
@@ -56,52 +56,31 @@ class ShiftDetailsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      locationName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w700,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                        color: _primary,
-                        height: 1.2,
-                      ),
-                    ),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
-                    Text(
-                      timeRange,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w500,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                        color: _secondary,
-                      ),
-                    ),
-                  ],
+              Text(
+                locationName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w700,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
+                  color: _primary,
+                  height: 1.2,
                 ),
               ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-              GestureDetector(
-                onTap: onViewScheduleTap,
-                behavior: HitTestBehavior.opaque,
-                child: Text(
-                  'View Schedule',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                    color: _viewSchedule,
-                  ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 5)),
+              Text(
+                timeRange,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w500,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: _secondary,
                 ),
               ),
             ],

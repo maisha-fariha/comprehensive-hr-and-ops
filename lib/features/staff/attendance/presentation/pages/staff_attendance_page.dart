@@ -28,9 +28,17 @@ class StaffAttendancePage extends StatefulWidget {
   /// Opened from a time-off notification: scroll to that section.
   final bool focusTimeOff;
 
-  const StaffAttendancePage({super.key, this.focusTimeOff = false});
+  /// False when this page is the Attendance tab inside [StaffShell].
+  final bool showStaffBottomNav;
 
-  static const int _moreTabIndex = 4;
+  const StaffAttendancePage({
+    super.key,
+    this.focusTimeOff = false,
+    this.showStaffBottomNav = true,
+  });
+
+  /// Attendance slot in [StaffBottomNavBar.items].
+  static const int tabIndex = 2;
 
   @override
   State<StaffAttendancePage> createState() => _StaffAttendancePageState();
@@ -77,10 +85,12 @@ class _StaffAttendancePageState extends State<StaffAttendancePage> {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: StaffAttendancePage._moreTabIndex,
-        onTap: _onBottomNavTap,
-      ),
+      bottomNavigationBar: widget.showStaffBottomNav
+          ? StaffBottomNavBar(
+              currentIndex: StaffAttendancePage.tabIndex,
+              onTap: _onBottomNavTap,
+            )
+          : null,
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;

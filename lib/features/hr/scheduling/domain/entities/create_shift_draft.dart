@@ -115,6 +115,21 @@ class ShiftChecklistItem {
 }
 
 /// A staff member on the shift with their (UI-only) task details.
+/// A pending bid loaded with Edit Shift (not yet assigned).
+class PendingShiftBid {
+  final String bidId;
+  final String staffId;
+  final String staffName;
+  final String note;
+
+  const PendingShiftBid({
+    required this.bidId,
+    required this.staffId,
+    required this.staffName,
+    this.note = '',
+  });
+}
+
 class AssignedShiftStaff {
   final String staffId;
   final String staffName;
@@ -192,6 +207,9 @@ class CreateShiftDraft {
   String? oneToOneClientName;
 
   final List<AssignedShiftStaff> assignedStaff = [];
+
+  /// Open-shift bids awaiting manager accept (`bid_pending`).
+  final List<PendingShiftBid> pendingBids = [];
 
   bool isOpenShift = false;
   String requiredStaffCount = '1';

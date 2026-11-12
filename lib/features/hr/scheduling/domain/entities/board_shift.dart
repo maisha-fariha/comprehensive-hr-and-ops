@@ -23,6 +23,9 @@ class BoardShift {
   /// e.g. "2 RN needed".
   final String neededLabel;
 
+  /// Assigned residence name when the API includes it.
+  final String? residenceName;
+
   const BoardShift({
     required this.id,
     required this.periodLabel,
@@ -36,6 +39,7 @@ class BoardShift {
     required this.extraStaffCount,
     required this.roleChips,
     required this.neededLabel,
+    this.residenceName,
   });
 
   bool get isDraft => apiStatus.toLowerCase() == 'draft';

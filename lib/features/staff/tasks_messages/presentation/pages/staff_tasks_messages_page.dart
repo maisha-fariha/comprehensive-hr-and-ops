@@ -8,28 +8,17 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_outbox_section.dart';
-import '../../../../hr/communication/presentation/pages/communication_page.dart';
 import '../../../../hr/recurring_checks/domain/entities/recurring_check.dart';
 import '../../../../hr/recurring_checks/presentation/controllers/recurring_checks_controller.dart';
 import '../../../../hr/recurring_checks/presentation/widgets/record_check_sheet.dart';
 import '../../../../hr/recurring_checks/presentation/widgets/skip_check_sheet.dart';
 import '../../domain/entities/recurring_check_instance.dart';
-import '../../domain/entities/tasks_messages_enums.dart';
 import '../controllers/tasks_messages_controller.dart';
-import '../widgets/messages_tab_view.dart';
 import '../widgets/tasks_messages_header.dart';
-import '../widgets/tasks_messages_segmented_tabs.dart';
 import '../widgets/tasks_tab_view.dart';
-import 'message_thread_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
-/// The Staff "Tasks & Messages" screen.
-///
-/// Reproduces both Figma frames in the "Tasks & Messages" group ("Tasks",
-/// "Messages") as a single page: both frames share the exact same header
-/// and segmented tab bar, and only the body content underneath swaps per
-/// tab, mirroring the pattern used by the HR "Team & Reports" and "Tasks &
-/// Compliance" screens.
+/// Staff Tasks screen (web Tasks module — messages live under Communication).
 class StaffTasksMessagesPage extends StatelessWidget {
   const StaffTasksMessagesPage({super.key});
 
@@ -42,26 +31,6 @@ class StaffTasksMessagesPage extends StatelessWidget {
         permanent: true,
       );
     }
-  }
-
-  Future<void> _openConversation(
-    TasksMessagesController controller,
-    String id,
-    String name,
-  ) async {
-    controller.clearConversationUnread(id);
-    await Get.to(
-      () => MessageThreadPage(conversationId: id, contactName: name),
-    );
-    await controller.refresh();
-  }
-
-  Future<void> _openNewMessage(
-    BuildContext context,
-    TasksMessagesController controller,
-  ) async {
-    await Get.to(() => const CommunicationPage(showStaffBottomNav: true));
-    await controller.refresh();
   }
 
   /// Same Record / Skip sheets as web Recurring Checks Due (not a bare PATCH).
@@ -131,13 +100,12 @@ class StaffTasksMessagesPage extends StatelessWidget {
           if (overview == null) {
             return _TasksMessagesError(
               message: controller.errorMessage.value.isEmpty
-                  ? 'Something went wrong while loading Tasks & Messages.'
+                  ? 'Something went wrong while loading Tasks.'
                   : controller.errorMessage.value,
               onRetry: controller.refresh,
             );
           }
 
-          final selectedTab = controller.selectedTab.value;
           final session = Get.isRegistered<UserSession>()
               ? Get.find<UserSession>()
               : null;
@@ -148,46 +116,21 @@ class StaffTasksMessagesPage extends StatelessWidget {
           final canCompleteChecks = session == null ||
               session.can('recurring-checks:complete') ||
               session.can('recurring-checks:write');
-          final canMessage = session == null || session.can('messaging:write');
 
           return Column(
             children: [
               ColoredBox(
                 color: AppColors.surfaceWhite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TasksMessagesHeader(
-                      title: 'Tasks & Messages',
-                      onNewTaskTap: selectedTab == TasksMessagesTab.tasks &&
-                              canCreateTasks
-                          ? controller.showCreateTaskDialog
-                          : null,
-                    ),
-                    Padding(
-                      padding: ResponsiveHelper.getResponsivePadding(
-                        context,
-                        horizontal: AppDimens.screenPaddingHorizontal,
-                        top: 16,
-                        bottom: 16,
-                      ),
-                      child: TasksMessagesSegmentedTabs(
-                        selectedTab: selectedTab,
-                        tasksCount: overview.stats.all > 0
-                            ? overview.stats.all
-                            : overview.tasks.length,
-                        messagesCount: overview.conversations.length,
-                        onTabSelected: controller.selectTab,
-                      ),
-                    ),
-                  ],
+                child: TasksMessagesHeader(
+                  title: 'Tasks',
+                  onNewTaskTap:
+                      canCreateTasks ? controller.showCreateTaskDialog : null,
                 ),
               ),
               PendingOutboxSection(
                 features: const {
                   OutboxFeature.tasks,
                   OutboxFeature.recurringChecks,
-                  OutboxFeature.messages,
                 },
                 onSynced: () => controller.refresh(),
               ),
@@ -209,44 +152,28 @@ class StaffTasksMessagesPage extends StatelessWidget {
                       ResponsiveHelper.getResponsiveHeight(context, 24),
                     ),
                     children: [
-                      switch (selectedTab) {
-                        TasksMessagesTab.tasks => TasksTabView(
-                          tasks: controller.filteredTasks,
-                          recurringChecks: controller.recurringChecks,
-                          selectedFilter: controller.selectedFilter.value,
-                          countFor: controller.countFor,
-                          onFilterSelected: controller.selectFilter,
-                          onTaskTap: controller.openTask,
-                          onRecurringTap: canCompleteChecks
-                              ? (check) => _recordRecurringCheck(
-                                    context,
-                                    controller,
-                                    check,
-                                  )
-                              : null,
-                          onRecurringSkip: canCompleteChecks
-                              ? (check) => _skipRecurringCheck(
-                                    context,
-                                    controller,
-                                    check,
-                                  )
-                              : null,
-                        ),
-                        TasksMessagesTab.messages => MessagesTabView(
-                          conversations: overview.conversations,
-                          onMarkAllRead: controller.markAllConversationsRead,
-                          onNewMessage: canMessage
-                              ? () => _openNewMessage(context, controller)
-                              : null,
-                          onConversationTap: (conversation) {
-                            _openConversation(
-                              controller,
-                              conversation.id,
-                              conversation.name,
-                            );
-                          },
-                        ),
-                      },
+                      TasksTabView(
+                        tasks: controller.filteredTasks,
+                        recurringChecks: controller.recurringChecks,
+                        selectedFilter: controller.selectedFilter.value,
+                        countFor: controller.countFor,
+                        onFilterSelected: controller.selectFilter,
+                        onTaskTap: controller.openTask,
+                        onRecurringTap: canCompleteChecks
+                            ? (check) => _recordRecurringCheck(
+                                  context,
+                                  controller,
+                                  check,
+                                )
+                            : null,
+                        onRecurringSkip: canCompleteChecks
+                            ? (check) => _skipRecurringCheck(
+                                  context,
+                                  controller,
+                                  check,
+                                )
+                            : null,
+                      ),
                     ],
                   ),
                 ),

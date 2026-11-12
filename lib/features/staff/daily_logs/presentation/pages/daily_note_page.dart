@@ -32,7 +32,7 @@ class DailyNotePage extends StatelessWidget {
   const DailyNotePage({super.key, this.client = DailyNoteClientInfo.fallback});
 
   /// Index of the "Clients" slot in [StaffBottomNavBar.items].
-  static const int _clientsTabIndex = 2;
+  static const int _clientsTabIndex = 3;
 
   DailyNoteController _resolveController() {
     try {

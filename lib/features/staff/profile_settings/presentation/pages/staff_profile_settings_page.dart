@@ -31,7 +31,7 @@ class StaffProfileSettingsPage extends StatefulWidget {
 }
 
 class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
-  static const int _moreTabIndex = 4;
+  static const int _moreTabIndex = 5;
   late final StaffProfileSettingsController _controller;
 
   @override

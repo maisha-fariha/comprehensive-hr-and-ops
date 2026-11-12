@@ -72,7 +72,7 @@ abstract final class PortalNotificationNavigator {
         }
       case 'attendance':
         if (staff) {
-          Get.to(() => const StaffAttendancePage());
+          Get.offAll(() => const StaffShell(initialIndex: 2));
         } else {
           Get.offAll(() => const HrShell(initialIndex: 2));
         }
@@ -80,7 +80,7 @@ abstract final class PortalNotificationNavigator {
         _openTimeOff(staff: staff);
       case 'daily_log':
         if (staff) {
-          Get.offAll(() => const StaffShell(initialIndex: 2));
+          Get.offAll(() => const StaffShell(initialIndex: 3));
         } else {
           Get.to(() => const DailyLogsPage());
         }

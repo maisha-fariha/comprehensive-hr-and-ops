@@ -1040,6 +1040,24 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     });
   }
 
+  Future<void> _acceptPendingBid(PendingShiftBid bid) async {
+    final shiftId = widget.editShiftId;
+    if (shiftId == null) return;
+    final result = await _repository.acceptShiftBid(
+      shiftId: shiftId,
+      bidId: bid.bidId,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid accepted', 'Staff is now assigned to this shift.');
+        await _loadShift();
+      },
+      failure: (error) async =>
+          AppSnackbar.show('Could not accept bid', error.message),
+    );
+  }
+
   void _removeStaff(String staffId) {
     _update(() {
       _draft.assignedStaff.removeWhere((s) => s.staffId == staffId);
@@ -1256,6 +1274,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
             _draft.restOverrideReason = value;
           }),
           residenceName: _residenceLabel,
+          pendingBids: _draft.pendingBids,
+          onAcceptBid: _isEdit ? _acceptPendingBid : null,
           onOpenShiftChanged: (value) => _update(() {
             // Keep assigned staff while toggling methods so switching back
             // to "Assign Specific Staff" restores the previous picks.

@@ -17,12 +17,14 @@ const Color _avatarText = Color(0xFF8E88B1);
 /// side-by-side, then either assignees or open-shift bidding fields.
 class CreateShiftStaffAssignmentForm extends StatelessWidget {
   final List<AssignedShiftStaff> assignedStaff;
+  final List<PendingShiftBid> pendingBids;
   final bool isLoadingStaff;
   final bool isOpenShift;
   final ValueChanged<bool> onOpenShiftChanged;
   final Widget? openShiftFields;
   final VoidCallback onAddStaff;
   final ValueChanged<String> onRemoveStaff;
+  final Future<void> Function(PendingShiftBid bid)? onAcceptBid;
   final List<ShiftScheduleConflict> scheduleConflicts;
   final List<ShiftLeaveConflict> leaveConflicts;
   final List<ShiftRestConflict> restConflicts;
@@ -39,6 +41,8 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
     required this.onOpenShiftChanged,
     required this.onAddStaff,
     required this.onRemoveStaff,
+    this.pendingBids = const [],
+    this.onAcceptBid,
     this.openShiftFields,
     this.isLoadingStaff = false,
     this.scheduleConflicts = const [],
@@ -79,6 +83,13 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
           if (isOpenShift) ...[
             _OpenShiftBroadcast(residenceName: residenceName),
+            if (pendingBids.isNotEmpty && onAcceptBid != null) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+              _PendingBidsSection(
+                bids: pendingBids,
+                onAccept: onAcceptBid!,
+              ),
+            ],
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
             ?openShiftFields,
           ] else ...[
@@ -357,6 +368,109 @@ class _MethodChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PendingBidsSection extends StatefulWidget {
+  final List<PendingShiftBid> bids;
+  final Future<void> Function(PendingShiftBid bid) onAccept;
+
+  const _PendingBidsSection({
+    required this.bids,
+    required this.onAccept,
+  });
+
+  @override
+  State<_PendingBidsSection> createState() => _PendingBidsSectionState();
+}
+
+class _PendingBidsSectionState extends State<_PendingBidsSection> {
+  String? _busyBidId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const CreateShiftFieldLabel('Pending bids'),
+        Text(
+          '${widget.bids.length} staff ${widget.bids.length == 1 ? 'has' : 'have'} bid for this shift',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w500,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+            color: AppColors.textSecondary,
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+        for (final bid in widget.bids) ...[
+          Container(
+            width: double.infinity,
+            margin: EdgeInsets.only(
+              bottom: ResponsiveHelper.getResponsiveHeight(context, 8),
+            ),
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+            decoration: BoxDecoration(
+              color: AppColors.filterButtonBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bid.staffName,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      if (bid.note.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          bid.note.trim(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: _busyBidId != null
+                      ? null
+                      : () async {
+                          setState(() => _busyBidId = bid.bidId);
+                          await widget.onAccept(bid);
+                          if (mounted) setState(() => _busyBidId = null);
+                        },
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.secondaryTeal,
+                  ),
+                  child: _busyBidId == bid.bidId
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Accept'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

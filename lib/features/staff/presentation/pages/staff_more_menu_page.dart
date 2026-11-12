@@ -7,8 +7,8 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/permission_gate.dart';
 import '../../../../core/roles/user_session.dart';
-import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
+import '../../staff_shell.dart';
 import '../../extras/presentation/pages/staff_admissions_page.dart';
 import '../../extras/presentation/pages/staff_appointments_page.dart';
 import '../../../common/support_tickets/presentation/pages/support_tickets_page.dart';
@@ -291,11 +291,7 @@ class StaffMoreMenuPage extends StatelessWidget {
           builder: () => const SupportTicketsPage(),
         );
       case 'Attendance':
-        openPermittedPage(
-          title: title,
-          anyOf: const ['attendance:read'],
-          builder: () => const StaffAttendancePage(),
-        );
+        Get.offAll(() => const StaffShell(initialIndex: 2));
       case 'Incidents':
         openPermittedPage(
           title: title,

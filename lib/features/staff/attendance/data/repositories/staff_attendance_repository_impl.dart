@@ -204,13 +204,15 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
   Map<String, dynamic> _clockShiftQuery() {
     final now = DateTime.now().toUtc();
     final staffId = _session.staffId;
+    // Wider than web's ±14h current-shift probe so an open punch's shift
+    // (late / overtime) is still found for clock-out and handover.
     return {
       if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
       if (staffId == null || staffId.isEmpty) 'mine': true,
-      'from': now.subtract(const Duration(hours: 14)).toIso8601String(),
-      'to': now.add(const Duration(hours: 14)).toIso8601String(),
+      'from': now.subtract(const Duration(hours: 48)).toIso8601String(),
+      'to': now.add(const Duration(hours: 24)).toIso8601String(),
       'page': 1,
-      'limit': 20,
+      'limit': 50,
     };
   }
 

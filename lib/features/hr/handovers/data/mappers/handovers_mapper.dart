@@ -313,9 +313,22 @@ abstract final class HandoversMapper {
       ];
 
   /// Shift ids from `/attendance?mine=true` rows that were clocked in to.
+  /// Matches web `useMyRecentShifts`: `checkInAt && shiftId`.
   static Set<String> clockedInShiftIds(dynamic body) => {
         for (final row in JsonCodec.unwrapList(body).whereType<Map>())
-          if (row['checkInAt'] != null)
-            ?JsonCodec.string(row['shiftId']),
+          if (_attendanceHasCheckIn(JsonCodec.asMap(row)))
+            ?JsonCodec.string(
+              JsonCodec.asMap(row)['shiftId'] ??
+                  JsonCodec.mapAt(JsonCodec.asMap(row), 'shift')?['id'],
+            ),
       };
+
+  static bool _attendanceHasCheckIn(Map<String, dynamic> row) {
+    if (JsonCodec.string(row['checkInAt'] ?? row['clockInAt']) != null) {
+      return true;
+    }
+    final nested = JsonCodec.mapAt(row, 'checkIn');
+    return nested != null &&
+        JsonCodec.string(nested['at'] ?? nested['checkInAt']) != null;
+  }
 }

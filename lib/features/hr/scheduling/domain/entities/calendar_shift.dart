@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'scheduling_enums.dart';
+import 'shift_bid.dart';
 import 'staff_avatar.dart';
 
 /// A single shift card in the Calendar tab's daily timeline, e.g. the
@@ -36,6 +37,9 @@ class CalendarShift {
   /// to call out (e.g. the Night shift in the Figma design).
   final String? openPositionsLabel;
 
+  /// Pending open-shift bids (`bid_pending`) the manager can accept.
+  final List<ShiftBid> pendingBids;
+
   /// Whether the connecting timeline divider should render below this row
   /// (true for every row except the last).
   final bool showTimelineDivider;
@@ -64,6 +68,7 @@ class CalendarShift {
     required this.avatars,
     required this.namesSummary,
     this.openPositionsLabel,
+    this.pendingBids = const [],
     this.showTimelineDivider = true,
   });
 }

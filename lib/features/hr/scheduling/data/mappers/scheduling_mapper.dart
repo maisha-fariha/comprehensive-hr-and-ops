@@ -12,6 +12,7 @@ import '../../domain/entities/open_position.dart';
 import '../../domain/entities/requests_overview.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
+import '../../domain/entities/shift_bid.dart';
 import '../../domain/entities/shift_request.dart';
 import '../../domain/entities/shift_residence_option.dart';
 import '../../domain/entities/shift_staff_conflict.dart';
@@ -82,10 +83,20 @@ abstract final class SchedulingMapper {
     final award = bidding == null ? null : JsonCodec.string(bidding['awardMethod']);
     if (award != null) draft.awardMethod = award;
 
-    for (final person in JsonCodec.listAt(json, 'staff')) {
+    for (final bid in _pendingBids(json)) {
+      draft.pendingBids.add(
+        PendingShiftBid(
+          bidId: bid.bidId,
+          staffId: bid.staffId,
+          staffName: bid.staffName,
+          note: bid.note,
+        ),
+      );
+    }
+    for (final person in _assignedPeople(json)) {
       if (person is! Map) continue;
       final staff = JsonCodec.asMap(person);
-      final id = JsonCodec.string(staff['id']);
+      final id = JsonCodec.string(staff['id'] ?? staff['staffId']);
       if (id == null) continue;
       draft.assignedStaff.add(
         AssignedShiftStaff(
@@ -721,6 +732,7 @@ abstract final class SchedulingMapper {
       openPositionsLabel: open == 0
           ? null
           : '$open open${_roleSuffix(json)}',
+      pendingBids: _pendingBids(json),
       showTimelineDivider: showDivider,
     );
   }
@@ -751,6 +763,10 @@ abstract final class SchedulingMapper {
       extraStaffCount: (avatars.length - 3).clamp(0, 99),
       roleChips: _roles(json),
       neededLabel: open == 0 ? 'Covered' : '$open needed',
+      residenceName: JsonCodec.string(
+        json['residenceName'] ??
+            JsonCodec.mapAt(json, 'residence')?['name'],
+      ),
     );
   }
 
@@ -910,11 +926,66 @@ abstract final class SchedulingMapper {
             map['employee'] ??
             map['assignee'] ??
             item;
-      }).toList();
+      }).where(_isRosteredPerson).toList();
     }
     final staff = JsonCodec.listAt(json, 'staff');
-    if (staff.isNotEmpty) return staff;
-    return JsonCodec.listAt(json, 'assignees');
+    if (staff.isNotEmpty) {
+      return staff.where(_isRosteredPerson).toList();
+    }
+    return JsonCodec.listAt(json, 'assignees').where(_isRosteredPerson).toList();
+  }
+
+  /// Assigned/active people only — pending bids are listed separately.
+  static bool _isRosteredPerson(dynamic person) {
+    if (person is! Map) return true;
+    final status =
+        (JsonCodec.string(JsonCodec.asMap(person)['status']) ?? '').toLowerCase();
+    return status != 'bid_pending' &&
+        status != 'pending' &&
+        status != 'declined' &&
+        status != 'rejected';
+  }
+
+  /// Open-shift bids the manager can accept (`staff` or `bids` rows).
+  static List<ShiftBid> _pendingBids(Map<String, dynamic> json) {
+    final seen = <String>{};
+    final out = <ShiftBid>[];
+
+    void add(Map raw) {
+      final map = JsonCodec.asMap(raw);
+      final status = (JsonCodec.string(map['status']) ?? '').toLowerCase();
+      // `bids[]` rows are pending even when status is omitted.
+      final pending = status.isEmpty ||
+          status == 'bid_pending' ||
+          status == 'pending' ||
+          status == 'bidding';
+      if (!pending) return;
+      final bidId = JsonCodec.string(
+        map['assignmentId'] ?? map['bidId'] ?? map['id'],
+      );
+      if (bidId == null || !seen.add(bidId)) return;
+      final staffId = JsonCodec.string(map['staffId'] ?? map['id']) ?? bidId;
+      out.add(
+        ShiftBid(
+          bidId: bidId,
+          staffId: staffId,
+          staffName: JsonCodec.string(map['name']) ?? 'Unnamed',
+          note: JsonCodec.string(map['note']) ?? '',
+        ),
+      );
+    }
+
+    for (final row in JsonCodec.listAt(json, 'staff').whereType<Map>()) {
+      final status =
+          (JsonCodec.string(JsonCodec.asMap(row)['status']) ?? '').toLowerCase();
+      if (status == 'bid_pending' || status == 'pending' || status == 'bidding') {
+        add(row);
+      }
+    }
+    for (final row in JsonCodec.listAt(json, 'bids').whereType<Map>()) {
+      add(row);
+    }
+    return out;
   }
 
   static String _fullName(dynamic person) {

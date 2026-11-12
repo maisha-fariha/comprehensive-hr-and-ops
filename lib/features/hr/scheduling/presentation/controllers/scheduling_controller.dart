@@ -360,6 +360,28 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   Future<void> declineRequest(ShiftRequest request) =>
       _decideSwap(request, approve: false);
 
+  /// Awards an open-shift bid (`POST …/bids/{bidId}/accept`).
+  Future<bool> acceptShiftBid({
+    required String shiftId,
+    required String bidId,
+  }) async {
+    final result = await repository.acceptShiftBid(
+      shiftId: shiftId,
+      bidId: bidId,
+    );
+    return result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid accepted', 'Staff is now assigned to this shift.');
+        await loadOverview();
+        return true;
+      },
+      failure: (error) async {
+        AppSnackbar.show('Could not accept bid', error.message);
+        return false;
+      },
+    );
+  }
+
   Future<void> _decideSwap(ShiftRequest request, {required bool approve}) async {
     if (!request.canManagerDecide) {
       AppSnackbar.show(

@@ -26,7 +26,7 @@ class StaffDailyActivityPage extends StatefulWidget {
 }
 
 class _StaffDailyActivityPageState extends State<StaffDailyActivityPage> {
-  static const int _moreTabIndex = 4;
+  static const int _moreTabIndex = 5;
   late final StaffDailyActivityController _controller;
   late final TextEditingController _searchController;
 

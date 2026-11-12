@@ -34,7 +34,7 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart
 /// Staff shell keeps the MAR / Tasks bottom nav; manager opens the same UI
 /// as a pushed page (`showStaffBottomNav: false`).
 class StaffMedicationPage extends StatelessWidget {
-  static const int _marTasksTabIndex = 3;
+  static const int _marTasksTabIndex = 4;
 
   /// When false (manager / notification deep-link), hide staff bottom nav.
   final bool showStaffBottomNav;

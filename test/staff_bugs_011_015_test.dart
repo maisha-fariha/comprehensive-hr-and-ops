@@ -280,7 +280,8 @@ void main() {
         ),
         findsNothing,
       );
-      expect(StaffBottomNavBar.items[2].label, 'Daily Logs');
+      expect(StaffBottomNavBar.items[2].label, 'Attendance');
+      expect(StaffBottomNavBar.items[3].label, 'Daily Logs');
     },
   );
 

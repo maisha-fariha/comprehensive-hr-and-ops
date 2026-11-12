@@ -35,7 +35,7 @@ class StaffIncidentsListPage extends StatefulWidget {
 
 class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
   /// Index of the "More" slot in [StaffBottomNavBar.items].
-  static const int _moreTabIndex = 4;
+  static const int _moreTabIndex = 5;
 
   late final StaffIncidentsController _controller;
   final TextEditingController _searchController = TextEditingController();

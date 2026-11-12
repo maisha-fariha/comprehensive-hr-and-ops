@@ -25,26 +25,40 @@ abstract final class StaffAttendanceMapper {
     // Web clock-in: the shift is current from 15 minutes before it starts
     // until it ends. Otherwise the next shift in the window is shown.
     final window = AttendanceMapper.shiftWindowFrom(shiftsBody, now);
-    Map<String, dynamic> shift = const {};
-    if (window != null) {
-      for (final raw in JsonCodec.unwrapList(shiftsBody)) {
-        if (raw is! Map) continue;
-        final candidate = JsonCodec.asMap(raw);
-        if (JsonCodec.string(candidate['id']) == window.shiftId) {
-          shift = candidate;
-          break;
-        }
-      }
-    }
-    final hasRosteredShiftNow = window?.isCurrent ?? false;
-
-    final residence = JsonCodec.unwrapMap(residenceBody);
 
     final checkIn = JsonCodec.dateTime(
       open?['checkInAt'] ?? open?['clockInAt'] ?? open?['checkIn'],
     );
     // Only a live clock-in (check-in without check-out) counts as on-shift.
     final onShift = checkIn != null;
+    final openShiftId = JsonCodec.string(
+      open?['shiftId'] ?? JsonCodec.mapAt(open ?? {}, 'shift')?['id'],
+    );
+
+    // While punched in, bind the open punch's shift — not the next upcoming
+    // window. Late / overtime clock-outs and handover need that shiftId.
+    Map<String, dynamic> shift = const {};
+    final preferId = onShift ? openShiftId : null;
+    final targetId = (preferId != null && preferId.isNotEmpty)
+        ? preferId
+        : window?.shiftId;
+    if (targetId != null) {
+      for (final raw in JsonCodec.unwrapList(shiftsBody)) {
+        if (raw is! Map) continue;
+        final candidate = JsonCodec.asMap(raw);
+        if (JsonCodec.string(candidate['id']) == targetId) {
+          shift = candidate;
+          break;
+        }
+      }
+    }
+    if (shift.isEmpty && open != null) {
+      final nested = JsonCodec.mapAt(open, 'shift');
+      if (nested != null) shift = Map<String, dynamic>.from(nested);
+    }
+    final hasRosteredShiftNow = window?.isCurrent ?? false;
+
+    final residence = JsonCodec.unwrapMap(residenceBody);
     final onBreak =
         JsonCodec.boolean(open?['onBreak']) ??
         (JsonCodec.dateTime(open?['breakStartedAt']) != null);
@@ -205,10 +219,11 @@ abstract final class StaffAttendanceMapper {
         breakMinutes: breakMinutes,
       ),
       shiftId: JsonCodec.string(
-        shift['id'] ??
-            open?['shiftId'] ??
-            JsonCodec.mapAt(open ?? {}, 'shift')?['id'],
-      ),
+            openShiftId ??
+                shift['id'] ??
+                open?['shiftId'] ??
+                JsonCodec.mapAt(open ?? {}, 'shift')?['id'],
+          ),
       residenceId: residenceId,
       shiftEndsAt: end,
       shiftStartsAt: start,

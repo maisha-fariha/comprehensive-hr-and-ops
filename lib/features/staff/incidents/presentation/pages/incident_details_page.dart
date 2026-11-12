@@ -29,7 +29,7 @@ class IncidentDetailsPage extends StatefulWidget {
   final String incidentId;
 
   /// Index of the "More" slot in [StaffBottomNavBar.items].
-  static const int _moreTabIndex = 4;
+  static const int _moreTabIndex = 5;
 
   const IncidentDetailsPage({super.key, required this.incidentId});
 

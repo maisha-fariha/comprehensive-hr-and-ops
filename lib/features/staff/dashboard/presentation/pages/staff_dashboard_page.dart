@@ -148,7 +148,7 @@ class StaffDashboardPage extends StatelessWidget {
                               _openClockSheet(context, controller);
                             case 'daily-logs':
                               // Opens Daily Logs tab (My Clients / notes).
-                              Get.offAll(() => const StaffShell(initialIndex: 2));
+                              Get.offAll(() => const StaffShell(initialIndex: 3));
                             case 'medication-mar':
                               // Opens MAR → GET /mar/round
                               Get.to(() => const StaffMedicationPage());

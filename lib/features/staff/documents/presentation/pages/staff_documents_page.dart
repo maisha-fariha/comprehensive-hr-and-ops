@@ -89,7 +89,7 @@ class _StaffDocumentsPageState extends State<StaffDocumentsPage> {
       key: const Key('staff-documents-page'),
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: 4,
+        currentIndex: 5,
         onTap: (i) => Get.offAll(() => StaffShell(initialIndex: i)),
       ),
       body: SafeArea(

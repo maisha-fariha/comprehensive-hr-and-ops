@@ -124,11 +124,7 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.access_time_rounded,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
-      open: () => openPermittedPage(
-        title: 'Attendance',
-        anyOf: const ['attendance:read'],
-        builder: () => const StaffAttendancePage(),
-      ),
+      open: () => _openTab(2),
     ),
     StaffSearchDestination(
       label: 'Handovers',
@@ -174,7 +170,7 @@ List<StaffSearchDestination> staffSearchDestinations() {
       icon: Icons.edit_note_rounded,
       iconBackground: AppColors.infoBackground,
       iconColor: AppColors.infoBlue,
-      open: () => _openTab(2),
+      open: () => _openTab(3),
     ),
     StaffSearchDestination(
       label: 'Emergency',

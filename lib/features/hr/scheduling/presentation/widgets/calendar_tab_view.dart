@@ -701,6 +701,20 @@ class _ShiftCard extends StatelessWidget {
               color: AppColors.textMuted,
             ),
           ),
+          if ((shift.residenceName ?? '').trim().isNotEmpty) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+            Text(
+              shift.residenceName!.trim(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),

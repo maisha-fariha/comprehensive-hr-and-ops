@@ -246,7 +246,11 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     _displayName.value = profile.displayName;
     _email.value = profile.email;
     _avatarInitials.value = profile.avatarInitials;
-    _avatarUrl.value = profile.avatarUrl;
+    // `/mobile/me` often omits avatarUrl; keep the photo from `/auth/me`
+    // / upload until a non-null URL arrives (same idea as staffId below).
+    if (profile.avatarUrl != null && profile.avatarUrl!.trim().isNotEmpty) {
+      _avatarUrl.value = profile.avatarUrl;
+    }
     _residenceId.value = profile.residenceId;
     _residenceName.value = profile.residenceName;
     // Company / tenant name for portal branding (not the assigned residence).

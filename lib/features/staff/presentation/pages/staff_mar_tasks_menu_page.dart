@@ -7,6 +7,7 @@ import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
+import '../../extras/presentation/pages/staff_recurring_checks_page.dart';
 import '../../medication/presentation/pages/staff_medication_page.dart';
 import '../../tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
 import '../widgets/staff_menu_entry.dart';
@@ -51,8 +52,16 @@ class StaffMarTasksMenuPage extends StatelessWidget {
                 icon: Icons.fact_check_outlined,
                 iconBackground: AppColors.urgentBackground,
                 iconColor: AppColors.urgentAmber,
-                title: 'Tasks & Messages',
-                subtitle: 'Your to-dos and team conversations',
+                title: 'Tasks',
+                subtitle: 'Your assigned to-dos and checklists',
+              ),
+            if (session.can('recurring-checks:read'))
+              const StaffMenuEntry(
+                icon: Icons.fact_check_outlined,
+                iconBackground: AppColors.urgentBackground,
+                iconColor: AppColors.urgentAmber,
+                title: 'Recurring Checks',
+                subtitle: 'Due recurring checks assigned to you',
               ),
             if (session.canAccessMessaging)
               const StaffMenuEntry(
@@ -90,8 +99,10 @@ class StaffMarTasksMenuPage extends StatelessWidget {
   void _open(String title) {
     if (title == 'Medication MAR') {
       Get.to(() => const StaffMedicationPage());
-    } else if (title == 'Tasks & Messages') {
+    } else if (title == 'Tasks' || title == 'Tasks & Messages') {
       Get.to(() => const StaffTasksMessagesPage());
+    } else if (title == 'Recurring Checks') {
+      Get.to(() => const StaffRecurringChecksPage());
     } else if (title == 'Communication') {
       Get.to(() => const CommunicationPage(showStaffBottomNav: true));
     }

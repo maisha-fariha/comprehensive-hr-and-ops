@@ -144,6 +144,13 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     required bool approve,
   }) async =>
       Result.success(null);
+
+  @override
+  Future<Result<void>> acceptShiftBid({
+    required String shiftId,
+    required String bidId,
+  }) async =>
+      Result.success(null);
 }
 
 class _FakeApi implements AppApiClient {

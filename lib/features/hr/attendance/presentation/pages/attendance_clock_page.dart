@@ -404,10 +404,19 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
           (_requiresGeofenceGate || _askLocation) ? _location : null;
       final notes = _notesController.text.trim();
       final shift = _shift;
+      // Web posts shiftId only while isCurrent on clock-in. On clock-out,
+      // keep the open punch's shiftId after the rota window ends so handover
+      // still sees the worked shift (same as binding open attendance).
+      final punchShiftId = _open?.shiftId?.trim();
+      final shiftIdForBody = widget.clockOut
+          ? ((punchShiftId != null && punchShiftId.isNotEmpty)
+              ? punchShiftId
+              : (shift != null && shift.isCurrent ? shift.shiftId : null))
+          : (shift != null && shift.isCurrent ? shift.shiftId : null);
       final body = <String, dynamic>{
         'staffId': _staffId,
         'residenceId': residenceId,
-        if (shift != null && shift.isCurrent) 'shiftId': shift.shiftId,
+        if (shiftIdForBody != null) 'shiftId': shiftIdForBody,
         if (location != null) ...{
           'latitude': location.latitude,
           'longitude': location.longitude,
@@ -436,7 +445,9 @@ class _AttendanceClockPageState extends State<AttendanceClockPage> {
             setState(() {
               _submitError = error.message;
               _writeHandover = true;
-              _handoverShiftId = handoverShiftIdOf(error) ?? shift?.shiftId;
+              _handoverShiftId = handoverShiftIdOf(error) ??
+                  punchShiftId ??
+                  shift?.shiftId;
             });
             return;
           }
