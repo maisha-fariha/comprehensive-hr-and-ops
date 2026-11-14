@@ -301,16 +301,15 @@ class _StaffRecordAdministrationDialogState
     });
     if (client == null) return;
     setState(() => _loadingMeds = true);
-    final prescribed = await _repo.getClientMedications(client.id);
+    // Record Administration charts PRN doses for the selected resident only.
     final prn = await _repo.getClientPrnMedications(client.id);
     if (!mounted || _client != client) return;
-    // Web `_choices`: only this resident's chart + same-home house stock.
-    // Without this filter, over-broad PRN API payloads leak other residents'
-    // PRNs into the medicine dropdown (mobile vs web mismatch).
+    // Drop scheduled meds / other residents / house stock even when the
+    // PRN API over-returns them.
     final list = StaffClientMedicationItem.scopedForRecordAdministration(
       clientId: client.id,
       residenceId: client.residenceId,
-      prescribed: prescribed.value ?? const [],
+      prescribed: const [],
       prns: prn.value ?? const [],
     );
     final keep = previous != null &&
@@ -746,7 +745,7 @@ class _StaffRecordAdministrationDialogState
         ),
         const SizedBox(height: 6),
         const Text(
-          'The medicine list below is scoped to whoever is chosen here.',
+          'The medicine list below shows only this resident’s PRNs.',
           style: TextStyle(
             fontFamily: 'Outfit',
             fontSize: 11,
@@ -837,7 +836,7 @@ class _StaffRecordAdministrationDialogState
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Medication *',
-                    hintText: 'Search prescriptions & PRN',
+                    hintText: "Search this resident's PRN medicines",
                     isDense: true,
                   ),
                   items: [
@@ -865,7 +864,7 @@ class _StaffRecordAdministrationDialogState
                   _medications.isEmpty) ...[
                 const SizedBox(height: 8),
                 const Text(
-                  'No medicines on this resident’s chart yet.',
+                  'No PRN medicines on this resident’s chart yet.',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 12,

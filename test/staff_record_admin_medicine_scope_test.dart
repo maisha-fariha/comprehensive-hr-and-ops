@@ -23,7 +23,7 @@ void main() {
   const clientId = 'client-002';
   const home = 'res-001';
 
-  test('Record Admin medicine list matches web resident + house-stock scope', () {
+  test('Record Admin medicine list is only this resident’s active PRNs', () {
     final scoped = StaffClientMedicationItem.scopedForRecordAdministration(
       clientId: clientId,
       residenceId: home,
@@ -35,13 +35,6 @@ void main() {
           clientId: clientId,
           residenceId: home,
         ),
-        // Other resident — must never appear.
-        _med(
-          id: 'other-med',
-          name: 'Other Med',
-          clientId: 'client-015',
-          residenceId: home,
-        ),
       ],
       prns: [
         _med(
@@ -51,20 +44,12 @@ void main() {
           residenceId: home,
           isPrn: true,
         ),
-        // Same-home house stock — web includes these.
+        // Same-home house stock — not this resident's PRN.
         _med(
           id: 'house-prn',
           name: 'House Stock PRN',
           clientId: '',
           residenceId: home,
-          isPrn: true,
-        ),
-        // Other home house stock — excluded on web.
-        _med(
-          id: 'other-house',
-          name: 'Other House PRN',
-          clientId: '',
-          residenceId: 'res-003',
           isPrn: true,
         ),
         // Other resident PRN leaked by API — excluded.
@@ -86,13 +71,10 @@ void main() {
       ],
     );
 
-    expect(
-      scoped.map((m) => m.id),
-      ['met', 'tears-sched', 'tears-prn', 'house-prn'],
-    );
+    expect(scoped.map((m) => m.id), ['tears-prn']);
   });
 
-  test('duplicate id+isPrn rows are deduped', () {
+  test('duplicate PRN ids are deduped', () {
     final tear = _med(
       id: 'tears',
       name: 'Artificial Tears',

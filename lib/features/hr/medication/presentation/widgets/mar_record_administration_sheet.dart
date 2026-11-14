@@ -192,10 +192,11 @@ class _MarRecordAdministrationFormState extends State<MarRecordAdministrationFor
           if (w.id != _staffId) (w.id, w.label),
       ];
 
+  /// Record Administration medicine picker: this resident's PRNs only.
   List<MarMedicationChoice> get _choices => _clientId.isEmpty
       ? const []
       : _c.medicationChoices
-          .where((m) => m.clientId == _clientId || (m.clientId.isEmpty && m.residenceId == _residenceId))
+          .where((m) => m.recordType == 'PRN' && m.clientId == _clientId)
           .toList();
 
   List<String> get _allergies {
@@ -219,7 +220,7 @@ class _MarRecordAdministrationFormState extends State<MarRecordAdministrationFor
         for (final i in _items) {
           i.dispose();
         }
-        _items = [_Item('MAR')];
+        _items = [_Item('PRN')];
       }
     });
     _loadWitnesses();
@@ -540,7 +541,7 @@ class _MarRecordAdministrationFormState extends State<MarRecordAdministrationFor
         enabled: !_locked,
         helper: _locked
             ? 'Fixed to the dose this was opened on.'
-            : 'The medicine list below is scoped to whoever is chosen here.',
+            : 'The medicine list below shows only this resident’s PRNs.',
         onChanged: _setResident,
       ),
       if (_clientId.isNotEmpty) ...[
@@ -588,7 +589,7 @@ class _MarRecordAdministrationFormState extends State<MarRecordAdministrationFor
             key: const ValueKey('mar-wizard-add-med'),
             label: 'Add another medicine',
             icon: Icons.add_rounded,
-            onPressed: () => setState(() => _items.add(_Item('MAR'))),
+            onPressed: () => setState(() => _items.add(_Item('PRN'))),
           ),
         ),
       ],
@@ -643,7 +644,7 @@ class _MarRecordAdministrationFormState extends State<MarRecordAdministrationFor
               value: item.medicationId,
               options: [for (final m in _choices) (m.id, m.label)],
               placeholder: _clientId.isNotEmpty
-                  ? "Search this resident's prescriptions and PRN medicines"
+                  ? "Search this resident's PRN medicines"
                   : 'Choose a resident first',
               onChanged: (v) => _setMedication(item, v),
             ),

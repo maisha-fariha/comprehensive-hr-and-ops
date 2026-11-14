@@ -160,9 +160,18 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       silent: true,
     );
     return result.when(
-      success: (body) async => Result.success(
-        StaffMedicationMapper.clientMedicationsFrom(body, isPrn: true),
-      ),
+      success: (body) async {
+        final items = StaffMedicationMapper.clientMedicationsFrom(
+          body,
+          isPrn: true,
+        );
+        // Drop other residents and house-stock (empty clientId) so Record
+        // Administration only offers this resident's PRNs.
+        return Result.success([
+          for (final m in items)
+            if (m.clientId == clientId) m,
+        ]);
+      },
       failure: (error) async => Result.failure(error),
     );
   }

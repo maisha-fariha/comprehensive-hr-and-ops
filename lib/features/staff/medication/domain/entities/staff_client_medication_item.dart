@@ -57,6 +57,7 @@ class StaffClientMedicationItem {
   });
 
   StaffClientMedicationItem copyWith({
+    String? clientId,
     String? clientName,
     String? residenceName,
   }) {
@@ -67,7 +68,7 @@ class StaffClientMedicationItem {
       scheduleLabel: scheduleLabel,
       instructions: instructions,
       isPrn: isPrn,
-      clientId: clientId,
+      clientId: clientId ?? this.clientId,
       clientName: clientName ?? this.clientName,
       residenceId: residenceId,
       residenceName: residenceName ?? this.residenceName,
@@ -98,30 +99,21 @@ class StaffClientMedicationItem {
   @override
   int get hashCode => Object.hash(id, isPrn);
 
-  /// Web Record Administration medicine picker (`mar_record_administration_sheet`
-  /// `_choices`): the selected resident's own prescriptions/PRNs, plus
-  /// house-stock held at that resident's home. Other residents' meds never
-  /// appear — even when `/prn-medications?clientId=` over-returns them.
+  /// Record Administration medicine picker: only this resident's active PRNs.
+  /// Scheduled prescriptions and other residents' / house-stock PRNs are
+  /// excluded — even when `/prn-medications?clientId=` over-returns them.
   static List<StaffClientMedicationItem> scopedForRecordAdministration({
     required String clientId,
     required String? residenceId,
     required Iterable<StaffClientMedicationItem> prescribed,
     required Iterable<StaffClientMedicationItem> prns,
   }) {
-    final home = (residenceId ?? '').trim();
-    bool keep(StaffClientMedicationItem m) {
-      if (!m.isActive) return false;
-      if (m.clientId == clientId) return true;
-      return m.clientId.isEmpty &&
-          home.isNotEmpty &&
-          m.residenceId == home;
-    }
-
     final seen = <String>{};
     final out = <StaffClientMedicationItem>[];
-    for (final m in [...prescribed, ...prns]) {
-      if (!keep(m)) continue;
-      if (!seen.add('${m.isPrn}:${m.id}')) continue;
+    for (final m in prns) {
+      if (!m.isActive || !m.isPrn) continue;
+      if (m.clientId != clientId) continue;
+      if (!seen.add(m.id)) continue;
       out.add(m);
     }
     return out;

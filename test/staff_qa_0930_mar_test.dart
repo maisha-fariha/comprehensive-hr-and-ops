@@ -723,18 +723,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+      // Preselected scheduled dose stays visible until a PRN is chosen.
       expect(find.text('Napa · 500'), findsOneWidget);
 
       await tester.tap(find.text('Napa · 500'));
       await tester.pumpAndSettle();
-      expect(find.text('Ooo · 45'), findsWidgets);
+      // Dropdown is PRN-only for this resident — scheduled chart meds stay out.
+      expect(find.text('Ooo · 45'), findsNothing);
       expect(find.textContaining('Own PRN'), findsWidgets);
-      // Web resident scope: other clients' / other homes' PRNs stay out.
       expect(find.textContaining('Other Resident PRN'), findsNothing);
       expect(find.textContaining('Other House PRN'), findsNothing);
-      await tester.tap(find.text('Ooo · 45').last);
+      await tester.tap(find.textContaining('Own PRN').last);
       await tester.pumpAndSettle();
-      expect(find.text('Ooo · 45'), findsOneWidget);
+      expect(find.textContaining('Own PRN'), findsOneWidget);
       expect(find.text('Napa · 500'), findsNothing);
 
       await tester.tap(find.text('Client One').first);
