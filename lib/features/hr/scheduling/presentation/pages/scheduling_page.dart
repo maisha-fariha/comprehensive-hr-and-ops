@@ -8,11 +8,8 @@ import '../../../ai/presentation/widgets/ai_draft_sheet.dart';
 import '../../../ai/presentation/widgets/ai_feature_sheets.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../controllers/scheduling_controller.dart';
-import '../widgets/board_tab_view.dart';
 import '../widgets/calendar_tab_view.dart';
-import '../widgets/requests_tab_view.dart';
 import '../widgets/scheduling_filter_bar.dart';
-import '../widgets/scheduling_segmented_tabs.dart';
 import '../widgets/open_shift_bids_sheet.dart';
 import '../widgets/schedule_side_rails.dart';
 import '../widgets/schedule_span_panel.dart';
@@ -24,11 +21,9 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart
 
 /// The Manager/HR Scheduling screen — the "Schedule" tab of the HR portal.
 ///
-/// Reproduction of the Figma "Scheduling" group's 3 frames ("Calendar -
-/// Scheduling", "Board - Scheduling", "Requests - Scheduling"), which all
-/// share the exact same header and segmented tab bar and only swap their
-/// main content area — implemented here as a single page with an internal
-/// segmented-tab state rather than 3 separate pages.
+/// Calendar content only (Week / Month / All shifts). The old Calendar |
+/// Board | Requests segmented bar is removed; swap requests stay on the
+/// Calendar rails, and Board is no longer shown.
 class SchedulingPage extends StatefulWidget {
   const SchedulingPage({super.key});
 
@@ -289,11 +284,6 @@ class _SchedulingPageState extends State<SchedulingPage> {
                       onMineTap:
                           controller.canWrite ? controller.toggleMine : null,
                     ),
-                    SchedulingSegmentedTabs(
-                      selectedTab: controller.selectedTab.value,
-                      requestsBadgeCount: overview.requests.pendingRequests.length,
-                      onTabSelected: controller.selectTab,
-                    ),
                   ],
                 ),
               ),
@@ -301,118 +291,80 @@ class _SchedulingPageState extends State<SchedulingPage> {
                 child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
-                  child: switch (controller.selectedTab.value) {
-                    SchedulingTab.calendar => switch (controller.span.value) {
-                      ScheduleSpan.month => ScheduleMonthView(
-                        controller: controller,
-                        shifts: overview.calendar.weekShifts,
-                      ),
-                      ScheduleSpan.list => ScheduleAllShiftsView(
-                        controller: controller,
-                        shifts: overview.calendar.weekShifts,
-                        coverage: overview.weekCoverage,
-                        onOpenShift: controller.canWrite
-                            ? (shiftId) => _openEditShift(controller, shiftId)
-                            : null,
-                      ),
-                      ScheduleSpan.week => CalendarTabView(
-                        data: overview.calendar,
-                        onPreviousWeek: controller.goToPreviousWeek,
-                        onNextWeek: controller.goToNextWeek,
-                        onDaySelected: (day) =>
-                            controller.selectCalendarDay(day.date),
-                        onShiftTap: controller.canWrite
-                            ? (shift) => _onCalendarShiftTap(controller, shift)
-                            : null,
-                        leading: [
-                          ScheduleSpanSwitch(
-                            selected: ScheduleSpan.week,
-                            onSelected: controller.selectSpan,
-                          ),
-                        ],
-                        trailing: [
-                          OpenShiftsRail(
-                            controller: controller,
-                            openShifts: overview.openShifts,
-                            onOpenShift: controller.canWrite
-                                ? (shift) => _openOpenShift(
-                                      context,
-                                      controller,
-                                      shift,
-                                    )
-                                : null,
-                            onEditShift: controller.canWrite
-                                ? (shift) =>
-                                    _openEditShift(controller, shift.id)
-                                : null,
-                            onCancelShift: controller.canWrite
-                                ? (shift) => _confirmCancelShift(
-                                      context,
-                                      controller,
-                                      shift,
-                                    )
-                                : null,
-                            onDeleteShift: controller.canWrite
-                                ? (shift) => _confirmDeleteShift(
-                                      context,
-                                      controller,
-                                      shift,
-                                    )
-                                : null,
-                            onBid: controller.canBid
-                                ? (shift) async {
-                                    await controller.placeShiftBid(shift.id);
-                                  }
-                                : null,
-                          ),
-                          StaffRosteredHoursRail(
-                            rows: overview.staffRosteredHours,
-                            weekStart: controller.weekOf.value,
-                            onViewBreakdown: () =>
-                                _openStaffHours(context, controller),
-                          ),
-                          WeekSwapRail(
-                            controller: controller,
-                            shifts: overview.calendar.weekShifts,
-                            pending: overview.requests.pendingRequests,
-                          ),
-                        ],
-                      ),
-                    },
-                    SchedulingTab.board => BoardTabView(
-                      data: overview.board,
-                      onShiftTap: controller.canWrite
-                          ? (shift) => _openEditShift(controller, shift.id)
+                  child: switch (controller.span.value) {
+                    ScheduleSpan.month => ScheduleMonthView(
+                      controller: controller,
+                      shifts: overview.calendar.weekShifts,
+                    ),
+                    ScheduleSpan.list => ScheduleAllShiftsView(
+                      controller: controller,
+                      shifts: overview.calendar.weekShifts,
+                      coverage: overview.weekCoverage,
+                      onOpenShift: controller.canWrite
+                          ? (shiftId) => _openEditShift(controller, shiftId)
                           : null,
                     ),
-                    SchedulingTab.requests => RequestsTabView(
-                      data: overview.requests,
-                      onApprove: controller.canWrite
-                          ? controller.approveRequest
+                    ScheduleSpan.week => CalendarTabView(
+                      data: overview.calendar,
+                      onPreviousWeek: controller.goToPreviousWeek,
+                      onNextWeek: controller.goToNextWeek,
+                      onDaySelected: (day) =>
+                          controller.selectCalendarDay(day.date),
+                      onShiftTap: controller.canWrite
+                          ? (shift) => _onCalendarShiftTap(controller, shift)
                           : null,
-                      onDecline: controller.canWrite
-                          ? controller.declineRequest
-                          : null,
-                      onOpenShift: controller.canWrite
-                          ? (id) {
-                              CalendarShift? match;
-                              for (final s in overview.openShifts) {
-                                if (s.id == id) {
-                                  match = s;
-                                  break;
+                      leading: [
+                        ScheduleSpanSwitch(
+                          selected: ScheduleSpan.week,
+                          onSelected: controller.selectSpan,
+                        ),
+                      ],
+                      trailing: [
+                        OpenShiftsRail(
+                          controller: controller,
+                          openShifts: overview.openShifts,
+                          onOpenShift: controller.canWrite
+                              ? (shift) => _openOpenShift(
+                                    context,
+                                    controller,
+                                    shift,
+                                  )
+                              : null,
+                          onEditShift: controller.canWrite
+                              ? (shift) => _openEditShift(controller, shift.id)
+                              : null,
+                          onCancelShift: controller.canWrite
+                              ? (shift) => _confirmCancelShift(
+                                    context,
+                                    controller,
+                                    shift,
+                                  )
+                              : null,
+                          onDeleteShift: controller.canWrite
+                              ? (shift) => _confirmDeleteShift(
+                                    context,
+                                    controller,
+                                    shift,
+                                  )
+                              : null,
+                          onBid: controller.canBid
+                              ? (shift) async {
+                                  await controller.placeShiftBid(shift.id);
                                 }
-                              }
-                              if (match != null) {
-                                _openOpenShift(
-                                  context,
-                                  controller,
-                                  match,
-                                );
-                                return;
-                              }
-                              _openEditShift(controller, id);
-                            }
-                          : null,
+                              : null,
+                        ),
+                        StaffRosteredHoursRail(
+                          rows: overview.staffRosteredHours,
+                          weekStart: controller.weekOf.value,
+                          onViewBreakdown: () =>
+                              _openStaffHours(context, controller),
+                        ),
+                        WeekSwapRail(
+                          controller: controller,
+                          shifts: overview.calendar.weekShifts,
+                          pending: overview.requests.pendingRequests,
+                        ),
+                      ],
                     ),
                   },
                 ),

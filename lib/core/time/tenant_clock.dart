@@ -211,9 +211,10 @@ abstract final class TenantClock {
     if (is24Hour) {
       return '${_two(h)}:${_two(m)}';
     }
+    // Web Settings → General 12-hour uses zero-padded hours (`07:15 pm`).
     final h12 = h % 12 == 0 ? 12 : h % 12;
     final ampm = h >= 12 ? 'pm' : 'am';
-    return '$h12:${_two(m)} $ampm';
+    return '${_two(h12)}:${_two(m)} $ampm';
   }
 
   /// Minutes after midnight in the tenant zone → Settings → General time.

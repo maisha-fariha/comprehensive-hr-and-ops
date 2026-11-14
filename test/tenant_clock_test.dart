@@ -40,7 +40,8 @@ void main() {
     TenantClock.use('Europe/Zurich', dateFmt: 'DD/MM/YYYY', timeFmt: '12h');
     // Same instant as GET /shifts startsAt for Tue 3 Nov afternoon slot.
     final instant = DateTime.utc(2026, 11, 3, 19, 15);
-    expect(TenantClock.formatTime(instant), '8:15 pm');
+    // Web All Shifts uses zero-padded 12-hour labels (`08:15 pm`).
+    expect(TenantClock.formatTime(instant), '08:15 pm');
     expect(TenantClock.wallOf(instant).hour, 20);
   });
 
@@ -48,7 +49,7 @@ void main() {
     TenantClock.use('Asia/Dhaka', timeFmt: '12-hour');
     expect(TenantClock.timeFormat, '12h');
     expect(TenantClock.is24Hour, isFalse);
-    expect(TenantClock.formatMinutes(13 * 60 + 5), '1:05 pm');
+    expect(TenantClock.formatMinutes(13 * 60 + 5), '01:05 pm');
 
     TenantClock.use('Asia/Dhaka', timeFmt: '24-hour');
     expect(TenantClock.timeFormat, '24h');

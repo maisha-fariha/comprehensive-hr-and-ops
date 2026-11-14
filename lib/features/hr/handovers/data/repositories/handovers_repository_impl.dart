@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
@@ -47,21 +48,25 @@ class HandoversRepositoryImpl implements HandoversRepository {
     String? residenceId,
     String? from,
     String? to,
-  }) =>
-      _get(
-        ApiEndpoints.shiftHandovers,
-        {
-          'page': 1,
-          'limit': 20,
-          'residenceId': ?residenceId,
-          'status': ?status,
-          'from': ?from,
-          'to': ?to,
-          'staffId': ?staffId,
-        },
-        HandoversMapper.listFrom,
-        silent: false,
-      );
+  }) async {
+    // Full list screen has no page UI — a single limit:20 truncated vs web.
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.shiftHandovers,
+      query: {
+        'residenceId': ?residenceId,
+        'status': ?status,
+        'from': ?from,
+        'to': ?to,
+        'staffId': ?staffId,
+      },
+    );
+    return result.when(
+      success: (rows) async =>
+          Result.success(HandoversMapper.listFrom({'data': rows})),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<ShiftHandover>> byId(String id) async {

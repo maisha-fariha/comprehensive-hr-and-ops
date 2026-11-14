@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
@@ -84,13 +85,14 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   @override
   Future<Result<List<StaffTask>>> getMyTasks() async {
     // Web Task Management is not auto-scoped to session.residenceId.
-    final result = await _api.get(
-      ApiEndpoints.tasks,
-      query: {'page': 1, 'limit': 50},
+    // Walk every page — a single limit:50 truncated the list vs stats/web.
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.tasks,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(StaffTasksMessagesMapper.tasksFrom(body)),
+      success: (rows) async =>
+          Result.success(StaffTasksMessagesMapper.tasksFrom({'data': rows})),
       failure: (error) async => Result.failure(error),
     );
   }

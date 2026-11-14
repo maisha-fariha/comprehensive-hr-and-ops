@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
@@ -17,8 +18,7 @@ import '../../domain/repositories/scheduling_repository.dart';
 import '../mappers/scheduling_mapper.dart';
 
 class SchedulingRepositoryImpl implements SchedulingRepository {
-  static const _pageSize = 100;
-  static const _maxPages = 5;
+  static const _pageSize = ApiPageFetcher.defaultPageSize;
 
   final AppApiClient _api;
 
@@ -53,32 +53,21 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     final monthStart = DateTime(month.year, month.month, 1);
     final monthEnd = DateTime(month.year, month.month + 1, 0);
 
-    final weekResult = span == ScheduleSpan.list
-        ? await _api.get(
-            ApiEndpoints.shifts,
-            query: {
-              'page': 1,
-              'limit': 50,
-              'residenceId': ?scopedResidenceId,
-              if (mine) 'mine': true,
-            },
-          ).then(
-            (result) => result.when(
-              success: (body) => Result<List<dynamic>>.success(
-                JsonCodec.unwrapList(body),
-              ),
-              failure: (error) => Result<List<dynamic>>.failure(error),
-            ),
-          )
-        : await _fetchAllPages(
-            path: ApiEndpoints.shifts,
-            baseQuery: {
-              'from': span == ScheduleSpan.month ? _ymd(monthStart) : from,
-              'to': span == ScheduleSpan.month ? _ymd(monthEnd) : to,
-              'residenceId': ?scopedResidenceId,
-              if (mine) 'mine': true,
-            },
-          );
+    // All shifts must paginate like Week/Month — a single `limit: 50` page
+    // truncated the list vs web (e.g. 50 of 54).
+    final weekResult = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.shifts,
+      query: {
+        if (span != ScheduleSpan.list) ...{
+          'from': span == ScheduleSpan.month ? _ymd(monthStart) : from,
+          'to': span == ScheduleSpan.month ? _ymd(monthEnd) : to,
+        },
+        'residenceId': ?scopedResidenceId,
+        if (mine) 'mine': true,
+      },
+      pageSize: _pageSize,
+    );
     if (weekResult.isFailure) {
       return Result.failure(
         weekResult.error ??
@@ -98,45 +87,47 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     final results = await Future.wait([
       // Web Open shifts rail follows the same week/month date filter as the
       // calendar (Past unstaffed / Upcoming only count opens in range).
-      _fetchAllPages(
+      ApiPageFetcher.fetchAll(
+        _api,
         path: ApiEndpoints.shifts,
-        baseQuery: {
+        query: {
           'status': 'open',
           'from': span == ScheduleSpan.month ? _ymd(monthStart) : from,
           'to': span == ScheduleSpan.month ? _ymd(monthEnd) : to,
           'residenceId': ?scopedResidenceId,
           if (mine) 'mine': true,
         },
+        pageSize: _pageSize,
       ),
       // Web "Swap Requests" / pending queue is manager-actionable only
       // (`awaiting_manager`). `awaiting_peer` handovers are peer-owned and
       // must not appear as pending manager cards (empty on web).
-      _api.get(
-        ApiEndpoints.shiftSwaps,
+      ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.shiftSwaps,
         query: {
           ...swapBase,
           'status': 'awaiting_manager',
-          'page': 1,
-          'limit': _pageSize,
         },
+        pageSize: _pageSize,
       ),
-      _api.get(
-        ApiEndpoints.shiftSwaps,
+      ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.shiftSwaps,
         query: {
           ...swapBase,
           'status': 'approved',
-          'page': 1,
-          'limit': _pageSize,
         },
+        pageSize: _pageSize,
       ),
-      _api.get(
-        ApiEndpoints.shiftSwaps,
+      ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.shiftSwaps,
         query: {
           ...swapBase,
           'status': 'declined,rejected',
-          'page': 1,
-          'limit': _pageSize,
         },
+        pageSize: _pageSize,
       ),
     ]);
 
@@ -151,14 +142,16 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
 
     var coverageRows = week;
     if (span != ScheduleSpan.week) {
-      final coverageResult = await _fetchAllPages(
+      final coverageResult = await ApiPageFetcher.fetchAll(
+        _api,
         path: ApiEndpoints.shifts,
-        baseQuery: {
+        query: {
           'from': from,
           'to': to,
           'residenceId': ?scopedResidenceId,
           if (mine) 'mine': true,
         },
+        pageSize: _pageSize,
       );
       if (coverageResult.isSuccess) {
         coverageRows = _applyShiftFilters(
@@ -174,7 +167,7 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
         weekBody: week,
         coverageBody: coverageRows,
         openBody: _applyShiftFilters(
-          results[0].value as List<dynamic>? ?? const [],
+          results[0].value ?? const <dynamic>[],
           residenceId: residenceId,
         ),
         pendingSwapsBody: results[1].value,
@@ -210,33 +203,6 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       }
       return true;
     }).toList();
-  }
-
-  /// Walks `page=1..n` until a short page is returned (or [_maxPages]).
-  Future<Result<List<dynamic>>> _fetchAllPages({
-    required String path,
-    required Map<String, dynamic> baseQuery,
-  }) async {
-    final all = <dynamic>[];
-    for (var page = 1; page <= _maxPages; page++) {
-      final result = await _api.get(
-        path,
-        query: {
-          ...baseQuery,
-          'page': page,
-          'limit': _pageSize,
-        },
-      );
-      if (result.isFailure) {
-        return Result.failure(
-          result.error ?? const ApiError(message: 'Could not load shifts.'),
-        );
-      }
-      final rows = JsonCodec.unwrapList(result.value);
-      all.addAll(rows);
-      if (rows.length < _pageSize) break;
-    }
-    return Result.success(all);
   }
 
   @override

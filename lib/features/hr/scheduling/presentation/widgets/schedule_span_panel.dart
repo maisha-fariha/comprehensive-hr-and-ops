@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/formatting/web_formats.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
@@ -776,28 +777,19 @@ String _initials(String name) {
 String _shiftDate(CalendarShift shift) {
   final date = shift.startsAt ?? shift.occursOn;
   if (date == null) return '—';
-  final day = date.day.toString().padLeft(2, '0');
-  final month = date.month.toString().padLeft(2, '0');
-  return '$day/$month/${date.year}';
+  // Settings → General date format (org timezone).
+  return WebFormat.date(date);
 }
 
 String _shiftHours(CalendarShift shift) {
   final start = shift.startsAt;
   if (start == null) return shift.timeRange;
-  String clock(DateTime value) {
-    final hour = value.hour.toString().padLeft(2, '0');
-    final minute = value.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
-
+  // Settings → General time format (12h / 24h) — match web All Shifts Hours.
   final end = shift.endsAt;
-  final range = end == null ? clock(start) : '${clock(start)} – ${clock(end)}';
-  if (end == null) return range;
-  final hours = end.difference(start).inMinutes / 60;
-  if (hours <= 0) return range;
-  final duration = hours == hours.roundToDouble()
-      ? '${hours.round()}h'
-      : '${(hours * 10).round() / 10}h';
+  if (end == null) return WebFormat.time(start);
+  final range = '${WebFormat.time(start)} – ${WebFormat.time(end)}';
+  final duration = WebFormat.durationHours(start, end);
+  if (duration == null) return range;
   return '$range ($duration)';
 }
 
@@ -1244,10 +1236,6 @@ class _HrSwapRequestSheetState extends State<_HrSwapRequestSheet> {
 
 String _whenLabel(DateTime? start) {
   if (start == null) return 'This shift';
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  final day = start.day.toString().padLeft(2, '0');
-  final month = start.month.toString().padLeft(2, '0');
-  final hour = start.hour.toString().padLeft(2, '0');
-  final minute = start.minute.toString().padLeft(2, '0');
-  return '${days[start.weekday - 1]} $day/$month/${start.year} $hour:$minute';
+  // Settings → General date + time (org timezone / 12h–24h).
+  return '${WebFormat.date(start, weekday: true)} ${WebFormat.time(start)}';
 }

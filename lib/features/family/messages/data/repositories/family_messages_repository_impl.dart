@@ -3,6 +3,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart' show Get, Inst;
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
@@ -43,13 +44,13 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
 
   @override
   Future<Result<List<ConversationPreview>>> getConversations() async {
-    final result = await _api.get(
-      ApiEndpoints.familyMessages,
-      query: const {'page': 1, 'limit': 20},
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.familyMessages,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(FamilyMessagesMapper.listFrom(body)),
+      success: (rows) async =>
+          Result.success(FamilyMessagesMapper.listFrom({'data': rows})),
       failure: (error) async => Result.failure(error),
     );
   }

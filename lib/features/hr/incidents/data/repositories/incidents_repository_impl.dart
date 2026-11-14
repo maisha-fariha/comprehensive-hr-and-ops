@@ -7,6 +7,7 @@ import '../../../../../core/config/app_env.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
@@ -72,8 +73,6 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
     // Status values match web dropdown: open | investigating | closed.
     final normalizedStatus = status?.trim().toLowerCase();
     final base = <String, dynamic>{
-      'page': 1,
-      'limit': 100,
       if (severity != null && severity.isNotEmpty) 'severity': severity,
       if (residenceId != null && residenceId.isNotEmpty)
         'residenceId': residenceId,
@@ -99,24 +98,27 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
         normalizedStatus == null || normalizedStatus == 'closed';
 
     final emptyBody = <String, dynamic>{'data': <dynamic>[]};
+    Future<Result<dynamic>> incidentsForStatus(String statusValue) async {
+      final result = await ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.incidents,
+        query: {...base, 'status': statusValue},
+      );
+      return result.when(
+        success: (rows) => Result.success({'data': rows}),
+        failure: (error) => Result.failure(error),
+      );
+    }
+
     final incidents = await Future.wait([
       wantOpen
-          ? _api.get(
-              ApiEndpoints.incidents,
-              query: {...base, 'status': 'open'},
-            )
+          ? incidentsForStatus('open')
           : Future.value(Result.success(emptyBody)),
       wantReview
-          ? _api.get(
-              ApiEndpoints.incidents,
-              query: {...base, 'status': 'investigating'},
-            )
+          ? incidentsForStatus('investigating')
           : Future.value(Result.success(emptyBody)),
       wantClosed
-          ? _api.get(
-              ApiEndpoints.incidents,
-              query: {...base, 'status': 'closed'},
-            )
+          ? incidentsForStatus('closed')
           : Future.value(Result.success(emptyBody)),
       _api.get(
         ApiEndpoints.incidentsSummary,

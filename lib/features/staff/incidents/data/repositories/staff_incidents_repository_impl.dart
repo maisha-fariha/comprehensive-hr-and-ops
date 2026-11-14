@@ -5,6 +5,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/config/app_env.dart';
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
@@ -48,14 +49,15 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     int page = 1,
     int limit = 20,
   }) async {
+    // List screen has no page UI — walk every page (page/limit kept for API
+    // compatibility but ignored so a single limit:50 no longer truncates).
     final resolvedResidence = (residenceId != null && residenceId.isNotEmpty)
         ? residenceId
         : null;
-    final result = await _api.get(
-      ApiEndpoints.incidents,
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.incidents,
       query: {
-        'page': page,
-        'limit': limit,
         if (resolvedResidence != null) 'residenceId': resolvedResidence,
         if (mine) 'reporter': 'me',
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
@@ -67,10 +69,11 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
         if (investigatorId != null && investigatorId.isNotEmpty)
           'investigatorId': investigatorId,
       },
+      pageSize: limit > 0 ? limit : ApiPageFetcher.defaultPageSize,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(StaffIncidentsMapper.listFrom(body)),
+      success: (rows) async =>
+          Result.success(StaffIncidentsMapper.listFrom({'data': rows})),
       failure: (error) async => Result.failure(error),
     );
   }

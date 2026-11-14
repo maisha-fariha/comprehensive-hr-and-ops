@@ -6,6 +6,7 @@ import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/config/app_env.dart';
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
@@ -79,29 +80,43 @@ class MedicationRepositoryImpl implements MedicationRepository {
   Future<Result<List<MarMedication>>> medications({
     String? residenceId,
     String? type,
-  }) =>
-      _get(
-        MedicationEndpoints.medications,
-        MedicationMapper.medicationsFrom,
-        query: {
-          ..._page(residenceId: residenceId),
-          'type': ?_blank(type),
-        },
-      );
+  }) async {
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: MedicationEndpoints.medications,
+      query: {
+        'residenceId': ?_blank(residenceId),
+        'type': ?_blank(type),
+      },
+      pageSize: MedicationEndpoints.maxPageLimit,
+      silent: true,
+    );
+    return result.when(
+      success: (rows) =>
+          Result.success(MedicationMapper.medicationsFrom({'data': rows})),
+      failure: Result.failure,
+    );
+  }
 
   @override
   Future<Result<List<MarMedicationStock>>> medicationStock({
     String? residenceId,
-  }) =>
-      _get(
-        MedicationEndpoints.medicationStock,
-        MedicationMapper.stocksFrom,
-        query: {
-          'page': 1,
-          'limit': MedicationEndpoints.maxPageLimit,
-          'residenceId': ?_blank(residenceId),
-        },
-      );
+  }) async {
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: MedicationEndpoints.medicationStock,
+      query: {
+        'residenceId': ?_blank(residenceId),
+      },
+      pageSize: MedicationEndpoints.maxPageLimit,
+      silent: true,
+    );
+    return result.when(
+      success: (rows) =>
+          Result.success(MedicationMapper.stocksFrom({'data': rows})),
+      failure: Result.failure,
+    );
+  }
 
   @override
   Future<Result<MarMedicationStock>> setMedicationStock(
@@ -129,45 +144,40 @@ class MedicationRepositoryImpl implements MedicationRepository {
   }
 
   @override
-  Future<Result<List<MarMedication>>> prnMedications({String? residenceId}) => _get(
-        MedicationEndpoints.prnMedications,
-        MedicationMapper.prnsFrom,
-        query: _page(residenceId: residenceId),
-      );
+  Future<Result<List<MarMedication>>> prnMedications({
+    String? residenceId,
+  }) async {
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: MedicationEndpoints.prnMedications,
+      query: {
+        'residenceId': ?_blank(residenceId),
+      },
+      pageSize: MedicationEndpoints.maxPageLimit,
+      silent: true,
+    );
+    return result.when(
+      success: (rows) =>
+          Result.success(MedicationMapper.prnsFrom({'data': rows})),
+      failure: Result.failure,
+    );
+  }
 
   @override
   Future<Result<List<MarAdministration>>> administrations() async {
-    // Web Given tab walks every page; a single page=1&limit=50 truncates.
-    final rows = <Map<String, dynamic>>[];
-    var page = 1;
-    var totalPages = 1;
-    do {
-      // Web Given tab: no status filter (Given / Missed / Refused all listed).
-      final result = await _api.get(
-        MedicationEndpoints.administrations,
-        query: {
-          'page': page,
-          'limit': MedicationEndpoints.maxPageLimit,
-        },
-        silent: true,
-      );
-      if (result.isFailure) {
-        return Result.failure(
-          result.error ??
-              const ApiError(message: 'Could not load charted doses.'),
-        );
-      }
-      for (final raw in JsonCodec.unwrapList(result.value).whereType<Map>()) {
-        rows.add(JsonCodec.asMap(raw));
-      }
-      totalPages = JsonCodec.integerOr(
-        JsonCodec.metaOf(result.value)?['totalPages'],
-        1,
-      );
-      page++;
-    } while (page <= totalPages && page <= 50);
-    return Result.success(
-      rows.map(MedicationMapper.administrationFrom).toList(),
+    // Web Given tab walks every page; a single page truncates.
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: MedicationEndpoints.administrations,
+      pageSize: MedicationEndpoints.maxPageLimit,
+      silent: true,
+    );
+    return result.when(
+      success: (rows) => Result.success([
+        for (final raw in rows.whereType<Map>())
+          MedicationMapper.administrationFrom(JsonCodec.asMap(raw)),
+      ]),
+      failure: Result.failure,
     );
   }
 

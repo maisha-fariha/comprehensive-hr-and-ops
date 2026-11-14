@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
@@ -44,15 +45,17 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
         query: residenceQuery,
         silent: true,
       ),
-      _api.get(
-        ApiEndpoints.tasks,
-        query: {
-          'page': 1,
-          // Web All Tasks lists the full page set; 20 truncated real workloads.
-          'limit': 100,
-          ...residenceQuery,
-        },
+      // Web All Tasks lists the full set; a single page still truncates.
+      ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.tasks,
+        query: residenceQuery,
         silent: true,
+      ).then(
+        (result) => result.when(
+          success: (rows) => Result<dynamic>.success({'data': rows}),
+          failure: (error) => Result<dynamic>.failure(error),
+        ),
       ),
       _api.get(
         ApiEndpoints.tasksReview,

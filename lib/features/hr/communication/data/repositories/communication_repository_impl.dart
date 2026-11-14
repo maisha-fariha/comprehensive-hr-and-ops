@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
@@ -25,19 +26,18 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
     bool monitor = false,
     bool archived = false,
   }) async {
-    final result = await _api.get(
-      ApiEndpoints.conversations,
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.conversations,
       query: {
-        'page': 1,
-        'limit': 100,
         if (monitor) 'monitor': true,
         if (archived) 'archived': true,
       },
     );
     return result.when(
-      success: (body) async => Result.success(
+      success: (rows) async => Result.success(
         CommunicationMapper.conversationsFrom(
-          body,
+          {'data': rows},
           currentUserId: _session.userId,
         ),
       ),

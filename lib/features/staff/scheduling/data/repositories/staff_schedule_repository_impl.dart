@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
@@ -13,8 +14,6 @@ import '../../domain/repositories/staff_schedule_repository.dart';
 import '../mappers/staff_schedule_mapper.dart';
 
 class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
-  static const _pageLimit = 20;
-
   final AppApiClient _api;
   final UserSession _session;
 
@@ -41,48 +40,63 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
     // B2: appointments are nurse / caregiver only — never housekeeper / other.
     final includeAppointments = _session.canSeeStaffScheduleAppointments;
 
+    Future<Result<dynamic>> asBody(
+      Future<Result<List<dynamic>>> fetch,
+    ) async {
+      final result = await fetch;
+      return result.when(
+        success: (rows) => Result.success({'data': rows}),
+        failure: (error) => Result.failure(error),
+      );
+    }
+
     final futures = <Future<Result<dynamic>>>[
-      // B2: weekly My Shifts
-      _api.get(
-        ApiEndpoints.shifts,
-        query: {
-          'mine': true,
-          'from': fromIso,
-          'to': toIso,
-          'page': 1,
-          'limit': _pageLimit,
-        },
+      // B2: weekly My Shifts — walk every page inside the week window.
+      asBody(
+        ApiPageFetcher.fetchAll(
+          _api,
+          path: ApiEndpoints.shifts,
+          query: {
+            'mine': true,
+            'from': fromIso,
+            'to': toIso,
+          },
+        ),
       ),
       // Open Shift Requests — date window so newest opens aren't buried
       // behind older pages when the API sorts ascending.
-      _api.get(
-        ApiEndpoints.shifts,
-        query: {
-          'status': 'open',
-          'from': fromIso,
-          'to': openEndIso,
-          'page': 1,
-          'limit': _pageLimit,
-        },
+      asBody(
+        ApiPageFetcher.fetchAll(
+          _api,
+          path: ApiEndpoints.shifts,
+          query: {
+            'status': 'open',
+            'from': fromIso,
+            'to': openEndIso,
+          },
+        ),
       ),
       // B2: my swap list — active requests only (not settled history)
-      _api.get(
-        ApiEndpoints.shiftSwaps,
-        query: {
-          'mine': true,
-          'status': 'awaiting_peer,awaiting_manager',
-          'page': 1,
-          'limit': _pageLimit,
-        },
+      asBody(
+        ApiPageFetcher.fetchAll(
+          _api,
+          path: ApiEndpoints.shiftSwaps,
+          query: {
+            'mine': true,
+            'status': 'awaiting_peer,awaiting_manager',
+          },
+        ),
       ),
     ];
 
     if (includeAppointments) {
       // B2: Upcoming Appointments (nurse / caregiver)
       futures.add(
-        _api.get(
-          ApiEndpoints.appointments,
-          query: {'page': 1, 'limit': _pageLimit},
+        asBody(
+          ApiPageFetcher.fetchAll(
+            _api,
+            path: ApiEndpoints.appointments,
+          ),
         ),
       );
     }
@@ -253,7 +267,7 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
       ApiEndpoints.staff,
       query: {
         'page': 1,
-        'limit': _pageLimit,
+        'limit': 100,
         if (trimmed.isNotEmpty) 'search': trimmed,
         'residenceId': ?scopedResidenceId,
       },
