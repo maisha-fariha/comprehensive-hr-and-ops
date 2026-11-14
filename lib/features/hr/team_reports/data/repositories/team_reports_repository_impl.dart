@@ -50,20 +50,21 @@ class TeamReportsRepositoryImpl implements TeamReportsRepository {
   Future<Result<TeamReportsPageData>> getPageData() async {
     final residenceQuery = _residenceQuery;
 
-    // Team tab — Total Staff (skip when role cannot read staff → avoids 403).
-    final canStaff = _session?.can('staff:read') == true ||
-        _session?.can('staff:directory') == true;
+    // Team tab — Total Staff. Prefer /staff/directory; only GET /staff when
+    // staff:read is granted (directory-only roles were logging 403s).
+    final canStaffRead = _session?.can('staff:read') == true;
+    final canStaffDirectory = _session?.can('staff:directory') == true;
     Result<dynamic> staffResult = Result.success(const {'data': <dynamic>[]});
-    if (canStaff) {
+    if (canStaffRead || canStaffDirectory) {
       staffResult = await _api.get(
-        ApiEndpoints.staff,
-        query: {'page': 1, 'limit': 20, ...residenceQuery},
+        ApiEndpoints.staffDirectory,
+        query: residenceQuery,
         silent: true,
       );
-      if (staffResult.isFailure) {
+      if (staffResult.isFailure && canStaffRead) {
         staffResult = await _api.get(
-          ApiEndpoints.staffDirectory,
-          query: residenceQuery,
+          ApiEndpoints.staff,
+          query: {'page': 1, 'limit': 20, ...residenceQuery},
           silent: true,
         );
       }

@@ -2,12 +2,15 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/config/app_env.dart';
+import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/mar_administration.dart';
 import '../../domain/entities/mar_medication.dart';
 import '../../domain/entities/mar_medication_stock.dart';
@@ -187,11 +190,30 @@ class MedicationRepositoryImpl implements MedicationRepository {
       );
 
   @override
-  Future<Result<List<MarOption>>> approvedStaff() => _get(
+  Future<Result<List<MarOption>>> approvedStaff() async {
+    final canStaffRead = Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().canReadStaffList;
+    // staff:read keeps the original GET /staff + medAdminApproved filter.
+    if (canStaffRead) {
+      return _get(
         MedicationEndpoints.staff,
         MedicationMapper.approvedStaffFrom,
         query: _page(),
       );
+    }
+    // Without staff:read, never call GET /staff (backend 403). Directory is
+    // best-effort for the same approved-staff filter when the field is present.
+    final result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: _page(),
+      silent: true,
+    );
+    return result.when(
+      success: (body) =>
+          Result.success(MedicationMapper.approvedStaffFrom(body)),
+      failure: (error) => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<List<MarOption>>> witnesses(String residenceId) => _get(

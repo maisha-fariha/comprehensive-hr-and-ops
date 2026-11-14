@@ -102,8 +102,15 @@ Future<void> setupAuthDependencies() async {
   final apiClient = getIt<AppApiClient>();
 
   // Soft refresh when access is within the proactive window (no force).
+  // Skip when signed out so login-screen / cold-start traffic never refreshes.
   apiClient.ensureAccessTokenFresh = () async {
-    await getIt<AuthRepository>().refreshTokens(silent: true);
+    final auth = getIt<AuthRepository>();
+    if (!auth.hasSession) return;
+    if (Get.isRegistered<UserSession>() &&
+        !Get.find<UserSession>().isSignedIn) {
+      return;
+    }
+    await auth.refreshTokens(silent: true);
   };
 
   // When any API call gets HTTP 401, refresh the access token once and retry.

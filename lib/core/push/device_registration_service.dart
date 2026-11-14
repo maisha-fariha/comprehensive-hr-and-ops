@@ -30,9 +30,10 @@ class DeviceRegistrationService {
   StreamSubscription<String>? _tokenSub;
   bool _syncing = false;
 
-  /// False after logout until the next authenticated [syncAfterAuth].
-  /// Stops FCM token-rotation from re-POSTing `/devices` while signed out.
-  bool _pushEnabled = true;
+  /// True only after an authenticated [syncAfterAuth]. Starts false so cold
+  /// start / login-screen FCM token events never POST `/devices` with 401.
+  /// Cleared again on logout until the next signed-in sync.
+  bool _pushEnabled = false;
 
   DeviceRegistrationService({
     required AuthRepository auth,
