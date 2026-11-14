@@ -217,6 +217,26 @@ abstract final class ApiEndpoints {
   static const String supportTickets = '/support/tickets';
   /// Web Users & Access (`/dashboard/users`) — requires `users:read`.
   static const String users = '/users';
+  /// Combined people directory (employees + family) — `users:read`.
+  static const String usersDirectory = '/users/directory';
+  /// Atomic staff + login onboarding — `users:write`.
+  static const String usersOnboard = '/users/onboard';
+  /// Email invite with temporary credentials — `users:write`.
+  static const String usersInvite = '/users/invite';
+  static String userById(String id) => '$users/$id';
+  static String userDeactivate(String id) => '$users/$id/deactivate';
+  static String userReactivate(String id) => '$users/$id/reactivate';
+  static String userSendPasswordReset(String id) =>
+      '$users/$id/send-password-reset';
+  static String userRoles(String id) => '$users/$id/roles';
+  static String userResidences(String id) => '$users/$id/residences';
+  /// Job titles — `staff-categories:read` / `:write`.
+  static const String staffCategories = '/staff-categories';
+  static String staffCategoryById(String id) => '$staffCategories/$id';
+  static String staffCategoryArchive(String id) =>
+      '$staffCategories/$id/archive';
+  static String staffCategoryRestore(String id) =>
+      '$staffCategories/$id/restore';
   /// Role catalog with grants — requires `roles:read`.
   static const String roles = '/roles';
   /// Single role — `GET` needs `roles:read`. Metadata rename uses `PATCH`
