@@ -4,12 +4,15 @@ import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/config/app_env.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
+
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
 import '../../../../../core/offline/offline_file_cache.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/incident_ai_draft.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
@@ -335,7 +338,12 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   Future<Result<List<IncidentStaffOption>>> getStaff() async {
     // Same list the web incident form uses: GET /staff/directory, no residence filter.
     var result = await _api.get(ApiEndpoints.staffDirectory, silent: true);
-    if (result.isFailure || JsonCodec.unwrapList(result.value).isEmpty) {
+    final canStaffRead = Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().canReadStaffList;
+    // Only fall back to GET /staff when the caller has staff:read — otherwise
+    // caregivers without it flood the backend with 403s.
+    if (canStaffRead &&
+        (result.isFailure || JsonCodec.unwrapList(result.value).isEmpty)) {
       result = await _api.get(
         ApiEndpoints.staff,
         query: const {'page': 1, 'limit': 100},

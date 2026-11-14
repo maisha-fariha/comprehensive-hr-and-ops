@@ -40,6 +40,11 @@ class AppApiClient implements OutboxTransport {
   /// Wired from auth DI after [AuthRepository] is registered.
   Future<bool> Function()? tokenRefresher;
 
+  /// Soft refresh when access is about to expire — runs before the request
+  /// so background polls never hit the API with an expired JWT (401).
+  /// Must not force-refresh; a still-valid token should no-op.
+  Future<void> Function()? ensureAccessTokenFresh;
+
   /// Why the last refresh failed. Set by [tokenRefresher] before it returns
   /// false. A network or server failure here is not an expired session.
   AppError? refreshFailure;
@@ -576,6 +581,20 @@ class AppApiClient implements OutboxTransport {
       return Result.failure(
         const AuthError(message: 'Sign-in needed', code: '401'),
       );
+    }
+
+    // Refresh before the first byte when the access token is near expiry so
+    // silent polls (emergency-alerts, etc.) do not log a 401 every ~15 min.
+    if (allowTokenRefresh &&
+        !alreadyRetriedAfterRefresh &&
+        !_isAuthPath(path) &&
+        !_apiBlocked) {
+      final ensure = ensureAccessTokenFresh;
+      if (ensure != null) {
+        try {
+          await ensure();
+        } catch (_) {}
+      }
     }
 
     try {

@@ -99,8 +99,15 @@ Future<void> setupAuthDependencies() async {
   getIt.registerSingleton<AppDeepLinkRouter>(deepLinks);
   await deepLinks.attach();
 
+  final apiClient = getIt<AppApiClient>();
+
+  // Soft refresh when access is within the proactive window (no force).
+  apiClient.ensureAccessTokenFresh = () async {
+    await getIt<AuthRepository>().refreshTokens(silent: true);
+  };
+
   // When any API call gets HTTP 401, refresh the access token once and retry.
-  getIt<AppApiClient>().tokenRefresher = () async {
+  apiClient.tokenRefresher = () async {
     final client = getIt<AppApiClient>();
     // A 401 on a normal request forces one refresh even if local expiry
     // still looks valid. Sign out only when the refresh call itself is 401.

@@ -1,8 +1,10 @@
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/handover_options.dart';
 import '../../domain/entities/shift_handover.dart';
 import '../../domain/repositories/handovers_repository.dart';
@@ -123,11 +125,28 @@ class HandoversRepositoryImpl implements HandoversRepository {
       );
 
   @override
-  Future<Result<List<HandoverOption>>> staff() => _get(
+  Future<Result<List<HandoverOption>>> staff() async {
+    // Prefer directory (staff:directory). Only hit GET /staff with staff:read.
+    var result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: const {'page': 1, 'limit': _optionsLimit},
+      silent: true,
+    );
+    final canStaffRead = Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().canReadStaffList;
+    if (canStaffRead &&
+        (result.isFailure || JsonCodec.unwrapList(result.value).isEmpty)) {
+      result = await _api.get(
         ApiEndpoints.staff,
-        {'page': 1, 'limit': _optionsLimit},
-        HandoversMapper.staffFrom,
+        query: const {'page': 1, 'limit': _optionsLimit},
+        silent: true,
       );
+    }
+    return result.when(
+      success: (body) async => Result.success(HandoversMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<List<HandoverOption>>> clients(String residenceId) => _get(

@@ -1,9 +1,11 @@
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/scheduling_enums.dart';
@@ -289,6 +291,10 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   Future<Result<List<ShiftStaffOption>>> getStaffOptions({
     String? residenceId,
   }) async {
+    if (!Get.isRegistered<UserSession>() ||
+        !Get.find<UserSession>().canReadStaffList) {
+      return Result.success(const []);
+    }
     final result = await _api.get(
       ApiEndpoints.staff,
       query: {

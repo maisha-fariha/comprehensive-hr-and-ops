@@ -1,3 +1,4 @@
+import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/roles/user_session.dart';
@@ -210,9 +211,14 @@ class ComplianceController extends GetxController {
   }
 
   Future<void> _loadOptions() async {
+    final staffFuture = session.canReadStaffList
+        ? repository.staff()
+        : Future.value(
+            Result.success(const <CompliancePersonOption>[]),
+          );
     final results = await Future.wait([
       repository.residences(),
-      repository.staff(),
+      staffFuture,
     ]);
     results[0].when(success: residences.assignAll, failure: (_) {});
     results[1].when(success: staffOptions.assignAll, failure: (_) {});

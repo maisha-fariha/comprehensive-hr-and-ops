@@ -257,7 +257,8 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       },
       silent: true,
     );
-    if (result.isFailure) {
+    // GET /staff requires staff:read — do not fall back without it.
+    if (result.isFailure && _session.canReadStaffList) {
       result = await _api.get(
         ApiEndpoints.staff,
         query: {

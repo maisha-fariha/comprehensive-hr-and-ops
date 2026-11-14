@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
 import '../../domain/entities/time_off_request.dart';
@@ -196,6 +198,10 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
     String? search,
     String? residenceId,
   }) async {
+    if (!Get.isRegistered<UserSession>() ||
+        !Get.find<UserSession>().canReadStaffList) {
+      return Result.success(const []);
+    }
     final trimmed = search?.trim() ?? '';
     // Prefer the caller's filter only — session home-house fallback hid staff
     // the web still lists when "All residences" is selected.

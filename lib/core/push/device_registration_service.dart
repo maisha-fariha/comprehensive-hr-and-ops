@@ -3,11 +3,13 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../roles/user_session.dart';
 
 /// Syncs the local push token with POST/DELETE `/devices`.
 ///
@@ -33,8 +35,9 @@ class DeviceRegistrationService {
   })  : _auth = auth,
         _prefs = prefs;
 
-  /// Starts listening for token refresh and registers the current token if
-  /// the user already has a session.
+  /// Starts listening for FCM token rotation. Does **not** POST /devices here —
+  /// that waits for [syncAfterAuth] after login / [UserSession.restore] so we
+  /// never register before an authenticated session exists.
   Future<void> start() async {
     await _tokenSub?.cancel();
     final push = _pushService;
@@ -43,14 +46,16 @@ class DeviceRegistrationService {
         unawaited(syncAfterAuth());
       });
     }
-    if (_auth.hasSession) {
-      await syncAfterAuth();
-    }
   }
 
   /// POST /devices after login / session restore / FCM token refresh.
+  ///
+  /// Requires a signed-in [UserSession], not merely a leftover prefs token
+  /// (`hasSession`), so cold start / login screen never 401 on /devices.
   Future<void> syncAfterAuth() async {
-    if (!_auth.hasSession || _syncing) return;
+    if (_syncing) return;
+    if (!_isSignedIn) return;
+    if (!_auth.hasSession) return;
     final token = await _resolveToken();
     if (token == null || token.isEmpty) return;
 
@@ -69,6 +74,15 @@ class DeviceRegistrationService {
       }
     } finally {
       _syncing = false;
+    }
+  }
+
+  bool get _isSignedIn {
+    try {
+      return Get.isRegistered<UserSession>() &&
+          Get.find<UserSession>().isSignedIn;
+    } catch (_) {
+      return false;
     }
   }
 

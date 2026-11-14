@@ -157,6 +157,13 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   bool get canAccessHandovers => can('shift-handovers') || can('handovers');
   bool get canRaiseEmergency => can('emergency:raise');
   bool get canReadEmergency => can('emergency:read') || canRaiseEmergency;
+
+  /// Full staff list (`GET /staff`) — payroll/PII-aware directory.
+  bool get canReadStaffList => can('staff:read');
+
+  /// Staff picker / colleagues (`GET /staff/directory` or `/staff` when allowed).
+  bool get canUseStaffDirectory =>
+      can('staff:directory') || can('staff:read');
   bool get canAccessClientActivities => can('client-activities');
   bool get canWriteClientActivities => can('client-activities:write');
   bool get canAccessMessaging => can('messaging');
@@ -230,8 +237,8 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   Future<void> _reloadProfile() async {
     try {
       final auth = GetIt.instance<AuthRepository>();
-      // Refresh only when the access token is within ~60s of expiry.
-      // A 401 from another call forces a refresh on its own.
+      // Refresh when access is inside the proactive window (~2 min).
+      // A 401 from another call still forces a refresh on its own.
       await auth.refreshTokens(silent: true);
       final me = await auth.fetchMe(silent: true);
       final profile = me.value;

@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/daily_log.dart';
 import '../../domain/repositories/daily_logs_repository.dart';
 import '../mappers/daily_logs_mapper.dart';
@@ -52,11 +54,27 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
       );
 
   @override
-  Future<Result<List<DailyLogOption>>> staff() => _get(
+  Future<Result<List<DailyLogOption>>> staff() async {
+    var result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: const {'page': 1, 'limit': 100},
+      silent: true,
+    );
+    final canStaffRead = Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().canReadStaffList;
+    if (canStaffRead &&
+        (result.isFailure || JsonCodec.unwrapList(result.value).isEmpty)) {
+      result = await _api.get(
         ApiEndpoints.staff,
-        const {'page': 1, 'limit': 100},
-        DailyLogsMapper.staffFrom,
+        query: const {'page': 1, 'limit': 100},
+        silent: true,
       );
+    }
+    return result.when(
+      success: (body) async => Result.success(DailyLogsMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<DailyLogBoard>> board({

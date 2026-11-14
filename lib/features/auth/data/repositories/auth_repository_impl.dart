@@ -229,7 +229,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required bool silent,
     required bool force,
   }) async {
-    // Access token still has more than a minute left — do not exchange.
+    // Access token still has more than the proactive window left — do not exchange.
     if (!force && !_tokens.accessExpiresSoon) {
       return Result.success(null);
     }
@@ -333,12 +333,20 @@ class AuthRepositoryImpl implements AuthRepository {
     required String token,
     required String platform,
     String? appVersion,
-  }) {
-    return _voidPost(ApiEndpoints.devices, {
-      'token': token,
-      'platform': platform,
-      if (appVersion != null && appVersion.isNotEmpty) 'appVersion': appVersion,
-    });
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.devices,
+      data: {
+        'token': token,
+        'platform': platform,
+        if (appVersion != null && appVersion.isNotEmpty) 'appVersion': appVersion,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
   }
 
   @override

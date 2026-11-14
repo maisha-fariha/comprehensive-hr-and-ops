@@ -28,11 +28,12 @@ class TokenStore {
   }
 
   /// True when the access token is missing an expiry or is inside the
-  /// last 60 seconds of its life.
+  /// last 2 minutes of its life — refresh before background polls (e.g.
+  /// emergency-alerts every 30s) hit the wire with an expired JWT.
   bool get accessExpiresSoon {
     final at = accessExpiresAt;
     if (at == null) return true;
-    return !DateTime.now().isBefore(at.subtract(const Duration(seconds: 60)));
+    return !DateTime.now().isBefore(at.subtract(const Duration(seconds: 120)));
   }
 
   void applyToClient() {

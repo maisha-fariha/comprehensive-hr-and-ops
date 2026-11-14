@@ -247,6 +247,10 @@ class FinanceController extends GetxController {
   }
 
   Future<void> _loadStaff() async {
+    if (!session.canReadStaffList) {
+      staffOptions.clear();
+      return;
+    }
     final result = await repository.staffOptions();
     result.when(
       success: (items) => staffOptions.assignAll(items),

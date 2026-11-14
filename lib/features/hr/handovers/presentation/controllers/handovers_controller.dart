@@ -89,7 +89,7 @@ class HandoversController extends GetxController {
         sessionName: session.residenceName,
       ),
     );
-    if (session.can('staff:read') || session.can('staff:directory')) {
+    if (session.canUseStaffDirectory) {
       final staffResult = await repository.staff();
       staffResult.when(success: staff.assignAll, failure: (_) {});
     }

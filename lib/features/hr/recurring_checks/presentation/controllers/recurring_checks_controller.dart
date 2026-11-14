@@ -81,9 +81,14 @@ class RecurringChecksController extends GetxController {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _loadOptions() async {
+    final staffFuture = session.can('staff:read')
+        ? repository.staff()
+        : session.can('staff:directory')
+            ? repository.colleagues(null)
+            : Future.value(Result.success(const <CheckOption>[]));
     final results = await Future.wait([
       repository.residences(),
-      repository.staff(),
+      staffFuture,
       repository.clients(),
     ]);
     results[0].when(success: residences.assignAll, failure: (_) {});

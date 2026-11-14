@@ -106,9 +106,14 @@ class DailyActivityController extends GetxController {
   Future<void> refreshAll() => Future.wait([load(), loadHistory()]);
 
   Future<void> loadOptions({String? residenceId}) async {
+    final staffFuture = session.canReadStaffList
+        ? repository.staff()
+        : Future.value(
+            Result.success(const <DailyActivityOption>[]),
+          );
     final results = await Future.wait([
       repository.clients(residenceId: residenceId),
-      repository.staff(),
+      staffFuture,
     ]);
     results[0].when(success: clients.assignAll, failure: (_) {});
     results[1].when(success: staff.assignAll, failure: (_) {});
