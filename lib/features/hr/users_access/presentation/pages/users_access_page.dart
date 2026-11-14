@@ -10,9 +10,10 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../../core/widgets/surface_card.dart';
+import 'role_permissions_page.dart';
 
-/// Web `/dashboard/users` ("Users & Access") — read-only directory of
-/// accounts and roles for callers with `users:read` / `roles:read`.
+/// Web `/dashboard/users` ("Users & Access") — users directory plus roles
+/// with the Permissions editor (`roles:write`).
 class UsersAccessPage extends StatefulWidget {
   const UsersAccessPage({super.key});
 
@@ -32,9 +33,11 @@ class _UsersAccessPageState extends State<UsersAccessPage>
   bool _loadingRoles = false;
   String? _usersError;
   String? _rolesError;
+  String _roleQuery = '';
 
   bool get _canUsers => _session.can('users:read');
   bool get _canRoles => _session.can('roles:read');
+  bool get _canWriteRoles => _session.can('roles:write');
 
   @override
   void initState() {
@@ -111,6 +114,30 @@ class _UsersAccessPageState extends State<UsersAccessPage>
         _rolesError = error.message;
       }),
     );
+  }
+
+  Future<void> _openPermissions(_AccessRole role) async {
+    if (role.id.isEmpty) return;
+    final updated = await Get.to<List<String>>(
+      () => RolePermissionsPage(
+        roleId: role.id,
+        roleName: role.name,
+        initialPermissions: role.permissions,
+      ),
+    );
+    if (!mounted || updated == null) return;
+    setState(() {
+      _roles = [
+        for (final r in _roles)
+          if (r.id == role.id)
+            r.copyWith(
+              permissions: updated,
+              permissionCount: updated.length,
+            )
+          else
+            r,
+      ];
+    });
   }
 
   @override
@@ -232,42 +259,136 @@ class _UsersAccessPageState extends State<UsersAccessPage>
         ],
       );
     }
-    return ListView.separated(
+    final q = _roleQuery.trim().toLowerCase();
+    final roles = q.isEmpty
+        ? _roles
+        : [
+            for (final role in _roles)
+              if (role.name.toLowerCase().contains(q) ||
+                  role.code.toLowerCase().contains(q) ||
+                  role.description.toLowerCase().contains(q))
+                role,
+          ];
+    return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      itemCount: _roles.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final role = _roles[index];
-        return SurfaceCard.card(
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            title: Text(
-              role.name,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: AppColors.textPrimary,
-              ),
+      children: [
+        TextField(
+          onChanged: (v) => setState(() => _roleQuery = v),
+          decoration: const InputDecoration(
+            hintText: 'Search by role name or code',
+            prefixIcon: Icon(Icons.search_rounded),
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (var i = 0; i < roles.length; i++) ...[
+          if (i > 0) const SizedBox(height: 8),
+          _RoleCard(
+            role: roles[i],
+            canOpenPermissions: _canRoles && roles[i].id.isNotEmpty,
+            canWrite: _canWriteRoles,
+            onPermissions: () => _openPermissions(roles[i]),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  final _AccessRole role;
+  final bool canOpenPermissions;
+  final bool canWrite;
+  final VoidCallback onPermissions;
+
+  const _RoleCard({
+    required this.role,
+    required this.canOpenPermissions,
+    required this.canWrite,
+    required this.onPermissions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard.card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    role.name,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                if (role.builtIn)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.filterButtonBackground,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: const Text(
+                      'Built in',
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            subtitle: Text(
-              [
-                if (role.description.isNotEmpty) role.description,
-                '${role.permissionCount} permissions'
-                    '${role.userCount == null ? '' : ' · ${role.userCount} users'}',
-              ].where((s) => s.isNotEmpty).join('\n'),
+            if (role.description.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                role.description,
+                style: const TextStyle(
+                  fontFamily: 'Manrope',
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              '${role.permissionCount} granted'
+              '${role.userCount == null ? '' : ' · ${role.userCount} holders'}',
               style: const TextStyle(
                 fontFamily: 'Manrope',
-                fontSize: 13,
-                color: AppColors.textSecondary,
+                fontSize: 12.5,
+                color: AppColors.textMuted,
               ),
             ),
-            isThreeLine: role.description.isNotEmpty,
-          ),
-        );
-      },
+            if (canOpenPermissions) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonal(
+                  onPressed: onPermissions,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryNavy,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(canWrite ? 'Permissions' : 'View permissions'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -315,33 +436,84 @@ class _AccessUser {
 }
 
 class _AccessRole {
+  final String id;
   final String name;
+  final String code;
   final String description;
   final int permissionCount;
   final int? userCount;
+  final bool builtIn;
+  final List<String> permissions;
 
   const _AccessRole({
+    required this.id,
     required this.name,
+    required this.code,
     required this.description,
     required this.permissionCount,
     required this.userCount,
+    required this.builtIn,
+    required this.permissions,
   });
 
-  factory _AccessRole.fromJson(Map<String, dynamic> json) {
-    final perms = json['permissions'];
+  _AccessRole copyWith({
+    List<String>? permissions,
+    int? permissionCount,
+  }) {
     return _AccessRole(
+      id: id,
+      name: name,
+      code: code,
+      description: description,
+      permissionCount: permissionCount ?? this.permissionCount,
+      userCount: userCount,
+      builtIn: builtIn,
+      permissions: permissions ?? this.permissions,
+    );
+  }
+
+  factory _AccessRole.fromJson(Map<String, dynamic> json) {
+    final rawPerms = json['permissions'];
+    final permissions = <String>[];
+    if (rawPerms is List) {
+      for (final item in rawPerms) {
+        if (item is String && item.isNotEmpty) {
+          permissions.add(item);
+        } else if (item is Map) {
+          final map = JsonCodec.asMap(item);
+          final key = JsonCodec.string(map['key']) ??
+              JsonCodec.string(map['name']) ??
+              '';
+          if (key.isNotEmpty) permissions.add(key);
+        }
+      }
+    }
+    return _AccessRole(
+      id: JsonCodec.stringOr(json['id'], ''),
       name: JsonCodec.stringOr(
         json['name'],
         JsonCodec.stringOr(json['code'], 'Role'),
       ),
+      code: JsonCodec.stringOr(json['code'], ''),
       description: JsonCodec.stringOr(json['description'], ''),
-      permissionCount: perms is List ? perms.length : 0,
+      permissionCount: permissions.isNotEmpty
+          ? permissions.length
+          : () {
+              final raw = json['permissionCount'] ?? json['permissionsCount'];
+              if (raw is int) return raw;
+              if (raw is num) return raw.toInt();
+              return int.tryParse('$raw') ?? 0;
+            }(),
       userCount: () {
-        final raw = json['userCount'];
+        final raw = json['userCount'] ?? json['holdersCount'];
         if (raw is int) return raw;
         if (raw is num) return raw.toInt();
         return int.tryParse('$raw');
       }(),
+      builtIn: JsonCodec.boolean(json['builtIn'] ?? json['isBuiltIn']) ??
+          JsonCodec.boolean(json['system']) ??
+          false,
+      permissions: permissions,
     );
   }
 }

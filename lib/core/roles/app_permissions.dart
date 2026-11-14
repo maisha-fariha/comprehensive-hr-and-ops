@@ -163,6 +163,51 @@ abstract final class AppPermissions {
   /// `GET /residences` requires this. Pickers still work from session /
   /// roster / open-record context when it is missing (web clock-in pattern).
   static const String residencesRead = 'residences:read';
+
+  /// Web Permissions modal group title (`admissions:read` → `Admissions`).
+  static String groupLabel(String permission) {
+    final family = permission.contains(':')
+        ? permission.split(':').first
+        : permission;
+    return family
+        .split('-')
+        .where((p) => p.isNotEmpty)
+        .map((p) => '${p[0].toUpperCase()}${p.substring(1)}')
+        .join(' ');
+  }
+
+  /// Web Permissions modal row title
+  /// (`admissions:read` → `Read admissions`, code chip `Admissions Read`).
+  static String actionLabel(String permission) {
+    if (!permission.contains(':')) return groupLabel(permission);
+    final parts = permission.split(':');
+    final family = groupLabel(parts.first).toLowerCase();
+    final action = parts.sublist(1).join(' ');
+    final pretty = action
+        .split(RegExp(r'[-_]'))
+        .where((p) => p.isNotEmpty)
+        .map((p) => '${p[0].toUpperCase()}${p.substring(1)}')
+        .join(' ');
+    return '$pretty $family';
+  }
+
+  /// Compact code chip under the row (`Admissions Read`).
+  static String codeLabel(String permission) {
+    return permission
+        .split(RegExp(r'[:\-_]'))
+        .where((p) => p.isNotEmpty)
+        .map((p) => '${p[0].toUpperCase()}${p.substring(1)}')
+        .join(' ');
+  }
+
+  /// Catalog grouped like the web Permissions modal (family → keys).
+  static Map<String, List<String>> get catalogByGroup {
+    final map = <String, List<String>>{};
+    for (final key in catalog) {
+      map.putIfAbsent(groupLabel(key), () => <String>[]).add(key);
+    }
+    return map;
+  }
 }
 
 class WebNavItem {

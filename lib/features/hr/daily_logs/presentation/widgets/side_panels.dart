@@ -250,6 +250,8 @@ class PriorityNotesPanel extends StatelessWidget {
   final String? error;
   final bool canResolve;
   final void Function(CareFlag) onResolve;
+  /// Web badge uses open total (may exceed the first page of flags).
+  final int? totalOpen;
 
   const PriorityNotesPanel({
     super.key,
@@ -258,10 +260,12 @@ class PriorityNotesPanel extends StatelessWidget {
     required this.error,
     required this.canResolve,
     required this.onResolve,
+    this.totalOpen,
   });
 
   @override
   Widget build(BuildContext context) {
+    final count = totalOpen ?? flags.length;
     return HandoverPanel(
       key: const ValueKey('dl-priority-notes'),
       child: Column(
@@ -269,9 +273,9 @@ class PriorityNotesPanel extends StatelessWidget {
         children: [
           _PanelHeader(
             'Open flags',
-            flags.isEmpty
+            count <= 0
                 ? null
-                : DailyLogPill('${flags.length}', tone: DailyLogTone.danger),
+                : DailyLogPill('$count', tone: DailyLogTone.danger),
           ),
           const SizedBox(height: 14),
           for (final f in flags) ...[
@@ -530,7 +534,7 @@ class CareGivenPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PanelHeader('Care given, by carer', null),
+          _PanelHeader('Carer activity', null),
           const SizedBox(height: 4),
           Text(
             'Everything recorded at this home on this day, and by whom.',

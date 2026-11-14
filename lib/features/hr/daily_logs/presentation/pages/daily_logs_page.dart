@@ -380,19 +380,40 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
         final reviewRows = _c.review.value?.items ?? const [];
         final notHanded = _c.board.value?.notHandedOver ?? const [];
         final careRows = _c.activity.value?.items ?? const [];
+        // Web Review: Open flags + Carer activity first; sign-off / handover
+        // panels follow for managers with `daily-logs:review`.
         return [
-          // Web "Open flags" — `care-flags:read` (resolve = `care-flags:resolve`).
           if (_c.canReadFlags) ...[
             PriorityNotesPanel(
               flags: _c.flags.toList(),
               loading: _c.flagsLoading.value,
               error: _c.flagsError.value,
               canResolve: _c.canResolveFlags,
+              totalOpen: _c.flagsTotal.value,
               onResolve: (f) =>
                   showResolveFlagSheet(context, controller: _c, flag: f),
             ),
             const SizedBox(height: 12),
           ],
+          CareGivenPanel(
+            rows: careRows,
+            loading: _c.activityLoading.value,
+            staffFilterLabel: _c.staffName,
+            onFilterStaff: () async {
+              final picked = await pickDailyLogOption(
+                context,
+                'Carer',
+                [
+                  ('', 'Everyone'),
+                  for (final person in _c.staff) (person.id, person.label),
+                ],
+                _c.staffId.value,
+              );
+              if (picked != null) _c.setStaff(picked);
+            },
+            openFor: _openFor,
+          ),
+          const SizedBox(height: 14),
           Text(
             'Waiting for sign-off',
             style: handoverText(context, 14, weight: FontWeight.w700),
@@ -417,7 +438,6 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
                 ? (r) async {
                     final id = r.shiftLogId;
                     if (id == null || id.isEmpty) return;
-                    // Prefer an already-loaded shift row; otherwise lock by id.
                     final row = _c.shiftLogs.firstWhereOrNull((s) => s.id == id);
                     if (row != null) {
                       await _c.updateShiftLog(
@@ -450,25 +470,6 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
               _c.logDate.value,
               name: n.clientName,
             ),
-          ),
-          const SizedBox(height: 14),
-          CareGivenPanel(
-            rows: careRows,
-            loading: _c.activityLoading.value,
-            staffFilterLabel: _c.staffName,
-            onFilterStaff: () async {
-              final picked = await pickDailyLogOption(
-                context,
-                'Carer',
-                [
-                  ('', 'Everyone'),
-                  for (final person in _c.staff) (person.id, person.label),
-                ],
-                _c.staffId.value,
-              );
-              if (picked != null) _c.setStaff(picked);
-            },
-            openFor: _openFor,
           ),
           if (_c.hasResidence) ...[
             const SizedBox(height: 14),

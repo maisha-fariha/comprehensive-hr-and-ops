@@ -265,18 +265,8 @@ class _TasksTabViewState extends State<TasksTabView> {
                   ? null
                   : () => widget.onTaskTap!(tasks[i]),
             ),
-            if (_segment == TasksListSegment.reviewQueue &&
-                widget.onApproveReview != null) ...[
-              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
-              _ReviewActionsRow(
-                onApprove: widget.onApproveReview == null
-                    ? null
-                    : () => widget.onApproveReview!(tasks[i]),
-                onReject: widget.onRejectReview == null
-                    ? null
-                    : () => widget.onRejectReview!(tasks[i]),
-              ),
-            ],
+            // Review Queue: approve / send-back live in the task detail sheet
+            // only (web parity) — not as list-row footer buttons.
             if (_segment == TasksListSegment.recurring &&
                 (widget.onPauseRecurring != null ||
                     widget.onResumeRecurring != null)) ...[
@@ -481,59 +471,6 @@ class _FilterMenu extends StatelessWidget {
           },
         ),
       ),
-    );
-  }
-}
-
-class _ReviewActionsRow extends StatefulWidget {
-  final Future<void> Function()? onApprove;
-  final Future<void> Function()? onReject;
-
-  const _ReviewActionsRow({this.onApprove, this.onReject});
-
-  @override
-  State<_ReviewActionsRow> createState() => _ReviewActionsRowState();
-}
-
-class _ReviewActionsRowState extends State<_ReviewActionsRow> {
-  final Set<String> _busy = {};
-
-  Future<void> _run(String which, Future<void> Function()? action) async {
-    if (_busy.contains(which) || action == null) return;
-    setState(() => _busy.add(which));
-    try {
-      await action();
-    } finally {
-      if (mounted) setState(() => _busy.remove(which));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _ActionChip(
-            label: _busy.contains('reject') ? 'Sending…' : 'Send back',
-            filled: false,
-            onTap: _busy.contains('reject')
-                ? null
-                : () => _run('reject', widget.onReject),
-          ),
-        ),
-        SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-        Expanded(
-          child: _ActionChip(
-            label: _busy.contains('approve')
-                ? 'Approving…'
-                : 'Sign off & Approve',
-            filled: true,
-            onTap: _busy.contains('approve')
-                ? null
-                : () => _run('approve', widget.onApprove),
-          ),
-        ),
-      ],
     );
   }
 }
