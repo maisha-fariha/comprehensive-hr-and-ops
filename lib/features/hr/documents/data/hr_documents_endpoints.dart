@@ -13,8 +13,15 @@ abstract final class HrDocumentsEndpoints {
 
   static String document(String id) => '$documents/$id';
   static String restore(String id) => '$documents/$id/restore';
+  static String assign(String id) => '$documents/$id/assign';
+  static String acknowledge(String id) => '$documents/$id/acknowledge';
+  static String acknowledgments(String id) => '$documents/$id/acknowledgments';
+  static String remindAcknowledgments(String id) =>
+      '$documents/$id/acknowledgments/remind';
   static String archiveType(String id) => '$types/$id/archive';
   static String restoreType(String id) => '$types/$id/restore';
+  static const String roles = '/roles';
+  static const String users = '/users';
 
   /// The web `toApiFilePath`: the part of a stored `fileUrl` after `/api/v1`,
   /// or null when the file is not served by the API.

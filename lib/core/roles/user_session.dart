@@ -43,6 +43,33 @@ class FamilyVisibility {
   });
 
   static const FamilyVisibility unknown = FamilyVisibility();
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FamilyVisibility &&
+          dailyLogs == other.dailyLogs &&
+          activities == other.activities &&
+          incidents == other.incidents &&
+          medications == other.medications &&
+          documents == other.documents &&
+          appointments == other.appointments &&
+          messages == other.messages &&
+          shiftUpdates == other.shiftUpdates &&
+          medicalConditions == other.medicalConditions;
+
+  @override
+  int get hashCode => Object.hash(
+        dailyLogs,
+        activities,
+        incidents,
+        medications,
+        documents,
+        appointments,
+        messages,
+        shiftUpdates,
+        medicalConditions,
+      );
 }
 
 /// App-wide session for the signed-in user's portal role and profile.
@@ -173,11 +200,22 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   }
 
   /// Drop a permission family after the API returns 403 so Attendance (etc.)
-  /// leaves the bottom nav immediately instead of showing "Missing permission".
+  /// leaves the bottom nav once `/me` confirms the revoke.
+  ///
+  /// If the local grant list still includes the family, ignore the 403 for nav
+  /// purposes — a stale 403 during pull-to-refresh after an admin re-enable was
+  /// sticky-denying Attendance and bouncing the shell to More.
   void noteForbiddenPath(String path) {
     final family = _familyForPath(path);
     if (family == null) return;
     if (_deniedFamilies.contains(family)) return;
+    final stillGranted = _permissions.any((p) {
+      final n = _normPerm(p);
+      return n == family || n.startsWith('$family:');
+    });
+    // Wait for refreshProfile / `/me` to remove the grant. Hiding immediately
+    // from a transient 403 remapped the active tab away on swipe-refresh.
+    if (stillGranted) return;
     _deniedFamilies.add(family);
     final next = _permissions
         .where((p) {
@@ -383,9 +421,9 @@ class UserSession extends GetxService with WidgetsBindingObserver {
         })
         .where((item) => item.isNotEmpty)
         .toList();
-    // Web `/me` wins over a stale `/mobile/me` grant list. Keep 403 denials
-    // for families still listed (API already rejected) so Attendance stays
-    // hidden instead of flashing back after refresh.
+    // Web `/me` is authoritative after refresh. Clear sticky 403 denials so an
+    // admin re-enable (Attendance etc.) is not blocked forever — pull-to-refresh
+    // was otherwise remapping the shell to More while can() still failed.
     _reconcileDeniedFamilies(list);
     _permissionsReady.value = true;
     if (!_samePermissions(list)) {
@@ -400,7 +438,11 @@ class UserSession extends GetxService with WidgetsBindingObserver {
       final n = _normPerm(p);
       families.add(n.contains(':') ? n.split(':').first : n);
     }
-    _deniedFamilies.removeWhere((f) => !families.contains(f));
+    // Drop denials for families the fresh grant list restores. Revoked
+    // modules stay hidden via the grant list alone (no need for sticky 403).
+    // Keeping denials while the family was still listed blocked swipe-refresh
+    // after re-enable and bounced Attendance → More.
+    _deniedFamilies.removeWhere(families.contains);
   }
 
   void applyProfile(MobileProfile profile) {
@@ -457,11 +499,19 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     String? clientId,
     String? residenceName,
   }) {
-    if (visibility != null) _familyVisibility.value = visibility;
-    if (clientId != null && clientId.isNotEmpty) {
+    // Only notify Obx listeners when values actually change — otherwise every
+    // home refresh remounts gated FamilyShell tabs and feels like a redirect.
+    if (visibility != null && visibility != _familyVisibility.value) {
+      _familyVisibility.value = visibility;
+    }
+    if (clientId != null &&
+        clientId.isNotEmpty &&
+        clientId != _selectedClientId.value) {
       _selectedClientId.value = clientId;
     }
-    if (residenceName != null && residenceName.isNotEmpty) {
+    if (residenceName != null &&
+        residenceName.isNotEmpty &&
+        residenceName != _residenceName.value) {
       _residenceName.value = residenceName;
     }
   }

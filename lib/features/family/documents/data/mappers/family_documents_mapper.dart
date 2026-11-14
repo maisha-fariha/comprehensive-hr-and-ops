@@ -61,7 +61,7 @@ abstract final class FamilyDocumentsMapper {
             fileName: fileName,
             tenantId: JsonCodec.string(json['tenantId'] ?? upload['tenantId']),
             category: category,
-            documentType: JsonCodec.string(json['documentType']),
+            documentType: _documentTypeLabel(json['documentType']),
             uploadedByMe: json['uploadedByMe'] == true,
             updatedAt: at,
             signatureRequired: signature['required'] == true,
@@ -81,6 +81,14 @@ abstract final class FamilyDocumentsMapper {
     final uriPath = Uri.tryParse(path)?.path ?? path;
     final parts = uriPath.split('/').where((part) => part.isNotEmpty).toList();
     return parts.isEmpty ? null : parts.last;
+  }
+
+  /// Web may send a plain label or a nested `{ name }` type object.
+  static String? _documentTypeLabel(dynamic value) {
+    if (value is Map) {
+      return JsonCodec.string(value['name'] ?? value['label']);
+    }
+    return JsonCodec.string(value);
   }
 
   const FamilyDocumentsMapper._();

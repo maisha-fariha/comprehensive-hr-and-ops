@@ -4,7 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../family_shell.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../controllers/family_messages_controller.dart';
 import '../widgets/conversation_row_tile.dart';
 import '../widgets/family_messages_header.dart';
@@ -97,8 +97,8 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
                           return;
                         }
                         // This list is a FamilyShell tab, so there is no
-                        // route to pop. Return to Home, like the other tabs.
-                        Get.offAll(() => const FamilyShell(initialIndex: 0));
+                        // route to pop. Return to Overview, like the other tabs.
+                        familyGoToTab(0, context: context);
                       },
                     ),
                     Padding(

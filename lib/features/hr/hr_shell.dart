@@ -123,17 +123,15 @@ class _HrShellState extends State<HrShell> {
       session?.permissionEpoch;
       bool allowed(int index) =>
           session == null || managerTabAllowed(session, index);
+      // Display-only remap when the selected tab is revoked. Keep `_currentIndex`
+      // so pull-to-refresh after an admin re-enable does not stick on More/Home.
       final index = allowed(_currentIndex)
           ? _currentIndex
-          : firstAllowedTab(length: 5, allowed: allowed, fallback: 4);
-      if (index != _currentIndex || !_opened.contains(index)) {
-        // Leave revoked tabs (e.g. Attendance) and open the landing slot.
+          : firstAllowedTab(length: 5, allowed: allowed, fallback: 0);
+      if (!_opened.contains(index)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          setState(() {
-            _currentIndex = index;
-            _opened.add(index);
-          });
+          setState(() => _opened.add(index));
         });
       }
       return Scaffold(

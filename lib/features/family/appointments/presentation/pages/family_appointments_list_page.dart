@@ -5,7 +5,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
-import '../../../family_shell.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../visit_requests/presentation/pages/visit_request_details_page.dart';
 import '../../domain/entities/family_appointment.dart';
 import '../../domain/entities/family_appointments_enums.dart';
@@ -183,8 +183,8 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
                           navigator.pop();
                           return;
                         }
-                        // Embedded as a FamilyShell tab — return to Home.
-                        Get.offAll(() => const FamilyShell(initialIndex: 0));
+                        // Embedded as a FamilyShell tab — return to Overview.
+                        familyGoToTab(0, context: context);
                       },
                     ),
                     Padding(

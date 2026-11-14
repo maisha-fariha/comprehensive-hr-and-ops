@@ -130,11 +130,12 @@ int firstAllowedTab({
   required bool Function(int index) allowed,
   int fallback = 0,
 }) {
-  if (allowed(fallback)) return fallback;
+  // Prefer Home (0) and other low indices over More so a revoked Attendance
+  // tab does not dump the user on More after swipe-refresh.
   for (var i = 0; i < length; i++) {
     if (allowed(i)) return i;
   }
-  return fallback;
+  return allowed(fallback) ? fallback : 0;
 }
 
 class _PermissionBlocked extends StatelessWidget {

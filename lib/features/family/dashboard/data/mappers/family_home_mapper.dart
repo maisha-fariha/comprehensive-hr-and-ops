@@ -9,12 +9,15 @@ import '../../domain/entities/family_next_appointment.dart';
 import '../../domain/entities/family_overview_stat.dart';
 import '../../domain/entities/family_quick_action.dart';
 import '../../domain/entities/family_recent_update.dart';
+import '../../domain/entities/family_shared_activity.dart';
 
 abstract final class FamilyHomeMapper {
   static FamilyDashboardOverview compose({
     required UserSession session,
     required dynamic homeBody,
     required dynamic updatesBody,
+    dynamic activitiesBody,
+    String? selectedClientId,
     int? unreadNotificationCount,
   }) {
     final json = JsonCodec.unwrapMap(homeBody);
@@ -33,26 +36,54 @@ abstract final class FamilyHomeMapper {
     );
 
     final clients = JsonCodec.listAt(json, 'linkedClients');
-    Map<String, dynamic> client = {};
-    if (clients.isNotEmpty && clients.first is Map) {
-      client = JsonCodec.asMap(clients.first as Map);
-    }
-    final clientName = IsoDateRange.personName(
-      client['preferredName'] ?? client['name'] ?? json['clientName'],
-    );
-    final room = JsonCodec.string(
-      client['room'] ?? client['roomNumber'] ?? json['room'],
-    );
-    final residenceName = JsonCodec.stringOr(
-      client['residenceName'] ??
-          JsonCodec.mapAt(client, 'residence')?['name'] ??
-          json['residenceName'],
-      session.residenceName ?? 'Home',
-    );
+    final linkedClients = <
+        ({
+          String id,
+          String name,
+          String residenceName,
+          String? room,
+          String status
+        })>[
+      for (final raw in clients.whereType<Map>())
+        () {
+          final m = JsonCodec.asMap(raw);
+          final name = IsoDateRange.personName(
+            m['preferredName'] ?? m['name'] ?? m,
+          );
+          return (
+            id: JsonCodec.stringOr(m['id'], ''),
+            name: name == 'Unknown' ? 'Resident' : name,
+            residenceName: JsonCodec.stringOr(
+              m['residenceName'] ?? JsonCodec.mapAt(m, 'residence')?['name'],
+              '',
+            ),
+            room: JsonCodec.string(m['room'] ?? m['roomNumber']),
+            status: JsonCodec.stringOr(m['status'], 'active'),
+          );
+        }(),
+    ].where((c) => c.id.isNotEmpty).toList();
+
+    final want = (selectedClientId ?? session.selectedClientId ?? '').trim();
+    final selected = () {
+      if (want.isNotEmpty) {
+        for (final c in linkedClients) {
+          if (c.id == want) return c;
+        }
+      }
+      return linkedClients.isEmpty ? null : linkedClients.first;
+    }();
+
+    final residenceName = selected?.residenceName.isNotEmpty == true
+        ? selected!.residenceName
+        : (session.residenceName ?? 'Home');
+    final careFacilityName =
+        session.organizationName?.trim().isNotEmpty == true
+            ? session.organizationName!
+            : residenceName;
 
     session.applyFamilyHome(
       visibility: visibility,
-      clientId: JsonCodec.string(client['id'] ?? json['clientId']),
+      clientId: selected?.id,
       residenceName: residenceName,
     );
 
@@ -62,16 +93,21 @@ abstract final class FamilyHomeMapper {
         JsonCodec.mapAt(json, 'nextAppointment');
     final totals = JsonCodec.mapAt(json, 'totals') ?? {};
     final recent = _recentUpdate(updatesBody, visibility.dailyLogs);
+    final journalMeta = _journalMeta(updatesBody);
+    final shared = visibility.activities
+        ? _sharedActivities(activitiesBody)
+        : const <FamilySharedActivity>[];
 
     return FamilyDashboardOverview(
       residenceName: residenceName,
+      careFacilityName: careFacilityName,
       dateLabel: IsoDateRange.formatDisplayDate(now),
-      greetingLine: '${IsoDateRange.greetingPrefix(now)}, $firstName 👋',
+      greetingLine: '${IsoDateRange.greetingPrefix(now)}, $firstName',
       greetingSubtitle: [
-        if (room != null) 'Room $room',
-        if (clientName != 'Unknown') clientName,
+        if (selected?.room != null) 'Room ${selected!.room}',
+        if (selected != null) selected.name,
         "Here's what's happening today.",
-      ].where((part) => part.isNotEmpty).join(' | '),
+      ].where((part) => part.isNotEmpty).join(' · '),
       lastUpdatedLabel: 'Updated ${IsoDateRange.timeLabel(now)}',
       unreadNotificationCount:
           unreadNotificationCount ?? JsonCodec.integerOr(json['unreadCount'], 0),
@@ -81,7 +117,65 @@ abstract final class FamilyHomeMapper {
       recentUpdate: recent,
       glanceItems: _glance(recent, totals, visibility),
       quickActions: _actions(visibility),
+      linkedClients: linkedClients,
+      selectedClientId: selected?.id ?? '',
+      careJournalActiveToday: journalMeta.activeToday,
+      careJournalLastNoted: journalMeta.lastNoted,
+      sharedActivities: shared,
     );
+  }
+
+  static ({bool activeToday, String? lastNoted}) _journalMeta(dynamic body) {
+    final days = JsonCodec.unwrapList(body);
+    String? lastNoted;
+    var activeToday = false;
+    final today = DateTime.now();
+    for (final dayRaw in days.whereType<Map>()) {
+      final day = JsonCodec.asMap(dayRaw);
+      final logDate = JsonCodec.dateTime(day['logDate'] ?? day['date']);
+      final entries = JsonCodec.listAt(day, 'entries');
+      final activities = JsonCodec.listAt(day, 'activities');
+      final hasContent = entries.isNotEmpty || activities.isNotEmpty;
+      if (!hasContent) continue;
+      lastNoted ??= logDate?.toIso8601String() ?? JsonCodec.string(day['logDate']);
+      if (logDate != null &&
+          logDate.year == today.year &&
+          logDate.month == today.month &&
+          logDate.day == today.day) {
+        activeToday = true;
+      }
+    }
+    return (activeToday: activeToday, lastNoted: lastNoted);
+  }
+
+  static List<FamilySharedActivity> _sharedActivities(dynamic body) {
+    final rows = JsonCodec.unwrapList(body);
+    return [
+      for (final row in rows.whereType<Map>())
+        () {
+          final m = JsonCodec.asMap(row);
+          final type = JsonCodec.stringOr(m['activityType'], 'activity');
+          final at = JsonCodec.dateTime(
+            m['activityDate'] ?? m['occurredAt'] ?? m['takenOn'],
+          );
+          final title = type.toLowerCase().contains('memory')
+              ? 'Family memory'
+              : type.replaceAll('_', ' ');
+          return FamilySharedActivity(
+            id: JsonCodec.stringOr(m['id'], ''),
+            title: title,
+            description: JsonCodec.stringOr(m['description'], ''),
+            dateLabel: at == null
+                ? JsonCodec.stringOr(m['activityDate'], '')
+                : IsoDateRange.formatDisplayDate(at),
+            activityType: type,
+            mediaUrls: [
+              for (final u in JsonCodec.listAt(m, 'mediaUrls'))
+                if (u != null && '$u'.trim().isNotEmpty) '$u'.trim(),
+            ],
+          );
+        }(),
+    ].where((a) => a.id.isNotEmpty).toList();
   }
 
   static List<FamilyAttentionAlert> _alerts(
@@ -116,7 +210,6 @@ abstract final class FamilyHomeMapper {
     ];
   }
 
-  /// Keeps only alerts whose module is enabled in `data.visibility`.
   static bool _alertAllowed(
     Map<String, dynamic> json,
     FamilyVisibility visibility,
@@ -134,11 +227,7 @@ abstract final class FamilyHomeMapper {
       JsonCodec.stringOr(json['detail'], ''),
     ].join(' ').toLowerCase();
 
-    if (_matchesAny(haystack, const [
-      'incident',
-      'emergency',
-      'safeguard',
-    ])) {
+    if (_matchesAny(haystack, const ['incident', 'emergency', 'safeguard'])) {
       return visibility.incidents;
     }
     if (_matchesAny(haystack, const [
@@ -159,11 +248,7 @@ abstract final class FamilyHomeMapper {
     if (_matchesAny(haystack, const ['activit'])) {
       return visibility.activities;
     }
-    if (_matchesAny(haystack, const [
-      'appointment',
-      'visit',
-      'next_visit',
-    ])) {
+    if (_matchesAny(haystack, const ['appointment', 'visit', 'next_visit'])) {
       return visibility.appointments;
     }
     if (_matchesAny(haystack, const ['document', 'file'])) {
@@ -179,9 +264,6 @@ abstract final class FamilyHomeMapper {
     ])) {
       return visibility.medicalConditions;
     }
-
-    // Unknown family-scoped alerts stay visible; facility/manager noise is
-    // already excluded by `/family/home`.
     return true;
   }
 
@@ -218,7 +300,7 @@ abstract final class FamilyHomeMapper {
           id: 'daily-logs',
           tag: StatTag.review,
           value: '${JsonCodec.integerOr(totals['dailyLogsPast7d'], 0)}',
-          label: 'Updates (7 days)',
+          label: 'Care notes (7 days)',
           helperText: 'Shared care notes',
         ),
     ];
@@ -227,6 +309,7 @@ abstract final class FamilyHomeMapper {
   static FamilyNextAppointment? _nextVisit(Map<String, dynamic>? json) {
     if (json == null || json.isEmpty) return null;
     final at = JsonCodec.dateTime(json['scheduledAt'] ?? json['startsAt']);
+    final residence = JsonCodec.mapAt(json, 'residence') ?? {};
     return FamilyNextAppointment(
       id: JsonCodec.stringOr(json['id'], 'next-visit'),
       dateTimeLabel: at == null
@@ -236,40 +319,49 @@ abstract final class FamilyHomeMapper {
         json['title'] ?? json['type'] ?? json['purpose'],
         'Visit',
       ),
-      location: JsonCodec.stringOr(json['location'], ''),
+      location: JsonCodec.stringOr(
+        json['location'] ?? residence['name'],
+        '',
+      ),
       statusLabel: JsonCodec.stringOr(json['status'], 'Upcoming'),
     );
   }
 
   static FamilyRecentUpdate? _recentUpdate(dynamic body, bool allowed) {
     if (!allowed) return null;
-    final items = JsonCodec.unwrapList(body);
-    if (items.isEmpty || items.first is! Map) return null;
-    final json = JsonCodec.asMap(items.first as Map);
-    final author = JsonCodec.mapAt(json, 'author') ?? {};
-    final name = IsoDateRange.personName(
-      author.isEmpty ? json['authorName'] : author,
-    );
-    final at = JsonCodec.dateTime(
-      json['occurredAt'] ?? json['createdAt'] ?? json['updatedAt'],
-    );
-    final observations = JsonCodec.mapAt(json, 'observations') ?? {};
-    final bodyText = JsonCodec.string(
+    final days = JsonCodec.unwrapList(body);
+    for (final dayRaw in days.whereType<Map>()) {
+      final day = JsonCodec.asMap(dayRaw);
+      final entries = JsonCodec.listAt(day, 'entries');
+      for (final entryRaw in entries.whereType<Map>()) {
+        final json = JsonCodec.asMap(entryRaw);
+        final author = JsonCodec.mapAt(json, 'author') ?? {};
+        final name = IsoDateRange.personName(
+          author.isEmpty ? json['authorName'] : author,
+        );
+        final at = JsonCodec.dateTime(
+          json['occurredAt'] ?? json['createdAt'] ?? json['updatedAt'],
+        );
+        final bodyText = JsonCodec.stringOr(
           json['body'] ?? json['summary'] ?? json['notes'],
-        ) ??
-        observations.values
-            .where((value) => value != null && value.toString().trim().isNotEmpty)
-            .map((value) => value.toString())
-            .join(' ');
-    return FamilyRecentUpdate(
-      id: JsonCodec.stringOr(json['id'], 'update'),
-      authorName: name,
-      authorInitials: IsoDateRange.initials(name, fallback: 'RN'),
-      dateTimeLabel: at == null ? '' : IsoDateRange.dateTimeLabel(at),
-      statusLabel: JsonCodec.stringOr(json['status'], 'Shared'),
-      body: bodyText.isEmpty ? 'A care update was shared.' : bodyText,
-      hasImage: JsonCodec.listAt(json, 'attachments').isNotEmpty,
-    );
+          '',
+        ).trim();
+        if (bodyText.isEmpty) continue;
+        return FamilyRecentUpdate(
+          id: JsonCodec.stringOr(json['id'], 'update'),
+          authorName: name == 'Unknown' ? 'Care team' : name,
+          authorInitials: IsoDateRange.initials(
+            name == 'Unknown' ? 'CT' : name,
+            fallback: 'CT',
+          ),
+          dateTimeLabel: at == null ? '' : IsoDateRange.dateTimeLabel(at),
+          statusLabel: 'Care Note',
+          body: bodyText,
+          hasImage: false,
+        );
+      }
+    }
+    return null;
   }
 
   static List<FamilyGlanceItem> _glance(
@@ -285,11 +377,15 @@ abstract final class FamilyHomeMapper {
         value: '${JsonCodec.integerOr(totals['dailyLogsPast7d'], 0)}',
       ),
       if (visibility.appointments)
-        const FamilyGlanceItem(id: 'visits', label: 'Next visit', value: 'See card'),
+        const FamilyGlanceItem(
+          id: 'visits',
+          label: 'Next visit',
+          value: 'See card',
+        ),
       if (recent != null)
         FamilyGlanceItem(
           id: 'latest',
-          label: 'Latest update',
+          label: 'Latest note',
           value: recent.authorName,
         ),
     ];
@@ -300,19 +396,29 @@ abstract final class FamilyHomeMapper {
       if (visibility.appointments)
         const FamilyQuickAction(
           id: 'request-visit',
-          label: 'Request\nVisit',
+          label: 'Book\nVisit',
           asset: 'assets/icons/family_core/request.svg',
         ),
       if (visibility.messages)
         const FamilyQuickAction(
           id: 'send-message',
-          label: 'Send\nMessage',
+          label: 'Message\nStaff',
           asset: 'assets/icons/family_core/message.svg',
         ),
+      const FamilyQuickAction(
+        id: 'care-journal',
+        label: 'Care\nJournal',
+        asset: 'assets/icons/family_core/activities.svg',
+      ),
+      const FamilyQuickAction(
+        id: 'plan-outing',
+        label: 'Plan\nOuting',
+        asset: 'assets/icons/family_core/image.svg',
+      ),
       if (visibility.documents)
         const FamilyQuickAction(
           id: 'view-documents',
-          label: 'View\nDocuments',
+          label: 'Documents',
           asset: 'assets/icons/family_core/document.svg',
         ),
     ];

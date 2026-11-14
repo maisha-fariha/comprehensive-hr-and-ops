@@ -7,6 +7,7 @@ import 'appointments/presentation/pages/family_appointments_list_page.dart';
 import 'daily_updates/presentation/pages/family_daily_updates_page.dart';
 import 'dashboard/presentation/pages/family_dashboard_page.dart';
 import 'messages/presentation/pages/family_messages_list_page.dart';
+import 'presentation/controllers/family_shell_controller.dart';
 import 'presentation/pages/family_feature_unavailable_page.dart';
 import 'presentation/pages/family_more_menu_page.dart';
 import 'presentation/widgets/family_bottom_nav_bar.dart';
@@ -21,7 +22,7 @@ class FamilyShell extends StatefulWidget {
 }
 
 class _FamilyShellState extends State<FamilyShell> {
-  late int _currentIndex;
+  late final FamilyShellController _shell;
   late final Set<int> _opened;
 
   static const int _messagesTab = 3;
@@ -29,19 +30,22 @@ class _FamilyShellState extends State<FamilyShell> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(0, 4);
-    _opened = {_currentIndex};
-    // Warm messages only when landing on Messages (badge can wait until then).
-    if (_currentIndex == _messagesTab) {
+    final initial = widget.initialIndex.clamp(0, 4);
+    if (Get.isRegistered<FamilyShellController>()) {
+      _shell = Get.find<FamilyShellController>();
+      _shell.goTo(initial);
+    } else {
+      _shell = Get.put(FamilyShellController(initialIndex: initial));
+    }
+    _opened = {initial};
+    if (initial == _messagesTab) {
       ensureFamilyMessagesController();
     }
   }
 
   void _onTap(int index) {
-    setState(() {
-      _opened.add(index);
-      _currentIndex = index;
-    });
+    _opened.add(index);
+    _shell.goTo(index);
     if (index == _messagesTab) {
       ensureFamilyMessagesController();
     }
@@ -50,10 +54,15 @@ class _FamilyShellState extends State<FamilyShell> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      // Read visibility for gated labels without rebuilding tab *builders*
+      // into different widget types on every identical refresh.
       final visibility = Get.find<UserSession>().familyVisibility;
+      final index = _shell.currentIndex.value;
+      _opened.add(index);
+
       return Scaffold(
         body: IndexedStack(
-          index: _currentIndex,
+          index: index,
           children: [
             LazyIndexedTab(
               active: _opened.contains(0),
@@ -61,33 +70,15 @@ class _FamilyShellState extends State<FamilyShell> {
             ),
             LazyIndexedTab(
               active: _opened.contains(1),
-              builder: (_) => visibility.dailyLogs
-                  ? const FamilyDailyUpdatesPage()
-                  : const FamilyFeatureUnavailablePage(
-                      title: 'Daily Updates',
-                      message:
-                          'Your care provider has not shared daily updates with family members.',
-                    ),
+              builder: (_) => _JournalGate(visibility: visibility),
             ),
             LazyIndexedTab(
               active: _opened.contains(2),
-              builder: (_) => visibility.appointments
-                  ? const FamilyAppointmentsListPage()
-                  : const FamilyFeatureUnavailablePage(
-                      title: 'Appointments',
-                      message:
-                          'Appointments are not shared with family members for this home.',
-                    ),
+              builder: (_) => _AppointmentsGate(visibility: visibility),
             ),
             LazyIndexedTab(
               active: _opened.contains(3),
-              builder: (_) => visibility.messages
-                  ? const FamilyMessagesListPage()
-                  : const FamilyFeatureUnavailablePage(
-                      title: 'Messages',
-                      message:
-                          'Messaging is not enabled for family members in this home.',
-                    ),
+              builder: (_) => _MessagesGate(visibility: visibility),
             ),
             LazyIndexedTab(
               active: _opened.contains(4),
@@ -96,10 +87,70 @@ class _FamilyShellState extends State<FamilyShell> {
           ],
         ),
         bottomNavigationBar: FamilyBottomNavBar(
-          currentIndex: _currentIndex,
+          currentIndex: index,
           onTap: _onTap,
         ),
       );
     });
+  }
+}
+
+/// Keeps [FamilyDailyUpdatesPage] mounted; swaps only the unavailable shell
+/// when visibility flips so pull-to-refresh does not redirect.
+class _JournalGate extends StatelessWidget {
+  final FamilyVisibility visibility;
+
+  const _JournalGate({required this.visibility});
+
+  @override
+  Widget build(BuildContext context) {
+    final open = visibility.dailyLogs ||
+        visibility.activities ||
+        visibility.medications ||
+        visibility.medicalConditions;
+    if (!open) {
+      return const FamilyFeatureUnavailablePage(
+        title: 'Care Journal',
+        message:
+            'Your care provider has not shared the care journal with family members.',
+      );
+    }
+    return const FamilyDailyUpdatesPage();
+  }
+}
+
+class _AppointmentsGate extends StatelessWidget {
+  final FamilyVisibility visibility;
+
+  const _AppointmentsGate({required this.visibility});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visibility.appointments) {
+      return const FamilyFeatureUnavailablePage(
+        title: 'Appointments',
+        message:
+            'Appointments are not shared with family members for this home.',
+      );
+    }
+    return const FamilyAppointmentsListPage();
+  }
+}
+
+class _MessagesGate extends StatelessWidget {
+  final FamilyVisibility visibility;
+
+  const _MessagesGate({required this.visibility});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visibility.messages) {
+      return const FamilyFeatureUnavailablePage(
+        title: 'Messages',
+        message:
+            'Messaging is not enabled for family members in this home.',
+      );
+    }
+    return const FamilyMessagesListPage();
   }
 }

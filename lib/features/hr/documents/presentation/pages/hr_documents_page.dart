@@ -59,7 +59,7 @@ class _HrDocumentsPageState extends State<HrDocumentsPage> {
         context,
         (sheetContext) => HrDocumentDetailSheet(
           row: row,
-          canWrite: _c.canWrite,
+          controller: _c,
           onDownload: () => _c.download(row.fileUrl!, row.name),
           onEdit: () {
             Navigator.of(sheetContext).pop();

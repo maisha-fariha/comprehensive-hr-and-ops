@@ -7,7 +7,7 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../appointments/presentation/pages/create_appointment_page.dart';
 import '../../../appointments/presentation/widgets/family_primary_button.dart';
-import '../../../family_shell.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 import '../../domain/entities/family_visit_requests_overview.dart';
@@ -71,12 +71,10 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
       return;
     }
     // Fallback: Visit Requests lives under More.
-    Get.offAll(() => const FamilyShell(initialIndex: _moreTabIndex));
+    familyGoToTab(_moreTabIndex, context: context);
   }
 
-  void _onBottomNavTap(int index) {
-    Get.offAll(() => FamilyShell(initialIndex: index));
-  }
+  void _onBottomNavTap(int index) => familyGoToTab(index, context: context);
 
   @override
   Widget build(BuildContext context) {

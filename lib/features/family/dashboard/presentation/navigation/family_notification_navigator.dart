@@ -2,8 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 
 import '../../../documents/presentation/pages/family_documents_page.dart';
-import '../../../family_shell.dart';
 import '../../../messages/presentation/pages/family_conversation_page.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../profile_settings/presentation/pages/family_support_ticket_thread_page.dart';
 import '../../../profile_settings/presentation/pages/family_support_tickets_page.dart';
 import '../../../visit_requests/presentation/pages/visit_request_details_page.dart';
@@ -48,7 +48,7 @@ abstract final class FamilyNotificationNavigator {
   static void open(FamilyNotificationTarget target) {
     final tab = shellTabFor(target);
     if (tab != null) {
-      Get.offAll(() => FamilyShell(initialIndex: tab));
+      familyGoToTab(tab);
       return;
     }
     final page = pageFor(target);

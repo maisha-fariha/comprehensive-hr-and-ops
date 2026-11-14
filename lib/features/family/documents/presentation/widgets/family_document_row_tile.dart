@@ -25,14 +25,12 @@ class FamilyDocumentRowTile extends StatelessWidget {
   final VoidCallback? onDownloadTap;
   final VoidCallback? onPreviewTap;
   final VoidCallback? onSignTap;
+  final bool isDownloading;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _metaColor = Color(0xFF71839B);
   static const Color _cardBorder = Color(0xFFEEF1F4);
   static const Color _shadow = Color(0xFF142846);
-  static const Color _downloadBg = Color(0xFFF1F5F9);
-  static const Color _downloadIcon = Color(0xFF0E7C7B);
-
   static const String _summaryIcon = 'assets/icons/family_more/summary.svg';
   static const String _calendarIcon = 'assets/icons/family_more/calendar.svg';
   static const String _imageIcon = 'assets/icons/family_more/image.svg';
@@ -70,6 +68,7 @@ class FamilyDocumentRowTile extends StatelessWidget {
     this.onDownloadTap,
     this.onPreviewTap,
     this.onSignTap,
+    this.isDownloading = false,
   });
 
   _DocVisual get _visual {
@@ -93,8 +92,8 @@ class FamilyDocumentRowTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final visual = _visual;
     final iconBoxSize = ResponsiveHelper.getResponsiveSize(context, 44);
-    final downloadSize = ResponsiveHelper.getResponsiveSize(context, 40);
     final radius = ResponsiveHelper.getResponsiveRadius(context, 18);
+    final fromFamily = document.category.isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -124,172 +123,214 @@ class FamilyDocumentRowTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-        children: [
-          Container(
-            width: iconBoxSize,
-            height: iconBoxSize,
-            decoration: BoxDecoration(
-              color: visual.background,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 12),
-              ),
-            ),
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppSvgIcon(
-                  visual.asset,
-                  size: 22,
-                  color: visual.foreground,
-                ),
-                Text(
-                  document.fileType.label,
-                  style: TextStyle(
-                    fontFamily: 'Manrope',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(
-                      context,
-                      7,
-                    ),
-                    color: visual.foreground,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  document.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Manrope',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(
-                      context,
-                      14.5,
-                    ),
-                    color: _titleColor,
-                    height: 1.25,
-                  ),
-                ),
-                SizedBox(
-                  height: ResponsiveHelper.getResponsiveHeight(context, 4),
-                ),
-                Text(
-                  '${document.updatedAt == null ? 'On file' : WebFormat.date(document.updatedAt)} • ${document.kindLabel}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Manrope',
-                    fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(
-                      context,
-                      12,
-                    ),
-                    color: _metaColor,
-                    height: 1.25,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextButton(
-                onPressed: onPreviewTap,
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  foregroundColor: AppColors.secondaryTeal,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  textStyle: const TextStyle(
-                    fontFamily: 'Manrope',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12.5,
+              Container(
+                width: iconBoxSize,
+                height: iconBoxSize,
+                decoration: BoxDecoration(
+                  color: visual.background,
+                  borderRadius: BorderRadius.circular(
+                    ResponsiveHelper.getResponsiveRadius(context, 12),
                   ),
                 ),
-                child: const Text('Preview'),
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppSvgIcon(
+                      visual.asset,
+                      size: 22,
+                      color: visual.foreground,
+                    ),
+                    Text(
+                      document.fileType.label,
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          7,
+                        ),
+                        color: visual.foreground,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              GestureDetector(
-                onTap: onDownloadTap,
-                behavior: HitTestBehavior.opaque,
-                child: Container(
-                  width: downloadSize,
-                  height: downloadSize,
-                  decoration: BoxDecoration(
-                    color: _downloadBg,
-                    borderRadius: const BorderRadius.all(Radius.circular(12)),
-                    border: Border.all(color: Color(0xFFE7EBF0)),
-                  ),
-                  alignment: Alignment.center,
-                  child: const AppSvgIcon(
-                    _downloadAsset,
-                    size: 19,
-                  ),
+              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      document.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          14.5,
+                        ),
+                        color: _titleColor,
+                        height: 1.25,
+                      ),
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
+                    ),
+                    Text(
+                      '${document.updatedAt == null ? 'On file' : WebFormat.date(document.updatedAt)} • ${document.kindLabel}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Manrope',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12,
+                        ),
+                        color: _metaColor,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-        ],
           ),
           if (document.signatureRequired) ...[
             const SizedBox(height: 10),
             if (document.signatureAcknowledgedAt != null)
-              Text(
-                'You signed this on ${WebFormat.date(document.signatureAcknowledgedAt)}.',
-                style: const TextStyle(fontFamily: 'Manrope', fontSize: 12.5, color: AppColors.successGreen),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.successGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'You signed this on ${WebFormat.date(document.signatureAcknowledgedAt)}.',
+                  style: const TextStyle(
+                    fontFamily: 'Manrope',
+                    fontSize: 12.5,
+                    color: AppColors.successGreen,
+                  ),
+                ),
               )
             else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'The care home asks you to read this and confirm you agree${document.signatureDueAt == null ? '' : ' by ${WebFormat.date(document.signatureDueAt)}'}.',
-                    style: const TextStyle(fontFamily: 'Manrope', fontSize: 12.5),
-                  ),
-                  if (onSignTap != null)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: onSignTap,
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.secondaryTeal,
-                          textStyle: const TextStyle(
-                            fontFamily: 'Manrope',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                        icon: const Icon(Icons.draw_outlined, size: 16),
-                        label: const Text('Sign Document'),
-                      ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                decoration: BoxDecoration(
+                  color: AppColors.urgentBackground,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.urgentAmber.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'The care home asks you to read this and confirm you agree${document.signatureDueAt == null ? '' : ' by ${WebFormat.date(document.signatureDueAt)}'}.',
+                      style: const TextStyle(fontFamily: 'Manrope', fontSize: 12.5),
                     ),
-                ],
-              ),
-          ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Text(
-                document.sourceLabel,
-                style: const TextStyle(
-                  fontFamily: 'Manrope',
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondaryTeal,
+                    if (onSignTap != null)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: onSignTap,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.secondaryTeal,
+                            textStyle: const TextStyle(
+                              fontFamily: 'Manrope',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          icon: const Icon(Icons.draw_outlined, size: 16),
+                          label: const Text('Sign Document'),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ],
+          ],
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.only(top: 10),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Color(0xFFE8EDF2))),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: fromFamily
+                        ? const Color(0xFFF0ECFB)
+                        : const Color(0xFFE8F4FF),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    document.sourceLabel,
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: fromFamily
+                          ? const Color(0xFF6A4BC7)
+                          : AppColors.infoBlue,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: onPreviewTap,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: _titleColor,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    textStyle: const TextStyle(
+                      fontFamily: 'Manrope',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  icon: const Icon(Icons.visibility_outlined, size: 14),
+                  label: const Text('Preview'),
+                ),
+                const SizedBox(width: 4),
+                TextButton.icon(
+                  onPressed: isDownloading ? null : onDownloadTap,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: AppColors.secondaryTeal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    textStyle: const TextStyle(
+                      fontFamily: 'Manrope',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                  icon: isDownloading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.secondaryTeal,
+                          ),
+                        )
+                      : const AppSvgIcon(_downloadAsset, size: 14),
+                  label: Text(isDownloading ? 'Downloading…' : 'Download'),
+                ),
+              ],
+            ),
           ),
         ],
       ),

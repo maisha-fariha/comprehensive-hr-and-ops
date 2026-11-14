@@ -1,14 +1,16 @@
 import 'package:get/get.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 
+import '../../domain/entities/family_care_journal_models.dart';
 import '../../domain/entities/family_daily_update_entry.dart';
 import '../../domain/entities/family_daily_update_enums.dart';
-import '../../domain/entities/family_daily_updates_overview.dart';
 import '../../domain/repositories/family_daily_updates_repository.dart';
 
-/// GetX controller for the Family "Daily Updates" screen.
+enum CareJournalTab { journal, medical, moments }
+
+/// Care Journal controller — web `/family/updates`.
 class FamilyDailyUpdatesController
-    extends BaseController<FamilyDailyUpdatesOverview> {
+    extends BaseController<FamilyCareJournalOverview> {
   final FamilyDailyUpdatesRepository repository;
 
   FamilyDailyUpdatesController({required this.repository}) {
@@ -16,29 +18,45 @@ class FamilyDailyUpdatesController
   }
 
   final Rxn<DailyUpdateCategory> selectedCategory = Rxn<DailyUpdateCategory>();
+  final Rx<CareJournalTab> selectedTab = CareJournalTab.journal.obs;
+  final RxnString selectedClientId = RxnString();
 
-  FamilyDailyUpdatesOverview? get overview => state.value.data;
+  FamilyCareJournalOverview? get overview => state.value.data;
 
   List<FamilyDailyUpdateEntry> get visibleEntries {
-    final entries = overview?.entries ?? const [];
+    final days = overview?.days ?? const [];
     final category = selectedCategory.value;
-    if (category == null) return entries;
-    return entries.where((entry) => entry.category == category).toList();
+    final notes = [for (final day in days) ...day.notes];
+    if (category == null) return notes;
+    return notes.where((entry) => entry.category == category).toList();
   }
 
   void selectCategory(DailyUpdateCategory? category) =>
       selectedCategory.value = category;
 
-  Future<void> loadOverview() async {
+  void selectTab(CareJournalTab tab) => selectedTab.value = tab;
+
+  Future<void> selectClient(String clientId) async {
+    if (clientId.isEmpty || clientId == selectedClientId.value) return;
+    selectedClientId.value = clientId;
+    await loadOverview(clientId: clientId);
+  }
+
+  Future<void> loadOverview({String? clientId}) async {
     setLoading(true);
-    final result = await repository.getOverview();
+    final result = await repository.getCareJournal(
+      clientId: clientId ?? selectedClientId.value,
+    );
     result.when(
-      success: setSuccess,
+      success: (data) {
+        selectedClientId.value = data.selectedClientId;
+        setSuccess(data);
+      },
       failure: (error) => setError(error.message),
     );
     setLoading(false);
   }
 
   @override
-  Future<void> refresh() => loadOverview();
+  Future<void> refresh() => loadOverview(clientId: selectedClientId.value);
 }

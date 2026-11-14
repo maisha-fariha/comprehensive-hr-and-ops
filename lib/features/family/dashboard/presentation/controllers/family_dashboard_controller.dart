@@ -1,13 +1,11 @@
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get/get.dart';
 
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/family_dashboard_overview.dart';
 import '../../domain/repositories/family_dashboard_repository.dart';
 
-/// GetX controller for the Family Dashboard ("Home") screen.
-///
-/// Extends the project's [BaseController] (from `gems_data_layer`) so
-/// loading/error state is handled the same way as every other feature
-/// controller in the app.
+/// Family Overview controller — web `/family`.
 class FamilyDashboardController extends BaseController<FamilyDashboardOverview> {
   final FamilyDashboardRepository repository;
 
@@ -15,16 +13,27 @@ class FamilyDashboardController extends BaseController<FamilyDashboardOverview> 
     loadOverview();
   }
 
+  final RxnString selectedClientId = RxnString();
+
   FamilyDashboardOverview? get overview => state.value.data;
 
-  Future<void> loadOverview() async {
+  Future<void> loadOverview({String? clientId}) async {
     setLoading(true);
-    final result = await repository.getOverview();
+    final result = await repository.getOverview(
+      clientId: clientId ?? selectedClientId.value,
+    );
     result.when(
-      success: setSuccess,
+      success: (data) {
+        selectedClientId.value = data.selectedClientId;
+        if (Get.isRegistered<UserSession>() &&
+            data.selectedClientId.isNotEmpty) {
+          Get.find<UserSession>().selectClient(data.selectedClientId);
+        }
+        setSuccess(data);
+      },
       failure: (error) {
-        if (error?.code == 'RATE_LIMITED' ||
-            (error?.message ?? '').toLowerCase().contains('token refresh')) {
+        if (error.code == 'RATE_LIMITED' ||
+            error.message.toLowerCase().contains('token refresh')) {
           return;
         }
         setError(error.message);
@@ -33,6 +42,12 @@ class FamilyDashboardController extends BaseController<FamilyDashboardOverview> 
     setLoading(false);
   }
 
+  Future<void> selectClient(String clientId) async {
+    if (clientId.isEmpty || clientId == selectedClientId.value) return;
+    selectedClientId.value = clientId;
+    await loadOverview(clientId: clientId);
+  }
+
   @override
-  Future<void> refresh() => loadOverview();
+  Future<void> refresh() => loadOverview(clientId: selectedClientId.value);
 }

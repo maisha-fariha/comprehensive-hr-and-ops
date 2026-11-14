@@ -11,7 +11,7 @@ import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../appointments/presentation/widgets/family_primary_button.dart';
 import '../../domain/entities/family_document.dart';
-import '../../../family_shell.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/family_documents_controller.dart';
 import '../widgets/family_document_row_tile.dart';
@@ -43,9 +43,7 @@ class FamilyDocumentsPage extends StatelessWidget {
     }
   }
 
-  void _onBottomNavTap(int index) {
-    Get.offAll(() => FamilyShell(initialIndex: index));
-  }
+  void _onBottomNavTap(int index) => familyGoToTab(index);
 
   @override
   Widget build(BuildContext context) {
@@ -76,34 +74,98 @@ class FamilyDocumentsPage extends StatelessWidget {
           );
         }
 
-        return _FamilyDocumentsBody(
-          documents: overview.documents,
-          onRefresh: controller.refresh,
-          onSend: () async {
-            final sent = await showFamilySendDocumentSheet(
-              context: context,
-              repository: controller.repository,
-            );
-            if (sent == true) controller.refresh();
-          },
-          onDownload: controller.openDocument,
-          onPreview: (document) => _previewDocument(context, controller, document),
-          onSign: (document) => showFamilySignDocumentSheet(
-            context: context,
-            document: document,
-            defaultSignerName: Get.isRegistered<UserSession>()
-                ? Get.find<UserSession>().displayName
-                : '',
-            onConfirm: () => controller.signDocument(document),
-          ),
+        return Stack(
+          children: [
+            _FamilyDocumentsBody(
+              documents: overview.documents,
+              openingDocumentId: controller.openingDocumentId.value,
+              onRefresh: controller.refresh,
+              onSend: () async {
+                final sent = await showFamilySendDocumentSheet(
+                  context: context,
+                  repository: controller.repository,
+                );
+                if (sent == true) controller.refresh();
+              },
+              onDownload: controller.openDocument,
+              onPreview: (document) =>
+                  _previewDocument(context, controller, document),
+              onSign: (document) => showFamilySignDocumentSheet(
+                context: context,
+                document: document,
+                defaultSignerName: Get.isRegistered<UserSession>()
+                    ? Get.find<UserSession>().displayName
+                    : '',
+                onConfirm: () => controller.signDocument(document),
+              ),
+            ),
+            if (controller.isOpening)
+              const ModalBarrier(
+                dismissible: false,
+                color: Color(0x33000000),
+              ),
+            if (controller.isOpening)
+              const Center(
+                child: _DocumentDownloadLoader(),
+              ),
+          ],
         );
       }),
     );
   }
 }
 
+class _DocumentDownloadLoader extends StatelessWidget {
+  const _DocumentDownloadLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceWhite,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.6,
+                color: AppColors.secondaryTeal,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Preparing download…',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                color: AppColors.textHeading,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Fetching your file securely',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FamilyDocumentsBody extends StatefulWidget {
   final List<FamilyDocument> documents;
+  final String? openingDocumentId;
   final Future<void> Function() onRefresh;
   final Future<void> Function() onSend;
   final ValueChanged<FamilyDocument> onDownload;
@@ -112,6 +174,7 @@ class _FamilyDocumentsBody extends StatefulWidget {
 
   const _FamilyDocumentsBody({
     required this.documents,
+    required this.openingDocumentId,
     required this.onRefresh,
     required this.onSend,
     required this.onDownload,
@@ -215,6 +278,7 @@ class _FamilyDocumentsBodyState extends State<_FamilyDocumentsBody> {
                   for (final document in visible) ...[
                     FamilyDocumentRowTile(
                       document: document,
+                      isDownloading: widget.openingDocumentId == document.id,
                       onDownloadTap: () => widget.onDownload(document),
                       onPreviewTap: () => widget.onPreview(document),
                       onSignTap: document.signatureRequired &&
@@ -442,40 +506,137 @@ Future<void> _previewDocument(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              document.title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryTeal.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.description_outlined,
+                    color: AppColors.secondaryTeal,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        document.title,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${document.kindLabel} • ${document.updatedAt == null ? 'On file' : document.dateLabel.replaceFirst('Updated ', '')}',
+                        style: const TextStyle(
+                          fontFamily: 'Manrope',
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F9FB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.cardBorder),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.secondaryTeal.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.description_outlined,
+                      color: AppColors.secondaryTeal,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    document.title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'This document is securely encrypted on the care home server. Click below to download or view the full file.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Obx(() {
+                    final busy = controller.isOpeningDocument(document.id);
+                    return Opacity(
+                      opacity: busy ? 0.7 : 1,
+                      child: FamilyPrimaryButton(
+                        label:
+                            busy ? 'Downloading…' : 'Download File to Device',
+                        icon: Icons.download_rounded,
+                        onTap: () {
+                          if (busy) return;
+                          Navigator.of(sheetContext).pop();
+                          controller.openDocument(document);
+                        },
+                      ),
+                    );
+                  }),
+                ],
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'This document is securely encrypted on the care home server. Click below to download or view the full file.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'Manrope', fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            FamilyPrimaryButton(
-              label: 'Download File to Device',
-              icon: Icons.download_rounded,
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                controller.openDocument(document);
-              },
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.of(sheetContext).pop(),
-              child: Text(
-                'Close Preview',
-                style: TextStyle(
-                  fontFamily: 'Manrope',
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textMuted,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(sheetContext, 14),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textHeading,
+                  side: const BorderSide(color: AppColors.cardBorder),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                ),
+                child: Text(
+                  'Close Preview',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      sheetContext,
+                      14,
+                    ),
+                  ),
                 ),
               ),
             ),

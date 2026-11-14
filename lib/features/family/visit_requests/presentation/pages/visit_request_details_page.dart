@@ -6,7 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/section_header_row.dart';
-import '../../../family_shell.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 import '../controllers/visit_request_details_controller.dart';
@@ -59,12 +59,10 @@ class _VisitRequestDetailsPageState extends State<VisitRequestDetailsPage> {
       navigator.pop();
       return;
     }
-    Get.offAll(() => const FamilyShell(initialIndex: _moreTabIndex));
+    familyGoToTab(_moreTabIndex, context: context);
   }
 
-  void _onBottomNavTap(int index) {
-    Get.offAll(() => FamilyShell(initialIndex: index));
-  }
+  void _onBottomNavTap(int index) => familyGoToTab(index, context: context);
 
   Future<void> _pickReschedule(BuildContext context) async {
     final now = DateTime.now();

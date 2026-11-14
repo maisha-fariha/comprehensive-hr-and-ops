@@ -86,20 +86,20 @@ class _StaffShellState extends State<StaffShell> {
       session.permissionEpoch;
 
       bool allowed(int tab) => staffTabAllowed(session, tab);
+      // Display-only remap when the selected tab is revoked. Keep `_currentIndex`
+      // as the user's last choice so a transient 403 / grant flap during
+      // pull-to-refresh cannot permanently bounce Attendance → More/Home.
       final index = allowed(_currentIndex)
           ? _currentIndex.clamp(0, 5)
           : firstAllowedTab(
               length: 6,
               allowed: allowed,
-              fallback: 5,
+              fallback: 0,
             );
-      if (index != _currentIndex || !_opened.contains(index)) {
+      if (!_opened.contains(index)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          setState(() {
-            _currentIndex = index;
-            _opened.add(index);
-          });
+          setState(() => _opened.add(index));
         });
       }
 

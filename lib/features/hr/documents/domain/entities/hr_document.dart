@@ -18,6 +18,14 @@ class HrDocument {
   final DateTime? deletedAt;
   final DateTime? createdAt;
   final String source;
+  final bool ackRequired;
+  final String? signingMode;
+  final bool signingHeld;
+  final DateTime? ackDueAt;
+  final DateTime? ackRequestedAt;
+  final bool myAckRequired;
+  final DateTime? myAcknowledgedAt;
+  final DateTime? myAckDueAt;
 
   const HrDocument({
     required this.id,
@@ -34,7 +42,76 @@ class HrDocument {
     this.deletedAt,
     this.createdAt,
     this.source = 'document',
+    this.ackRequired = false,
+    this.signingMode,
+    this.signingHeld = false,
+    this.ackDueAt,
+    this.ackRequestedAt,
+    this.myAckRequired = false,
+    this.myAcknowledgedAt,
+    this.myAckDueAt,
   });
+}
+
+/// One person in `GET /documents/:id/acknowledgments`.
+@immutable
+class HrAckPerson {
+  final String userId;
+  final String name;
+  final String? email;
+  final DateTime? acknowledgedAt;
+  final bool overdue;
+
+  const HrAckPerson({
+    required this.userId,
+    required this.name,
+    this.email,
+    this.acknowledgedAt,
+    this.overdue = false,
+  });
+
+  bool get signed => acknowledgedAt != null;
+}
+
+/// Progress payload from `GET /documents/:id/acknowledgments`.
+@immutable
+class HrAcknowledgmentProgress {
+  final String documentId;
+  final String name;
+  final int version;
+  final String? mode;
+  final bool held;
+  final DateTime? dueAt;
+  final DateTime? requestedAt;
+  final int required;
+  final int acknowledged;
+  final int pending;
+  final int overdue;
+  final List<HrAckPerson> people;
+
+  const HrAcknowledgmentProgress({
+    required this.documentId,
+    required this.name,
+    this.version = 1,
+    this.mode,
+    this.held = false,
+    this.dueAt,
+    this.requestedAt,
+    this.required = 0,
+    this.acknowledged = 0,
+    this.pending = 0,
+    this.overdue = 0,
+    this.people = const [],
+  });
+}
+
+/// Role or user option for the Send for signing audience pickers.
+@immutable
+class HrSignOption {
+  final String id;
+  final String label;
+
+  const HrSignOption({required this.id, required this.label});
 }
 
 @immutable

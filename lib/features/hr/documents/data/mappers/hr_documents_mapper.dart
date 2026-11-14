@@ -7,6 +7,7 @@ class HrDocumentsMapper {
   static HrDocument? documentFrom(Map<String, dynamic> json) {
     final id = JsonCodec.string(json['id']);
     if (id == null) return null;
+    final myAck = JsonCodec.mapAt(json, 'myAcknowledgment') ?? const {};
     return HrDocument(
       id: id,
       name: JsonCodec.stringOr(json['name'], 'Document'),
@@ -24,8 +25,67 @@ class HrDocumentsMapper {
       source: JsonCodec.string(json['source']) == 'staff_document'
           ? 'staff_document'
           : 'document',
+      ackRequired: json['ackRequired'] == true,
+      signingMode: JsonCodec.string(json['signingMode']),
+      signingHeld: json['signingHeld'] == true,
+      ackDueAt: JsonCodec.dateTime(json['ackDueAt']),
+      ackRequestedAt: JsonCodec.dateTime(json['ackRequestedAt']),
+      myAckRequired: myAck['required'] == true,
+      myAcknowledgedAt: JsonCodec.dateTime(myAck['acknowledgedAt']),
+      myAckDueAt: JsonCodec.dateTime(myAck['dueAt']),
     );
   }
+
+  static HrAcknowledgmentProgress? acknowledgmentFrom(dynamic body) {
+    final map = JsonCodec.unwrapMap(body);
+    final documentId = JsonCodec.string(map['documentId']);
+    if (documentId == null) return null;
+    return HrAcknowledgmentProgress(
+      documentId: documentId,
+      name: JsonCodec.stringOr(map['name'], 'Document'),
+      version: JsonCodec.integerOr(map['version'], 1),
+      mode: JsonCodec.string(map['mode']),
+      held: map['held'] == true,
+      dueAt: JsonCodec.dateTime(map['dueAt']),
+      requestedAt: JsonCodec.dateTime(map['requestedAt']),
+      required: JsonCodec.integerOr(map['required'], 0),
+      acknowledged: JsonCodec.integerOr(map['acknowledged'], 0),
+      pending: JsonCodec.integerOr(map['pending'], 0),
+      overdue: JsonCodec.integerOr(map['overdue'], 0),
+      people: [
+        for (final raw in JsonCodec.listAt(map, 'people').whereType<Map>())
+          HrAckPerson(
+            userId: JsonCodec.stringOr(raw['userId'], ''),
+            name: JsonCodec.stringOr(raw['name'], 'Person'),
+            email: JsonCodec.string(raw['email']),
+            acknowledgedAt: JsonCodec.dateTime(raw['acknowledgedAt']),
+            overdue: raw['overdue'] == true,
+          ),
+      ],
+    );
+  }
+
+  static List<HrSignOption> rolesFrom(dynamic body) => [
+        for (final row in JsonCodec.unwrapList(body).whereType<Map>())
+          if (JsonCodec.string(row['code'] ?? row['id']) case final id?)
+            if (id != 'family')
+              HrSignOption(
+                id: id,
+                label: JsonCodec.stringOr(row['name'], id),
+              ),
+      ];
+
+  static List<HrSignOption> usersFrom(dynamic body) => [
+        for (final row in JsonCodec.unwrapList(body).whereType<Map>())
+          if (JsonCodec.string(row['id']) case final id?)
+            if (JsonCodec.string(row['userType']) != 'family')
+              HrSignOption(
+                id: id,
+                label: JsonCodec.string(row['name']) ??
+                    JsonCodec.string(row['email']) ??
+                    'User',
+              ),
+      ];
 
   static HrDocumentPage pageFrom(dynamic body) {
     final items = [

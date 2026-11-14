@@ -9,7 +9,8 @@ import '../entities/family_search_hit.dart';
 /// [FamilyDashboardRepositoryImpl] for a real API-backed implementation
 /// later requires no changes above the data layer.
 abstract class FamilyDashboardRepository {
-  Future<Result<FamilyDashboardOverview>> getOverview();
+  /// Web `/family` overview. Pass [clientId] when the Relative selector changes.
+  Future<Result<FamilyDashboardOverview>> getOverview({String? clientId});
 
   Future<Result<List<FamilySearchHit>>> search(String query);
 

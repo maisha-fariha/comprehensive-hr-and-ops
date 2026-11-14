@@ -19,7 +19,12 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
     loadOverview();
   }
 
-  final RxBool isOpening = false.obs;
+  /// Id of the document currently downloading / opening, if any.
+  final RxnString openingDocumentId = RxnString();
+
+  bool get isOpening => openingDocumentId.value != null;
+
+  bool isOpeningDocument(String id) => openingDocumentId.value == id;
 
   FamilyDocumentsOverview? get overview => state.value.data;
 
@@ -60,8 +65,8 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
   /// Opens a document via `GET /files/.../link` (or fallbacks), then launches
   /// the system viewer.
   Future<void> openDocument(FamilyDocument document) async {
-    if (isOpening.value) return;
-    isOpening.value = true;
+    if (openingDocumentId.value != null) return;
+    openingDocumentId.value = document.id;
     try {
       final result = await repository.openDocument(document);
       await result.when(
@@ -115,7 +120,7 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
         ),
       );
     } finally {
-      isOpening.value = false;
+      openingDocumentId.value = null;
     }
   }
 }

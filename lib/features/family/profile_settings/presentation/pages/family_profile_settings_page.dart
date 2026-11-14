@@ -10,7 +10,7 @@ import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/widgets/change_password_dialog.dart';
 import '../../../../../core/widgets/section_header_row.dart';
-import '../../../family_shell.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_linked_client.dart';
 import '../../domain/entities/family_preference_item.dart';
@@ -48,9 +48,7 @@ class FamilyProfileSettingsPage extends StatelessWidget {
     }
   }
 
-  void _onBottomNavTap(int index) {
-    Get.offAll(() => FamilyShell(initialIndex: index));
-  }
+  void _onBottomNavTap(int index) => familyGoToTab(index);
 
   void _openLinkedClientSwitcher(
     BuildContext context,

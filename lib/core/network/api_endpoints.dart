@@ -138,11 +138,32 @@ abstract final class ApiEndpoints {
 
   static String familyDailyUpdates(String clientId) =>
       '$familyClients/$clientId/daily-updates';
+  /// Care Journal — weekly summaries (web `/family/updates`).
+  static String familyWeeklyUpdates(String clientId) =>
+      '$familyClients/$clientId/weekly-updates';
+  /// Care Journal — recreational photo moments gallery.
+  static String familyClientMoments(String clientId) =>
+      '$familyClients/$clientId/moments';
+  /// Shared activities for a linked resident (visibility.activities).
+  static String familyClientActivities(String clientId) =>
+      '$familyClients/$clientId/activities';
+  /// Incidents for a linked resident (visibility.incidents).
+  static String familyClientIncidents(String clientId) =>
+      '$familyClients/$clientId/incidents';
+  /// Medication schedule (visibility.medications).
+  static String familyClientMedications(String clientId) =>
+      '$familyClients/$clientId/medications';
+  /// Diagnoses / allergies / diet (visibility.medicalConditions).
+  static String familyClientMedicalConditions(String clientId) =>
+      '$familyClients/$clientId/medical-conditions';
   static String familyAppointmentById(String id) => '$familyAppointments/$id';
   static String familyAppointmentReschedule(String id) =>
       '$familyAppointments/$id/reschedule';
   static String familyAppointmentCancel(String id) =>
       '$familyAppointments/$id/cancel';
+  /// Family confirms or declines a care-home reschedule.
+  static String familyAppointmentDecide(String id) =>
+      '$familyAppointments/$id/decide';
   static String familyConversation(String id) => '$familyMessages/$id';
   static String familyConversationRead(String id) => '$familyMessages/$id/read';
   static String familyConversationMessages(String id) =>
