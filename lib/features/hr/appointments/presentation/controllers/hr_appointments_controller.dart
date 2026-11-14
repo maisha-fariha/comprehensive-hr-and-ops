@@ -8,6 +8,7 @@ import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/storage/media_store_download.dart';
 import '../../domain/entities/hr_appointment.dart';
+import '../../domain/entities/hr_outing.dart';
 import '../../domain/repositories/hr_appointments_repository.dart';
 import '../hr_appointments_labels.dart';
 
@@ -46,6 +47,7 @@ class HrAppointmentsController extends GetxController {
   static const Duration searchDebounce = Duration(milliseconds: 300);
 
   final RxList<HrAppointment> items = <HrAppointment>[].obs;
+  final RxList<HrOuting> outings = <HrOuting>[].obs;
   final RxInt total = 0.obs;
   final RxInt totalPages = 0.obs;
   final RxBool loading = true.obs;
@@ -53,6 +55,8 @@ class HrAppointmentsController extends GetxController {
   final Rxn<HrAppointmentSummary> summary = Rxn<HrAppointmentSummary>();
 
   final RxString tab = 'pending'.obs;
+  /// Web Outing requests sub-tab: `pending` (Awaiting decision) or `all`.
+  final RxString outingScope = 'pending'.obs;
   final RxString status = ''.obs;
   final RxString type = ''.obs;
   final RxString residenceId = ''.obs;
@@ -69,10 +73,29 @@ class HrAppointmentsController extends GetxController {
   Timer? _debounce;
   int _serial = 0;
 
+  static const _outingDecideRoles = {
+    'tenant_admin',
+    'manager',
+    'residence_manager',
+  };
+
   bool get canRead => session.can('appointments:read');
   bool get canWrite => session.can('appointments:write');
   bool get canExport => session.can('appointments:export');
   bool get canReadDailyLogs => session.can('daily-logs:read');
+
+  /// Web: approve/decline outings only for management roles (+ `appointments:write`).
+  bool get canDecideOutings {
+    if (!canWrite) return false;
+    if (session.permissions.contains('*')) return true;
+    final raw = (session.roleRaw ?? '')
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_');
+    return _outingDecideRoles.contains(raw);
+  }
+
+  bool get showingOutings => HrAppointmentsLabels.isOutingsTab(tab.value);
 
   bool get hasActiveFilters =>
       status.value.isNotEmpty || type.value.isNotEmpty || residenceId.value.isNotEmpty;
@@ -124,6 +147,10 @@ class HrAppointmentsController extends GetxController {
   Future<void> refreshAll() => Future.wait([load(), loadSummary()]);
 
   Future<void> load() async {
+    if (showingOutings) {
+      await loadOutings();
+      return;
+    }
     final serial = ++_serial;
     loading.value = true;
     final result = await repository.list(query);
@@ -131,11 +158,44 @@ class HrAppointmentsController extends GetxController {
     result.when(
       success: (data) {
         items.assignAll(data.items);
+        outings.clear();
         total.value = data.total;
         totalPages.value = data.totalPages;
         loadError.value = null;
       },
       failure: (error) {
+        items.clear();
+        outings.clear();
+        total.value = 0;
+        totalPages.value = 0;
+        loadError.value = error.message;
+      },
+    );
+    loading.value = false;
+  }
+
+  Future<void> loadOutings() async {
+    final serial = ++_serial;
+    loading.value = true;
+    final result = await repository.listOutings(
+      HrOutingQuery(
+        page: 1,
+        limit: 50,
+        status: outingScope.value == 'pending' ? 'pending' : null,
+        residenceId: residenceId.value,
+      ),
+    );
+    if (serial != _serial) return;
+    result.when(
+      success: (data) {
+        outings.assignAll(data.items);
+        items.clear();
+        total.value = data.total;
+        totalPages.value = data.totalPages;
+        loadError.value = null;
+      },
+      failure: (error) {
+        outings.clear();
         items.clear();
         total.value = 0;
         totalPages.value = 0;
@@ -162,7 +222,16 @@ class HrAppointmentsController extends GetxController {
     status.value = '';
     type.value = '';
     page.value = 1;
+    if (HrAppointmentsLabels.isOutingsTab(id)) {
+      outingScope.value = 'pending';
+    }
     load();
+  }
+
+  void setOutingScope(String scope) {
+    if (outingScope.value == scope) return;
+    outingScope.value = scope;
+    loadOutings();
   }
 
   void setFilter(String key, String value) {
@@ -239,6 +308,30 @@ class HrAppointmentsController extends GetxController {
         () => repository.approve(a.id),
         'Visit approved — the family can see it',
       );
+
+  /// Approve or decline an outing. Decline requires [notes] (web validation).
+  Future<String?> decideOuting(
+    HrOuting outing, {
+    required bool approve,
+    String? notes,
+  }) {
+    final text = notes?.trim() ?? '';
+    if (!approve && text.isEmpty) {
+      return Future.value('Say why — the family reads this.');
+    }
+    return _run(
+      outing.id,
+      () => repository.decideOuting(
+        outing.id,
+        decision: approve ? 'approved' : 'declined',
+        notes: text.isEmpty ? null : text,
+      ),
+      approve
+          ? 'Outing approved — the family has been told'
+          : 'Outing declined — the family has been told',
+      toastErrors: false,
+    );
+  }
 
   /// Decline (reject) or cancel with an optional reason. Errors are shown
   /// inside the reason dialog, so they are returned rather than toasted.

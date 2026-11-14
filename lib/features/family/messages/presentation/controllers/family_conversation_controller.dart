@@ -204,6 +204,7 @@ class FamilyConversationController
       timeLabel: IsoDateRange.timeLabel(DateTime.now()),
       senderName: 'You',
       delivery: FamilyMessageDelivery.sending,
+      attachments: sentAttachments,
     );
 
     textController.clear();

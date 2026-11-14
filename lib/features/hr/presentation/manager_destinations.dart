@@ -272,7 +272,16 @@ List<ManagerDestination> managerDestinations() {
           anyOf: const ['appointments:read'],
           builder: () => const HrAppointmentsPage(),
         ),
-        keywords: const ['appointments', 'appointment', 'visits', 'family visit', 'approvals', 'booking'],
+        keywords: const [
+          'appointments',
+          'appointment',
+          'visits',
+          'family visit',
+          'approvals',
+          'booking',
+          'outing',
+          'outings',
+        ],
       ),
     if (can('inventory:read', module: 'inventory'))
       ManagerDestination(

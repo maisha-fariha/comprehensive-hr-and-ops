@@ -31,7 +31,8 @@ class HrAppointmentTone {
 }
 
 abstract final class HrAppointmentsLabels {
-  static const tabs = [
+  /// Visit / appointment queue tabs (web left group).
+  static const appointmentTabs = [
     HrAppointmentTab('pending', 'Pending', status: 'pending'),
     HrAppointmentTab('approved', 'Approved', status: 'approved'),
     HrAppointmentTab('family', 'Family visits', type: 'family_visit'),
@@ -39,6 +40,20 @@ abstract final class HrAppointmentsLabels {
     HrAppointmentTab('closed', 'Rejected', status: 'rejected'),
     HrAppointmentTab('all', 'All'),
   ];
+
+  /// Web keeps Outing requests as its own control next to the queue tabs.
+  static const outingTab = HrAppointmentTab('outings', 'Outing requests');
+
+  static const tabs = [...appointmentTabs, outingTab];
+
+  static bool isOutingsTab(String id) => id == 'outings';
+
+  static HrAppointmentTone outingStatusTone(String status) => switch (status) {
+        'pending' => HrAppointmentTone.warning,
+        'approved' => HrAppointmentTone.success,
+        'declined' => HrAppointmentTone.danger,
+        _ => HrAppointmentTone.neutral,
+      };
 
   static const statusOptions = [
     ('', 'Any status'),

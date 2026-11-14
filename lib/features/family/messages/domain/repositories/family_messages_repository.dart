@@ -1,5 +1,6 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../../../profile_settings/domain/entities/family_linked_client.dart';
 import '../entities/conversation_preview.dart';
 import '../entities/family_conversation_thread.dart';
 import '../entities/message_attachment.dart';
@@ -29,6 +30,9 @@ abstract class FamilyMessagesRepository {
   /// A new conversation needs one of them as `clientId`.
   Future<Result<List<String>>> getLinkedClientIds();
 
+  /// `GET /family/clients` with display names for the Resident picker.
+  Future<Result<List<FamilyLinkedClient>>> getLinkedResidents();
+
   /// `POST /family/messages/:id/read`. Opening a thread clears its badge.
   Future<Result<void>> markConversationRead(String conversationId);
 
@@ -42,12 +46,13 @@ abstract class FamilyMessagesRepository {
     bool confirm = false,
   });
 
-  /// `POST /family/messages` → id of the new conversation (`null` when the
-  /// response has none, e.g. queued offline).
+  /// Web `POST /family/messages` — `{ clientId, body, subject?, priority?,
+  /// attachments? }`. [priority] is `routine` / `high`; omit for `general`.
   Future<Result<String?>> startConversation({
     required String clientId,
     required String body,
-    bool highPriority = false,
+    String? subject,
+    String? priority,
     List<MessageAttachment> attachments = const [],
   });
 }

@@ -9,8 +9,8 @@ import '../controllers/family_messages_controller.dart';
 import '../widgets/conversation_row_tile.dart';
 import '../widgets/family_messages_header.dart';
 import '../widgets/family_messages_search_bar.dart';
+import '../widgets/message_care_team_sheet.dart';
 import '../widgets/new_message_fab.dart';
-import 'compose_message_page.dart';
 import 'family_conversation_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
@@ -46,8 +46,14 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
     }
   }
 
-  void _openComposeMessage() {
-    Get.to(() => const ComposeMessagePage());
+  Future<void> _openComposeMessage() async {
+    final conversationId = await showMessageCareTeamSheet(context);
+    if (!mounted) return;
+    if (conversationId == null) return;
+    _controller.refresh();
+    if (conversationId.isNotEmpty) {
+      Get.to(() => FamilyConversationPage(conversationId: conversationId));
+    }
   }
 
   @override

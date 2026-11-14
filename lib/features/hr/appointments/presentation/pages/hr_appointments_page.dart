@@ -14,6 +14,8 @@ import '../widgets/hr_appointment_form_sheet.dart';
 import '../widgets/hr_appointment_reason_dialog.dart';
 import '../widgets/hr_appointments_kpi_grid.dart';
 import '../widgets/hr_appointments_toolbar.dart';
+import '../widgets/hr_outing_card.dart';
+import '../widgets/hr_outing_decide_dialog.dart';
 import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
@@ -184,7 +186,10 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
                       onToggleFilters: _c.toggleFilters,
                     ),
                     const SizedBox(height: 15),
-                    _register(context),
+                    if (_c.showingOutings)
+                      _outingsRegister(context)
+                    else
+                      _register(context),
                   ],
                 ),
               ),
@@ -220,6 +225,146 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
         ],
       ],
     );
+  }
+
+  Widget _outingsRegister(BuildContext context) {
+    final awaiting = _c.outingScope.value == 'pending';
+    return HandoverPanel(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              _outingScopeChip(
+                context,
+                key: const ValueKey('outings-scope-pending'),
+                label: 'Awaiting decision',
+                active: awaiting,
+                onTap: () => _c.setOutingScope('pending'),
+              ),
+              const SizedBox(width: 8),
+              _outingScopeChip(
+                context,
+                key: const ValueKey('outings-scope-all'),
+                label: 'All outings',
+                active: !awaiting,
+                onTap: () => _c.setOutingScope('all'),
+              ),
+            ],
+          ),
+          if (!_c.canDecideOutings && _c.canWrite) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Only management can approve or decline an outing.',
+              style: handoverText(context, 12, color: AppColors.textMuted),
+            ),
+          ],
+          const SizedBox(height: 14),
+          ..._outingRows(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _outingScopeChip(
+    BuildContext context, {
+    required Key key,
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: active ? AppColors.secondaryTeal : AppColors.filterButtonBackground,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        key: key,
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Text(
+            label,
+            style: handoverText(
+              context,
+              12.5,
+              weight: FontWeight.w600,
+              color: active ? Colors.white : AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _outingRows(BuildContext context) {
+    if (_c.loading.value && _c.outings.isEmpty) {
+      return [
+        for (var i = 0; i < 2; i++)
+          Container(
+            height: 110,
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.filterButtonBackground,
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+      ];
+    }
+    if (_c.outings.isEmpty) {
+      final awaiting = _c.outingScope.value == 'pending';
+      final error = !_c.canRead
+          ? 'You do not have permission to view appointments.'
+          : _c.loadError.value;
+      return [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 36),
+          child: Column(
+            children: [
+              const Icon(Icons.explore_outlined, size: 22, color: AppColors.textMuted),
+              const SizedBox(height: 8),
+              Text(
+                error != null
+                    ? 'Outing requests could not be loaded'
+                    : awaiting
+                        ? 'No outings waiting for a decision'
+                        : 'No outing requests yet',
+                textAlign: TextAlign.center,
+                style: handoverText(context, 15, weight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                error ?? 'Families request outings from the family portal.',
+                textAlign: TextAlign.center,
+                style: handoverText(context, 13.5, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+    return [
+      for (final outing in _c.outings) ...[
+        HrOutingCard(
+          outing: outing,
+          canDecide: _c.canDecideOutings,
+          busy: _c.busyId.value == outing.id,
+          onApprove: () => showHrOutingDecideDialog(
+            context,
+            controller: _c,
+            outing: outing,
+            approve: true,
+          ),
+          onDecline: () => showHrOutingDecideDialog(
+            context,
+            controller: _c,
+            outing: outing,
+            approve: false,
+          ),
+        ),
+        const SizedBox(height: 12),
+      ],
+    ];
   }
 
   Widget _register(BuildContext context) {

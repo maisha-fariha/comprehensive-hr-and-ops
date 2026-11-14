@@ -3,13 +3,16 @@ import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/network/authorized_file.dart';
 import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/entities/family_messages_enums.dart';
+import '../../domain/entities/message_attachment.dart';
 import '../controllers/family_conversation_controller.dart';
 import '../controllers/family_messages_controller.dart';
 import '../widgets/family_messages_header.dart';
 import '../widgets/priority_toggle_row.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class FamilyConversationPage extends StatelessWidget {
   final String conversationId;
@@ -284,15 +287,42 @@ class FamilyConversationPage extends StatelessWidget {
                                         color: AppColors.secondaryTeal,
                                       ),
                                     ),
-                                  Text(
-                                    message.text,
-                                    style: TextStyle(
-                                      fontFamily: 'Manrope',
-                                      color: outgoing
-                                          ? Colors.white
-                                          : AppColors.textHeading,
+                                  if (message.text.isNotEmpty &&
+                                      message.text != '(Attachment)')
+                                    Text(
+                                      message.text,
+                                      style: TextStyle(
+                                        fontFamily: 'Manrope',
+                                        color: outgoing
+                                            ? Colors.white
+                                            : AppColors.textHeading,
+                                      ),
                                     ),
-                                  ),
+                                  if (message.attachments.isNotEmpty) ...[
+                                    if (message.text.isNotEmpty &&
+                                        message.text != '(Attachment)')
+                                      SizedBox(
+                                        height:
+                                            ResponsiveHelper.getResponsiveHeight(
+                                          context,
+                                          8,
+                                        ),
+                                      ),
+                                    for (final file in message.attachments)
+                                      Padding(
+                                        padding: EdgeInsets.only(
+                                          bottom:
+                                              ResponsiveHelper.getResponsiveHeight(
+                                            context,
+                                            6,
+                                          ),
+                                        ),
+                                        child: _MessageAttachmentTile(
+                                          attachment: file,
+                                          outgoing: outgoing,
+                                        ),
+                                      ),
+                                  ],
                                   if (outgoing)
                                     _OutgoingStatus(message: message)
                                   else
@@ -484,6 +514,120 @@ class _OutgoingStatus extends StatelessWidget {
         const SizedBox(width: 4),
         Icon(icon, size: 12, color: Colors.white70, semanticLabel: label),
       ],
+    );
+  }
+}
+
+class _MessageAttachmentTile extends StatelessWidget {
+  final MessageAttachment attachment;
+  final bool outgoing;
+
+  const _MessageAttachmentTile({
+    required this.attachment,
+    required this.outgoing,
+  });
+
+  bool get _isImage {
+    final type = attachment.fileType.toLowerCase();
+    final name = attachment.fileName.toLowerCase();
+    return type.startsWith('image/') ||
+        name.endsWith('.png') ||
+        name.endsWith('.jpg') ||
+        name.endsWith('.jpeg') ||
+        name.endsWith('.webp') ||
+        name.endsWith('.heic') ||
+        name.endsWith('.gif');
+  }
+
+  Future<void> _open() async {
+    final uri = Uri.tryParse(AuthorizedFile.resolveUrl(attachment.fileUrl));
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = outgoing ? Colors.white : AppColors.textHeading;
+    final bg = outgoing
+        ? Colors.white.withValues(alpha: 0.16)
+        : AppColors.filterButtonBackground;
+
+    if (_isImage) {
+      return GestureDetector(
+        onTap: _open,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(
+            AuthorizedFile.resolveUrl(attachment.fileUrl),
+            headers: AuthorizedFile.headers(),
+            height: 140,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _FileChip(
+              fileName: attachment.fileName,
+              foreground: fg,
+              background: bg,
+              onTap: _open,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return _FileChip(
+      fileName: attachment.fileName,
+      foreground: fg,
+      background: bg,
+      onTap: _open,
+    );
+  }
+}
+
+class _FileChip extends StatelessWidget {
+  final String fileName;
+  final Color foreground;
+  final Color background;
+  final VoidCallback onTap;
+
+  const _FileChip({
+    required this.fileName,
+    required this.foreground,
+    required this.background,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.attach_file_rounded, size: 16, color: foreground),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w600,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                    color: foreground,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

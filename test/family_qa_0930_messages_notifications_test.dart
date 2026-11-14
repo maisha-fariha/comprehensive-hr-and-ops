@@ -18,9 +18,9 @@ import 'package:comprehensive_hr_and_ops/features/family/messages/domain/entitie
 import 'package:comprehensive_hr_and_ops/features/family/messages/domain/repositories/family_messages_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/family/messages/presentation/controllers/compose_message_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/family/messages/presentation/controllers/family_conversation_controller.dart';
-import 'package:comprehensive_hr_and_ops/features/family/messages/presentation/pages/compose_message_page.dart';
 import 'package:comprehensive_hr_and_ops/features/family/messages/presentation/pages/family_conversation_page.dart';
-import 'package:comprehensive_hr_and_ops/features/family/messages/presentation/widgets/send_message_button.dart';
+import 'package:comprehensive_hr_and_ops/features/family/messages/presentation/widgets/message_care_team_sheet.dart';
+import 'package:comprehensive_hr_and_ops/features/family/profile_settings/domain/entities/family_linked_client.dart';
 import 'package:comprehensive_hr_and_ops/features/family/profile_settings/presentation/pages/family_support_ticket_thread_page.dart';
 import 'package:comprehensive_hr_and_ops/features/family/profile_settings/presentation/pages/family_support_tickets_page.dart';
 import 'package:comprehensive_hr_and_ops/features/family/visit_requests/presentation/pages/visit_request_details_page.dart';
@@ -72,6 +72,19 @@ class _FakeMessagesRepository implements FamilyMessagesRepository {
       Result.success(linkedClientIds);
 
   @override
+  Future<Result<List<FamilyLinkedClient>>> getLinkedResidents() async =>
+      Result.success([
+        for (final id in linkedClientIds)
+          FamilyLinkedClient(
+            id: id,
+            initials: 'R',
+            name: 'Resident $id',
+            subtitle: '',
+            statusLabel: 'active',
+          ),
+      ]);
+
+  @override
   Future<Result<FamilyConversationThread>> getConversation(String id) async {
     conversationLoads++;
     return Result.success(thread);
@@ -97,7 +110,8 @@ class _FakeMessagesRepository implements FamilyMessagesRepository {
   Future<Result<String?>> startConversation({
     required String clientId,
     required String body,
-    bool highPriority = false,
+    String? subject,
+    String? priority,
     List<MessageAttachment> attachments = const [],
   }) {
     sentBodies.add(body);
@@ -153,7 +167,7 @@ class _FakeDashboardRepository implements FamilyDashboardRepository {
   Future<Result<void>> markAllNotificationsRead() async => Result.success(null);
 
   @override
-  Future<Result<FamilyDashboardOverview>> getOverview() =>
+  Future<Result<FamilyDashboardOverview>> getOverview({String? clientId}) =>
       throw UnimplementedError();
 
   @override
@@ -293,8 +307,18 @@ void main() {
       GetIt.I.registerSingleton<FamilyMessagesRepository>(repo);
       addTearDown(() => GetIt.I.unregister<FamilyMessagesRepository>());
       await tester.pumpWidget(
-        const GetMaterialApp(home: ComposeMessagePage()),
+        GetMaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => showMessageCareTeamSheet(context),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
       );
+      await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       return repo;
     }
@@ -304,18 +328,10 @@ void main() {
     ) async {
       final repo = await openCompose(tester, linked: const []);
 
-      expect(
-        find.byKey(const Key('compose-not-linked-notice')),
-        findsOneWidget,
-      );
+      expect(find.text('Message Care Team'), findsOneWidget);
       expect(find.text(ComposeMessageController.notLinkedMessage), findsOneWidget);
       expect(find.textContaining('Open Home first'), findsNothing);
-      expect(
-        tester.widget<SendMessageButton>(find.byType(SendMessageButton)).onTap,
-        isNull,
-      );
 
-      await tester.enterText(find.byType(TextField).first, 'Hello');
       await tester.tap(find.text('Send Message'));
       await tester.pumpAndSettle();
       expect(repo.sentBodies, isEmpty);
@@ -326,12 +342,9 @@ void main() {
     ) async {
       await openCompose(tester, linked: const ['client-9']);
 
-      expect(find.byKey(const Key('compose-not-linked-notice')), findsNothing);
+      expect(find.text('Message Care Team'), findsOneWidget);
       expect(Get.find<UserSession>().selectedClientId, 'client-9');
-      expect(
-        tester.widget<SendMessageButton>(find.byType(SendMessageButton)).onTap,
-        isNotNull,
-      );
+      expect(find.text('Send Message'), findsOneWidget);
     });
 
     testWidgets('clears the draft, shows the web toast and opens the thread', (
@@ -351,49 +364,40 @@ void main() {
         repository: repo,
         session: session,
       );
+      await compose.loadResidents();
 
       await tester.pumpWidget(
         GetMaterialApp(
           home: Builder(
             builder: (context) => Scaffold(
               body: TextButton(
-                onPressed: () => Get.to(
-                  () => Scaffold(
-                    body: Column(
-                      children: [
-                        TextField(controller: compose.messageController),
-                        Obx(
-                          () => SendMessageButton(
-                            isSending: compose.isSending.value,
-                            onTap: compose.sendMessage,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                child: const Text('open'),
+                onPressed: () async {
+                  compose.messageController.text = 'Hello care team';
+                  final id = await compose.sendMessage();
+                  if (id != null && id.isNotEmpty) {
+                    Get.to(
+                      () => FamilyConversationPage(conversationId: id),
+                    );
+                  }
+                },
+                child: const Text('send'),
               ),
             ),
           ),
         ),
       );
-      await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
 
-      await tester.enterText(find.byType(TextField), 'Hello care team');
-      await tester.tap(find.text('Send Message'));
+      await tester.tap(find.text('send'));
       await tester.pump();
-      expect(find.text('Sending...'), findsOneWidget);
       expect(repo.sentBodies, ['Hello care team']);
 
       repo.pendingStart!.complete(Result.success('new-thread'));
       await tester.pumpAndSettle();
 
       expect(compose.messageController.text, isEmpty);
-      expect(find.text('Message sent!'), findsWidgets);
+      expect(find.text('Message sent'), findsWidgets);
       expect(
-        find.text('A member of the care team will respond shortly.'),
+        find.text("The care home's management will reply here."),
         findsWidgets,
       );
       expect(find.byType(FamilyConversationPage), findsOneWidget);

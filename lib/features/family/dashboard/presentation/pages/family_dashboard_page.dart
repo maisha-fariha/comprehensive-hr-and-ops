@@ -8,7 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/offline/offline_image.dart';
 import '../../../appointments/presentation/pages/create_appointment_page.dart';
 import '../../../documents/presentation/pages/family_documents_page.dart';
-import '../../../messages/presentation/pages/compose_message_page.dart';
+import '../../../messages/presentation/widgets/message_care_team_sheet.dart';
 import '../../../outings/presentation/pages/family_outings_page.dart';
 import '../../../presentation/family_portal_nav.dart';
 import '../../../profile_settings/presentation/pages/family_profile_settings_page.dart';
@@ -148,7 +148,7 @@ class FamilyDashboardPage extends StatelessWidget {
                               case 'request-visit':
                                 Get.to(() => const CreateAppointmentPage());
                               case 'send-message':
-                                Get.to(() => const ComposeMessagePage());
+                                openMessageCareTeamComposer(context);
                               case 'care-journal':
                                 _goTab(1);
                               case 'plan-outing':
@@ -161,9 +161,7 @@ class FamilyDashboardPage extends StatelessWidget {
                       ],
                       const SizedBox(height: 14),
                       _DutyDesk(
-                        onMessage: () => Get.to(
-                          () => const ComposeMessagePage(),
-                        ),
+                        onMessage: () => openMessageCareTeamComposer(context),
                       ),
                     ],
                   ),

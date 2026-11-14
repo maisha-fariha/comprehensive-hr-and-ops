@@ -58,6 +58,10 @@ abstract final class ApiEndpoints {
       '/attendance/time-off-requests';
   static const String appointments = '/appointments';
   static const String appointmentsSummary = '/appointments/summary';
+  /// Manager Outing requests (`GET /outings`, `POST /outings/:id/decide`).
+  static const String outings = '/outings';
+  static String outingById(String id) => '/outings/$id';
+  static String outingDecide(String id) => '/outings/$id/decide';
   static const String recurringCheckSchedules = '/recurring-checks/schedules';
   static const String recurringCheckInstances = '/recurring-checks/instances';
   static const String recurringCheckEntries = '/recurring-checks/entries';

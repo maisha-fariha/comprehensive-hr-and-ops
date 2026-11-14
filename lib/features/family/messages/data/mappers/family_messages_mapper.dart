@@ -3,6 +3,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/entities/family_messages_enums.dart';
+import '../../domain/entities/message_attachment.dart';
 
 abstract final class FamilyMessagesMapper {
   static List<ConversationPreview> listFrom(dynamic body) {
@@ -102,7 +103,43 @@ abstract final class FamilyMessagesMapper {
       timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       senderName:
           mine ? 'You' : (senderName == 'Unknown' ? 'Care team' : senderName),
+      attachments: _attachmentsFrom(json['attachments']),
     );
+  }
+
+  static List<MessageAttachment> _attachmentsFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <MessageAttachment>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final url = JsonCodec.string(
+        json['fileUrl'] ?? json['url'] ?? json['publicUrl'],
+      );
+      if (url == null || url.isEmpty) continue;
+      final name = JsonCodec.stringOr(
+        json['fileName'] ?? json['name'],
+        _fileNameFromUrl(url),
+      );
+      out.add(
+        MessageAttachment(
+          fileUrl: url,
+          fileType: JsonCodec.stringOr(
+            json['fileType'] ?? json['mimeType'] ?? json['contentType'],
+            'application/octet-stream',
+          ),
+          fileName: name,
+        ),
+      );
+    }
+    return out;
+  }
+
+  static String _fileNameFromUrl(String url) {
+    final path = url.split('?').first;
+    final slash = path.lastIndexOf('/');
+    if (slash < 0 || slash == path.length - 1) return 'Attachment';
+    return path.substring(slash + 1);
   }
 
   const FamilyMessagesMapper._();
