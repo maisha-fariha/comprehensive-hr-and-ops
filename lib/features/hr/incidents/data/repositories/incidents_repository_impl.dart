@@ -103,6 +103,7 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
         _api,
         path: ApiEndpoints.incidents,
         query: {...base, 'status': statusValue},
+        silent: true,
       );
       return result.when(
         success: (rows) => Result.success({'data': rows}),
@@ -123,6 +124,7 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
       _api.get(
         ApiEndpoints.incidentsSummary,
         query: summaryQuery.isEmpty ? null : summaryQuery,
+        silent: true,
       ),
     ]);
 
@@ -164,7 +166,10 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   Future<Result<IncidentInvestigationSummary>> getInvestigationSummary(
     String incidentId,
   ) async {
-    final result = await _api.get(ApiEndpoints.incidentById(incidentId));
+    final result = await _api.get(
+      ApiEndpoints.incidentById(incidentId),
+      silent: true,
+    );
     return result.when(
       success: (body) async =>
           Result.success(IncidentsMapper.investigationSummaryFrom(body)),
@@ -176,7 +181,10 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   Future<Result<Map<String, dynamic>>> getIncidentDetail(
     String incidentId,
   ) async {
-    final result = await _api.get(ApiEndpoints.incidentById(incidentId));
+    final result = await _api.get(
+      ApiEndpoints.incidentById(incidentId),
+      silent: true,
+    );
     return result.when(
       success: (body) async => Result.success(JsonCodec.unwrapMap(body)),
       failure: (error) async => Result.failure(error),

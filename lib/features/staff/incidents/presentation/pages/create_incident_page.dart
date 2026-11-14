@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
@@ -24,9 +25,8 @@ import '../widgets/staff_incidents_header.dart';
 /// Steps: Incident Details → Location & People → Investigation →
 /// Evidence & Submission → Report Form.
 ///
-/// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
-/// matches reference frames that show the staff bottom nav.
-class CreateIncidentPage extends StatefulWidget {
+/// Requires `incidents:write`. Hosts [StaffBottomNavBar] with "More" selected.
+class CreateIncidentPage extends StatelessWidget {
   final String? incidentId;
 
   const CreateIncidentPage({super.key, this.incidentId});
@@ -35,10 +35,25 @@ class CreateIncidentPage extends StatefulWidget {
   static const int moreTabIndex = 5;
 
   @override
-  State<CreateIncidentPage> createState() => _CreateIncidentPageState();
+  Widget build(BuildContext context) {
+    return PermissionGate(
+      anyOf: const ['incidents:write'],
+      title: incidentId == null ? 'Create Incident' : 'Edit Incident',
+      builder: () => _CreateIncidentBody(incidentId: incidentId),
+    );
+  }
 }
 
-class _CreateIncidentPageState extends State<CreateIncidentPage> {
+class _CreateIncidentBody extends StatefulWidget {
+  final String? incidentId;
+
+  const _CreateIncidentBody({this.incidentId});
+
+  @override
+  State<_CreateIncidentBody> createState() => _CreateIncidentBodyState();
+}
+
+class _CreateIncidentBodyState extends State<_CreateIncidentBody> {
   late final IncidentCreationController _controller;
 
   /// Always starts a fresh controller instance for a new draft rather than

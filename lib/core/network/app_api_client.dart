@@ -544,7 +544,7 @@ class AppApiClient implements OutboxTransport {
           code: 'offline',
         ),
       );
-      await _showError(error, silent: silent);
+      await _showError(error, silent: silent, path: path);
       return Result.failure(error);
     }
 
@@ -577,6 +577,7 @@ class AppApiClient implements OutboxTransport {
       await _showError(
         error,
         silent: silent || (outbox != null && _isBackgroundPath(path)),
+        path: path,
       );
       return Result.failure(error);
     }
@@ -677,6 +678,7 @@ class AppApiClient implements OutboxTransport {
             await _showError(
               refreshError,
               silent: silent || AppErrorDialog.holdingTransient,
+              path: path,
             );
             return Result.failure(refreshError);
           }
@@ -727,6 +729,7 @@ class AppApiClient implements OutboxTransport {
               (outbox != null &&
                   _isBackgroundPath(path) &&
                   _isOfflineError(error)),
+          path: path,
         );
         return Result.failure(error);
       }
@@ -774,6 +777,7 @@ class AppApiClient implements OutboxTransport {
             (outbox != null &&
                 _isBackgroundPath(path) &&
                 _isOfflineError(mapped)),
+        path: path,
       );
       return Result.failure(mapped);
     }
@@ -1048,9 +1052,59 @@ class AppApiClient implements OutboxTransport {
     return false;
   }
 
-  Future<void> _showError(AppError error, {required bool silent}) async {
+  Future<void> _showError(
+    AppError error, {
+    required bool silent,
+    String? path,
+  }) async {
     if (silent || _suppressErrorDialogs) return;
+
+    // 403 while the user already has :read for that module (or a supporting
+    // lookup like /clients on Incident Reports) must not block the screen.
+    // PermissionGate handles true "no access" entry and pops the route.
+    if (_isPermissionDenied(error) &&
+        path != null &&
+        Get.isRegistered<UserSession>()) {
+      final session = Get.find<UserSession>();
+      final family = UserSession.permissionFamilyForPath(path);
+      if (family != null && session.canReadModule(family)) {
+        return;
+      }
+      // Dropdown / lookup 403s (clients, staff, …) must not cover another
+      // module. Open those modules via PermissionGate instead.
+      if (_isSupportingPermissionPath(path)) {
+        return;
+      }
+      if (family != null && !session.canReadModule(family)) {
+        await AppErrorDialog.showError(
+          error,
+          onDismissed: () {
+            final nav = Get.key.currentState;
+            if (nav != null && nav.canPop()) {
+              Get.back();
+            }
+          },
+        );
+        return;
+      }
+    }
+
     await AppErrorDialog.showError(error);
+  }
+
+  /// Paths used as dropdowns / lookups on other modules — not "open Clients".
+  bool _isSupportingPermissionPath(String path) {
+    final p = path.toLowerCase();
+    return p.contains('/clients') ||
+        p.contains('/staff') ||
+        p.contains('/residences') ||
+        p.contains('/roles');
+  }
+
+  bool _isPermissionDenied(AppError error) {
+    if (error is PermissionError) return true;
+    if (error is ApiError && error.statusCode == 403) return true;
+    return error.code == '403';
   }
 
   /// Non-blocking notice. Briefly holds other snackbars so a feature's own

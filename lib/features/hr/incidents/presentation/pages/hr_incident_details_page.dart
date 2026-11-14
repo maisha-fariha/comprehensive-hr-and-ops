@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../staff/incidents/presentation/controllers/incident_details_controller.dart';
 import '../../../../staff/incidents/presentation/widgets/incident_details/incident_activity_log_section.dart';
 import '../../../../staff/incidents/presentation/widgets/incident_details/incident_cir_report_section.dart';
@@ -22,7 +23,7 @@ import 'incident_creation_page.dart';
 /// Manager Incident Details — the web incidents "View" modal: details,
 /// description, witness statements, report form / summary PDF, status,
 /// investigation, evidence, activity, then Close / Acknowledge / Edit.
-class HrIncidentDetailsPage extends StatefulWidget {
+class HrIncidentDetailsPage extends StatelessWidget {
   final String incidentId;
 
   /// `incidents:write` — Edit and the witness take/sign actions.
@@ -31,14 +32,36 @@ class HrIncidentDetailsPage extends StatefulWidget {
   const HrIncidentDetailsPage({
     super.key,
     required this.incidentId,
-    this.canWrite = true,
+    this.canWrite = false,
   });
 
   @override
-  State<HrIncidentDetailsPage> createState() => _HrIncidentDetailsPageState();
+  Widget build(BuildContext context) {
+    return PermissionGate(
+      anyOf: const ['incidents:read'],
+      title: 'Incident Details',
+      builder: () => _HrIncidentDetailsBody(
+        incidentId: incidentId,
+        canWrite: canWrite,
+      ),
+    );
+  }
 }
 
-class _HrIncidentDetailsPageState extends State<HrIncidentDetailsPage> {
+class _HrIncidentDetailsBody extends StatefulWidget {
+  final String incidentId;
+  final bool canWrite;
+
+  const _HrIncidentDetailsBody({
+    required this.incidentId,
+    required this.canWrite,
+  });
+
+  @override
+  State<_HrIncidentDetailsBody> createState() => _HrIncidentDetailsBodyState();
+}
+
+class _HrIncidentDetailsBodyState extends State<_HrIncidentDetailsBody> {
   late final IncidentDetailsController _controller;
   bool _changed = false;
 
@@ -186,7 +209,7 @@ class _HrIncidentDetailsPageState extends State<HrIncidentDetailsPage> {
           onClose: _close,
           onEdit: _edit,
           onAcknowledge: _acknowledge,
-          showAcknowledge: !detail.acknowledged,
+          showAcknowledge: widget.canWrite && !detail.acknowledged,
           showEdit: widget.canWrite,
         ),
       ],

@@ -60,6 +60,7 @@ abstract final class AppErrorDialog {
     AppError? error, {
     String? fallbackTitle,
     VoidCallback? onRetry,
+    VoidCallback? onDismissed,
   }) {
     // Network / 5xx is not a rejected session. A blocking "Care home is
     // unavailable" sheet over a screen that still has data alarms users.
@@ -79,6 +80,7 @@ abstract final class AppErrorDialog {
       message: info.message,
       isOffline: info.isOffline,
       onRetry: info.canRetry ? onRetry : null,
+      onDismissed: onDismissed,
     );
   }
 
@@ -123,6 +125,7 @@ abstract final class AppErrorDialog {
     required String message,
     bool isOffline = false,
     VoidCallback? onRetry,
+    VoidCallback? onDismissed,
   }) async {
     final key = '$title|$message';
     final now = DateTime.now();
@@ -218,6 +221,7 @@ abstract final class AppErrorDialog {
       ),
       barrierDismissible: true,
     );
+    onDismissed?.call();
   }
 
   /// Prefer [Navigator.pop] over [Get.back].

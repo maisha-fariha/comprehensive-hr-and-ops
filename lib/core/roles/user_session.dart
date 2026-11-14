@@ -229,6 +229,16 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     _permissionEpoch.value++;
   }
 
+  /// Permission family for an API path (`/incidents/...` → `incidents`).
+  static String? permissionFamilyForPath(String path) => _familyForPath(path);
+
+  /// True when the user may open/view the module (bare or `:read` grant).
+  bool canReadModule(String family) {
+    final f = _normPerm(family);
+    if (f.isEmpty) return false;
+    return can(f) || can('$f:read');
+  }
+
   static String? _familyForPath(String path) {
     final p = path.toLowerCase();
     if (p.contains('/attendance')) return 'attendance';
@@ -248,6 +258,7 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     if (p.contains('/messaging') || p.contains('/conversations')) {
       return 'messaging';
     }
+    if (p.contains('/settings')) return 'settings';
     if (p.contains('/clients')) return 'clients';
     if (p.contains('/residences')) return 'residences';
     return null;

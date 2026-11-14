@@ -70,6 +70,7 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
           'investigatorId': investigatorId,
       },
       pageSize: limit > 0 ? limit : ApiPageFetcher.defaultPageSize,
+      silent: true,
     );
     return result.when(
       success: (rows) async =>
@@ -82,6 +83,7 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   Future<Result<StaffIncidentsSummary>> getSummary() async {
     final result = await _api.get(
       ApiEndpoints.incidentsSummary,
+      silent: true,
     );
     return result.when(
       success: (body) async =>
@@ -93,8 +95,8 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   @override
   Future<Result<IncidentDetail>> getIncidentDetail(String incidentId) async {
     final results = await Future.wait([
-      _api.get(ApiEndpoints.incidentById(incidentId)),
-      _api.get(ApiEndpoints.incidentActivity(incidentId)),
+      _api.get(ApiEndpoints.incidentById(incidentId), silent: true),
+      _api.get(ApiEndpoints.incidentActivity(incidentId), silent: true),
     ]);
     if (results[0].isFailure) {
       return Result.failure(
@@ -115,6 +117,8 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     final result = await _api.post(
       ApiEndpoints.incidentAcknowledge(incidentId),
       data: {},
+      silent: true,
+      allowQueue: false,
     );
     return result.when(
       success: (_) async => Result.success(null),
@@ -371,7 +375,10 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
 
   @override
   Future<Result<List<StaffIncidentCategoryOption>>> getCategories() async {
-    final result = await _api.get(ApiEndpoints.incidentCategories);
+    final result = await _api.get(
+      ApiEndpoints.incidentCategories,
+      silent: true,
+    );
     return result.when(
       success: (body) async =>
           Result.success(StaffIncidentsMapper.categoriesFrom(body)),
@@ -381,7 +388,10 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
 
   @override
   Future<Result<List<StaffCirTemplateOption>>> getCirTemplates() async {
-    final result = await _api.get(ApiEndpoints.incidentCirTemplates);
+    final result = await _api.get(
+      ApiEndpoints.incidentCirTemplates,
+      silent: true,
+    );
     return result.when(
       success: (body) async =>
           Result.success(StaffIncidentsMapper.cirTemplatesFrom(body)),
@@ -449,6 +459,8 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
         else if (assignedToMe)
           'assignedToMe': true,
       },
+      // Filter dropdown only — missing clients:read must not block Incident Reports.
+      silent: true,
     );
     return result.when(
       success: (body) async =>

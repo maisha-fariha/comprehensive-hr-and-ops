@@ -6,6 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../presentation/open_manager_portal_search.dart';
@@ -57,7 +58,7 @@ class IncidentsListPage extends StatelessWidget {
     final changed = await Get.to<bool>(
       () => HrIncidentDetailsPage(
         incidentId: incidentId,
-        canWrite: session?.can('incidents:write') ?? true,
+        canWrite: session?.can('incidents:write') ?? false,
       ),
     );
     if (changed == true) {
@@ -67,6 +68,14 @@ class IncidentsListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return PermissionGate(
+      anyOf: const ['incidents:read'],
+      title: 'Incident Reports',
+      builder: () => _buildAllowed(context),
+    );
+  }
+
+  Widget _buildAllowed(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(

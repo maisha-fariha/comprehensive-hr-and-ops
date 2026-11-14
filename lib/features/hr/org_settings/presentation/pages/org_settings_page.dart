@@ -8,6 +8,7 @@ import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../../hr_shell.dart';
@@ -20,7 +21,7 @@ import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
 ///
 /// General matches the web editor (`PATCH /settings/general` with a `value`
 /// wrapper).
-class OrgSettingsPage extends StatefulWidget {
+class OrgSettingsPage extends StatelessWidget {
   final Future<OrgSettingsSnapshot> Function()? load;
 
   /// Bottom navigation used by the other More-menu pages.
@@ -29,7 +30,23 @@ class OrgSettingsPage extends StatefulWidget {
   const OrgSettingsPage({super.key, this.load, this.showShell = true});
 
   @override
-  State<OrgSettingsPage> createState() => _OrgSettingsPageState();
+  Widget build(BuildContext context) {
+    return PermissionGate(
+      anyOf: const ['settings:read'],
+      title: 'Settings',
+      builder: () => _OrgSettingsBody(load: load, showShell: showShell),
+    );
+  }
+}
+
+class _OrgSettingsBody extends StatefulWidget {
+  final Future<OrgSettingsSnapshot> Function()? load;
+  final bool showShell;
+
+  const _OrgSettingsBody({this.load, this.showShell = true});
+
+  @override
+  State<_OrgSettingsBody> createState() => _OrgSettingsBodyState();
 }
 
 class OrgSettingsSnapshot {
@@ -112,7 +129,7 @@ Future<OrgSettingsSnapshot> loadOrgSettings() async {
   );
 }
 
-class _OrgSettingsPageState extends State<OrgSettingsPage> {
+class _OrgSettingsBodyState extends State<_OrgSettingsBody> {
   static const _tabs = [
     'General',
     'Notifications',
@@ -209,6 +226,8 @@ class _OrgSettingsPageState extends State<OrgSettingsPage> {
           'itemsPerPage': items,
         },
       },
+      silent: true,
+      allowQueue: false,
     );
     if (!mounted) return;
     if (result.isFailure) {

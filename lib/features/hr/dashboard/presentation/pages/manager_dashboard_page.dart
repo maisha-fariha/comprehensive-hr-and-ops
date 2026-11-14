@@ -6,6 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
@@ -162,7 +163,11 @@ class ManagerDashboardPage extends StatelessWidget {
                         lastUpdatedLabel: overview.lastUpdatedLabel,
                         onStatTap: (stat) {
                           if (stat.id == 'open-incidents') {
-                            Get.to(() => const IncidentsListPage());
+                            openPermittedPage(
+                              title: 'Incident Reports',
+                              anyOf: const ['incidents:read'],
+                              builder: () => const IncidentsListPage(),
+                            );
                           }
                         },
                       ),
@@ -665,7 +670,11 @@ class _NeedsAttentionSection extends StatelessWidget {
     // Web Needs Attention "View all" for open incidents opens the Incidents
     // module (not Alerts), even when other alert types are also present.
     if (alerts.any(_isIncidentAlert)) {
-      Get.to(() => const IncidentsListPage());
+      openPermittedPage(
+        title: 'Incident Reports',
+        anyOf: const ['incidents:read'],
+        builder: () => const IncidentsListPage(),
+      );
       return;
     }
     if (alerts.any(_isDocumentAlert)) {
@@ -681,15 +690,22 @@ class _NeedsAttentionSection extends StatelessWidget {
           alert.metaString('entityId') ??
           (alert.id.trim().isEmpty ? null : alert.id.trim());
       if (id != null) {
-        final canWrite = Get.isRegistered<UserSession>()
-            ? Get.find<UserSession>().can('incidents:write')
-            : true;
-        Get.to(
-          () => HrIncidentDetailsPage(incidentId: id, canWrite: canWrite),
+        openPermittedPage(
+          title: 'Incident Reports',
+          anyOf: const ['incidents:read'],
+          builder: () {
+            final canWrite = Get.isRegistered<UserSession>() &&
+                Get.find<UserSession>().can('incidents:write');
+            return HrIncidentDetailsPage(incidentId: id, canWrite: canWrite);
+          },
         );
         return;
       }
-      Get.to(() => const IncidentsListPage());
+      openPermittedPage(
+        title: 'Incident Reports',
+        anyOf: const ['incidents:read'],
+        builder: () => const IncidentsListPage(),
+      );
       return;
     }
     if (_isDocumentAlert(alert)) {
