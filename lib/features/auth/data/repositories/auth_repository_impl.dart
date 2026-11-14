@@ -134,6 +134,13 @@ class AuthRepositoryImpl implements AuthRepository {
           body = await _withAuthMeAvatar(body);
           profile = AuthMapper.profileFromJson(body) ?? profile;
         }
+        // `/mobile/me` only returns a flat `name` (no middleName). Staff
+        // records hold first/middle/last — merge so My Profile shows all parts.
+        final staffId = profile.staffId?.trim();
+        if (staffId != null && staffId.isNotEmpty) {
+          body = await _withStaffNameParts(body, staffId);
+          profile = AuthMapper.profileFromJson(body) ?? profile;
+        }
         await _tokens.saveLastMe(body);
         if (profile.tenantSubdomain != null &&
             profile.tenantSubdomain!.isNotEmpty) {
@@ -153,6 +160,41 @@ class AuthRepositoryImpl implements AuthRepository {
         : null;
     if (avatarUrl == null) return mobileMeBody;
     return {...JsonCodec.unwrapMap(mobileMeBody), 'avatarUrl': avatarUrl};
+  }
+
+  /// Merge `GET /staff/:id` name parts into the `/mobile/me` payload.
+  Future<dynamic> _withStaffNameParts(
+    dynamic mobileMeBody,
+    String staffId,
+  ) async {
+    final result = await _api.get(
+      ApiEndpoints.staffById(staffId),
+      silent: true,
+    );
+    if (!result.isSuccess) return mobileMeBody;
+    final staff = JsonCodec.unwrapMap(result.value);
+    final first = JsonCodec.string(staff['firstName']);
+    final middle = JsonCodec.string(staff['middleName']);
+    final last = JsonCodec.string(staff['lastName']);
+    if (first == null && middle == null && last == null) {
+      return mobileMeBody;
+    }
+    final map = JsonCodec.unwrapMap(mobileMeBody);
+    final nested = JsonCodec.mapAt(map, 'staff') ?? <String, dynamic>{};
+    return {
+      ...map,
+      if (first != null) 'firstName': first,
+      if (middle != null) 'middleName': middle,
+      if (last != null) 'lastName': last,
+      'staff': {
+        ...nested,
+        if (first != null) 'firstName': first,
+        if (middle != null) 'middleName': middle,
+        if (last != null) 'lastName': last,
+        if (JsonCodec.string(staff['photoUrl']) != null)
+          'photoUrl': staff['photoUrl'],
+      },
+    };
   }
 
   @override

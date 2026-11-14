@@ -126,6 +126,7 @@ abstract final class AuthMapper {
       email: email,
       displayName: displayName,
       firstName: firstName,
+      middleName: middleName,
       lastName: lastName,
       role: role,
       roleRaw: roleRaw,

@@ -6,6 +6,7 @@ class MobileProfile {
   final String email;
   final String displayName;
   final String? firstName;
+  final String? middleName;
   final String? lastName;
   final UserRole role;
   final String roleRaw;
@@ -35,6 +36,7 @@ class MobileProfile {
     required this.avatarInitials,
     this.avatarUrl,
     this.firstName,
+    this.middleName,
     this.lastName,
     this.permissions = const [],
     this.permissionsPresent = false,

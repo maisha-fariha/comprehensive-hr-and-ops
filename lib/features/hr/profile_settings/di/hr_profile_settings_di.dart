@@ -4,6 +4,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../auth/domain/repositories/auth_repository.dart';
 
 import '../data/repositories/hr_profile_settings_repository_impl.dart';
 import '../domain/repositories/hr_profile_settings_repository.dart';
@@ -16,6 +17,7 @@ Future<void> setupHrProfileSettingsDependencies() async {
     factory: () => HrProfileSettingsRepositoryImpl(
       api: getIt<AppApiClient>(),
       session: Get.find<UserSession>(),
+      auth: getIt<AuthRepository>(),
     ),
   );
 

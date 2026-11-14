@@ -5,6 +5,7 @@ import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../auth/domain/repositories/auth_repository.dart';
 import '../../domain/entities/hr_profile_settings_overview.dart';
 import '../../domain/repositories/hr_profile_settings_repository.dart';
 import '../mappers/hr_profile_mapper.dart';
@@ -12,15 +13,25 @@ import '../mappers/hr_profile_mapper.dart';
 class HrProfileSettingsRepositoryImpl implements HrProfileSettingsRepository {
   final AppApiClient _api;
   final UserSession _session;
+  final AuthRepository _auth;
 
   HrProfileSettingsRepositoryImpl({
     required AppApiClient api,
     required UserSession session,
+    required AuthRepository auth,
   })  : _api = api,
-        _session = session;
+        _session = session,
+        _auth = auth;
 
   @override
   Future<Result<HrProfileSettingsOverview>> getOverview() async {
+    // Refresh identity (incl. staff first/middle/last) so My Profile shows
+    // the middle name `/mobile/me` omits from its flat `name` field.
+    final me = await _auth.fetchMe(silent: true);
+    if (me.isSuccess && me.value != null) {
+      _session.applyProfile(me.value!);
+    }
+
     // Profile is the signed-in account. A missing residences permission must
     // not replace the page with an error.
     dynamic residencesBody = const <dynamic>[];
