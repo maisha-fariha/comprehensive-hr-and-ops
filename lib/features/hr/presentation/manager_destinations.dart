@@ -82,7 +82,12 @@ void _openTab(int index) => Get.offAll(() => HrShell(initialIndex: index));
 /// Every manager destination the signed-in user has permission to open.
 List<ManagerDestination> managerDestinations() {
   final session = _session();
-  bool can(String permission) => session?.can(permission) ?? true;
+  // Deny until grants are known, and deny when missing — never list a
+  // module the user cannot open (no "Access denied" / Missing permission).
+  bool can(String permission, {String? module}) =>
+      session != null &&
+      session.permissionsReady &&
+      session.canAccessNav(anyOf: [permission], module: module);
 
   return [
     if (can('dashboard:read'))
@@ -124,7 +129,9 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['homes', 'beds', 'rooms', 'houses'],
       ),
-    if (session?.canAccessClients ?? true)
+    if (session != null &&
+        session.permissionsReady &&
+        session.canAccessClients)
       ManagerDestination(
         title: 'Clients',
         subtitle: 'Client directory & care profiles',
@@ -144,7 +151,7 @@ List<ManagerDestination> managerDestinations() {
     //     title: 'Admissions',
     //     ...
     //   ),
-    if (can('scheduling:read'))
+    if (can('scheduling:read', module: 'scheduling'))
       ManagerDestination(
         title: 'Scheduling',
         subtitle: 'Shifts, coverage & swap requests',
@@ -155,7 +162,7 @@ List<ManagerDestination> managerDestinations() {
         keywords: const ['schedule', 'shifts', 'rota'],
         inMoreMenu: false,
       ),
-    if (can('attendance:read'))
+    if (can('attendance:read', module: 'attendance'))
       ManagerDestination(
         title: 'Attendance',
         subtitle: 'Check-ins, lateness & overtime',
@@ -166,7 +173,7 @@ List<ManagerDestination> managerDestinations() {
         keywords: const ['clock', 'timesheet'],
         inMoreMenu: false,
       ),
-    if (can('incidents:read'))
+    if (can('incidents:read', module: 'incidents'))
       ManagerDestination(
         title: 'Incidents',
         subtitle: 'Alerts & incident reports',
@@ -205,7 +212,7 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['handovers', 'logs', 'notes'],
       ),
-    if (can('shift-handovers:read'))
+    if (can('shift-handovers:read', module: 'scheduling'))
       ManagerDestination(
         title: 'Shift Handovers',
         subtitle: 'What one shift tells the next',
@@ -219,7 +226,7 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['handover', 'handovers', 'shift notes'],
       ),
-    if (can('recurring-checks:read'))
+    if (can('recurring-checks:read', module: 'scheduling'))
       ManagerDestination(
         title: 'Recurring Checks',
         subtitle: 'Scheduled resident checks, due and recorded',
@@ -233,7 +240,7 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['recurring', 'checks', 'welfare', 'vitals', 'schedule'],
       ),
-    if (can('mar:read'))
+    if (can('mar:read', module: 'mar'))
       ManagerDestination(
         title: 'Medication Administration Record (MAR)',
         subtitle: 'Rounds, PRN, charted doses and stock',
@@ -253,7 +260,7 @@ List<ManagerDestination> managerDestinations() {
     //     title: 'Daily Activity',
     //     ...
     //   ),
-    if (can('appointments:read'))
+    if (can('appointments:read', module: 'appointments'))
       ManagerDestination(
         title: 'Appointments',
         subtitle: 'Family visit requests, approvals and bookings',
@@ -267,7 +274,7 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['appointments', 'appointment', 'visits', 'family visit', 'approvals', 'booking'],
       ),
-    if (can('inventory:read'))
+    if (can('inventory:read', module: 'inventory'))
       ManagerDestination(
         title: 'Inventory',
         subtitle: 'Stock, counts, transfers & purchasing',
@@ -281,7 +288,7 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['inventory', 'stock', 'supplies', 'items', 'counts', 'transfers', 'purchasing', 'orders', 'suppliers'],
       ),
-    if (can('documents:read'))
+    if (can('documents:read', module: 'documents'))
       ManagerDestination(
         title: 'Documents',
         subtitle:
@@ -305,7 +312,7 @@ List<ManagerDestination> managerDestinations() {
           'registry',
         ],
       ),
-    if (can('training:read'))
+    if (can('training:read', module: 'training'))
       ManagerDestination(
         title: 'Training',
         subtitle: 'Courses, assignments, sittings & certificates',
@@ -319,7 +326,8 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['training', 'course', 'courses', 'certificate', 'quiz', 'assignment', 'learning'],
       ),
-    if (can('payroll:read') || can('finance:read'))
+    if (can('payroll:read', module: 'payroll') ||
+        can('finance:read', module: 'payroll'))
       ManagerDestination(
         title: 'Finance & Payroll',
         subtitle: 'Overview, pay runs, residence P&L & claims',
@@ -356,7 +364,7 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['tasks', 'review', 'recurring'],
       ),
-    if (can('compliance:read'))
+    if (can('compliance:read', module: 'compliance'))
       ManagerDestination(
         title: 'Compliance & Audit',
         subtitle: 'Readiness, requirements, findings & audit log',
@@ -377,7 +385,7 @@ List<ManagerDestination> managerDestinations() {
           'corrective',
         ],
       ),
-    if (can('messaging:read'))
+    if (can('messaging:read', module: 'messaging'))
       ManagerDestination(
         title: 'Communication',
         subtitle: 'Announcements & messages',
@@ -427,7 +435,7 @@ List<ManagerDestination> managerDestinations() {
           'reports',
         ],
       ),
-    if (can('reports:read'))
+    if (can('reports:read', module: 'reports'))
       ManagerDestination(
         title: 'Reports & Analytics',
         subtitle: 'Team, reports, insights & exports',

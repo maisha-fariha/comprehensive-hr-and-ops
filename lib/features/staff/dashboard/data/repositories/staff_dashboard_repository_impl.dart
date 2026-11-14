@@ -3,6 +3,7 @@ import 'package:gems_core/gems_core.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/network/notification_unread.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../auth/data/mappers/auth_mapper.dart';
 import '../../../../hr/attendance/data/mappers/attendance_mapper.dart';
@@ -84,9 +85,12 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
       silent: true,
     );
     if (notifications.isSuccess) {
-      unread = PortalInboxMapper.notificationsFrom(notifications.value)
-          .where((item) => !item.isRead)
-          .length;
+      final items =
+          PortalInboxMapper.notificationsFrom(notifications.value);
+      unread = NotificationUnread.fromBody(
+        notifications.value,
+        pageUnread: items.where((item) => !item.isRead).length,
+      );
     }
 
     return Result.success(

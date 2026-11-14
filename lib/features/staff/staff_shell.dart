@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -50,17 +52,26 @@ class _StaffShellState extends State<StaffShell> {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, 5);
     _opened = {_currentIndex};
-    // Home loads once via StaffDashboardController.onInit — do not refresh
-    // again in the same open (was a duplicate /mobile/home + shifts burst).
+    // Pull web `/me` modules + grants so Attendance etc. hide before tap.
+    // Home data still loads once via StaffDashboardController.onInit.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!Get.isRegistered<UserSession>()) return;
+      unawaited(Get.find<UserSession>().refreshProfile());
+    });
   }
 
   void _refreshHomeIfReturning() {
-    if (!Get.isRegistered<StaffDashboardController>()) return;
-    final controller = Get.find<StaffDashboardController>();
-    // Re-tap Home only: refresh if data already exists (returning to tab).
-    if (controller.overview != null) {
-      controller.refresh();
-    }
+    // Pull grants from /mobile/me so role changes apply without re-login.
+    final session = Get.find<UserSession>();
+    unawaited(
+      session.refreshProfile().then((_) {
+        if (!Get.isRegistered<StaffDashboardController>()) return;
+        final controller = Get.find<StaffDashboardController>();
+        if (controller.overview != null) {
+          controller.refresh();
+        }
+      }),
+    );
   }
 
   @override
@@ -71,6 +82,8 @@ class _StaffShellState extends State<StaffShell> {
       // Keyed by user so a different staff login never reuses the previous
       // account's IndexedStack / tab Element tree.
       final userKey = session.userId ?? session.email;
+      // Ensure Obx rebuilds when grants change (revoked Attendance, etc.).
+      session.permissionEpoch;
 
       bool allowed(int tab) => staffTabAllowed(session, tab);
       final index = allowed(_currentIndex)
@@ -80,10 +93,13 @@ class _StaffShellState extends State<StaffShell> {
               allowed: allowed,
               fallback: 5,
             );
-      if (!_opened.contains(index)) {
+      if (index != _currentIndex || !_opened.contains(index)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          setState(() => _opened.add(index));
+          setState(() {
+            _currentIndex = index;
+            _opened.add(index);
+          });
         });
       }
 

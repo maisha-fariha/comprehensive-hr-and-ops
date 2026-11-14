@@ -6,10 +6,13 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/offline/presentation/unsent_changes_tile.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../hr_shell.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
+import '../../../residences/domain/entities/residence_summary.dart';
+import '../../../residences/presentation/pages/residence_detail_page.dart';
 import '../../domain/entities/hr_linked_item.dart';
 import '../../domain/entities/hr_preference_item.dart';
 import '../controllers/hr_profile_settings_controller.dart';
@@ -42,6 +45,27 @@ class HrProfileSettingsPage extends StatelessWidget {
   }
 
   void _openMyProfile() => Get.to(() => const HrMyProfilePage());
+
+  /// Same destination as Residences module → View (detail loads full record).
+  void _openManagedResidence(HrLinkedItem item) {
+    final id = item.id.trim();
+    if (id.isEmpty) return;
+    openPermittedPage(
+      title: 'Residences',
+      anyOf: const ['residences:read', 'residences'],
+      builder: () => ResidenceDetailPage(
+        residence: ResidenceSummary(
+          id: id,
+          name: item.name,
+          status: item.statusLabel.trim().toLowerCase().isEmpty
+              ? 'active'
+              : item.statusLabel.trim().toLowerCase(),
+          bedCapacity: 0,
+          residents: 0,
+        ),
+      ),
+    );
+  }
 
   /// Read inside `Obx` so a photo change repaints the card and header.
   String? get _avatarUrl {
@@ -227,7 +251,10 @@ class HrProfileSettingsPage extends StatelessWidget {
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
                     const SectionHeaderRow(title: 'Managed Residences'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    _HrLinkedItemsCard(items: overview.linkedItems),
+                    _HrLinkedItemsCard(
+                      items: overview.linkedItems,
+                      onItemTap: _openManagedResidence,
+                    ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'Preferences & Support'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
@@ -253,12 +280,13 @@ class HrProfileSettingsPage extends StatelessWidget {
 
 class _HrLinkedItemsCard extends StatelessWidget {
   final List<HrLinkedItem> items;
+  final ValueChanged<HrLinkedItem>? onItemTap;
 
   static const Color _cardBorder = Color(0xFFEEF1F4);
   static const Color _divider = Color(0xFFEEF1F4);
   static const Color _shadow = Color(0xFF142846);
 
-  const _HrLinkedItemsCard({required this.items});
+  const _HrLinkedItemsCard({required this.items, this.onItemTap});
 
   @override
   Widget build(BuildContext context) {
@@ -297,7 +325,12 @@ class _HrLinkedItemsCard extends StatelessWidget {
                       padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
                       child: const Divider(height: 1, thickness: 1, color: _divider),
                     ),
-                  HrLinkedItemRow(item: items[i]),
+                  HrLinkedItemRow(
+                    item: items[i],
+                    onTap: onItemTap == null
+                        ? null
+                        : () => onItemTap!(items[i]),
+                  ),
                 ],
               ],
             ),

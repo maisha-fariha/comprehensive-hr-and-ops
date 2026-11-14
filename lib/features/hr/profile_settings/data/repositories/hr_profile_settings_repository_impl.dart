@@ -24,7 +24,8 @@ class HrProfileSettingsRepositoryImpl implements HrProfileSettingsRepository {
     // Profile is the signed-in account. A missing residences permission must
     // not replace the page with an error.
     dynamic residencesBody = const <dynamic>[];
-    if (!_session.permissionsReady || _session.can('residences')) {
+    if (!_session.permissionsReady ||
+        _session.canAny(const ['residences:read', 'residences'])) {
       final residences = await _api.get(
         ApiEndpoints.residences,
         silent: true,

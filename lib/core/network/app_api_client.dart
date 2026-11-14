@@ -52,6 +52,11 @@ class AppApiClient implements OutboxTransport {
   /// Shared in-flight refresh so concurrent 401s only refresh once.
   Future<bool>? _refreshInFlight;
 
+  /// Coalesce 403 → `/mobile/me` so revoked menus (Attendance, etc.) hide
+  /// instead of staying visible while every tap shows Access denied.
+  Future<void>? _permissionRefreshInFlight;
+  DateTime? _lastPermissionRefreshAt;
+
   /// After refresh is rejected (or sign-out starts), block further API calls
   /// so shell tabs / prewarm cannot flood the backend with 401s.
   bool _sessionClosed = false;
@@ -677,6 +682,15 @@ class AppApiClient implements OutboxTransport {
           }
         }
 
+        // 403 → hide the matching bottom-nav / More item immediately (e.g.
+        // Attendance still listed while the page only shows Missing permission).
+        if (response.statusCode == 403 || rawError is PermissionError) {
+          if (Get.isRegistered<UserSession>()) {
+            Get.find<UserSession>().noteForbiddenPath(path);
+          }
+          _schedulePermissionRefresh();
+        }
+
         var error = AppErrorMapper.toFriendly(rawError);
         if (_isOfflineError(error)) {
           _connectivity?.reportUnreachable();
@@ -1073,6 +1087,29 @@ class AppApiClient implements OutboxTransport {
         ? error.statusCode
         : int.tryParse(error.code ?? '');
     return status != null && status >= 500;
+  }
+
+  /// After a 403, reload grants so bottom-nav / More drop revoked modules
+  /// instead of leaving a tappable item that only shows Access denied.
+  void _schedulePermissionRefresh() {
+    final existing = _permissionRefreshInFlight;
+    if (existing != null) return;
+    final last = _lastPermissionRefreshAt;
+    if (last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 15)) {
+      return;
+    }
+    if (!Get.isRegistered<UserSession>()) return;
+    _lastPermissionRefreshAt = DateTime.now();
+    final run = Get.find<UserSession>().refreshProfile();
+    _permissionRefreshInFlight = run;
+    unawaited(
+      run.whenComplete(() {
+        if (identical(_permissionRefreshInFlight, run)) {
+          _permissionRefreshInFlight = null;
+        }
+      }),
+    );
   }
 }
 

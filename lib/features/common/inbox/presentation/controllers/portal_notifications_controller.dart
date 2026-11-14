@@ -29,9 +29,22 @@ class PortalNotificationsController
 
   bool get hasError => errorMessage.value.isNotEmpty && items.isEmpty;
 
-  int get unreadCount => unreadTotal.value > 0
-      ? unreadTotal.value
-      : items.where((item) => !item.isRead).length;
+  /// Prefer the server unread total when trusted; otherwise count loaded rows.
+  int get unreadCount {
+    final server = unreadTotal.value;
+    final pageUnread = items.where((item) => !item.isRead).length;
+    final all = total.value;
+    // Reject history-sized "unread" that matches total while the page has reads.
+    if (server > 0 &&
+        all > 0 &&
+        server == all &&
+        pageUnread < server &&
+        items.any((item) => item.isRead)) {
+      return pageUnread;
+    }
+    if (server > 0) return server;
+    return pageUnread;
+  }
 
   /// Fresh fetch whenever the page is opened (controller may be reused).
   Future<void> open() => load();

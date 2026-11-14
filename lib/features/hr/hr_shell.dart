@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -5,6 +7,7 @@ import '../../core/roles/permission_gate.dart';
 import '../../core/roles/user_session.dart';
 import '../../core/widgets/lazy_indexed_tab.dart';
 import 'attendance/presentation/pages/attendance_page.dart';
+import 'dashboard/presentation/controllers/dashboard_controller.dart';
 import 'dashboard/presentation/pages/manager_dashboard_page.dart';
 import 'incidents/presentation/pages/incidents_list_page.dart';
 import 'presentation/pages/hr_more_menu_page.dart';
@@ -48,11 +51,15 @@ class _HrShellState extends State<HrShell> {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, 4);
     _opened = {_currentIndex};
-    if (_currentIndex == _scheduleTabIndex) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_currentIndex == _scheduleTabIndex) {
         _applyScheduleFocusOrToday();
-      });
-    }
+      }
+      // Pull web `/me` modules + grants so Attendance etc. hide before tap.
+      if (Get.isRegistered<UserSession>()) {
+        unawaited(Get.find<UserSession>().refreshProfile());
+      }
+    });
   }
 
   void _onBottomNavTap(int index) {
@@ -60,6 +67,18 @@ class _HrShellState extends State<HrShell> {
       _opened.add(index);
       _currentIndex = index;
     });
+    if (index == 0) {
+      // Re-fetch /mobile/me so permission edits apply without signing out.
+      final session =
+          Get.isRegistered<UserSession>() ? Get.find<UserSession>() : null;
+      unawaited(
+        (session?.refreshProfile() ?? Future<void>.value()).then((_) {
+          if (!Get.isRegistered<DashboardController>()) return;
+          final dash = Get.find<DashboardController>();
+          if (dash.overview != null) dash.refresh();
+        }),
+      );
+    }
     if (index == _scheduleTabIndex) {
       _applyScheduleFocusOrToday(fromBottomNav: true);
     }
@@ -100,16 +119,21 @@ class _HrShellState extends State<HrShell> {
       final session = Get.isRegistered<UserSession>()
           ? Get.find<UserSession>()
           : null;
+      // Ensure Obx rebuilds when grants change (revoked Attendance, etc.).
+      session?.permissionEpoch;
       bool allowed(int index) =>
           session == null || managerTabAllowed(session, index);
       final index = allowed(_currentIndex)
           ? _currentIndex
           : firstAllowedTab(length: 5, allowed: allowed, fallback: 4);
-      if (!_opened.contains(index)) {
-        // Landing tab may change when permissions resolve.
+      if (index != _currentIndex || !_opened.contains(index)) {
+        // Leave revoked tabs (e.g. Attendance) and open the landing slot.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          setState(() => _opened.add(index));
+          setState(() {
+            _currentIndex = index;
+            _opened.add(index);
+          });
         });
       }
       return Scaffold(

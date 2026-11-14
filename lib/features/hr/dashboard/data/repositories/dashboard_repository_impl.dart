@@ -27,12 +27,19 @@ class DashboardRepositoryImpl implements DashboardRepository {
     // Web Home is tenant-wide unless the user picks a residence filter.
     // Do not inject session.residenceId — that silently scopes nurse/manager
     // home houses differently and hides alerts the web still shows.
+    final canNeedsAttention = _session.can('incidents:read') ||
+        _session.can('documents:read') ||
+        _session.canAccessDocuments;
     final results = await Future.wait([
       _api.get(ApiEndpoints.dashboard),
-      _api.get(ApiEndpoints.dashboardAlerts),
+      if (canNeedsAttention)
+        _api.get(ApiEndpoints.dashboardAlerts, silent: true)
+      else
+        Future.value(Result.success(const {'data': <dynamic>[]})),
       _api.get(
         ApiEndpoints.notifications,
         query: const {'page': 1, 'limit': 30},
+        silent: true,
       ),
     ]);
 
@@ -44,19 +51,16 @@ class DashboardRepositoryImpl implements DashboardRepository {
       );
     }
 
-    final alerts = results[1];
-    if (alerts.isFailure) {
-      return Result.failure(
-        alerts.error ??
-            const ApiError(message: 'Could not load dashboard alerts.'),
-      );
-    }
+    // Alerts are optional — missing permission / 403 must not blank Home.
+    final alertsBody = results[1].isSuccess
+        ? results[1].value
+        : const {'data': <dynamic>[]};
 
     return Result.success(
       DashboardOverviewMapper.compose(
         session: _session,
         dashboardBody: dashboard.value,
-        alertsBody: alerts.value,
+        alertsBody: alertsBody,
         shiftsBody: null,
         notificationsBody: results[2].isSuccess ? results[2].value : null,
       ),

@@ -85,6 +85,15 @@ class StaffAttendanceController
       },
       failure: (error) {
         _ticker?.cancel();
+        final msg = error.message.toLowerCase();
+        if (error is PermissionError ||
+            msg.contains('missing permission') ||
+            msg.contains('access denied') ||
+            msg.contains('not allowed')) {
+          if (Get.isRegistered<UserSession>()) {
+            Get.find<UserSession>().noteForbiddenPath('/attendance');
+          }
+        }
         setError(error.message);
       },
     );

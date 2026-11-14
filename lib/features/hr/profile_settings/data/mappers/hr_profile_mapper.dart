@@ -19,16 +19,19 @@ abstract final class HrProfileMapper {
           final name = JsonCodec.stringOr(json['name'], session.residenceName ?? 'Residence');
           final count = JsonCodec.integer(json['clientCount'] ?? json['occupancy']);
           return HrLinkedItem(
+            id: JsonCodec.stringOr(json['id'], ''),
             initials: IsoDateRange.initials(name),
             name: name,
             subtitle: count == null ? 'Residence' : '$count active residents',
             statusLabel: JsonCodec.stringOr(json['status'], 'Active'),
           );
         })
+        .where((item) => item.id.isNotEmpty || item.name.isNotEmpty)
         .toList();
     if (residences.isEmpty && (session.residenceName ?? '').isNotEmpty) {
       residences.add(
         HrLinkedItem(
+          id: session.residenceId ?? '',
           initials: IsoDateRange.initials(session.residenceName),
           name: session.residenceName!,
           subtitle: session.organizationName ?? 'Residence',

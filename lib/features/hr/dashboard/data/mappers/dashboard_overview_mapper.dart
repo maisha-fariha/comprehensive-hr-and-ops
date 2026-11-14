@@ -1,5 +1,6 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/network/notification_unread.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../common/inbox/data/mappers/portal_inbox_mapper.dart';
 import '../../domain/entities/attention_alert.dart';
@@ -175,15 +176,11 @@ abstract final class DashboardOverviewMapper {
   }
 
   static int _unreadCount(dynamic body) {
-    final meta = JsonCodec.metaOf(body);
-    final fromMeta = JsonCodec.integer(
-      meta?['unreadCount'] ?? meta?['unread'],
-    );
-    if (fromMeta != null) return fromMeta;
-    return JsonCodec.unwrapList(body).where((item) {
+    final pageUnread = JsonCodec.unwrapList(body).where((item) {
       if (item is! Map) return false;
       return !PortalInboxMapper.isNotificationRead(JsonCodec.asMap(item));
     }).length;
+    return NotificationUnread.fromBody(body, pageUnread: pageUnread);
   }
 
   const DashboardOverviewMapper._();

@@ -224,7 +224,16 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
     if (serial != _requestSerial) return;
     result.when(
       success: setSuccess,
-      failure: (error) => setError(error.message),
+      failure: (error) {
+        final msg = error.message.toLowerCase();
+        if (error is PermissionError ||
+            msg.contains('missing permission') ||
+            msg.contains('access denied') ||
+            msg.contains('not allowed')) {
+          _session.noteForbiddenPath('/attendance');
+        }
+        setError(error.message);
+      },
     );
     setLoading(false);
   }

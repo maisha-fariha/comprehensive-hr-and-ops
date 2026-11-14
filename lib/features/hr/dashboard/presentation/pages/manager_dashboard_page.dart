@@ -140,8 +140,9 @@ class ManagerDashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (overview.attentionAlerts.isNotEmpty) ...[
-                        _NeedsAttentionSection(alerts: overview.attentionAlerts),
+                      if (_visibleNeedsAttention(overview.attentionAlerts)
+                          case final alerts when alerts.isNotEmpty) ...[
+                        _NeedsAttentionSection(alerts: alerts),
                         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                       ],
                       _TodaysOverviewSection(
@@ -175,6 +176,28 @@ class ManagerDashboardPage extends StatelessWidget {
         );
       }),
     );
+  }
+
+  /// Hide Needs Attention when the role cannot act on its rows (incidents /
+  /// documents). Matches web: no permission → section omitted, no re-login wait.
+  List<AttentionAlert> _visibleNeedsAttention(List<AttentionAlert> alerts) {
+    final session = Get.isRegistered<UserSession>()
+        ? Get.find<UserSession>()
+        : null;
+    if (session == null) return alerts;
+    final canIncidents = session.can('incidents:read');
+    final canDocuments =
+        session.can('documents:read') || session.canAccessDocuments;
+    if (!canIncidents && !canDocuments) return const [];
+    return [
+      for (final alert in alerts)
+        if (_NeedsAttentionSection._isIncidentAlert(alert)
+            ? canIncidents
+            : _NeedsAttentionSection._isDocumentAlert(alert)
+                ? canDocuments
+                : canIncidents || canDocuments)
+          alert,
+    ];
   }
 
   List<QuickAction> _permittedQuickActions(List<QuickAction> actions) {

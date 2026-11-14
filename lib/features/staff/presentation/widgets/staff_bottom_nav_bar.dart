@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/roles/bottom_nav_promotions.dart';
 import '../../../../core/roles/permission_gate.dart';
 import '../../../../core/roles/user_session.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
@@ -42,15 +43,50 @@ class StaffBottomNavBar extends StatelessWidget {
       final session = Get.isRegistered<UserSession>()
           ? Get.find<UserSession>()
           : null;
-      final indices = [
-        for (var index = 0; index < items.length; index++)
-          if (session == null || staffTabAllowed(session, index)) index,
-      ];
-      return _bar(context, indices);
+      session?.permissionEpoch;
+      final slots = <({StaffBottomNavItemData data, VoidCallback onTap, bool active})>[];
+      for (var index = 0; index < items.length; index++) {
+        final isMore = index == items.length - 1;
+        if (session != null && !staffTabAllowed(session, index)) continue;
+        if (isMore) continue;
+        slots.add((
+          data: items[index],
+          onTap: () => onTap(index),
+          active: index == currentIndex,
+        ));
+      }
+
+      if (session != null) {
+        final room = BottomNavPromotions.staffTargetSlots - slots.length - 1;
+        if (room > 0) {
+          for (final promo
+              in BottomNavPromotions.staffCandidates(session).take(room)) {
+            slots.add((
+              data: StaffBottomNavItemData(
+                asset: promo.asset,
+                label: promo.label,
+              ),
+              onTap: promo.open,
+              active: false,
+            ));
+          }
+        }
+      }
+
+      slots.add((
+        data: items.last,
+        onTap: () => onTap(items.length - 1),
+        active: currentIndex == items.length - 1,
+      ));
+
+      return _bar(context, slots);
     });
   }
 
-  Widget _bar(BuildContext context, List<int> indices) {
+  Widget _bar(
+    BuildContext context,
+    List<({StaffBottomNavItemData data, VoidCallback onTap, bool active})> slots,
+  ) {
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -69,12 +105,12 @@ class StaffBottomNavBar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              for (final index in indices)
+              for (final slot in slots)
                 Expanded(
                   child: _StaffBottomNavItem(
-                    data: items[index],
-                    isActive: index == currentIndex,
-                    onTap: () => onTap(index),
+                    data: slot.data,
+                    isActive: slot.active,
+                    onTap: slot.onTap,
                   ),
                 ),
             ],

@@ -114,6 +114,7 @@ abstract final class AuthMapper {
       role: role,
       roleRaw: roleRaw,
       permissions: _permissions(user, json),
+      permissionsPresent: _permissionsPresent(user, json),
       tenantName: JsonCodec.string(tenant?['name']) ??
           JsonCodec.string(user['tenantName']) ??
           JsonCodec.string(json['organizationName']),
@@ -227,13 +228,29 @@ abstract final class AuthMapper {
     return null;
   }
 
+  static bool _permissionsPresent(
+    Map<String, dynamic> user,
+    Map<String, dynamic> json,
+  ) {
+    if (user.containsKey('permissions') || json.containsKey('permissions')) {
+      return true;
+    }
+    final role = JsonCodec.mapAt(user, 'role') ?? JsonCodec.mapAt(json, 'role');
+    return role != null && role.containsKey('permissions');
+  }
+
   static List<String> _permissions(
     Map<String, dynamic> user,
     Map<String, dynamic> json,
   ) {
-    final raw = JsonCodec.listAt(user, 'permissions');
-    final source = raw.isEmpty ? JsonCodec.listAt(json, 'permissions') : raw;
-    return source
+    var raw = JsonCodec.listAt(user, 'permissions');
+    if (raw.isEmpty) raw = JsonCodec.listAt(json, 'permissions');
+    if (raw.isEmpty) {
+      final role =
+          JsonCodec.mapAt(user, 'role') ?? JsonCodec.mapAt(json, 'role');
+      if (role != null) raw = JsonCodec.listAt(role, 'permissions');
+    }
+    return raw
         .map((item) {
           if (item is Map) {
             final map = JsonCodec.asMap(item);

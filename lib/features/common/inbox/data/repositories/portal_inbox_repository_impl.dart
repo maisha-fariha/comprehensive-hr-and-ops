@@ -2,12 +2,13 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/network/notification_unread.dart';
 import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/portal_notifications_page.dart';
 import '../../domain/entities/portal_search_hit.dart';
 import '../../domain/repositories/portal_inbox_repository.dart';
 import '../mappers/portal_inbox_mapper.dart';
-import '../../../../../core/network/json_codec.dart';
 
 class PortalInboxRepositoryImpl implements PortalInboxRepository {
   final AppApiClient _api;
@@ -61,15 +62,15 @@ class PortalInboxRepositoryImpl implements PortalInboxRepository {
       success: (body) async {
         final items = PortalInboxMapper.notificationsFrom(body);
         final meta = JsonCodec.metaOf(body) ?? const <String, dynamic>{};
-        final summary = JsonCodec.mapAt(meta, 'summary') ?? const {};
         final total = JsonCodec.integerOr(meta['total'], items.length);
         final totalPages = JsonCodec.integerOr(meta['totalPages'], 1);
         final currentPage = JsonCodec.integerOr(meta['page'], page);
         final hasNext =
             meta['hasNext'] == true || currentPage < totalPages;
-        final unread = JsonCodec.integerOr(
-          summary['unread'] ?? meta['unread'],
-          items.where((n) => !n.isRead).length,
+        final pageUnread = items.where((n) => !n.isRead).length;
+        final unread = NotificationUnread.fromBody(
+          body,
+          pageUnread: pageUnread,
         );
         return Result.success(
           PortalNotificationsPageData(

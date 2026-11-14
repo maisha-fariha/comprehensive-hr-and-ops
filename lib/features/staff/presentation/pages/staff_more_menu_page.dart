@@ -50,8 +50,11 @@ class StaffMoreMenuPage extends StatelessWidget {
       ),
       body: SafeArea(
         child: Obx(() {
+          session.permissionEpoch;
+          bool can(String permission) =>
+              session.permissionsReady && session.can(permission);
           final entries = <StaffMenuEntry>[
-            if (session.can('residences:read'))
+            if (can('residences:read'))
               const StaffMenuEntry(
                 icon: Icons.home_work_outlined,
                 iconBackground: AppColors.activeBackground,
@@ -59,7 +62,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Residence',
                 subtitle: 'Your assigned home and residence details',
               ),
-            if (session.canAccessClients)
+            if (session.permissionsReady && session.canAccessClients)
               const StaffMenuEntry(
                 icon: Icons.groups_outlined,
                 iconBackground: AppColors.infoBackground,
@@ -67,7 +70,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Clients',
                 subtitle: 'Client directory, profiles, and admissions',
               ),
-            if (session.can('recurring-checks:read'))
+            if (can('recurring-checks:read'))
               const StaffMenuEntry(
                 icon: Icons.fact_check_outlined,
                 iconBackground: AppColors.urgentBackground,
@@ -75,7 +78,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Recurring Checks',
                 subtitle: 'Due recurring checks assigned to you',
               ),
-            if (session.canReadEmergency)
+            if (session.permissionsReady && session.canReadEmergency)
               const StaffMenuEntry(
                 icon: Icons.warning_amber_rounded,
                 iconBackground: AppColors.urgentBackground,
@@ -83,7 +86,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Emergency',
                 subtitle: 'Active alarms and response alerts',
               ),
-            if (session.canAccessHandovers)
+            if (session.permissionsReady && session.canAccessHandovers)
               const StaffMenuEntry(
                 icon: Icons.swap_horiz_rounded,
                 iconBackground: AppColors.infoBackground,
@@ -92,7 +95,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 subtitle: 'Write and acknowledge handovers',
               ),
             // Daily Activity UI temporarily hidden for all roles (code kept).
-            if (session.canAccessMessaging)
+            if (session.permissionsReady && session.canAccessMessaging)
               const StaffMenuEntry(
                 icon: Icons.forum_outlined,
                 iconBackground: AppColors.infoBackground,
@@ -100,7 +103,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Communication',
                 subtitle: 'Direct, group, and family conversations',
               ),
-            if (session.canAccessDocuments)
+            if (session.permissionsReady && session.canAccessDocuments)
               const StaffMenuEntry(
                 icon: Icons.folder_outlined,
                 iconBackground: AppColors.nightBackground,
@@ -108,7 +111,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Documents Management',
                 subtitle: 'Care plans, certificates, and filings',
               ),
-            if (session.canAccessAppointments)
+            if (session.permissionsReady && session.canAccessAppointments)
               const StaffMenuEntry(
                 icon: Icons.event_available_outlined,
                 iconBackground: AppColors.activeBackground,
@@ -116,7 +119,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Appointments',
                 subtitle: 'Visits and scheduled appointments',
               ),
-            if (session.canAccessTraining)
+            if (session.permissionsReady && session.canAccessTraining)
               const StaffMenuEntry(
                 icon: Icons.school_outlined,
                 iconBackground: AppColors.urgentBackgroundSoft,
@@ -124,7 +127,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Training',
                 subtitle: 'Assignments, quizzes, and certificates',
               ),
-            if (session.canAccessInventory)
+            if (session.permissionsReady && session.canAccessInventory)
               const StaffMenuEntry(
                 icon: Icons.inventory_2_outlined,
                 iconBackground: AppColors.nightBackground,
@@ -133,8 +136,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 subtitle: 'Stock on hand at your residence',
               ),
             // Admissions UI temporarily hidden for all roles (code kept).
-            if (session.can('tickets:view_own') ||
-                session.can('tickets:view_tenant'))
+            if (can('tickets:view_own') || can('tickets:view_tenant'))
               const StaffMenuEntry(
                 icon: Icons.support_agent_outlined,
                 iconBackground: AppColors.infoBackground,
@@ -142,7 +144,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Support & Tickets',
                 subtitle: 'Tenant support requests and replies',
               ),
-            if (session.canAccessIncidents)
+            if (session.permissionsReady && session.canAccessIncidents)
               const StaffMenuEntry(
                 icon: Icons.report_gmailerrorred_outlined,
                 iconBackground: AppColors.urgentBackground,
@@ -151,8 +153,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 subtitle: 'My reports & all residence incidents',
               ),
             // Web tenantNav: AI Alerts when dashboard:read OR notifications:read.
-            if (session.can('dashboard:read') ||
-                session.can('notifications:read'))
+            if (can('dashboard:read') || can('notifications:read'))
               const StaffMenuEntry(
                 icon: Icons.auto_awesome_outlined,
                 iconBackground: AppColors.nightBackground,
@@ -161,7 +162,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 subtitle:
                     'Scheduled AI checks — medication, incidents, rotas, stock',
               ),
-            if (session.can('settings:read'))
+            if (can('settings:read'))
               const StaffMenuEntry(
                 icon: Icons.settings_outlined,
                 iconBackground: AppColors.nightBackground,

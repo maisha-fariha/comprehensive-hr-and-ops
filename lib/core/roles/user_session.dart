@@ -10,6 +10,7 @@ import '../../features/auth/domain/repositories/auth_repository.dart';
 import '../errors/app_error_dialog.dart';
 import '../errors/app_error_mapper.dart';
 import '../network/app_api_client.dart';
+import '../network/json_codec.dart';
 import '../widgets/app_bottom_sheet.dart';
 import '../push/device_registration_service.dart';
 import '../routing/app_routes.dart';
@@ -66,6 +67,11 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   final RxList<String> _permissions = <String>[].obs;
   final RxBool _permissionsReady = false.obs;
   final RxInt _permissionEpoch = 0.obs;
+  /// Web `tenant.modules` from `GET /me` (`/mobile/me` omits this).
+  final RxMap<String, bool> _modules = <String, bool>{}.obs;
+  final RxBool _modulesKnown = false.obs;
+  /// Families stripped after a 403 so nav hides before `/me` catches up.
+  final Set<String> _deniedFamilies = <String>{};
   Future<void>? _profileRefresh;
   final RxBool _medAdminCertified = false.obs;
   final RxBool _medAdminApproved = false.obs;
@@ -121,15 +127,23 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   /// Permission checks follow API keys from `/mobile/me` / `/mobile/home`
   /// (e.g. `clients:read`, `mar:write`). Empty list = first paint before
   /// permissions arrive — keep shell visible.
+  /// Bumped on every profile/permission apply — Obx menus must read this
+  /// (via [can] / [permissionsReady]) so revoked tabs disappear immediately.
+  int get permissionEpoch => _permissionEpoch.value;
+
+  bool get modulesKnown => _modulesKnown.value;
+
   bool can(String permission) {
     // Touch the epoch so every Obx that checks a permission rebuilds
     // after a refresh, even when the list length stays the same.
     _permissionEpoch.value;
+    final needed = _normPerm(permission);
+    final family = needed.contains(':') ? needed.split(':').first : needed;
+    if (_deniedFamilies.contains(family)) return false;
     // A loaded empty set means the tenant admin revoked everything.
     if (_permissions.isEmpty) return !_permissionsReady.value;
-    final needed = permission.toLowerCase().replaceAll('_', '-');
     for (final raw in _permissions) {
-      final perm = raw.toLowerCase().replaceAll('_', '-');
+      final perm = _normPerm(raw);
       if (perm == needed) return true;
       // `can('clients')` matches `clients:read` / `clients:write`.
       if (!needed.contains(':') && perm.startsWith('$needed:')) return true;
@@ -138,6 +152,71 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     }
     return false;
   }
+
+  /// Web `hasModule` — unknown modules stay open until `GET /me` arrives.
+  bool hasModule(String? module) {
+    _permissionEpoch.value;
+    if (module == null || module.isEmpty) return true;
+    if (!_modulesKnown.value) return true;
+    if (_modules['legacy_unlimited'] == true) return true;
+    return _modules[module] == true;
+  }
+
+  /// Web nav gate: module enabled (when known) AND any listed permission.
+  bool canAccessNav({
+    required List<String> anyOf,
+    String? module,
+  }) {
+    if (!hasModule(module)) return false;
+    if (anyOf.isEmpty) return true;
+    return canAny(anyOf);
+  }
+
+  /// Drop a permission family after the API returns 403 so Attendance (etc.)
+  /// leaves the bottom nav immediately instead of showing "Missing permission".
+  void noteForbiddenPath(String path) {
+    final family = _familyForPath(path);
+    if (family == null) return;
+    if (_deniedFamilies.contains(family)) return;
+    _deniedFamilies.add(family);
+    final next = _permissions
+        .where((p) {
+          final n = _normPerm(p);
+          return n != family && !n.startsWith('$family:');
+        })
+        .toList();
+    if (next.length != _permissions.length) {
+      _permissions.assignAll(next);
+    }
+    _permissionEpoch.value++;
+  }
+
+  static String? _familyForPath(String path) {
+    final p = path.toLowerCase();
+    if (p.contains('/attendance')) return 'attendance';
+    if (p.contains('/incidents')) return 'incidents';
+    if (p.contains('/shifts') || p.contains('/scheduling')) return 'scheduling';
+    if (p.contains('/daily-logs') || p.contains('/daily_logs')) {
+      return 'daily-logs';
+    }
+    if (p.contains('/mar') || p.contains('/medications')) return 'mar';
+    if (p.contains('/tasks')) return 'tasks';
+    if (p.contains('/handover')) return 'shift-handovers';
+    if (p.contains('/emergency')) return 'emergency';
+    if (p.contains('/inventory')) return 'inventory';
+    if (p.contains('/documents')) return 'documents';
+    if (p.contains('/appointments')) return 'appointments';
+    if (p.contains('/training')) return 'training';
+    if (p.contains('/messaging') || p.contains('/conversations')) {
+      return 'messaging';
+    }
+    if (p.contains('/clients')) return 'clients';
+    if (p.contains('/residences')) return 'residences';
+    return null;
+  }
+
+  static String _normPerm(String value) =>
+      value.toLowerCase().replaceAll('_', '-').replaceAll('.', ':');
 
   /// True when any of [permissions] is granted. Empty means no extra check.
   bool canAny(Iterable<String> permissions) {
@@ -242,8 +321,86 @@ class UserSession extends GetxService with WidgetsBindingObserver {
       await auth.refreshTokens(silent: true);
       final me = await auth.fetchMe(silent: true);
       final profile = me.value;
-      if (profile != null) applyProfile(profile);
-    } catch (_) {}
+      if (profile != null) {
+        applyProfile(profile);
+      }
+      // Web `GET /me` carries `tenant.modules` and a permissions list that
+      // `/mobile/me` often omits — required so Attendance leaves the nav when
+      // the role or module is revoked (API already returns Missing permission).
+      await _reloadWebMe();
+      if (profile == null) {
+        _permissionEpoch.value++;
+      }
+    } catch (_) {
+      _permissionEpoch.value++;
+    }
+  }
+
+  /// `GET /me` — same session payload the web shell uses for nav visibility.
+  Future<void> _reloadWebMe() async {
+    if (!GetIt.instance.isRegistered<AppApiClient>()) return;
+    final result =
+        await GetIt.instance<AppApiClient>().get('/me', silent: true);
+    if (!result.isSuccess) return;
+    final body = JsonCodec.unwrapMap(result.value);
+    final tenant =
+        JsonCodec.mapAt(body, 'tenant') ?? const <String, dynamic>{};
+    final rawModules =
+        JsonCodec.mapAt(tenant, 'modules') ?? const <String, dynamic>{};
+    if (rawModules.isNotEmpty || tenant.containsKey('modules')) {
+      _modules
+        ..clear()
+        ..addAll({
+          for (final e in rawModules.entries)
+            e.key: JsonCodec.boolean(e.value) ?? false,
+        });
+      _modulesKnown.value = true;
+    }
+
+    final user = JsonCodec.mapAt(body, 'user') ?? body;
+    final present = user.containsKey('permissions') ||
+        body.containsKey('permissions') ||
+        (JsonCodec.mapAt(user, 'role')?.containsKey('permissions') ?? false);
+    if (!present) {
+      _permissionEpoch.value++;
+      return;
+    }
+    var raw = JsonCodec.listAt(user, 'permissions');
+    if (raw.isEmpty) raw = JsonCodec.listAt(body, 'permissions');
+    if (raw.isEmpty) {
+      final role = JsonCodec.mapAt(user, 'role');
+      if (role != null) raw = JsonCodec.listAt(role, 'permissions');
+    }
+    final list = raw
+        .map((item) {
+          if (item is Map) {
+            final map = JsonCodec.asMap(item);
+            return JsonCodec.string(map['key']) ??
+                JsonCodec.string(map['name']) ??
+                '';
+          }
+          return JsonCodec.stringOr(item, '');
+        })
+        .where((item) => item.isNotEmpty)
+        .toList();
+    // Web `/me` wins over a stale `/mobile/me` grant list. Keep 403 denials
+    // for families still listed (API already rejected) so Attendance stays
+    // hidden instead of flashing back after refresh.
+    _reconcileDeniedFamilies(list);
+    _permissionsReady.value = true;
+    if (!_samePermissions(list)) {
+      _permissions.assignAll(list);
+    }
+    _permissionEpoch.value++;
+  }
+
+  void _reconcileDeniedFamilies(List<String> incoming) {
+    final families = <String>{};
+    for (final p in incoming) {
+      final n = _normPerm(p);
+      families.add(n.contains(':') ? n.split(':').first : n);
+    }
+    _deniedFamilies.removeWhere((f) => !families.contains(f));
   }
 
   void applyProfile(MobileProfile profile) {
@@ -271,9 +428,24 @@ class UserSession extends GetxService with WidgetsBindingObserver {
       _staffId.value = profile.staffId;
     }
     _relationship.value = profile.relationship;
-    _permissionsReady.value = true;
-    if (!_samePermissions(profile.permissions)) {
-      _permissions.assignAll(profile.permissions);
+    // `/mobile/me` is the authority for grants after login.
+    // - permissionsPresent: apply even when empty (revokes remove menu items).
+    // - omitted permissions: keep the last known set so a partial payload
+    //   cannot wipe the nav.
+    if (profile.permissionsPresent) {
+      _reconcileDeniedFamilies(profile.permissions);
+      _permissionsReady.value = true;
+      if (!_samePermissions(profile.permissions)) {
+        _permissions.assignAll(profile.permissions);
+      }
+    } else if (profile.permissions.isNotEmpty) {
+      _reconcileDeniedFamilies(profile.permissions);
+      _permissionsReady.value = true;
+      if (!_samePermissions(profile.permissions)) {
+        _permissions.assignAll(profile.permissions);
+      }
+    } else if (!_permissionsReady.value && _permissions.isNotEmpty) {
+      _permissionsReady.value = true;
     }
     _permissionEpoch.value++;
     _medAdminCertified.value = profile.medAdminCertified;
@@ -401,6 +573,9 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     _staffKind.value = null;
     _permissions.clear();
     _permissionsReady.value = false;
+    _modules.clear();
+    _modulesKnown.value = false;
+    _deniedFamilies.clear();
     TenantClock.use(null);
     _medAdminCertified.value = false;
     _medAdminApproved.value = false;
@@ -443,10 +618,9 @@ class UserSession extends GetxService with WidgetsBindingObserver {
 
   bool _samePermissions(List<String> next) {
     if (_permissions.length != next.length) return false;
-    for (var i = 0; i < next.length; i++) {
-      if (_permissions[i] != next[i]) return false;
-    }
-    return true;
+    final current = _permissions.map(_normPerm).toSet();
+    final incoming = next.map(_normPerm).toSet();
+    return current.length == incoming.length && current.containsAll(incoming);
   }
 
   bool _keepSessionOn(AppError? error) {

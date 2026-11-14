@@ -61,16 +61,34 @@ void openPermittedPage({
 }
 
 /// Manager bottom-nav slots. More (4) is always available.
+///
+/// Optional tabs stay hidden until grants are known, and stay hidden when
+/// the matching permission / tenant module is missing — never show then
+/// error on tap (web `tenantNavItems` + `hasModule`).
 bool managerTabAllowed(UserSession session, int index) {
   switch (index) {
     case 0:
-      return session.can('dashboard:read');
+      // Landing tab: visible before grants resolve; then needs dashboard.
+      if (!session.permissionsReady) return true;
+      return session.canAccessNav(anyOf: const ['dashboard:read']);
     case 1:
-      return session.can('scheduling:read');
+      return session.permissionsReady &&
+          session.canAccessNav(
+            anyOf: const ['scheduling:read'],
+            module: 'scheduling',
+          );
     case 2:
-      return session.can('attendance:read');
+      return session.permissionsReady &&
+          session.canAccessNav(
+            anyOf: const ['attendance:read'],
+            module: 'attendance',
+          );
     case 3:
-      return session.can('incidents:read');
+      return session.permissionsReady &&
+          session.canAccessNav(
+            anyOf: const ['incidents:read'],
+            module: 'incidents',
+          );
     default:
       return true;
   }
@@ -83,17 +101,25 @@ bool managerTabAllowed(UserSession session, int index) {
 bool staffTabAllowed(UserSession session, int index) {
   switch (index) {
     case 1:
-      return session.can('scheduling:read');
+      return session.permissionsReady &&
+          session.canAccessNav(
+            anyOf: const ['scheduling:read'],
+            module: 'scheduling',
+          );
     case 2:
-      return session.can('attendance:read');
+      return session.permissionsReady &&
+          session.canAccessNav(
+            anyOf: const ['attendance:read'],
+            module: 'attendance',
+          );
     case 3:
-      return session.can('daily-logs:read');
+      return session.permissionsReady &&
+          session.canAccessNav(anyOf: const ['daily-logs:read']);
     case 4:
-      return session.canAny(const [
-        'mar:read',
-        'tasks:read',
-        'messaging:read',
-      ]);
+      return session.permissionsReady &&
+          session.canAccessNav(
+            anyOf: const ['mar:read', 'tasks:read', 'messaging:read'],
+          );
     default:
       return true;
   }
