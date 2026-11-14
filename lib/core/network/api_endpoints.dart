@@ -219,11 +219,14 @@ abstract final class ApiEndpoints {
   static const String users = '/users';
   /// Role catalog with grants — requires `roles:read`.
   static const String roles = '/roles';
-  /// Single role — `GET` needs `roles:read`. Role metadata uses `PATCH`.
+  /// Single role — `GET` needs `roles:read`. Metadata rename uses `PATCH`
+  /// `{name, description}`; custom roles can be `DELETE`d.
   static String roleById(String id) => '$roles/$id';
   /// Replace a role's grants — `PUT` with `{permissionCodes: [...]}`
   /// (or `permissionIds`). Needs `roles:write`. Unticked keys are revoked.
   static String rolePermissions(String id) => '$roles/$id/permissions';
+  /// Users holding a role — web "Holders". Needs `roles:read`.
+  static String roleMembers(String id) => '$roles/$id/members';
   static const String referrals = '/referrals';
 
   static String emergencyAlertCancel(String id) =>

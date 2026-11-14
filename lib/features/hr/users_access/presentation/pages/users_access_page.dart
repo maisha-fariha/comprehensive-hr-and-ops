@@ -4,16 +4,19 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../../core/widgets/surface_card.dart';
+import '../widgets/role_form_sheets.dart';
+import '../widgets/role_holders_sheet.dart';
 import 'role_permissions_page.dart';
 
 /// Web `/dashboard/users` ("Users & Access") — users directory plus roles
-/// with the Permissions editor (`roles:write`).
+/// with create / rename / holders / permissions (`roles:write`).
 class UsersAccessPage extends StatefulWidget {
   const UsersAccessPage({super.key});
 
@@ -34,6 +37,8 @@ class _UsersAccessPageState extends State<UsersAccessPage>
   String? _usersError;
   String? _rolesError;
   String _roleQuery = '';
+  String _userQuery = '';
+  bool _creatingRole = false;
 
   bool get _canUsers => _session.can('users:read');
   bool get _canRoles => _session.can('roles:read');
@@ -46,6 +51,9 @@ class _UsersAccessPageState extends State<UsersAccessPage>
     _api = GetIt.instance<AppApiClient>();
     final tabCount = (_canUsers ? 1 : 0) + (_canRoles ? 1 : 0);
     _tabs = TabController(length: tabCount < 1 ? 1 : tabCount, vsync: this);
+    _tabs.addListener(() {
+      if (mounted) setState(() {});
+    });
     _refresh();
   }
 
@@ -53,6 +61,12 @@ class _UsersAccessPageState extends State<UsersAccessPage>
   void dispose() {
     _tabs.dispose();
     super.dispose();
+  }
+
+  bool get _onRolesTab {
+    if (!_canRoles) return false;
+    if (!_canUsers) return true;
+    return _tabs.index == 1;
   }
 
   Future<void> _refresh() async {
@@ -140,6 +154,133 @@ class _UsersAccessPageState extends State<UsersAccessPage>
     });
   }
 
+  Future<void> _createRole() async {
+    if (!_canWriteRoles || _creatingRole) return;
+    setState(() => _creatingRole = true);
+    final created = await showNewRoleSheet(context, api: _api);
+    if (!mounted) return;
+    setState(() => _creatingRole = false);
+    if (created == null) return;
+    await _loadRoles();
+    final id = JsonCodec.stringOr(created['id'], '');
+    final name = JsonCodec.stringOr(
+      created['name'],
+      JsonCodec.stringOr(created['code'], 'Role'),
+    );
+    if (id.isEmpty || !_canWriteRoles) return;
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Grant permissions?'),
+        content: Text(
+          '"$name" starts with no permissions. Open the Permissions editor now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primaryNavy,
+            ),
+            child: const Text('Permissions'),
+          ),
+        ],
+      ),
+    );
+    if (open == true && mounted) {
+      await _openPermissions(
+        _AccessRole(
+          id: id,
+          name: name,
+          code: JsonCodec.stringOr(created['code'], ''),
+          description: JsonCodec.stringOr(created['description'], ''),
+          permissionCount: 0,
+          userCount: 0,
+          builtIn: false,
+          permissions: const [],
+        ),
+      );
+    }
+  }
+
+  Future<void> _renameRole(_AccessRole role) async {
+    if (!_canWriteRoles || role.id.isEmpty) return;
+    final updated = await showRenameRoleSheet(
+      context,
+      api: _api,
+      roleId: role.id,
+      name: role.name,
+      description: role.description,
+    );
+    if (!mounted || updated == null) return;
+    setState(() {
+      _roles = [
+        for (final r in _roles)
+          if (r.id == role.id)
+            r.copyWith(
+              name: JsonCodec.stringOr(updated['name'], r.name),
+              description:
+                  JsonCodec.stringOr(updated['description'], r.description),
+            )
+          else
+            r,
+      ]..sort((a, b) => a.name.compareTo(b.name));
+    });
+  }
+
+  Future<void> _showHolders(_AccessRole role) async {
+    if (role.id.isEmpty) return;
+    await showRoleHoldersSheet(
+      context,
+      api: _api,
+      roleId: role.id,
+      roleName: role.name,
+    );
+  }
+
+  Future<void> _deleteRole(_AccessRole role) async {
+    if (!_canWriteRoles || role.id.isEmpty || role.builtIn) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete role?'),
+        content: Text(
+          'Delete "${role.name}" (${role.code})? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.criticalRed,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final result = await _api.delete(ApiEndpoints.roleById(role.id));
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        setState(() {
+          _roles = [for (final r in _roles) if (r.id != role.id) r];
+        });
+        AppSnackbar.show('Role deleted', role.name, force: true);
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not delete', error.message, force: true);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final titles = <String>[
@@ -170,6 +311,15 @@ class _UsersAccessPageState extends State<UsersAccessPage>
               )
             : null,
       ),
+      floatingActionButton: _canWriteRoles && _onRolesTab
+          ? FloatingActionButton.extended(
+              onPressed: _creatingRole ? null : _createRole,
+              backgroundColor: AppColors.primaryNavy,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: Text(_creatingRole ? 'Creating…' : 'New role'),
+            )
+          : null,
       body: AppRefreshIndicator(
         onRefresh: _refresh,
         child: titles.isEmpty
@@ -208,25 +358,72 @@ class _UsersAccessPageState extends State<UsersAccessPage>
         ],
       );
     }
+    final q = _userQuery.trim().toLowerCase();
+    final users = q.isEmpty
+        ? _users
+        : [
+            for (final user in _users)
+              if (user.name.toLowerCase().contains(q) ||
+                  user.email.toLowerCase().contains(q) ||
+                  user.roleLabels.any((r) => r.toLowerCase().contains(q)) ||
+                  user.status.toLowerCase().contains(q))
+                user,
+          ];
     return ListView.separated(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      itemCount: _users.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemCount: users.length + 1,
+      separatorBuilder: (_, index) =>
+          index == 0 ? const SizedBox(height: 12) : const SizedBox(height: 8),
       itemBuilder: (context, index) {
-        final user = _users[index];
+        if (index == 0) {
+          return TextField(
+            onChanged: (v) => setState(() => _userQuery = v),
+            decoration: const InputDecoration(
+              hintText: 'Search by name, email, or role',
+              prefixIcon: Icon(Icons.search_rounded),
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          );
+        }
+        final user = users[index - 1];
         return SurfaceCard.card(
           child: ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            title: Text(
-              user.name,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-                color: AppColors.textPrimary,
-              ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    user.name,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                if (user.status.isNotEmpty)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.filterButtonBackground,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      user.status,
+                      style: const TextStyle(
+                        fontFamily: 'Manrope',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             subtitle: Text(
               [
@@ -271,7 +468,7 @@ class _UsersAccessPageState extends State<UsersAccessPage>
           ];
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
         TextField(
           onChanged: (v) => setState(() => _roleQuery = v),
@@ -290,6 +487,11 @@ class _UsersAccessPageState extends State<UsersAccessPage>
             canOpenPermissions: _canRoles && roles[i].id.isNotEmpty,
             canWrite: _canWriteRoles,
             onPermissions: () => _openPermissions(roles[i]),
+            onRename: _canWriteRoles ? () => _renameRole(roles[i]) : null,
+            onHolders: () => _showHolders(roles[i]),
+            onDelete: _canWriteRoles && !roles[i].builtIn
+                ? () => _deleteRole(roles[i])
+                : null,
           ),
         ],
       ],
@@ -302,12 +504,18 @@ class _RoleCard extends StatelessWidget {
   final bool canOpenPermissions;
   final bool canWrite;
   final VoidCallback onPermissions;
+  final VoidCallback? onRename;
+  final VoidCallback? onHolders;
+  final VoidCallback? onDelete;
 
   const _RoleCard({
     required this.role,
     required this.canOpenPermissions,
     required this.canWrite,
     required this.onPermissions,
+    this.onRename,
+    this.onHolders,
+    this.onDelete,
   });
 
   @override
@@ -319,16 +527,33 @@ class _RoleCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    role.name,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      color: AppColors.textPrimary,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        role.name,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      if (role.code.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          role.code,
+                          style: const TextStyle(
+                            fontFamily: 'Manrope',
+                            fontSize: 12.5,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
                 if (role.builtIn)
@@ -352,7 +577,7 @@ class _RoleCard extends StatelessWidget {
               ],
             ),
             if (role.description.isNotEmpty) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Text(
                 role.description,
                 style: const TextStyle(
@@ -372,18 +597,45 @@ class _RoleCard extends StatelessWidget {
                 color: AppColors.textMuted,
               ),
             ),
-            if (canOpenPermissions) ...[
+            if (canOpenPermissions ||
+                onRename != null ||
+                onHolders != null ||
+                onDelete != null) ...[
               const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.tonal(
-                  onPressed: onPermissions,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryNavy,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: Text(canWrite ? 'Permissions' : 'View permissions'),
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                children: [
+                  if (onRename != null)
+                    OutlinedButton(
+                      onPressed: onRename,
+                      child: const Text('Rename'),
+                    ),
+                  if (onHolders != null)
+                    OutlinedButton(
+                      onPressed: onHolders,
+                      child: const Text('Holders'),
+                    ),
+                  if (onDelete != null)
+                    OutlinedButton(
+                      onPressed: onDelete,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.criticalRed,
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  if (canOpenPermissions)
+                    FilledButton.tonal(
+                      onPressed: onPermissions,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primaryNavy,
+                        foregroundColor: Colors.white,
+                      ),
+                      child:
+                          Text(canWrite ? 'Permissions' : 'View permissions'),
+                    ),
+                ],
               ),
             ],
           ],
@@ -396,11 +648,13 @@ class _RoleCard extends StatelessWidget {
 class _AccessUser {
   final String name;
   final String email;
+  final String status;
   final List<String> roleLabels;
 
   const _AccessUser({
     required this.name,
     required this.email,
+    required this.status,
     required this.roleLabels,
   });
 
@@ -430,6 +684,7 @@ class _AccessUser {
     return _AccessUser(
       name: name.isEmpty ? 'User' : name,
       email: JsonCodec.stringOr(json['email'], ''),
+      status: JsonCodec.stringOr(json['status'], ''),
       roleLabels: roles,
     );
   }
@@ -457,16 +712,19 @@ class _AccessRole {
   });
 
   _AccessRole copyWith({
+    String? name,
+    String? description,
     List<String>? permissions,
     int? permissionCount,
+    int? userCount,
   }) {
     return _AccessRole(
       id: id,
-      name: name,
+      name: name ?? this.name,
       code: code,
-      description: description,
+      description: description ?? this.description,
       permissionCount: permissionCount ?? this.permissionCount,
-      userCount: userCount,
+      userCount: userCount ?? this.userCount,
       builtIn: builtIn,
       permissions: permissions ?? this.permissions,
     );
@@ -510,7 +768,8 @@ class _AccessRole {
         if (raw is num) return raw.toInt();
         return int.tryParse('$raw');
       }(),
-      builtIn: JsonCodec.boolean(json['builtIn'] ?? json['isBuiltIn']) ??
+      builtIn: JsonCodec.boolean(json['isSystem']) ??
+          JsonCodec.boolean(json['builtIn'] ?? json['isBuiltIn']) ??
           JsonCodec.boolean(json['system']) ??
           false,
       permissions: permissions,
