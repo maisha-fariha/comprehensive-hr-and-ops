@@ -22,6 +22,7 @@ import 'package:comprehensive_hr_and_ops/features/hr/dashboard/domain/entities/d
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/domain/entities/dashboard_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/domain/entities/quick_action.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/domain/repositories/dashboard_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/today_shift_summary.dart';
 
 /// `flutter test` doesn't load bundled TTFs by default, so text falls back to
 /// a generic test font with different glyph metrics than the real "Outfit"
@@ -47,6 +48,11 @@ class _FakeDashboardRepository implements DashboardRepository {
           unreadNotificationCount: 0,
           unresolvedAlertCount: 1,
           avatarInitials: 'AL',
+          todayShift: TodayShiftSummary(
+            statusLabel: 'Off Shift',
+            dateLabel: 'September 28',
+            timeRange: 'No shift today',
+          ),
           attentionAlerts: [
             AttentionAlert(
               id: 'a1',

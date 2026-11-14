@@ -84,10 +84,10 @@ class DailyLogsController extends GetxController {
   int _clientSerial = 0;
   int _boardSerial = 0;
 
-  /// Web Daily Logs role group (5 keys):
+  /// Web Daily Logs role group:
   /// - `daily-logs:read` — module access (nav / PermissionGate)
-  /// - `daily-logs:write` — care notes, complete shift docs
-  /// - `daily-logs:review` — Review tab + shift sign-off
+  /// - `daily-logs:write` — care notes
+  /// - `daily-logs:review` — Review tab
   /// - `care-flags:read` — open flags list / Review badge
   /// - `care-flags:resolve` — Clear a flag
   bool get canWrite => session.can('daily-logs:write');
@@ -225,7 +225,6 @@ class DailyLogsController extends GetxController {
       _loadStaff(),
       loadFlags(),
       loadBoard(),
-      loadQueues(),
     ]);
   }
 
@@ -242,9 +241,9 @@ class DailyLogsController extends GetxController {
     await Future.wait([
       loadFlags(),
       loadBoard(),
-      loadQueues(),
-      if (tab.value == DailyLogsTab.activities) loadActivity(),
-      if (hasResidence) loadShiftLogs(),
+      if (tab.value == DailyLogsTab.review ||
+          tab.value == DailyLogsTab.activities)
+        loadActivity(),
       if (viewingResidentDay) ...[loadDay(), loadFeed()],
     ]);
   }
@@ -259,22 +258,11 @@ class DailyLogsController extends GetxController {
     if (value == DailyLogsTab.activities) loadActivity();
     if (value == DailyLogsTab.today) loadBoard();
     if (value == DailyLogsTab.review) {
-      // Web Review: sign-off queue is the last 7 days ending on the board date.
-      _alignReviewRange();
-      loadQueues();
+      // Web Review: Open flags + not-handed-over board notes + carer activity.
       loadFlags();
-      loadShiftLogs();
       loadBoard();
       loadActivity();
     }
-  }
-
-  /// Web `Waiting for sign-off` window: board date and the six days before it.
-  void _alignReviewRange() {
-    final end = DateTime.tryParse(logDate.value) ?? DateTime.now();
-    final start = end.subtract(const Duration(days: 6));
-    from.value = dayKey(start);
-    to.value = dayKey(end);
   }
 
   void setResidence(String id) {
@@ -304,7 +292,6 @@ class DailyLogsController extends GetxController {
     page.value = 1;
     loadDay();
     loadFeed();
-    loadShiftLogs();
   }
 
   void setStaff(String id) {
@@ -330,8 +317,8 @@ class DailyLogsController extends GetxController {
     from.value = nextFrom;
     to.value = nextTo;
     page.value = 1;
-    loadQueues();
     if (tab.value == DailyLogsTab.activities) loadActivity();
+    if (tab.value == DailyLogsTab.review) loadActivity();
   }
 
   void setLogDate(String value) {
@@ -341,8 +328,8 @@ class DailyLogsController extends GetxController {
     loadBoard();
     loadDay();
     loadFeed();
-    loadShiftLogs();
-    loadQueues();
+    if (tab.value == DailyLogsTab.review) loadActivity();
+    if (tab.value == DailyLogsTab.activities) loadActivity();
   }
 
   void shiftLogDate(int days) {
@@ -375,7 +362,6 @@ class DailyLogsController extends GetxController {
     tab.value = DailyLogsTab.today;
     loadDay();
     loadFeed();
-    loadShiftLogs();
     loadBoard();
   }
 
@@ -390,13 +376,13 @@ class DailyLogsController extends GetxController {
 
   void setPage(int value) {
     page.value = value;
-    tab.value == DailyLogsTab.activities ? loadActivity() : loadQueues();
+    if (tab.value == DailyLogsTab.activities) loadActivity();
   }
 
   void setLimit(int value) {
     limit.value = value;
     page.value = 1;
-    tab.value == DailyLogsTab.activities ? loadActivity() : loadQueues();
+    if (tab.value == DailyLogsTab.activities) loadActivity();
   }
 
   Future<void> _loadClients() async {
@@ -700,8 +686,8 @@ class DailyLogsController extends GetxController {
         loadDay(),
         loadFeed(),
         loadBoard(),
-        loadQueues(),
         loadFlags(),
+        if (tab.value == DailyLogsTab.review) loadActivity(),
       ]);
 
   Future<void> createEntry(Map<String, dynamic> body) async {

@@ -8,6 +8,7 @@ import 'package:comprehensive_hr_and_ops/features/common/inbox/domain/repositori
 import 'package:comprehensive_hr_and_ops/features/common/inbox/presentation/pages/portal_search_page.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/domain/entities/dashboard_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/domain/repositories/dashboard_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/today_shift_summary.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/presentation/pages/manager_dashboard_page.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/residences/domain/entities/residence_summary.dart';
@@ -41,6 +42,11 @@ class _FakeDashboardRepo implements DashboardRepository {
           unreadNotificationCount: 0,
           unresolvedAlertCount: 0,
           avatarInitials: 'RA',
+          todayShift: TodayShiftSummary(
+            statusLabel: 'Off Shift',
+            dateLabel: 'September 28',
+            timeRange: 'No shift today',
+          ),
           attentionAlerts: [],
           overviewStats: [],
           scheduleShifts: [],

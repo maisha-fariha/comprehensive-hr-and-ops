@@ -10,7 +10,6 @@ import '../../../../../core/roles/user_role.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
-import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../daily_activity/presentation/controllers/daily_activity_controller.dart';
 import '../../../daily_activity/presentation/widgets/daily_activity_form_sheet.dart';
 import '../../../daily_activity/presentation/widgets/daily_activity_group_sheet.dart';
@@ -24,12 +23,10 @@ import '../../../../staff/extras/presentation/pages/staff_shift_handovers_page.d
 import '../../../../staff/presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../../staff/search/presentation/pages/staff_search_page.dart';
 import '../../../../staff/staff_shell.dart';
-import '../../domain/entities/daily_log.dart';
 import '../controllers/daily_logs_controller.dart';
 import '../widgets/daily_log_common.dart';
 import '../widgets/daily_logs_activities_section.dart';
 import '../widgets/daily_logs_filters.dart';
-import '../widgets/daily_logs_lists.dart';
 import '../widgets/entry_sheets.dart';
 import '../widgets/new_log_entry_sheet.dart';
 import '../widgets/resident_day_section.dart';
@@ -221,13 +218,10 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
                   _c.board.value,
                   _c.boardLoading.value,
                   _c.flagsTotal.value,
-                  _c.review.value,
-                  _c.missing.value,
                   _c.activity.value,
                   _c.activityLoading.value,
                   _c.staffId.value,
                   _c.flags.toList(),
-                  _c.shiftLogs.toList(),
                 );
                 return ListView(
                   key: const ValueKey('dl-scroll'),
@@ -345,22 +339,6 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
     ];
   }
 
-  Widget _pagination() {
-    final (total, totalPages) = _c.paging;
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: AttendancePagination(
-        page: _c.page.value,
-        limit: _c.limit.value,
-        total: total,
-        totalPages: totalPages,
-        limitOptions: DailyLogsController.limitOptions,
-        onPage: _c.setPage,
-        onLimit: _c.setLimit,
-      ),
-    );
-  }
-
   List<Widget> _main(BuildContext context) {
     switch (_c.tab.value) {
       case DailyLogsTab.today:
@@ -377,11 +355,10 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
           ),
         ];
       case DailyLogsTab.review:
-        final reviewRows = _c.review.value?.items ?? const [];
         final notHanded = _c.board.value?.notHandedOver ?? const [];
         final careRows = _c.activity.value?.items ?? const [];
-        // Web Review: Open flags + Carer activity first; sign-off / handover
-        // panels follow for managers with `daily-logs:review`.
+        // Web Review (`/dashboard/daily-logs` Review): Open flags, Not in a
+        // handover, Carer activity — no sign-off queue or shift documentation.
         return [
           if (_c.canReadFlags) ...[
             PriorityNotesPanel(
@@ -395,6 +372,15 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
             ),
             const SizedBox(height: 12),
           ],
+          NotHandedOverPanel(
+            notes: notHanded,
+            onOpenDay: (n) => _c.openDay(
+              n.clientId,
+              _c.logDate.value,
+              name: n.clientName,
+            ),
+          ),
+          const SizedBox(height: 14),
           CareGivenPanel(
             rows: careRows,
             loading: _c.activityLoading.value,
@@ -413,75 +399,6 @@ class _DailyLogsPageState extends State<DailyLogsPage> {
             },
             openFor: _openFor,
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Waiting for sign-off',
-            style: handoverText(context, 14, weight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Finished shifts from the last 7 days. Signing off locks the notes.',
-            style: handoverText(context, 12.5, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 8),
-          ReviewQueueList(
-            rows: reviewRows,
-            loading: _c.reviewLoading.value,
-            error: _c.reviewError.value,
-            onOpen: (r) => _c.openDay(
-              r.clientId,
-              r.logDate,
-              name: r.clientName,
-              residence: r.residenceId,
-            ),
-            onSignOff: _c.canReview
-                ? (r) async {
-                    final id = r.shiftLogId;
-                    if (id == null || id.isEmpty) return;
-                    final row = _c.shiftLogs.firstWhereOrNull((s) => s.id == id);
-                    if (row != null) {
-                      await _c.updateShiftLog(
-                        row,
-                        const {'status': 'locked'},
-                        'Signed off',
-                      );
-                      return;
-                    }
-                    await _c.updateShiftLog(
-                      DailyLogShiftRow(
-                        id: id,
-                        status: 'completed',
-                        clientName: r.clientName,
-                        shiftTitle: r.shiftLabel,
-                        summary: r.summary,
-                      ),
-                      const {'status': 'locked'},
-                      'Signed off',
-                    );
-                  }
-                : null,
-          ),
-          if (reviewRows.isNotEmpty) _pagination(),
-          const SizedBox(height: 14),
-          NotHandedOverPanel(
-            notes: notHanded,
-            onOpenDay: (n) => _c.openDay(
-              n.clientId,
-              _c.logDate.value,
-              name: n.clientName,
-            ),
-          ),
-          if (_c.hasResidence) ...[
-            const SizedBox(height: 14),
-            ShiftDocumentationPanel(
-              rows: _c.shiftLogs.toList(),
-              loading: _c.shiftLogsLoading.value,
-              canWrite: _c.canWrite,
-              canReview: _c.canReview,
-              busyId: _c.busyShiftId.value,
-              onUpdate: _c.updateShiftLog,
-            ),
-          ],
         ];
       case DailyLogsTab.activities:
         return [

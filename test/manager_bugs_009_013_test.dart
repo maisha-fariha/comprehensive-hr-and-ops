@@ -2277,7 +2277,8 @@ void main() {
       expect(c.tab.value, DailyLogsTab.review);
       expect(find.byKey(const ValueKey('dl-priority-notes')), findsOneWidget);
       expect(find.text('Open flags'), findsOneWidget);
-      expect(find.text('Waiting for sign-off'), findsOneWidget);
+      expect(find.text('Waiting for sign-off'), findsNothing);
+      expect(find.text('Shift documentation'), findsNothing);
       expect(find.byKey(const ValueKey('dl-not-handed-over')), findsOneWidget);
       expect(find.byKey(const ValueKey('dl-care-given')), findsOneWidget);
       expect(find.text('Needs a note'), findsNothing);
@@ -2315,7 +2316,10 @@ void main() {
 
       await _tap(tester, find.byKey(const ValueKey('dl-tab-review')));
       expect(find.byKey(const ValueKey('dl-priority-notes')), findsNothing);
-      expect(find.text('Waiting for sign-off'), findsOneWidget);
+      expect(find.text('Waiting for sign-off'), findsNothing);
+      expect(find.text('Shift documentation'), findsNothing);
+      expect(find.byKey(const ValueKey('dl-not-handed-over')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dl-care-given')), findsOneWidget);
       expect(find.byKey(const ValueKey('dl-flag-resolve-f1')), findsNothing);
     });
 

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../staff/dashboard/domain/entities/today_shift_summary.dart';
 import 'attention_alert.dart';
 import 'overview_stat.dart';
 import 'quick_action.dart';
@@ -16,6 +17,7 @@ class DashboardOverview {
   final int unreadNotificationCount;
   final int unresolvedAlertCount;
   final String avatarInitials;
+  final TodayShiftSummary todayShift;
   final List<AttentionAlert> attentionAlerts;
   final List<OverviewStat> overviewStats;
   final List<ScheduleShift> scheduleShifts;
@@ -30,6 +32,7 @@ class DashboardOverview {
     required this.unreadNotificationCount,
     required this.unresolvedAlertCount,
     required this.avatarInitials,
+    required this.todayShift,
     required this.attentionAlerts,
     required this.overviewStats,
     required this.scheduleShifts,
@@ -45,6 +48,7 @@ class DashboardOverview {
     int? unreadNotificationCount,
     int? unresolvedAlertCount,
     String? avatarInitials,
+    TodayShiftSummary? todayShift,
     List<AttentionAlert>? attentionAlerts,
     List<OverviewStat>? overviewStats,
     List<ScheduleShift>? scheduleShifts,
@@ -60,6 +64,7 @@ class DashboardOverview {
           unreadNotificationCount ?? this.unreadNotificationCount,
       unresolvedAlertCount: unresolvedAlertCount ?? this.unresolvedAlertCount,
       avatarInitials: avatarInitials ?? this.avatarInitials,
+      todayShift: todayShift ?? this.todayShift,
       attentionAlerts: attentionAlerts ?? this.attentionAlerts,
       overviewStats: overviewStats ?? this.overviewStats,
       scheduleShifts: scheduleShifts ?? this.scheduleShifts,

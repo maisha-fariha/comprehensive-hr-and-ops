@@ -20,10 +20,13 @@ import '../../../incidents/presentation/pages/incidents_list_page.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_company_brand.dart';
 import '../../../presentation/widgets/manager_page_search_sheet.dart';
+import '../../../attendance/domain/repositories/attendance_repository.dart';
+import '../../../attendance/presentation/pages/attendance_clock_page.dart';
 import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
 import '../../../profile_settings/presentation/widgets/hr_initials_avatar.dart';
 import '../../../scheduling/presentation/controllers/scheduling_controller.dart';
 import '../../../scheduling/presentation/pages/create_shift_page.dart';
+import '../../../../staff/dashboard/presentation/widgets/today_shift_card.dart';
 import '../../domain/entities/attention_alert.dart';
 import '../../domain/entities/dashboard_enums.dart';
 import '../../domain/entities/dashboard_overview.dart';
@@ -140,6 +143,15 @@ class ManagerDashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      // Same personal shift card as Staff Home — managers who
+                      // clock in need to see On Shift / times here too.
+                      GestureDetector(
+                        onTap: () => _openTodayShiftClock(context, controller),
+                        child: TodayShiftCard(shift: overview.todayShift),
+                      ),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 16),
+                      ),
                       if (_visibleNeedsAttention(overview.attentionAlerts)
                           case final alerts when alerts.isNotEmpty) ...[
                         _NeedsAttentionSection(alerts: alerts),
@@ -238,6 +250,24 @@ class ManagerDashboardPage extends StatelessWidget {
     } catch (_) {
       // Scheduling screen may not be loaded yet.
     }
+  }
+
+  Future<void> _openTodayShiftClock(
+    BuildContext context,
+    DashboardController controller,
+  ) async {
+    final session =
+        Get.isRegistered<UserSession>() ? Get.find<UserSession>() : null;
+    if (session == null || !session.can('attendance:write')) return;
+    if (!GetIt.instance.isRegistered<AttendanceRepository>()) return;
+
+    final repo = GetIt.instance<AttendanceRepository>();
+    final open = await repo.getMyOpenAttendance();
+    final done = await openAttendanceClock(
+      clockOut: open.isSuccess && open.value != null,
+      openAttendance: open.value,
+    );
+    if (done == true) await controller.refresh();
   }
 }
 

@@ -8,10 +8,11 @@ import '../../domain/repositories/dashboard_repository.dart';
 import '../mappers/dashboard_overview_mapper.dart';
 
 /// Manager dashboard: composes session data with
-/// `/dashboard`, `/dashboard/alerts`, and `/notifications`.
+/// `/dashboard`, `/dashboard/alerts`, `/notifications`, and the signed-in
+/// user's attendance / shifts for the personal "Today's Shift" card.
 ///
 /// Quick Actions are static shortcuts (not API-driven). Today's Schedule /
-/// `/shifts` is not fetched for the current Home layout.
+/// `/shifts` for the home list is not fetched for the current Home layout.
 class DashboardRepositoryImpl implements DashboardRepository {
   final AppApiClient _api;
   final UserSession _session;
@@ -30,6 +31,11 @@ class DashboardRepositoryImpl implements DashboardRepository {
     final canNeedsAttention = _session.can('incidents:read') ||
         _session.can('documents:read') ||
         _session.canAccessDocuments;
+    final canAttendance = _session.can('attendance:read') ||
+        _session.can('attendance:write');
+    final staffId = (_session.staffId ?? '').trim();
+    final now = DateTime.now().toUtc();
+
     final results = await Future.wait([
       _api.get(ApiEndpoints.dashboard),
       if (canNeedsAttention)
@@ -41,6 +47,32 @@ class DashboardRepositoryImpl implements DashboardRepository {
         query: const {'page': 1, 'limit': 30},
         silent: true,
       ),
+      if (canAttendance)
+        _api.get(
+          ApiEndpoints.attendance,
+          query: {
+            'mine': true,
+            'from': now.subtract(const Duration(hours: 48)).toIso8601String(),
+            'to': now.add(const Duration(hours: 1)).toIso8601String(),
+            'limit': 50,
+          },
+          silent: true,
+        )
+      else
+        Future.value(Result.success(const {'data': <dynamic>[]})),
+      if (canAttendance && staffId.isNotEmpty)
+        _api.get(
+          ApiEndpoints.shifts,
+          query: {
+            'staffId': staffId,
+            'limit': 20,
+            'from': now.subtract(const Duration(hours: 14)).toIso8601String(),
+            'to': now.add(const Duration(hours: 14)).toIso8601String(),
+          },
+          silent: true,
+        )
+      else
+        Future.value(Result.success(const {'data': <dynamic>[]})),
     ]);
 
     final dashboard = results[0];
@@ -51,10 +83,15 @@ class DashboardRepositoryImpl implements DashboardRepository {
       );
     }
 
-    // Alerts are optional — missing permission / 403 must not blank Home.
+    // Alerts / personal shift feeds are optional — missing permission / 403
+    // must not blank Home.
     final alertsBody = results[1].isSuccess
         ? results[1].value
         : const {'data': <dynamic>[]};
+    final myAttendance =
+        results[3].isSuccess ? results[3].value : const {'data': <dynamic>[]};
+    final myShifts =
+        results[4].isSuccess ? results[4].value : const {'data': <dynamic>[]};
 
     return Result.success(
       DashboardOverviewMapper.compose(
@@ -63,6 +100,8 @@ class DashboardRepositoryImpl implements DashboardRepository {
         alertsBody: alertsBody,
         shiftsBody: null,
         notificationsBody: results[2].isSuccess ? results[2].value : null,
+        myAttendanceBody: myAttendance,
+        myShiftsBody: myShifts,
       ),
     );
   }
