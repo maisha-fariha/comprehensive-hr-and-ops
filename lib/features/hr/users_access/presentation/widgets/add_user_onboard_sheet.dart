@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
@@ -60,39 +61,53 @@ class _AddUserOnboardSheet extends StatefulWidget {
 class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
   static const _gap = SizedBox(height: 16);
 
-  static const _relationships = [
-    'Spouse',
-    'Parent',
-    'Child',
-    'Sibling',
-    'Friend',
-    'Caseworker',
-    'Other',
+  /// Web relationship values (lowercase).
+  static const _relationships = <(String, String)>[
+    ('spouse', 'Spouse'),
+    ('parent', 'Parent'),
+    ('child', 'Child'),
+    ('sibling', 'Sibling'),
+    ('friend', 'Friend'),
+    ('caseworker', 'Caseworker'),
+    ('other', 'Other'),
   ];
 
+  /// Web `eD` employment types.
   static const _employmentTypes = <(String, String)>[
     ('full_time', 'Full-time'),
     ('part_time', 'Part-time'),
-    ('casual', 'Casual'),
     ('contract', 'Contract'),
+    ('prn', 'As needed (PRN)'),
   ];
 
   static const _statuses = <(String, String)>[
     ('active', 'Active'),
-    ('inactive', 'Inactive'),
     ('on_leave', 'On leave'),
+    ('inactive', 'Inactive'),
   ];
 
+  /// Web `eP` — API values; Fortnightly maps to `bi_weekly`.
   static const _paymentDurations = <(String, String)>[
     ('weekly', 'Weekly'),
-    ('fortnightly', 'Fortnightly'),
+    ('bi_weekly', 'Fortnightly'),
+    ('semi_monthly', 'Twice a month'),
     ('monthly', 'Monthly'),
   ];
 
+  /// Web `ez` payment bases.
   static const _paymentBases = <(String, String)>[
-    ('hourly', 'Hourly'),
+    ('hourly_based', 'Hourly based'),
     ('salary_based', 'Salary based'),
-    ('contract', 'Contract'),
+    ('shift_based', 'Shift based'),
+  ];
+
+  /// Web `eR` shift types.
+  static const _shiftTypes = <(String, String)>[
+    ('any', 'Any shift'),
+    ('day', 'Day'),
+    ('evening', 'Evening'),
+    ('night', 'Night'),
+    ('weekend', 'Weekend'),
   ];
 
   final _scroll = ScrollController();
@@ -120,10 +135,20 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
   String _employmentType = 'full_time';
   String _hireDate = '';
   String _status = 'active';
-  String _paymentDuration = 'fortnightly';
+  String _paymentDuration = 'bi_weekly';
   String _paymentBasis = '';
   bool _medAdminApproved = false;
-  bool _syncQuickBooks = true;
+  bool _addToQuickBooks = true;
+
+  final _hourlyRate = TextEditingController();
+  final _overtimeRate = TextEditingController();
+  bool _attendanceRequired = true;
+  final _monthlySalary = TextEditingController();
+  final _allowances = TextEditingController();
+  final _deductions = TextEditingController();
+  final _shiftRate = TextEditingController();
+  String _shiftType = 'any';
+  final _overtimeAfterHours = TextEditingController();
 
   List<({String id, String name})> _residences = const [];
   final Set<String> _residenceIds = {};
@@ -134,6 +159,7 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
   List<({String id, String name, String code})> _roles = const [];
   bool _createLogin = true;
   bool _sendInvite = true;
+  final _temporaryPassword = TextEditingController();
 
   @override
   void initState() {
@@ -171,13 +197,19 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
       _emergencyName,
       _emergencyPhone,
       _alternativeContact,
+      _hourlyRate,
+      _overtimeRate,
+      _monthlySalary,
+      _allowances,
+      _deductions,
+      _shiftRate,
+      _overtimeAfterHours,
+      _temporaryPassword,
     ]) {
       c.dispose();
     }
     super.dispose();
   }
-
-  void _changed() => setState(() {});
 
   void _goTo(_UserStep step) {
     setState(() {
@@ -204,6 +236,46 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
         return true;
       case _UserStep.account:
         return !_createLogin || _roleIds.isNotEmpty;
+    }
+  }
+
+  double? _numOrNull(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  Map<String, dynamic>? _employmentConfig() {
+    switch (_paymentBasis) {
+      case 'hourly_based':
+        return {
+          if (_numOrNull(_hourlyRate.text) != null)
+            'hourlyRate': _numOrNull(_hourlyRate.text),
+          if (_numOrNull(_overtimeRate.text) != null)
+            'overtimeRate': _numOrNull(_overtimeRate.text),
+          'attendanceRequired': _attendanceRequired,
+        };
+      case 'salary_based':
+        return {
+          if (_numOrNull(_monthlySalary.text) != null)
+            'monthlySalary': _numOrNull(_monthlySalary.text),
+          if (_numOrNull(_allowances.text) != null)
+            'allowances': _numOrNull(_allowances.text),
+          if (_numOrNull(_deductions.text) != null)
+            'deductions': _numOrNull(_deductions.text),
+        };
+      case 'shift_based':
+        return {
+          if (_numOrNull(_shiftRate.text) != null)
+            'shiftRate': _numOrNull(_shiftRate.text),
+          if (_shiftType.isNotEmpty) 'shiftType': _shiftType,
+          if (_numOrNull(_overtimeAfterHours.text) != null)
+            'overtimeAfterHours': _numOrNull(_overtimeAfterHours.text),
+          if (_numOrNull(_overtimeRate.text) != null)
+            'overtimeRate': _numOrNull(_overtimeRate.text),
+        };
+      default:
+        return null;
     }
   }
 
@@ -236,6 +308,18 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
         if (_hireDate.isEmpty) {
           errors['hireDate'] = 'Hire date is required.';
         }
+        if (_paymentBasis == 'hourly_based' &&
+            _numOrNull(_hourlyRate.text) == null) {
+          errors['hourlyRate'] = 'Hourly rate is required.';
+        }
+        if (_paymentBasis == 'salary_based' &&
+            _numOrNull(_monthlySalary.text) == null) {
+          errors['monthlySalary'] = 'Monthly salary is required.';
+        }
+        if (_paymentBasis == 'shift_based' &&
+            _numOrNull(_shiftRate.text) == null) {
+          errors['shiftRate'] = 'Shift rate is required.';
+        }
       case _UserStep.residence:
         if (_residenceIds.isEmpty) {
           errors['residenceIds'] = 'Assign at least one residence.';
@@ -248,6 +332,12 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
       case _UserStep.account:
         if (_createLogin && _roleIds.isEmpty) {
           errors['roleIds'] = 'A login needs at least one role.';
+        }
+        if (_createLogin &&
+            !_sendInvite &&
+            _temporaryPassword.text.trim().length < 8) {
+          errors['temporaryPassword'] =
+              'Temporary password must be at least 8 characters.';
         }
     }
     return errors;
@@ -284,7 +374,10 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
         'roleIds' ||
         'hireDate' ||
         'employmentType' ||
-        'paymentBasis' =>
+        'paymentBasis' ||
+        'monthlySalary' ||
+        'hourlyRate' ||
+        'shiftRate' =>
           _UserStep.employment,
         'residenceIds' || 'primaryResidenceId' => _UserStep.residence,
         _ => _UserStep.account,
@@ -304,45 +397,78 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
     _submit();
   }
 
+  /// Web `POST /users/onboard` body (`staff` + top-level `employmentConfig` +
+  /// `account` with `sendInvitationEmail`). Legacy `createLogin`/`sendInvite`
+  /// creates a staff row but never a login or invite email.
   Map<String, dynamic> _buildBody({String? photoUrl}) {
+    final email = _email.text.trim();
+    final first = _firstName.text.trim();
+    final last = _lastName.text.trim();
+    final phone = _phone.text.trim();
+    final residences = _residenceIds.toList(growable: false);
+    final roles = _roleIds.toList(growable: false);
+
     final staff = <String, dynamic>{
-      'firstName': _firstName.text.trim(),
-      'lastName': _lastName.text.trim(),
-      'email': _email.text.trim(),
-      if (_middleName.text.trim().isNotEmpty)
-        'middleName': _middleName.text.trim(),
-      if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
-      if (_address.text.trim().isNotEmpty) 'address': _address.text.trim(),
-      if (_dob.isNotEmpty) 'dateOfBirth': _dob,
-      if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
-      'emergencyContactName': _emergencyName.text.trim(),
-      'emergencyContactPhone': _emergencyPhone.text.trim(),
-      if (_relationship.isNotEmpty)
-        'emergencyContactRelationship': _relationship,
-      if (_alternativeContact.text.trim().isNotEmpty)
-        'alternativeContactPhone': _alternativeContact.text.trim(),
-      'employmentType': _employmentType,
-      if (_hireDate.isNotEmpty) 'hireDate': _hireDate,
+      'firstName': first,
+      'lastName': last,
+      'email': email,
+      'middleName':
+          _middleName.text.trim().isEmpty ? null : _middleName.text.trim(),
+      if (phone.isNotEmpty) 'phone': phone,
       'status': _status,
-      'paymentFrequency': _paymentDuration,
-      if (_paymentBasis.isNotEmpty) 'paymentBasis': _paymentBasis,
-      'medAdminApproved': _medAdminApproved,
-      'syncQuickBooks': _syncQuickBooks,
-      if (_residenceIds.isNotEmpty)
-        'residenceIds': _residenceIds.toList(growable: false),
-      if (_primaryResidenceId.isNotEmpty)
-        'primaryResidenceId': _primaryResidenceId,
+      if (_hireDate.isNotEmpty) 'hireDate': _hireDate,
+      if (residences.isNotEmpty) 'residenceIds': residences,
+      'employmentType': _employmentType,
+      if (_paymentBasis.isNotEmpty) 'employmentBasis': _paymentBasis,
+      'paymentDuration': _paymentDuration,
+      if (_dob.isNotEmpty) 'dateOfBirth': _dob,
+      if (_address.text.trim().isNotEmpty)
+        'addressLine1': _address.text.trim(),
+      if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
+      'emergencyContact': {
+        'name': _emergencyName.text.trim(),
+        'phone': _emergencyPhone.text.trim(),
+        if (_relationship.isNotEmpty) 'relationship': _relationship,
+        if (_alternativeContact.text.trim().isNotEmpty)
+          'altPhone': _alternativeContact.text.trim(),
+      },
+      if (_paymentBasis == 'hourly_based' &&
+          _numOrNull(_hourlyRate.text) != null)
+        'hourlyRate': _numOrNull(_hourlyRate.text),
     };
-    return {
+
+    final config = _employmentConfig();
+    final body = <String, dynamic>{
       'staff': staff,
-      if (_roleIds.isNotEmpty) 'roleIds': _roleIds.toList(growable: false),
-      if (_residenceIds.isNotEmpty)
-        'residenceIds': _residenceIds.toList(growable: false),
-      if (_primaryResidenceId.isNotEmpty)
-        'primaryResidenceId': _primaryResidenceId,
-      'createLogin': _createLogin,
-      'sendInvite': _createLogin && _sendInvite,
+      if (_addToQuickBooks) 'addToQuickBooks': true,
+      if (config != null) 'employmentConfig': config,
+      if (_documents.isNotEmpty)
+        'documents': [
+          for (final d in _documents) {'name': d.name},
+        ],
     };
+
+    if (_createLogin) {
+      body['account'] = {
+        'email': email,
+        'name': '$first $last'.trim(),
+        'middleName':
+            _middleName.text.trim().isEmpty ? null : _middleName.text.trim(),
+        if (phone.isNotEmpty) 'phone': phone,
+        'roleIds': roles,
+        if (residences.isNotEmpty) 'residenceIds': residences,
+        if (_primaryResidenceId.isNotEmpty)
+          'primaryResidenceId': _primaryResidenceId,
+        if (_sendInvite)
+          'sendInvitationEmail': true
+        else ...{
+          'sendInvitationEmail': false,
+          'password': _temporaryPassword.text.trim(),
+        },
+      };
+    }
+
+    return body;
   }
 
   Future<void> _submit() async {
@@ -385,16 +511,41 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
     }
     final data = result.value ?? const <String, dynamic>{};
     final staffId = (data['staffId'] ?? '').toString().trim();
-    // Fallback: if onboard ignored photoUrl, PATCH staff after create.
+    final userId = (data['userId'] ?? '').toString().trim();
+    final inviteSent = data['invitationEmailSent'] == true;
+
     if (photoUrl != null && photoUrl.isNotEmpty && staffId.isNotEmpty) {
       await widget.repository.patchStaff(staffId, {'photoUrl': photoUrl});
     }
+    if (_medAdminApproved && staffId.isNotEmpty) {
+      await widget.repository.patchStaff(staffId, {
+        'medAdminApproved': true,
+      });
+    }
     if (!mounted) return;
-    AppSnackbar.show(
-      'Person added',
-      '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim(),
-      force: true,
-    );
+
+    final name = '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim();
+    if (_createLogin && userId.isEmpty) {
+      AppSnackbar.show(
+        'Person added',
+        '$name was saved, but a login was not created. Assign a role and invite again from the directory.',
+        force: true,
+      );
+    } else if (_createLogin && _sendInvite && !inviteSent) {
+      AppSnackbar.show(
+        'Login created',
+        'Invitation email did not send — share sign-in details another way, or invite again from the list.',
+        force: true,
+      );
+    } else if (_createLogin && _sendInvite) {
+      AppSnackbar.show(
+        'Person added',
+        'Invitation sent to ${_email.text.trim()}. Advise them to check Spam/Junk if needed.',
+        force: true,
+      );
+    } else {
+      AppSnackbar.show('Person added', name, force: true);
+    }
     if (_documents.isNotEmpty) {
       AppSnackbar.show(
         'Documents',
@@ -485,7 +636,7 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           )
         else
           HandoverButton(
-            label: 'Back',
+            label: 'Previous',
             onPressed: _saving
                 ? null
                 : () => _goTo(_UserStep.values[index - 1]),
@@ -562,7 +713,6 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           controller: _firstName,
           enabled: !_saving,
           error: _errors['firstName'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -570,7 +720,6 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           controller: _middleName,
           enabled: !_saving,
           placeholder: 'Optional',
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -579,7 +728,6 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           controller: _lastName,
           enabled: !_saving,
           error: _errors['lastName'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -590,7 +738,6 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           keyboardType: TextInputType.emailAddress,
           helper: 'Must be unique within your organization.',
           error: _errors['email'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -599,7 +746,6 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           enabled: !_saving,
           keyboardType: TextInputType.phone,
           placeholder: '(555) 123-4567',
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientDateField(
@@ -615,7 +761,6 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           controller: _address,
           enabled: !_saving,
           placeholder: 'Street, city, state, zip',
-          onChanged: (_) => _changed(),
         ),
       ],
     );
@@ -636,7 +781,6 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           controller: _emergencyName,
           enabled: !_saving,
           error: _errors['emergencyContactName'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -646,14 +790,13 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           enabled: !_saving,
           keyboardType: TextInputType.phone,
           error: _errors['emergencyContactPhone'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientSelect(
           label: 'Relationship',
           value: _relationship,
           placeholder: 'Select relationship',
-          options: [for (final r in _relationships) (r, r)],
+          options: _relationships,
           enabled: !_saving,
           onChanged: (v) => setState(() => _relationship = v),
         ),
@@ -664,7 +807,6 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           enabled: !_saving,
           keyboardType: TextInputType.phone,
           placeholder: '(555) 123-4567',
-          onChanged: (_) => _changed(),
         ),
       ],
     );
@@ -771,19 +913,193 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
               'How the pay is worked out — separate from the contract type above.',
           options: _paymentBases,
           enabled: !_saving,
-          onChanged: (v) => setState(() => _paymentBasis = v),
+          onChanged: (v) => setState(() {
+            _paymentBasis = v;
+            _errors.remove('hourlyRate');
+            _errors.remove('monthlySalary');
+            _errors.remove('shiftRate');
+          }),
         ),
+        if (_paymentBasis.isNotEmpty) ...[
+          _gap,
+          _employmentConfigPanel(),
+        ],
         _gap,
         ClientSwitchTile(
           label: 'Also add to QuickBooks',
           description:
-              'Links them to their QuickBooks employee, or adds them there with their name, email, phone and start date.',
-          value: _syncQuickBooks,
+              'Links them to their QuickBooks employee, or adds them there with their name, email, phone and start date. Their pay rate, tax and bank details are set up in QuickBooks.',
+          value: _addToQuickBooks,
           bordered: true,
           onChanged:
-              _saving ? null : (v) => setState(() => _syncQuickBooks = v),
+              _saving ? null : (v) => setState(() => _addToQuickBooks = v),
         ),
       ],
+    );
+  }
+
+  Widget _employmentConfigPanel() {
+    final (subtitle, fields) = switch (_paymentBasis) {
+      'hourly_based' => (
+          'Approved hours × hourly rate + overtime',
+          <Widget>[
+            ClientInput(
+              label: 'Hourly Rate (\$)',
+              required: true,
+              controller: _hourlyRate,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 28.50',
+              error: _errors['hourlyRate'],
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientInput(
+              label: 'Overtime Rate (\$/hour)',
+              controller: _overtimeRate,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 42.75',
+              helper: 'An amount per hour, not a multiplier.',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientSwitchTile(
+              label: 'Attendance required',
+              description:
+                  'Hours must be clocked and approved before they are paid.',
+              value: _attendanceRequired,
+              bordered: true,
+              onChanged: _saving
+                  ? null
+                  : (v) => setState(() => _attendanceRequired = v),
+            ),
+          ],
+        ),
+      'salary_based' => (
+          'Fixed salary + allowances − deductions',
+          <Widget>[
+            ClientInput(
+              label: 'Monthly Salary (\$)',
+              required: true,
+              controller: _monthlySalary,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 3000',
+              error: _errors['monthlySalary'],
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientInput(
+              label: 'Allowances (\$)',
+              controller: _allowances,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 200',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientInput(
+              label: 'Deductions (\$)',
+              controller: _deductions,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 150',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+          ],
+        ),
+      'shift_based' => (
+          'Completed shifts × shift rate + overtime',
+          <Widget>[
+            ClientInput(
+              label: 'Shift Rate (\$)',
+              required: true,
+              controller: _shiftRate,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 150',
+              error: _errors['shiftRate'],
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientSelect(
+              label: 'Shift Type',
+              value: _shiftType,
+              placeholder: 'Select shift type',
+              options: _shiftTypes,
+              enabled: !_saving,
+              onChanged: (v) => setState(() => _shiftType = v),
+            ),
+            _gap,
+            ClientInput(
+              label: 'Overtime After (hours)',
+              controller: _overtimeAfterHours,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 8',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientInput(
+              label: 'Overtime Rate (\$/hour)',
+              controller: _overtimeRate,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 30',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+          ],
+        ),
+      _ => ('', <Widget>[]),
+    };
+
+    return HandoverPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Employment Configuration',
+            style: handoverText(
+              context,
+              14,
+              weight: FontWeight.w700,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: handoverText(context, 12, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 14),
+          ...fields,
+        ],
+      ),
     );
   }
 
@@ -939,6 +1255,12 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
         ),
         if (_createLogin) ...[
           _gap,
+          if (_roleIds.isEmpty)
+            ClientBanner(
+              'Pick at least one staff role in Employment Information — a login cannot be created without a role.',
+              warning: true,
+            ),
+          if (_roleIds.isEmpty) _gap,
           ClientSwitchTile(
             label: 'Send an invitation',
             description: 'Emails a link so they set their own password.',
@@ -947,6 +1269,17 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
             onChanged:
                 _saving ? null : (v) => setState(() => _sendInvite = v),
           ),
+          if (!_sendInvite) ...[
+            _gap,
+            ClientInput(
+              label: 'Temporary password',
+              required: true,
+              controller: _temporaryPassword,
+              enabled: !_saving,
+              helper: 'At least 8 characters. Share this with them securely.',
+              error: _errors['temporaryPassword'],
+            ),
+          ],
           _gap,
           Container(
             padding: const EdgeInsets.all(12),

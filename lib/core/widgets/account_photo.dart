@@ -47,8 +47,9 @@ class AccountPhoto extends StatelessWidget {
               fit: BoxFit.cover,
               gaplessPlayback: true,
               errorBuilder: (_, _, _) => fallback,
-              loadingBuilder: (_, child, progress) =>
-                  progress == null ? child : fallback,
+              // Keep the frame (or prior frame) while decoding — swapping to
+              // initials mid-load made header avatars flicker / look empty.
+              loadingBuilder: (_, child, _) => child,
             ),
     );
   }

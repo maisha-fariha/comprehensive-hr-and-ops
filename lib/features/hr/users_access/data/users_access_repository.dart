@@ -147,7 +147,9 @@ class UsersAccessRepository {
     );
   }
 
-  /// `POST /users/onboard` — returns `{ staffId, userId, invitationEmailSent }`.
+  /// `POST /users/onboard` — web shape: `{ staff, employmentConfig?, account?,
+  /// addToQuickBooks? }` → `{ staffId, userId, invitationEmailSent }`.
+  /// Login + invite require `account.roleIds` and `account.sendInvitationEmail`.
   Future<Result<Map<String, dynamic>>> onboardUser(
     Map<String, dynamic> body,
   ) async {

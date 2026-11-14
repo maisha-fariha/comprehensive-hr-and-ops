@@ -21,6 +21,7 @@ class StaffProfileDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final session = Get.find<UserSession>();
     return Scaffold(
       key: const Key('staff-profile-detail-page'),
       backgroundColor: AppColors.scaffoldBackground,
@@ -28,11 +29,20 @@ class StaffProfileDetailPage extends StatelessWidget {
         bottom: false,
         child: Column(
           children: [
-            StaffProfileSettingsHeader(
-              onBackTap: Get.back,
-              initials: profile.initials,
-              title: 'My Profile',
-            ),
+            Obx(() {
+              final url = session.avatarUrl;
+              final initials = session.avatarInitials.trim().isEmpty
+                  ? profile.initials
+                  : session.avatarInitials;
+              // Header kept in sync with session so upload/remove updates
+              // the top-right photo (not only the Picture card).
+              return StaffProfileSettingsHeader(
+                onBackTap: Get.back,
+                initials: initials,
+                imageUrl: url,
+                title: 'My Profile',
+              );
+            }),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(
@@ -52,17 +62,24 @@ class StaffProfileDetailPage extends StatelessWidget {
                   SizedBox(
                     height: ResponsiveHelper.getResponsiveHeight(context, 16),
                   ),
-                  Text(
-                    profile.name,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize:
-                          ResponsiveHelper.getResponsiveFontSize(context, 22),
-                      color: AppColors.textHeading,
-                    ),
-                  ),
+                  Obx(() {
+                    final name = session.displayName.trim().isEmpty
+                        ? profile.name
+                        : session.displayName.trim();
+                    return Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          22,
+                        ),
+                        color: AppColors.textHeading,
+                      ),
+                    );
+                  }),
                   SizedBox(
                     height: ResponsiveHelper.getResponsiveHeight(context, 4),
                   ),

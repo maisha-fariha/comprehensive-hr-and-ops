@@ -92,18 +92,34 @@ abstract final class AuthMapper {
         JsonCodec.string(user['first_name']);
     final lastName = JsonCodec.string(user['lastName']) ??
         JsonCodec.string(user['last_name']);
+    final staffEarly = JsonCodec.mapAt(user, 'staff') ??
+        JsonCodec.mapAt(json, 'staff');
+    final middleName = JsonCodec.string(user['middleName']) ??
+        JsonCodec.string(user['middle_name']) ??
+        JsonCodec.string(staffEarly?['middleName']) ??
+        JsonCodec.string(staffEarly?['middle_name']);
     final email = JsonCodec.stringOr(user['email'] ?? json['email'], '');
-    final displayName = JsonCodec.string(user['displayName']) ??
+    // Prefer first + middle + last so middle name appears on My Profile.
+    // API `name` / `displayName` often drops the middle name.
+    final fromParts = _joinName(firstName, middleName, lastName);
+    final apiName = JsonCodec.string(user['displayName']) ??
         JsonCodec.string(user['fullName']) ??
-        JsonCodec.string(user['name']) ??
-        _joinName(firstName, lastName) ??
-        (email.contains('@') ? email.split('@').first : 'there');
+        JsonCodec.string(user['name']);
+    final displayName = () {
+      if (fromParts != null &&
+          middleName != null &&
+          middleName.trim().isNotEmpty) {
+        return fromParts;
+      }
+      return fromParts ??
+          apiName ??
+          (email.contains('@') ? email.split('@').first : 'there');
+    }();
 
     final tenant = JsonCodec.mapAt(user, 'tenant') ??
         JsonCodec.mapAt(json, 'tenant');
     final residence = _firstResidence(user) ?? _firstResidence(json);
-    final staff = JsonCodec.mapAt(user, 'staff') ??
-        JsonCodec.mapAt(json, 'staff');
+    final staff = staffEarly;
 
     return MobileProfile(
       id: JsonCodec.stringOr(user['id'] ?? user['userId'] ?? json['id'], ''),
@@ -275,8 +291,11 @@ abstract final class AuthMapper {
     return null;
   }
 
-  static String? _joinName(String? first, String? last) {
-    final parts = [first, last].whereType<String>().where((p) => p.isNotEmpty);
+  static String? _joinName(String? first, String? middle, String? last) {
+    final parts = [first, middle, last]
+        .whereType<String>()
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty);
     if (parts.isEmpty) return null;
     return parts.join(' ');
   }

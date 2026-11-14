@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
@@ -58,39 +59,48 @@ class _EditUserSheet extends StatefulWidget {
 class _EditUserSheetState extends State<_EditUserSheet> {
   static const _gap = SizedBox(height: 16);
 
-  static const _relationships = [
-    'Spouse',
-    'Parent',
-    'Child',
-    'Sibling',
-    'Friend',
-    'Caseworker',
-    'Other',
+  static const _relationships = <(String, String)>[
+    ('spouse', 'Spouse'),
+    ('parent', 'Parent'),
+    ('child', 'Child'),
+    ('sibling', 'Sibling'),
+    ('friend', 'Friend'),
+    ('caseworker', 'Caseworker'),
+    ('other', 'Other'),
   ];
 
   static const _employmentTypes = <(String, String)>[
     ('full_time', 'Full-time'),
     ('part_time', 'Part-time'),
-    ('casual', 'Casual'),
     ('contract', 'Contract'),
+    ('prn', 'As needed (PRN)'),
   ];
 
   static const _statuses = <(String, String)>[
     ('active', 'Active'),
-    ('inactive', 'Inactive'),
     ('on_leave', 'On leave'),
+    ('inactive', 'Inactive'),
   ];
 
   static const _paymentDurations = <(String, String)>[
     ('weekly', 'Weekly'),
-    ('fortnightly', 'Fortnightly'),
+    ('bi_weekly', 'Fortnightly'),
+    ('semi_monthly', 'Twice a month'),
     ('monthly', 'Monthly'),
   ];
 
   static const _paymentBases = <(String, String)>[
-    ('hourly', 'Hourly'),
+    ('hourly_based', 'Hourly based'),
     ('salary_based', 'Salary based'),
-    ('contract', 'Contract'),
+    ('shift_based', 'Shift based'),
+  ];
+
+  static const _shiftTypes = <(String, String)>[
+    ('any', 'Any shift'),
+    ('day', 'Day'),
+    ('evening', 'Evening'),
+    ('night', 'Night'),
+    ('weekend', 'Weekend'),
   ];
 
   final _scroll = ScrollController();
@@ -120,9 +130,19 @@ class _EditUserSheetState extends State<_EditUserSheet> {
   String _employmentType = 'full_time';
   String _hireDate = '';
   String _status = 'active';
-  String _paymentDuration = 'fortnightly';
+  String _paymentDuration = 'bi_weekly';
   String _paymentBasis = '';
   bool _medAdminApproved = false;
+
+  final _hourlyRate = TextEditingController();
+  final _overtimeRate = TextEditingController();
+  bool _attendanceRequired = true;
+  final _monthlySalary = TextEditingController();
+  final _allowances = TextEditingController();
+  final _deductions = TextEditingController();
+  final _shiftRate = TextEditingController();
+  String _shiftType = 'any';
+  final _overtimeAfterHours = TextEditingController();
 
   List<({String id, String name})> _residences = const [];
   final Set<String> _residenceIds = {};
@@ -204,7 +224,10 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       source['phone'] ?? user['phone'] ?? widget.person.phone,
       widget.person.phone,
     );
-    _address.text = JsonCodec.stringOr(source['address'], '');
+    _address.text = JsonCodec.stringOr(
+      source['addressLine1'] ?? source['address'],
+      '',
+    );
     _dob = JsonCodec.stringOr(source['dateOfBirth'], '');
     if (_dob.length >= 10) _dob = _dob.substring(0, 10);
     _existingPhotoUrl = DirectoryPerson.fromJson({
@@ -227,39 +250,75 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       'employeeCode': '',
     }).photoUrl;
 
-    _emergencyName.text =
-        JsonCodec.stringOr(source['emergencyContactName'], '');
-    _emergencyPhone.text =
-        JsonCodec.stringOr(source['emergencyContactPhone'], '');
+    final emergency = JsonCodec.mapAt(source, 'emergencyContact') ?? const {};
+    _emergencyName.text = JsonCodec.stringOr(
+      emergency['name'] ?? source['emergencyContactName'],
+      '',
+    );
+    _emergencyPhone.text = JsonCodec.stringOr(
+      emergency['phone'] ?? source['emergencyContactPhone'],
+      '',
+    );
     _alternativeContact.text = JsonCodec.stringOr(
-      source['alternativeContactPhone'] ?? source['alternativeContact'],
+      emergency['altPhone'] ??
+          source['alternativeContactPhone'] ??
+          source['alternativeContact'],
       '',
     );
-    _relationship = JsonCodec.stringOr(
-      source['emergencyContactRelationship'] ?? source['relationship'],
+    var relationship = JsonCodec.stringOr(
+      emergency['relationship'] ??
+          source['emergencyContactRelationship'] ??
+          source['relationship'],
       '',
-    );
+    ).toLowerCase();
+    if (relationship == 'case worker') relationship = 'caseworker';
+    _relationship = relationship;
 
     _employmentType = JsonCodec.stringOr(
       source['employmentType'],
       'full_time',
     );
+    if (_employmentType == 'casual') _employmentType = 'prn';
     final hire = JsonCodec.stringOr(source['hireDate'], '');
     _hireDate = hire.length >= 10 ? hire.substring(0, 10) : hire;
     _status = JsonCodec.stringOr(
       source['status'] ?? widget.person.status,
       'active',
     );
-    _paymentDuration = JsonCodec.stringOr(
-      source['paymentFrequency'] ?? source['paymentDuration'],
-      'fortnightly',
+    var duration = JsonCodec.stringOr(
+      source['paymentDuration'] ?? source['paymentFrequency'],
+      'bi_weekly',
     );
-    _paymentBasis = JsonCodec.stringOr(
-      source['paymentBasis'] ?? source['employmentBasis'],
+    if (duration == 'fortnightly') duration = 'bi_weekly';
+    _paymentDuration = duration;
+    var basis = JsonCodec.stringOr(
+      source['employmentBasis'] ?? source['paymentBasis'],
       '',
     );
+    if (basis == 'hourly') basis = 'hourly_based';
+    if (basis == 'contract') basis = 'shift_based';
+    _paymentBasis = basis;
     _medAdminApproved =
         JsonCodec.boolean(source['medAdminApproved']) ?? false;
+
+    final cfg = JsonCodec.mapAt(source, 'employmentConfig') ?? const {};
+    String money(dynamic v) {
+      final n = JsonCodec.number(v);
+      if (n == null) return '';
+      return n == n.roundToDouble() ? '${n.toInt()}' : '$n';
+    }
+
+    _hourlyRate.text = money(cfg['hourlyRate'] ?? source['hourlyRate']);
+    _overtimeRate.text = money(cfg['overtimeRate']);
+    _attendanceRequired =
+        JsonCodec.boolean(cfg['attendanceRequired']) ?? true;
+    _monthlySalary.text = money(cfg['monthlySalary']);
+    _allowances.text = money(cfg['allowances']);
+    _deductions.text = money(cfg['deductions']);
+    _shiftRate.text = money(cfg['shiftRate']);
+    _shiftType = JsonCodec.stringOr(cfg['shiftType'], 'any');
+    if (_shiftType.isEmpty) _shiftType = 'any';
+    _overtimeAfterHours.text = money(cfg['overtimeAfterHours']);
 
     _roleIds
       ..clear()
@@ -311,13 +370,58 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       _emergencyName,
       _emergencyPhone,
       _alternativeContact,
+      _hourlyRate,
+      _overtimeRate,
+      _monthlySalary,
+      _allowances,
+      _deductions,
+      _shiftRate,
+      _overtimeAfterHours,
     ]) {
       c.dispose();
     }
     super.dispose();
   }
 
-  void _changed() => setState(() {});
+  double? _numOrNull(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  Map<String, dynamic>? _employmentConfig() {
+    switch (_paymentBasis) {
+      case 'hourly_based':
+        return {
+          if (_numOrNull(_hourlyRate.text) != null)
+            'hourlyRate': _numOrNull(_hourlyRate.text),
+          if (_numOrNull(_overtimeRate.text) != null)
+            'overtimeRate': _numOrNull(_overtimeRate.text),
+          'attendanceRequired': _attendanceRequired,
+        };
+      case 'salary_based':
+        return {
+          if (_numOrNull(_monthlySalary.text) != null)
+            'monthlySalary': _numOrNull(_monthlySalary.text),
+          if (_numOrNull(_allowances.text) != null)
+            'allowances': _numOrNull(_allowances.text),
+          if (_numOrNull(_deductions.text) != null)
+            'deductions': _numOrNull(_deductions.text),
+        };
+      case 'shift_based':
+        return {
+          if (_numOrNull(_shiftRate.text) != null)
+            'shiftRate': _numOrNull(_shiftRate.text),
+          if (_shiftType.isNotEmpty) 'shiftType': _shiftType,
+          if (_numOrNull(_overtimeAfterHours.text) != null)
+            'overtimeAfterHours': _numOrNull(_overtimeAfterHours.text),
+          if (_numOrNull(_overtimeRate.text) != null)
+            'overtimeRate': _numOrNull(_overtimeRate.text),
+        };
+      default:
+        return null;
+    }
+  }
 
   void _goTo(_EditStep step) {
     setState(() {
@@ -325,6 +429,19 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       _banner = null;
     });
     if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  bool _rateValidForBasis() {
+    switch (_paymentBasis) {
+      case 'hourly_based':
+        return _numOrNull(_hourlyRate.text) != null;
+      case 'salary_based':
+        return _numOrNull(_monthlySalary.text) != null;
+      case 'shift_based':
+        return _numOrNull(_shiftRate.text) != null;
+      default:
+        return true;
+    }
   }
 
   bool _stepComplete(_EditStep step) {
@@ -337,7 +454,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
         return _emergencyName.text.trim().isNotEmpty &&
             _emergencyPhone.text.trim().isNotEmpty;
       case _EditStep.employment:
-        return true;
+        return _rateValidForBasis();
       case _EditStep.residence:
         return _residenceIds.isNotEmpty && _primaryResidenceId.isNotEmpty;
       case _EditStep.account:
@@ -345,35 +462,104 @@ class _EditUserSheetState extends State<_EditUserSheet> {
     }
   }
 
+  Map<String, String> _validateStep(_EditStep step) {
+    final errors = <String, String>{};
+    switch (step) {
+      case _EditStep.personal:
+        if (_firstName.text.trim().isEmpty) {
+          errors['firstName'] = 'First name is required.';
+        }
+        if (_lastName.text.trim().isEmpty) {
+          errors['lastName'] = 'Last name is required.';
+        }
+        if (_email.text.trim().isEmpty) {
+          errors['email'] = 'Email is required.';
+        }
+      case _EditStep.emergency:
+        if (_staffId.isNotEmpty) {
+          if (_emergencyName.text.trim().isEmpty) {
+            errors['emergencyContactName'] =
+                'Emergency contact name is required.';
+          }
+          if (_emergencyPhone.text.trim().isEmpty) {
+            errors['emergencyContactPhone'] =
+                'Emergency contact phone is required.';
+          }
+        }
+      case _EditStep.employment:
+        if (_paymentBasis == 'hourly_based' &&
+            _numOrNull(_hourlyRate.text) == null) {
+          errors['hourlyRate'] = 'Hourly rate is required.';
+        }
+        if (_paymentBasis == 'salary_based' &&
+            _numOrNull(_monthlySalary.text) == null) {
+          errors['monthlySalary'] = 'Monthly salary is required.';
+        }
+        if (_paymentBasis == 'shift_based' &&
+            _numOrNull(_shiftRate.text) == null) {
+          errors['shiftRate'] = 'Shift rate is required.';
+        }
+      case _EditStep.residence:
+        if (_staffId.isNotEmpty) {
+          if (_residenceIds.isEmpty) {
+            errors['residenceIds'] = 'Assign at least one residence.';
+          }
+          if (_primaryResidenceId.isEmpty) {
+            errors['primaryResidenceId'] = 'Choose a primary residence.';
+          }
+        }
+      case _EditStep.account:
+        if (_userId.isNotEmpty && _roleIds.isEmpty) {
+          errors['roleIds'] = 'A login needs at least one role.';
+        }
+    }
+    return errors;
+  }
+
+  _EditStep _stepOf(String field) => switch (field) {
+        'firstName' || 'lastName' || 'email' => _EditStep.personal,
+        'emergencyContactName' ||
+        'emergencyContactPhone' =>
+          _EditStep.emergency,
+        'hourlyRate' || 'monthlySalary' || 'shiftRate' => _EditStep.employment,
+        'residenceIds' || 'primaryResidenceId' => _EditStep.residence,
+        _ => _EditStep.account,
+      };
+
+  bool _stepValid() {
+    final errors = _validateStep(_step);
+    setState(() {
+      _errors = {..._errors}
+        ..removeWhere((k, _) => _stepOf(k) == _step)
+        ..addAll(errors);
+      if (errors.isNotEmpty) {
+        _banner =
+            '${errors.length} field${errors.length == 1 ? '' : 's'} still need attention — ${errors.keys.join(', ')}.';
+      } else {
+        _banner = null;
+      }
+    });
+    return errors.isEmpty;
+  }
+
+  void _jump(_EditStep step) {
+    if (step.index > _step.index && !_stepValid()) return;
+    _goTo(step);
+  }
+
+  void _next() {
+    if (!_stepValid()) return;
+    if (_step.index < _EditStep.values.length - 1) {
+      _goTo(_EditStep.values[_step.index + 1]);
+      return;
+    }
+    _save();
+  }
+
   Map<String, String> _validateAll() {
     final errors = <String, String>{};
-    if (_firstName.text.trim().isEmpty) {
-      errors['firstName'] = 'First name is required.';
-    }
-    if (_lastName.text.trim().isEmpty) {
-      errors['lastName'] = 'Last name is required.';
-    }
-    if (_email.text.trim().isEmpty) {
-      errors['email'] = 'Email is required.';
-    }
-    if (_staffId.isNotEmpty) {
-      if (_emergencyName.text.trim().isEmpty) {
-        errors['emergencyContactName'] =
-            'Emergency contact name is required.';
-      }
-      if (_emergencyPhone.text.trim().isEmpty) {
-        errors['emergencyContactPhone'] =
-            'Emergency contact phone is required.';
-      }
-      if (_residenceIds.isEmpty) {
-        errors['residenceIds'] = 'Assign at least one residence.';
-      }
-      if (_primaryResidenceId.isEmpty) {
-        errors['primaryResidenceId'] = 'Choose a primary residence.';
-      }
-    }
-    if (_userId.isNotEmpty && _roleIds.isEmpty) {
-      errors['roleIds'] = 'A login needs at least one role.';
+    for (final step in _EditStep.values) {
+      errors.addAll(_validateStep(step));
     }
     return errors;
   }
@@ -405,6 +591,10 @@ class _EditUserSheetState extends State<_EditUserSheet> {
         } else if (errors.containsKey('emergencyContactName') ||
             errors.containsKey('emergencyContactPhone')) {
           _step = _EditStep.emergency;
+        } else if (errors.containsKey('hourlyRate') ||
+            errors.containsKey('monthlySalary') ||
+            errors.containsKey('shiftRate')) {
+          _step = _EditStep.employment;
         } else if (errors.containsKey('residenceIds') ||
             errors.containsKey('primaryResidenceId')) {
           _step = _EditStep.residence;
@@ -441,25 +631,32 @@ class _EditUserSheetState extends State<_EditUserSheet> {
     }
 
     if (_staffId.isNotEmpty) {
+      final config = _employmentConfig();
       final staffBody = <String, dynamic>{
         'firstName': _firstName.text.trim(),
         'lastName': _lastName.text.trim(),
         'email': _email.text.trim(),
         'middleName': _middleName.text.trim(),
         'phone': _phone.text.trim(),
-        'address': _address.text.trim(),
+        'addressLine1': _address.text.trim(),
         if (_dob.isNotEmpty) 'dateOfBirth': _dob,
         if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
-        'emergencyContactName': _emergencyName.text.trim(),
-        'emergencyContactPhone': _emergencyPhone.text.trim(),
-        if (_relationship.isNotEmpty)
-          'emergencyContactRelationship': _relationship,
-        'alternativeContactPhone': _alternativeContact.text.trim(),
+        'emergencyContact': {
+          'name': _emergencyName.text.trim(),
+          'phone': _emergencyPhone.text.trim(),
+          if (_relationship.isNotEmpty) 'relationship': _relationship,
+          if (_alternativeContact.text.trim().isNotEmpty)
+            'altPhone': _alternativeContact.text.trim(),
+        },
         'employmentType': _employmentType,
         if (_hireDate.isNotEmpty) 'hireDate': _hireDate,
         'status': _status,
-        'paymentFrequency': _paymentDuration,
-        if (_paymentBasis.isNotEmpty) 'paymentBasis': _paymentBasis,
+        'paymentDuration': _paymentDuration,
+        if (_paymentBasis.isNotEmpty) 'employmentBasis': _paymentBasis,
+        if (config != null) 'employmentConfig': config,
+        if (_paymentBasis == 'hourly_based' &&
+            _numOrNull(_hourlyRate.text) != null)
+          'hourlyRate': _numOrNull(_hourlyRate.text),
         'medAdminApproved': _medAdminApproved,
         'residenceIds': _residenceIds.toList(growable: false),
         'primaryResidenceId': _primaryResidenceId,
@@ -561,7 +758,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       ),
       top: ClientStepChips(
         current: _step.name,
-        onTap: (id) => _goTo(_EditStep.values.byName(id)),
+        onTap: (id) => _jump(_EditStep.values.byName(id)),
         steps: [
           for (final s in _EditStep.values)
             (s.name, s.label, s.description, _stepComplete(s)),
@@ -596,9 +793,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           HandoverButton(
             label: 'Next',
             filled: true,
-            onPressed: _saving
-                ? null
-                : () => _goTo(_EditStep.values[index + 1]),
+            onPressed: _saving ? null : _next,
           )
         else
           HandoverButton(
@@ -667,14 +862,12 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           controller: _firstName,
           enabled: !_saving,
           error: _errors['firstName'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
           label: 'Middle Name',
           controller: _middleName,
           enabled: !_saving,
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -683,7 +876,6 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           controller: _lastName,
           enabled: !_saving,
           error: _errors['lastName'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -693,7 +885,6 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           enabled: !_saving,
           keyboardType: TextInputType.emailAddress,
           error: _errors['email'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -701,7 +892,6 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           controller: _phone,
           enabled: !_saving,
           keyboardType: TextInputType.phone,
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientDateField(
@@ -717,7 +907,6 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           controller: _address,
           enabled: !_saving,
           placeholder: 'Street, city, state, zip',
-          onChanged: (_) => _changed(),
         ),
       ],
     );
@@ -738,7 +927,6 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           controller: _emergencyName,
           enabled: !_saving,
           error: _errors['emergencyContactName'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientInput(
@@ -748,14 +936,13 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           enabled: !_saving,
           keyboardType: TextInputType.phone,
           error: _errors['emergencyContactPhone'],
-          onChanged: (_) => _changed(),
         ),
         _gap,
         ClientSelect(
           label: 'Relationship',
           value: _relationship,
           placeholder: 'Select relationship',
-          options: [for (final r in _relationships) (r, r)],
+          options: _relationships,
           enabled: !_saving,
           onChanged: (v) => setState(() => _relationship = v),
         ),
@@ -765,7 +952,6 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           controller: _alternativeContact,
           enabled: !_saving,
           keyboardType: TextInputType.phone,
-          onChanged: (_) => _changed(),
         ),
       ],
     );
@@ -816,15 +1002,6 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           onChanged: (v) => setState(() => _paymentDuration = v),
         ),
         _gap,
-        ClientSelect(
-          label: 'Payment Basis',
-          value: _paymentBasis,
-          placeholder: 'Select how this person is paid',
-          options: _paymentBases,
-          enabled: !_saving,
-          onChanged: (v) => setState(() => _paymentBasis = v),
-        ),
-        _gap,
         ClientSwitchTile(
           label: 'Can administer medicine',
           description:
@@ -835,7 +1012,192 @@ class _EditUserSheetState extends State<_EditUserSheet> {
               ? null
               : (v) => setState(() => _medAdminApproved = v),
         ),
+        _gap,
+        ClientSelect(
+          label: 'Payment Basis',
+          value: _paymentBasis,
+          placeholder: 'Select how this person is paid',
+          helper:
+              'How the pay is worked out — separate from the contract type above.',
+          options: _paymentBases,
+          enabled: !_saving,
+          onChanged: (v) => setState(() {
+            _paymentBasis = v;
+            _errors.remove('hourlyRate');
+            _errors.remove('monthlySalary');
+            _errors.remove('shiftRate');
+          }),
+        ),
+        if (_paymentBasis.isNotEmpty) ...[
+          _gap,
+          _employmentConfigPanel(),
+        ],
       ],
+    );
+  }
+
+  Widget _employmentConfigPanel() {
+    final (subtitle, fields) = switch (_paymentBasis) {
+      'hourly_based' => (
+          'Approved hours × hourly rate + overtime',
+          <Widget>[
+            ClientInput(
+              label: 'Hourly Rate (\$)',
+              required: true,
+              controller: _hourlyRate,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 28.50',
+              error: _errors['hourlyRate'],
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientInput(
+              label: 'Overtime Rate (\$/hour)',
+              controller: _overtimeRate,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 42.75',
+              helper: 'An amount per hour, not a multiplier.',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientSwitchTile(
+              label: 'Attendance required',
+              description:
+                  'Hours must be clocked and approved before they are paid.',
+              value: _attendanceRequired,
+              bordered: true,
+              onChanged: _saving
+                  ? null
+                  : (v) => setState(() => _attendanceRequired = v),
+            ),
+          ],
+        ),
+      'salary_based' => (
+          'Fixed salary + allowances − deductions',
+          <Widget>[
+            ClientInput(
+              label: 'Monthly Salary (\$)',
+              required: true,
+              controller: _monthlySalary,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 3000',
+              error: _errors['monthlySalary'],
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientInput(
+              label: 'Allowances (\$)',
+              controller: _allowances,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 200',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientInput(
+              label: 'Deductions (\$)',
+              controller: _deductions,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 150',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+          ],
+        ),
+      'shift_based' => (
+          'Completed shifts × shift rate + overtime',
+          <Widget>[
+            ClientInput(
+              label: 'Shift Rate (\$)',
+              required: true,
+              controller: _shiftRate,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 150',
+              error: _errors['shiftRate'],
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientSelect(
+              label: 'Shift Type',
+              value: _shiftType,
+              placeholder: 'Select shift type',
+              options: _shiftTypes,
+              enabled: !_saving,
+              onChanged: (v) => setState(() => _shiftType = v),
+            ),
+            _gap,
+            ClientInput(
+              label: 'Overtime After (hours)',
+              controller: _overtimeAfterHours,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 8',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+            _gap,
+            ClientInput(
+              label: 'Overtime Rate (\$/hour)',
+              controller: _overtimeRate,
+              enabled: !_saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              placeholder: 'e.g., 30',
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
+            ),
+          ],
+        ),
+      _ => ('', <Widget>[]),
+    };
+
+    return HandoverPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Employment Configuration',
+            style: handoverText(
+              context,
+              14,
+              weight: FontWeight.w700,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: handoverText(context, 12, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 14),
+          ...fields,
+        ],
+      ),
     );
   }
 

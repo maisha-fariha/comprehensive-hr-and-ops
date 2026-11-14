@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
@@ -93,6 +94,7 @@ class ClientInput extends StatelessWidget {
   final bool enabled;
   final int lines;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
 
   const ClientInput({
@@ -106,6 +108,7 @@ class ClientInput extends StatelessWidget {
     this.enabled = true,
     this.lines = 1,
     this.keyboardType,
+    this.inputFormatters,
     this.onChanged,
   });
 
@@ -121,6 +124,7 @@ class ClientInput extends StatelessWidget {
           minLines: lines,
           maxLines: lines == 1 ? 1 : lines + 3,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           onChanged: onChanged,
           style: handoverText(context, 13.5),
           decoration: InputDecoration(
