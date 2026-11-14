@@ -242,8 +242,19 @@ class DirectoryPerson {
       roleIds: ids,
       residenceNames: residences,
       linkedClientNames: clients,
-      photoUrl: JsonCodec.string(json['photoUrl']),
+      photoUrl: _photoUrl(json),
     );
+  }
+
+  static String? _photoUrl(Map<String, dynamic> json) {
+    final raw =
+        json['photoUrl'] ?? json['photo'] ?? json['avatar'] ?? json['avatarUrl'];
+    if (raw is Map) {
+      return JsonCodec.string(
+        raw['fileUrl'] ?? raw['url'] ?? raw['path'],
+      );
+    }
+    return JsonCodec.string(raw);
   }
 }
 

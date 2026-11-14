@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 import 'package:get_it/get_it.dart';
 
@@ -146,12 +147,140 @@ class UsersAccessRepository {
     );
   }
 
-  Future<Result<void>> onboardUser(Map<String, dynamic> body) async {
+  /// `POST /users/onboard` — returns `{ staffId, userId, invitationEmailSent }`.
+  Future<Result<Map<String, dynamic>>> onboardUser(
+    Map<String, dynamic> body,
+  ) async {
     final result = await _api.post(ApiEndpoints.usersOnboard, data: body);
+    return result.when(
+      success: (body) => Result.success(JsonCodec.unwrapMap(body)),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  /// Multipart `POST /uploads?category=` → file URL (same as client photos).
+  Future<Result<String>> uploadFile({
+    required String path,
+    required String fileName,
+    String category = 'avatars',
+  }) async {
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(path, filename: fileName),
+      });
+      final result = await _api.post(
+        ApiEndpoints.uploads,
+        data: form,
+        query: {'category': category},
+        silent: true,
+        allowQueue: false,
+      );
+      if (result.isFailure) {
+        return Result.failure(
+          result.error ?? const ApiError(message: 'Photo upload failed.'),
+        );
+      }
+      final map = JsonCodec.unwrapMap(result.value);
+      final url = JsonCodec.string(map['fileUrl'] ?? map['url']);
+      if (url == null || url.isEmpty) {
+        return Result.failure(
+          const ApiError(
+            message: 'Upload succeeded but file URL was missing.',
+          ),
+        );
+      }
+      return Result.success(url);
+    } catch (_) {
+      return Result.failure(const ApiError(message: 'Photo upload failed.'));
+    }
+  }
+
+  Future<Result<Map<String, dynamic>>> fetchStaff(String staffId) async {
+    final id = _cleanId(staffId);
+    if (id.isEmpty) {
+      return Result.failure(const ApiError(message: 'Missing staff id.'));
+    }
+    final result = await _api.get(ApiEndpoints.staffById(id), silent: true);
+    return result.when(
+      success: (body) => Result.success(JsonCodec.unwrapMap(body)),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  Future<Result<void>> patchStaff(
+    String staffId,
+    Map<String, dynamic> body,
+  ) async {
+    final id = _cleanId(staffId);
+    if (id.isEmpty) {
+      return Result.failure(const ApiError(message: 'Missing staff id.'));
+    }
+    final result = await _api.patch(ApiEndpoints.staffById(id), data: body);
     return result.when(
       success: (_) => Result.success(null),
       failure: (error) => Result.failure(error),
     );
+  }
+
+  Future<Result<Map<String, dynamic>>> fetchUser(String userId) async {
+    final id = _cleanId(userId);
+    if (id.isEmpty) {
+      return Result.failure(const ApiError(message: 'Missing user id.'));
+    }
+    final result = await _api.get(ApiEndpoints.userById(id), silent: true);
+    return result.when(
+      success: (body) => Result.success(JsonCodec.unwrapMap(body)),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  Future<Result<void>> patchUser(
+    String userId,
+    Map<String, dynamic> body,
+  ) async {
+    final id = _cleanId(userId);
+    if (id.isEmpty) {
+      return Result.failure(const ApiError(message: 'Missing user id.'));
+    }
+    final result = await _api.patch(ApiEndpoints.userById(id), data: body);
+    return result.when(
+      success: (_) => Result.success(null),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  Future<Result<void>> replaceUserResidences({
+    required String userId,
+    required List<String> residenceIds,
+    String? primaryResidenceId,
+  }) async {
+    final id = _cleanId(userId);
+    if (id.isEmpty) {
+      return Result.failure(const ApiError(message: 'Missing user id.'));
+    }
+    final result = await _api.put(
+      ApiEndpoints.userResidences(id),
+      data: {
+        'residenceIds': residenceIds,
+        if (primaryResidenceId != null && primaryResidenceId.isNotEmpty)
+          'primaryResidenceId': primaryResidenceId,
+      },
+    );
+    return result.when(
+      success: (_) => Result.success(null),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  String _cleanId(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.startsWith('staff:')) {
+      return trimmed.substring('staff:'.length);
+    }
+    if (trimmed.startsWith('user:')) {
+      return trimmed.substring('user:'.length);
+    }
+    return trimmed;
   }
 
   Future<Result<void>> inviteUser({

@@ -7,13 +7,17 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../../core/widgets/surface_card.dart';
+import '../../../clients/presentation/clients_labels.dart';
+import '../../../profile_settings/presentation/widgets/hr_initials_avatar.dart';
 import '../../data/users_access_repository.dart';
 import '../../domain/users_access_models.dart';
 import '../widgets/add_user_onboard_sheet.dart';
+import '../widgets/edit_user_sheet.dart';
 import '../widgets/role_form_sheets.dart';
 import '../widgets/role_holders_sheet.dart';
 import '../widgets/staff_categories_sheet.dart';
@@ -176,6 +180,24 @@ class _UsersAccessPageState extends State<UsersAccessPage>
     }
     final created = await showAddUserOnboardSheet(context, repository: _repo);
     if (created == true && mounted) await _loadPeople();
+  }
+
+  Future<void> _openEditUser(DirectoryPerson person) async {
+    if (!_canWriteUsers && !_canUsers) return;
+    if (!_canWriteUsers) {
+      AppSnackbar.show(
+        'Not allowed',
+        'Editing people needs users:write.',
+        force: true,
+      );
+      return;
+    }
+    final saved = await showEditUserSheet(
+      context,
+      repository: _repo,
+      person: person,
+    );
+    if (saved == true && mounted) await _loadPeople();
   }
 
   Future<void> _openCategories() async {
@@ -848,6 +870,7 @@ class _UsersAccessPageState extends State<UsersAccessPage>
             _PersonCard(
               person: person,
               canManage: _canWriteUsers,
+              onOpen: () => _openEditUser(person),
               onActions: () => _personAction(person),
             ),
             const SizedBox(height: 8),
@@ -1113,83 +1136,92 @@ class _WorthRow extends StatelessWidget {
 class _PersonCard extends StatelessWidget {
   final DirectoryPerson person;
   final bool canManage;
+  final VoidCallback onOpen;
   final VoidCallback onActions;
 
   const _PersonCard({
     required this.person,
     required this.canManage,
+    required this.onOpen,
     required this.onActions,
   });
 
   @override
   Widget build(BuildContext context) {
+    final avatarSeed =
+        person.staffId.isNotEmpty ? person.staffId : person.id;
     return SurfaceCard.card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: AppColors.filterButtonBackground,
-              child: Text(
-                person.name.trim().isEmpty
-                    ? '?'
-                    : person.name.trim()[0].toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onOpen,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                HrInitialsAvatar(
+                  initials: IsoDateRange.initials(
                     person.name,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
+                    fallback: '?',
                   ),
-                  if (person.email.isNotEmpty)
-                    Text(
-                      person.email,
-                      style: const TextStyle(
-                        fontFamily: 'Manrope',
-                        fontSize: 12.5,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
+                  imageUrl: person.photoUrl,
+                  size: 44,
+                  background: ClientsLabels.avatarColor(avatarSeed),
+                  foreground: AppColors.surfaceWhite,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _Tag(person.typeLabel),
-                      _Tag(person.roleLabel),
-                      _Tag(person.residenceLabel),
-                      _Tag(person.loginLabel),
-                      _Tag('Cert: ${person.certificationLabel}'),
-                      _Tag(
-                        person.isDeactivated ? 'Inactive' : 'Active',
-                        tone: person.isDeactivated
-                            ? AppColors.criticalRed
-                            : AppColors.activeGreen,
+                      Text(
+                        person.name,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      if (person.email.isNotEmpty)
+                        Text(
+                          person.email,
+                          style: const TextStyle(
+                            fontFamily: 'Manrope',
+                            fontSize: 12.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _Tag(person.typeLabel),
+                          _Tag(person.roleLabel),
+                          _Tag(person.residenceLabel),
+                          _Tag(person.loginLabel),
+                          _Tag('Cert: ${person.certificationLabel}'),
+                          _Tag(
+                            person.isDeactivated ? 'Inactive' : 'Active',
+                            tone: person.isDeactivated
+                                ? AppColors.criticalRed
+                                : AppColors.activeGreen,
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                if (canManage || person.userId.isNotEmpty)
+                  IconButton(
+                    onPressed: onActions,
+                    icon: const Icon(Icons.more_vert),
+                  ),
+              ],
             ),
-            if (canManage || person.userId.isNotEmpty)
-              IconButton(
-                onPressed: onActions,
-                icon: const Icon(Icons.more_vert),
-              ),
-          ],
+          ),
         ),
       ),
     );

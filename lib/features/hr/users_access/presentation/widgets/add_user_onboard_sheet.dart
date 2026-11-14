@@ -304,7 +304,7 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
     _submit();
   }
 
-  Map<String, dynamic> _buildBody() {
+  Map<String, dynamic> _buildBody({String? photoUrl}) {
     final staff = <String, dynamic>{
       'firstName': _firstName.text.trim(),
       'lastName': _lastName.text.trim(),
@@ -314,6 +314,7 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
       if (_phone.text.trim().isNotEmpty) 'phone': _phone.text.trim(),
       if (_address.text.trim().isNotEmpty) 'address': _address.text.trim(),
       if (_dob.isNotEmpty) 'dateOfBirth': _dob,
+      if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
       'emergencyContactName': _emergencyName.text.trim(),
       'emergencyContactPhone': _emergencyPhone.text.trim(),
       if (_relationship.isNotEmpty)
@@ -351,29 +352,57 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
       _saving = true;
       _banner = null;
     });
-    final result = await widget.repository.onboardUser(_buildBody());
-    if (!mounted) return;
-    result.when(
-      success: (_) {
-        AppSnackbar.show(
-          'Person added',
-          '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim(),
-          force: true,
-        );
-        if (_documents.isNotEmpty) {
-          AppSnackbar.show(
-            'Documents',
-            'Attach compliance files from the staff profile after create.',
-            force: true,
-          );
-        }
-        Navigator.of(context).pop(true);
-      },
-      failure: (err) => setState(() {
-        _saving = false;
-        _banner = err.message;
-      }),
+
+    String? photoUrl;
+    final localPhoto = _photoPath;
+    if (localPhoto != null && localPhoto.isNotEmpty) {
+      final upload = await widget.repository.uploadFile(
+        path: localPhoto,
+        fileName: localPhoto.split('/').last,
+        category: 'avatars',
+      );
+      if (!mounted) return;
+      if (upload.isFailure) {
+        setState(() {
+          _saving = false;
+          _banner = upload.error?.message ?? 'Photo upload failed.';
+        });
+        return;
+      }
+      photoUrl = upload.value;
+    }
+
+    final result = await widget.repository.onboardUser(
+      _buildBody(photoUrl: photoUrl),
     );
+    if (!mounted) return;
+    if (result.isFailure) {
+      setState(() {
+        _saving = false;
+        _banner = result.error?.message ?? 'Could not add person.';
+      });
+      return;
+    }
+    final data = result.value ?? const <String, dynamic>{};
+    final staffId = (data['staffId'] ?? '').toString().trim();
+    // Fallback: if onboard ignored photoUrl, PATCH staff after create.
+    if (photoUrl != null && photoUrl.isNotEmpty && staffId.isNotEmpty) {
+      await widget.repository.patchStaff(staffId, {'photoUrl': photoUrl});
+    }
+    if (!mounted) return;
+    AppSnackbar.show(
+      'Person added',
+      '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim(),
+      force: true,
+    );
+    if (_documents.isNotEmpty) {
+      AppSnackbar.show(
+        'Documents',
+        'Attach compliance files from the staff profile after create.',
+        force: true,
+      );
+    }
+    Navigator.of(context).pop(true);
   }
 
   Future<void> _pickPhoto() async {
