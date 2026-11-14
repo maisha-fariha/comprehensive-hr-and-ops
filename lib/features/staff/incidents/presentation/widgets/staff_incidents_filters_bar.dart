@@ -82,126 +82,149 @@ class StaffIncidentsFiltersBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
+    final rowGap = ResponsiveHelper.getResponsiveHeight(context, 8);
+    final colGap = ResponsiveHelper.getResponsiveWidth(context, 8);
+
+    Widget row(Widget left, Widget right) {
+      return Row(
+        children: [
+          Expanded(child: left),
+          SizedBox(width: colGap),
+          Expanded(child: right),
+        ],
+      );
+    }
+
+    return Column(
       key: const Key('staff-incidents-filters'),
-      spacing: ResponsiveHelper.getResponsiveWidth(context, 8),
-      runSpacing: ResponsiveHelper.getResponsiveHeight(context, 8),
-      crossAxisAlignment: WrapCrossAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _FilterDropdown<IncidentStatus?>(
-          value: statusFilter,
-          hint: 'Any Status',
-          items: const [
-            DropdownMenuItem<IncidentStatus?>(
-              value: null,
-              child: Text('Any Status'),
-            ),
-            DropdownMenuItem(
-              value: IncidentStatus.open,
-              child: Text('Open'),
-            ),
-            DropdownMenuItem(
-              value: IncidentStatus.inReview,
-              child: Text('Investigating'),
-            ),
-            DropdownMenuItem(
-              value: IncidentStatus.closed,
-              child: Text('Closed'),
-            ),
-          ],
-          onChanged: onStatusChanged,
-        ),
-        _FilterDropdown<IncidentSeverity?>(
-          value: severityFilter,
-          hint: 'Any Severity',
-          items: [
-            const DropdownMenuItem<IncidentSeverity?>(
-              value: null,
-              child: Text('Any Severity'),
-            ),
-            for (final severity in IncidentSeverity.values)
-              DropdownMenuItem(
-                value: severity,
-                child: Text(IncidentSeverityStyle.of(severity).shortLabel),
+        row(
+          _FilterDropdown<IncidentStatus?>(
+            value: statusFilter,
+            hint: 'Any Status',
+            items: const [
+              DropdownMenuItem<IncidentStatus?>(
+                value: null,
+                child: Text('Any Status'),
               ),
-          ],
-          onChanged: onSeverityChanged,
-        ),
-        _FilterDropdown<String?>(
-          key: const Key('staff-incidents-filter-residence'),
-          value: residenceFilterId,
-          hint: 'All Residences',
-          items: [
-            const DropdownMenuItem<String?>(
-              value: null,
-              child: Text('All Residences'),
-            ),
-            for (final residence in residences)
               DropdownMenuItem(
-                value: residence.id,
-                child: Text(residence.name),
+                value: IncidentStatus.open,
+                child: Text('Open'),
               ),
-          ],
-          onChanged: onResidenceChanged,
-        ),
-        _FilterDropdown<String?>(
-          key: const Key('staff-incidents-filter-resident'),
-          value: clientFilterId,
-          hint: 'Any Resident',
-          items: [
-            const DropdownMenuItem<String?>(
-              value: null,
-              child: Text('Any Resident'),
-            ),
-            for (final client in clients)
               DropdownMenuItem(
-                value: client.id,
-                child: Text(client.name),
+                value: IncidentStatus.inReview,
+                child: Text('Investigating'),
               ),
-          ],
-          onChanged: onClientChanged,
-        ),
-        _FilterDropdown<String?>(
-          key: const Key('staff-incidents-filter-investigator'),
-          value: investigatorFilterId,
-          hint: 'Any Investigator',
-          items: [
-            const DropdownMenuItem<String?>(
-              value: null,
-              child: Text('Any Investigator'),
-            ),
-            for (final staff in investigators)
               DropdownMenuItem(
-                value: staff.id,
-                child: Text(staff.name),
+                value: IncidentStatus.closed,
+                child: Text('Closed'),
               ),
-          ],
-          onChanged: onInvestigatorChanged,
+            ],
+            onChanged: onStatusChanged,
+          ),
+          _FilterDropdown<IncidentSeverity?>(
+            value: severityFilter,
+            hint: 'Any Severity',
+            items: [
+              const DropdownMenuItem<IncidentSeverity?>(
+                value: null,
+                child: Text('Any Severity'),
+              ),
+              for (final severity in IncidentSeverity.values)
+                DropdownMenuItem(
+                  value: severity,
+                  child: Text(IncidentSeverityStyle.of(severity).shortLabel),
+                ),
+            ],
+            onChanged: onSeverityChanged,
+          ),
         ),
-        _DateRangeChip(
-          label: _dateRangeLabel,
-          isActive: fromDate != null || toDate != null,
-          onTap: onPickDateRange,
+        SizedBox(height: rowGap),
+        row(
+          _FilterDropdown<String?>(
+            key: const Key('staff-incidents-filter-residence'),
+            value: residenceFilterId,
+            hint: 'All Residences',
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('All Residences'),
+              ),
+              for (final residence in residences)
+                DropdownMenuItem(
+                  value: residence.id,
+                  child: Text(residence.name),
+                ),
+            ],
+            onChanged: onResidenceChanged,
+          ),
+          _FilterDropdown<String?>(
+            key: const Key('staff-incidents-filter-resident'),
+            value: clientFilterId,
+            hint: 'Any Resident',
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Any Resident'),
+              ),
+              for (final client in clients)
+                DropdownMenuItem(
+                  value: client.id,
+                  child: Text(client.name),
+                ),
+            ],
+            onChanged: onClientChanged,
+          ),
         ),
-        GestureDetector(
-          key: const Key('staff-incidents-clear-filters'),
-          onTap: onClearFilters,
-          behavior: HitTestBehavior.opaque,
-          child: Padding(
-            padding: ResponsiveHelper.getResponsivePadding(
-              context,
-              horizontal: 4,
-              vertical: 8,
-            ),
-            child: Text(
-              'Clear filters',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize:
-                    ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                color: AppColors.secondaryTeal,
-                height: 1.2,
+        SizedBox(height: rowGap),
+        row(
+          _FilterDropdown<String?>(
+            key: const Key('staff-incidents-filter-investigator'),
+            value: investigatorFilterId,
+            hint: 'Any Investigator',
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('Any Investigator'),
+              ),
+              for (final staff in investigators)
+                DropdownMenuItem(
+                  value: staff.id,
+                  child: Text(staff.name),
+                ),
+            ],
+            onChanged: onInvestigatorChanged,
+          ),
+          _DateRangeChip(
+            label: _dateRangeLabel,
+            isActive: fromDate != null || toDate != null,
+            onTap: onPickDateRange,
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 4)),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: GestureDetector(
+            key: const Key('staff-incidents-clear-filters'),
+            onTap: onClearFilters,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: ResponsiveHelper.getResponsivePadding(
+                context,
+                horizontal: 2,
+                vertical: 6,
+              ),
+              child: Text(
+                'Clear filters',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                  color: AppColors.secondaryTeal,
+                  height: 1.2,
+                ),
               ),
             ),
           ),
@@ -229,50 +252,52 @@ class _FilterDropdown<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
     final hasValue = value != null;
+    final height = ResponsiveHelper.getResponsiveHeight(context, 40);
 
-    return Container(
-      constraints: BoxConstraints(
-        maxWidth: ResponsiveHelper.getResponsiveWidth(context, 180),
-      ),
-      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AppColors.searchBorder),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          hint: Text(
-            hint,
-            overflow: TextOverflow.ellipsis,
+    return SizedBox(
+      height: height,
+      child: Container(
+        padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceWhite,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: AppColors.searchBorder),
+        ),
+        alignment: Alignment.center,
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<T>(
+            value: value,
+            hint: Text(
+              hint,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                color: AppColors.textHeading,
+              ),
+            ),
+            isDense: true,
+            isExpanded: true,
+            borderRadius: BorderRadius.circular(radius),
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w500,
               fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-              color: AppColors.textHeading,
+              color: hasValue ? AppColors.secondaryTeal : AppColors.textHeading,
             ),
+            icon: Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: ResponsiveHelper.getResponsiveSize(context, 18),
+              color: AppColors.textMuted,
+            ),
+            items: items,
+            onChanged: (next) {
+              if (next != null || items.any((item) => item.value == null)) {
+                onChanged(next as T);
+              }
+            },
           ),
-          isDense: true,
-          isExpanded: true,
-          borderRadius: BorderRadius.circular(radius),
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w500,
-            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-            color: hasValue ? AppColors.secondaryTeal : AppColors.textHeading,
-          ),
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: ResponsiveHelper.getResponsiveSize(context, 18),
-            color: AppColors.textMuted,
-          ),
-          items: items,
-          onChanged: (next) {
-            if (next != null || items.any((item) => item.value == null)) {
-              onChanged(next as T);
-            }
-          },
         ),
       ),
     );
@@ -293,6 +318,7 @@ class _DateRangeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    final height = ResponsiveHelper.getResponsiveHeight(context, 40);
 
     return Material(
       color: AppColors.surfaceWhite,
@@ -301,11 +327,8 @@ class _DateRangeChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(radius),
         child: Container(
-          padding: ResponsiveHelper.getResponsivePadding(
-            context,
-            horizontal: 12,
-            vertical: 10,
-          ),
+          height: height,
+          padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
@@ -315,7 +338,6 @@ class _DateRangeChip extends StatelessWidget {
             ),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
               AppSvgIcon(
                 AppAssets.navCalendar,
@@ -325,17 +347,21 @@ class _DateRangeChip extends StatelessWidget {
                     : AppColors.textMuted,
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w500,
-                  fontSize:
-                      ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                  color: isActive
-                      ? AppColors.secondaryTeal
-                      : AppColors.textHeading,
-                  height: 1.2,
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w500,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                    color: isActive
+                        ? AppColors.secondaryTeal
+                        : AppColors.textHeading,
+                    height: 1.2,
+                  ),
                 ),
               ),
             ],
