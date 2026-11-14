@@ -16,10 +16,10 @@ abstract class StaffTasksMessagesRepository {
   /// Loads tasks, stats, conversations, and today's recurring checks.
   Future<Result<TasksMessagesOverview>> getOverview();
 
-  /// `GET /tasks?page=1&limit=50&residenceId=` (staff "My tasks" / same as Postman B5).
+  /// `GET /tasks?assignee=me` — staff "My tasks" (not HR unscoped Task Management).
   Future<Result<List<StaffTask>>> getMyTasks();
 
-  /// `GET /tasks/stats`
+  /// `GET /tasks/stats?assignee=me`
   Future<Result<TaskStats>> getTaskStats();
 
   /// `GET /tasks/{id}` + `GET /tasks/{id}/notes`

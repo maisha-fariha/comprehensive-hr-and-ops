@@ -43,6 +43,71 @@ abstract final class StaffTasksMessagesMapper {
     ).whereType<Map>().map((item) => taskFrom(JsonCodec.asMap(item))).toList();
   }
 
+  /// Keeps rows assigned to the signed-in carer (defense if API ignores scope).
+  ///
+  /// Relies on `assignee=me` when the list payload omits assignees. When
+  /// assignees *are* present and none match the current staff/user, the row
+  /// is dropped so other people's tasks never appear.
+  static List<StaffTask> tasksAssignedTo(
+    List<dynamic> rows, {
+    String? staffId,
+    String? userId,
+  }) {
+    final sid = staffId?.trim() ?? '';
+    final uid = userId?.trim() ?? '';
+    final hasIdentity = sid.isNotEmpty || uid.isNotEmpty;
+    final kept = <StaffTask>[];
+    for (final raw in rows) {
+      if (raw is! Map) continue;
+      final json = JsonCodec.asMap(raw);
+      if (hasIdentity &&
+          _hasAssigneeIds(json) &&
+          !_taskAssignedTo(json, staffId: sid, userId: uid)) {
+        continue;
+      }
+      kept.add(taskFrom(json));
+    }
+    return kept;
+  }
+
+  static bool _hasAssigneeIds(Map<String, dynamic> json) =>
+      _assigneeIdsOf(json).isNotEmpty;
+
+  static Set<String> _assigneeIdsOf(Map<String, dynamic> json) {
+    final assigneeIds = <String>{};
+    void addId(String? value) {
+      final v = value?.trim() ?? '';
+      if (v.isNotEmpty) assigneeIds.add(v);
+    }
+
+    for (final raw in JsonCodec.unwrapList(json['assignees'])) {
+      if (raw is! Map) continue;
+      final map = JsonCodec.asMap(raw);
+      final staff = JsonCodec.mapAt(map, 'staff') ?? map;
+      addId(JsonCodec.string(staff['id']));
+      addId(JsonCodec.string(staff['staffId']));
+      addId(JsonCodec.string(staff['userId']));
+      addId(JsonCodec.string(map['staffId']));
+      addId(JsonCodec.string(map['userId']));
+      addId(JsonCodec.string(map['id']));
+    }
+    addId(JsonCodec.string(json['assignedStaffId']));
+    addId(JsonCodec.string(json['staffId']));
+    addId(JsonCodec.string(json['assigneeId']));
+    return assigneeIds;
+  }
+
+  static bool _taskAssignedTo(
+    Map<String, dynamic> json, {
+    required String staffId,
+    required String userId,
+  }) {
+    final assigneeIds = _assigneeIdsOf(json);
+    if (staffId.isNotEmpty && assigneeIds.contains(staffId)) return true;
+    if (userId.isNotEmpty && assigneeIds.contains(userId)) return true;
+    return false;
+  }
+
   /// Chip counts from the loaded list so they always match visible rows.
   static TaskStats statsFromTasks(List<StaffTask> tasks) {
     var overdue = 0;

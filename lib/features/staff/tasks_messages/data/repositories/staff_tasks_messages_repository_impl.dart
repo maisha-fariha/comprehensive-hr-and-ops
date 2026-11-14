@@ -34,7 +34,6 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   Future<Result<TasksMessagesOverview>> getOverview() async {
     final results = await Future.wait([
       getMyTasks(),
-      getTaskStats(),
       _api.get(ApiEndpoints.conversations, silent: true),
       getMyRecurringChecks(),
     ]);
@@ -47,9 +46,8 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     }
 
     final tasks = tasksResult.value ?? const <StaffTask>[];
-    final statsResult = results[1];
-    final conversationsResult = results[2];
-    final recurringResult = results[3];
+    final conversationsResult = results[1];
+    final recurringResult = results[2];
 
     final conversations = conversationsResult.isSuccess
         ? JsonCodec.unwrapList(conversationsResult.value)
@@ -63,18 +61,14 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
               .toList()
         : const <ConversationPreview>[];
 
-    // Prefer counts from the loaded task list so chips always match rows.
-    // Fall back to /tasks/stats when the list is empty (e.g. offline cache miss).
+    // Chip counts from the assignee-scoped list only — matches visible rows.
     final listStats = StaffTasksMessagesMapper.statsFromTasks(tasks);
-    final apiStats = statsResult.isSuccess
-        ? (statsResult.value ?? const TaskStats())
-        : const TaskStats();
 
     return Result.success(
       TasksMessagesOverview(
         tasks: tasks,
         conversations: conversations,
-        stats: tasks.isNotEmpty ? listStats : apiStats,
+        stats: listStats,
         recurringChecks: recurringResult.isSuccess
             ? (recurringResult.value ?? const [])
             : const [],
@@ -84,15 +78,23 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
 
   @override
   Future<Result<List<StaffTask>>> getMyTasks() async {
-    // Web Task Management is not auto-scoped to session.residenceId.
-    // Walk every page — a single limit:50 truncated the list vs stats/web.
+    // Staff "My tasks" — web uses GET /tasks?assignee=me (not the unscoped
+    // HR Task Management list). Without this, new carers saw every open task.
     final result = await ApiPageFetcher.fetchAll(
       _api,
       path: ApiEndpoints.tasks,
+      query: const {'assignee': 'me'},
+      silent: true,
     );
     return result.when(
-      success: (rows) async =>
-          Result.success(StaffTasksMessagesMapper.tasksFrom({'data': rows})),
+      success: (rows) async {
+        final mine = StaffTasksMessagesMapper.tasksAssignedTo(
+          rows,
+          staffId: _session.staffId,
+          userId: _session.userId,
+        );
+        return Result.success(mine);
+      },
       failure: (error) async => Result.failure(error),
     );
   }
@@ -101,6 +103,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   Future<Result<TaskStats>> getTaskStats() async {
     final result = await _api.get(
       ApiEndpoints.tasksStats,
+      query: const {'assignee': 'me'},
       silent: true,
     );
     return result.when(

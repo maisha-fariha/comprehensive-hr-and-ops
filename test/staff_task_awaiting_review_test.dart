@@ -38,4 +38,45 @@ void main() {
     final stats = StaffTasksMessagesMapper.statsFromTasks(tasks);
     expect(stats.done, 1);
   });
+
+  test('tasksAssignedTo keeps only rows for the signed-in staff', () {
+    final mine = StaffTasksMessagesMapper.tasksAssignedTo(
+      [
+        {
+          'id': 'mine',
+          'title': 'My task',
+          'status': 'open',
+          'assignees': [
+            {
+              'staff': {'id': 'staff-1', 'firstName': 'A', 'lastName': 'B'},
+            },
+          ],
+        },
+        {
+          'id': 'theirs',
+          'title': 'Someone else',
+          'status': 'open',
+          'assignees': [
+            {
+              'staff': {'id': 'staff-2', 'firstName': 'C', 'lastName': 'D'},
+            },
+          ],
+        },
+        {
+          'id': 'orphan',
+          'title': 'Unassigned open task',
+          'status': 'open',
+        },
+      ],
+      staffId: 'staff-1',
+      userId: 'user-1',
+    );
+
+    // Orphan (no assignees in payload) kept — trusts assignee=me when the
+    // list omits assignee objects. Explicit other assignees are dropped.
+    expect(mine.map((t) => t.id), ['mine', 'orphan']);
+    final stats = StaffTasksMessagesMapper.statsFromTasks(mine);
+    expect(stats.all, 2);
+    expect(stats.dueToday, 2);
+  });
 }
