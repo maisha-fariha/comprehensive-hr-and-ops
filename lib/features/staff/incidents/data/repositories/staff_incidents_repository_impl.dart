@@ -44,6 +44,7 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     String? to,
     String? residenceId,
     String? clientId,
+    String? investigatorId,
     int page = 1,
     int limit = 20,
   }) async {
@@ -63,6 +64,8 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
         if (from != null && from.isNotEmpty) 'from': from,
         if (to != null && to.isNotEmpty) 'to': to,
         if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
+        if (investigatorId != null && investigatorId.isNotEmpty)
+          'investigatorId': investigatorId,
       },
     );
     return result.when(

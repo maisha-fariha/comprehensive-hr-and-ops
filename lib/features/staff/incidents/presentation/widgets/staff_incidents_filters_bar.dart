@@ -9,20 +9,24 @@ import '../../domain/entities/staff_incidents_enums.dart';
 import 'incident_severity_style.dart';
 
 /// Filters matching web Incident Reports:
-/// Any Status, Any Severity, All Residences, Any Resident, date range, Clear.
+/// Any Status, Any Severity, All Residences, Any Resident, Any Investigator,
+/// date range, Clear.
 class StaffIncidentsFiltersBar extends StatelessWidget {
   final IncidentStatus? statusFilter;
   final IncidentSeverity? severityFilter;
   final String? residenceFilterId;
   final String? clientFilterId;
+  final String? investigatorFilterId;
   final List<StaffIncidentResidenceOption> residences;
   final List<StaffIncidentClientOption> clients;
+  final List<StaffIncidentStaffOption> investigators;
   final DateTime? fromDate;
   final DateTime? toDate;
   final ValueChanged<IncidentStatus?> onStatusChanged;
   final ValueChanged<IncidentSeverity?> onSeverityChanged;
   final ValueChanged<String?> onResidenceChanged;
   final ValueChanged<String?> onClientChanged;
+  final ValueChanged<String?> onInvestigatorChanged;
   final VoidCallback onPickDateRange;
   final VoidCallback onClearFilters;
 
@@ -32,14 +36,17 @@ class StaffIncidentsFiltersBar extends StatelessWidget {
     required this.severityFilter,
     required this.residenceFilterId,
     required this.clientFilterId,
+    required this.investigatorFilterId,
     required this.residences,
     required this.clients,
+    required this.investigators,
     required this.fromDate,
     required this.toDate,
     required this.onStatusChanged,
     required this.onSeverityChanged,
     required this.onResidenceChanged,
     required this.onClientChanged,
+    required this.onInvestigatorChanged,
     required this.onPickDateRange,
     required this.onClearFilters,
   });
@@ -153,6 +160,23 @@ class StaffIncidentsFiltersBar extends StatelessWidget {
               ),
           ],
           onChanged: onClientChanged,
+        ),
+        _FilterDropdown<String?>(
+          key: const Key('staff-incidents-filter-investigator'),
+          value: investigatorFilterId,
+          hint: 'Any Investigator',
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Any Investigator'),
+            ),
+            for (final staff in investigators)
+              DropdownMenuItem(
+                value: staff.id,
+                child: Text(staff.name),
+              ),
+          ],
+          onChanged: onInvestigatorChanged,
         ),
         _DateRangeChip(
           label: _dateRangeLabel,

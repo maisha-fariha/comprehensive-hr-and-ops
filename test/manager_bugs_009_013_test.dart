@@ -1105,7 +1105,16 @@ class _FakeDailyLogsRepo implements DailyLogsRepository {
 /// Backs the bottom-nav alerts badge on pages that show [HrBottomNavBar].
 class _NoIncidentsRepo implements IncidentsRepository {
   @override
-  Future<Result<IncidentsBoard>> getBoard() async =>
+  Future<Result<IncidentsBoard>> getBoard({
+    String? status,
+    String? severity,
+    String? residenceId,
+    String? clientId,
+    String? investigatorId,
+    String? from,
+    String? to,
+    bool reportedByMe = false,
+  }) async =>
       Result.failure(const ApiError(message: 'offline'));
 
   @override

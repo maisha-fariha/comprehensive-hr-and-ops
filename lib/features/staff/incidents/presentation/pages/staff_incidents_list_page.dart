@@ -227,8 +227,11 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                         severityFilter: _controller.severityFilter.value,
                         residenceFilterId: _controller.residenceFilterId.value,
                         clientFilterId: _controller.clientFilterId.value,
+                        investigatorFilterId:
+                            _controller.investigatorFilterId.value,
                         residences: _controller.residences.toList(),
                         clients: _controller.clients.toList(),
+                        investigators: _controller.investigators.toList(),
                         fromDate: _controller.fromDate.value,
                         toDate: _controller.toDate.value,
                         onStatusChanged: _controller.setStatusFilter,
@@ -237,6 +240,8 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                           _controller.setResidenceFilter(id);
                         },
                         onClientChanged: _controller.setClientFilter,
+                        onInvestigatorChanged:
+                            _controller.setInvestigatorFilter,
                         onPickDateRange: _pickDateRange,
                         onClearFilters: _controller.clearFilters,
                       ),

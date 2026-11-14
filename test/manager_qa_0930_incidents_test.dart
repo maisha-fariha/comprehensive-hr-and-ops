@@ -83,7 +83,16 @@ class _HrIncidentsRepo implements IncidentsRepository {
   ];
 
   @override
-  Future<Result<IncidentsBoard>> getBoard() async => Result.success(
+  Future<Result<IncidentsBoard>> getBoard({
+    String? status,
+    String? severity,
+    String? residenceId,
+    String? clientId,
+    String? investigatorId,
+    String? from,
+    String? to,
+    bool reportedByMe = false,
+  }) async => Result.success(
         const IncidentsBoard(
           open: IncidentsOpenSection(
             stats: [],

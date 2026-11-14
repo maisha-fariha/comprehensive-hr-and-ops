@@ -130,6 +130,7 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
     String? to,
     String? residenceId,
     String? clientId,
+    String? investigatorId,
     int page = 1,
     int limit = 20,
   }) async =>

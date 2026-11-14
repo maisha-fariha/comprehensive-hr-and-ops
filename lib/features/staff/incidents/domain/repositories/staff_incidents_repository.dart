@@ -8,6 +8,10 @@ import '../entities/staff_incidents_summary.dart';
 /// Contract for Staff Incidents list, detail, and create flows.
 abstract class StaffIncidentsRepository {
   /// `GET /incidents` — My Incidents uses `reporter=me`.
+  ///
+  /// Filter keys match web Incident Reports:
+  /// `status`, `residenceId`, `severity`, `from`, `to`, `clientId`,
+  /// `investigatorId`.
   Future<Result<List<StaffIncident>>> getIncidents({
     bool mine = false,
     String? search,
@@ -17,6 +21,7 @@ abstract class StaffIncidentsRepository {
     String? to,
     String? residenceId,
     String? clientId,
+    String? investigatorId,
     int page = 1,
     int limit = 20,
   });

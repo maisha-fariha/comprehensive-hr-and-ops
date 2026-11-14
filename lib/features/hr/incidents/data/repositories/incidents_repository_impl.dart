@@ -57,31 +57,71 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   }
 
   @override
-  Future<Result<IncidentsBoard>> getBoard() async {
+  Future<Result<IncidentsBoard>> getBoard({
+    String? status,
+    String? severity,
+    String? residenceId,
+    String? clientId,
+    String? investigatorId,
+    String? from,
+    String? to,
+    bool reportedByMe = false,
+  }) async {
     // Web Incidents lists the whole tenant until a residence filter is chosen.
-    // Session home-house injection made nurse/manager boards disagree with web.
+    // Filter keys match web `useListParams` + `reporter=me` for Reported by Me.
+    // Status values match web dropdown: open | investigating | closed.
+    final normalizedStatus = status?.trim().toLowerCase();
     final base = <String, dynamic>{
       'page': 1,
       'limit': 100,
+      if (severity != null && severity.isNotEmpty) 'severity': severity,
+      if (residenceId != null && residenceId.isNotEmpty)
+        'residenceId': residenceId,
+      if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
+      if (investigatorId != null && investigatorId.isNotEmpty)
+        'investigatorId': investigatorId,
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
+      if (reportedByMe) 'reporter': 'me',
     };
 
+    final summaryQuery = <String, dynamic>{
+      if (residenceId != null && residenceId.isNotEmpty)
+        'residenceId': residenceId,
+      if (reportedByMe) 'reporter': 'me',
+    };
+
+    final wantOpen =
+        normalizedStatus == null || normalizedStatus == 'open';
+    final wantReview =
+        normalizedStatus == null || normalizedStatus == 'investigating';
+    final wantClosed =
+        normalizedStatus == null || normalizedStatus == 'closed';
+
+    final emptyBody = <String, dynamic>{'data': <dynamic>[]};
     final incidents = await Future.wait([
+      wantOpen
+          ? _api.get(
+              ApiEndpoints.incidents,
+              query: {...base, 'status': 'open'},
+            )
+          : Future.value(Result.success(emptyBody)),
+      wantReview
+          ? _api.get(
+              ApiEndpoints.incidents,
+              query: {...base, 'status': 'investigating'},
+            )
+          : Future.value(Result.success(emptyBody)),
+      wantClosed
+          ? _api.get(
+              ApiEndpoints.incidents,
+              query: {...base, 'status': 'closed'},
+            )
+          : Future.value(Result.success(emptyBody)),
       _api.get(
-        ApiEndpoints.incidents,
-        query: {...base, 'status': 'open'},
+        ApiEndpoints.incidentsSummary,
+        query: summaryQuery.isEmpty ? null : summaryQuery,
       ),
-      _api.get(
-        ApiEndpoints.incidents,
-        query: {
-          ...base,
-          'status': 'under_review,in_review,investigating,assigned',
-        },
-      ),
-      _api.get(
-        ApiEndpoints.incidents,
-        query: {...base, 'status': 'closed,resolved,archived'},
-      ),
-      _api.get(ApiEndpoints.incidentsSummary),
     ]);
 
     final open = incidents[0];
@@ -89,11 +129,16 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
     final closed = incidents[2];
     final summary = incidents[3];
 
-    if (open.isFailure && review.isFailure && closed.isFailure) {
-      return Result.failure(
-        open.error ??
-            const ApiError(message: 'Could not load incidents.'),
-      );
+    final primaryFailure = switch (normalizedStatus) {
+      'open' => open.isFailure ? open.error : null,
+      'investigating' => review.isFailure ? review.error : null,
+      'closed' => closed.isFailure ? closed.error : null,
+      _ => open.isFailure && review.isFailure && closed.isFailure
+          ? open.error
+          : null,
+    };
+    if (primaryFailure != null) {
+      return Result.failure(primaryFailure);
     }
 
     if (summary.isFailure) {

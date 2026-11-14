@@ -13,7 +13,22 @@ import '../entities/incidents_board.dart';
 
 /// Contract for the Incidents list board and create-incident flow.
 abstract class IncidentsRepository {
-  Future<Result<IncidentsBoard>> getBoard();
+  /// Board for Open / Under Review / Closed tabs.
+  ///
+  /// Extra filters match web Incident Reports
+  /// (`severity`, `residenceId`, `clientId`, `investigatorId`, `from`, `to`,
+  /// and `reporter=me` when [reportedByMe] is true).
+  Future<Result<IncidentsBoard>> getBoard({
+    /// Web status dropdown: `open` | `investigating` | `closed`. Null = any.
+    String? status,
+    String? severity,
+    String? residenceId,
+    String? clientId,
+    String? investigatorId,
+    String? from,
+    String? to,
+    bool reportedByMe = false,
+  });
 
   /// Open-incident count for the shell badge (`GET /incidents/summary` only).
   Future<Result<int>> getOpenCount();
