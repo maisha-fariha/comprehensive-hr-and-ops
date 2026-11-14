@@ -355,8 +355,14 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   Future<void> signOut() async {
     _signingOut = true;
     try {
-      // Block new HTTP immediately so IndexedStack / prewarm cannot keep
-      // firing 401s while navigation and controller teardown finish.
+      // Unregister push WHILE the access token still works. Blocking the API
+      // first left DELETE /devices unreachable, so alerts kept arriving after
+      // logout until the app was uninstalled.
+      try {
+        await GetIt.instance<DeviceRegistrationService>().unregisterOnLogout();
+      } catch (_) {}
+      // Block new HTTP so IndexedStack / prewarm cannot keep firing 401s
+      // while navigation and controller teardown finish.
       try {
         GetIt.instance<AppApiClient>().noteSessionClosed();
       } catch (_) {}
@@ -368,10 +374,6 @@ class UserSession extends GetxService with WidgetsBindingObserver {
       }
       Get.offAllNamed(AppRoutes.login);
       await SessionLifecycle.reset();
-      // Unregister before logout clears the access token.
-      try {
-        await GetIt.instance<DeviceRegistrationService>().unregisterOnLogout();
-      } catch (_) {}
       try {
         await GetIt.instance<AuthRepository>().logout();
       } catch (_) {}

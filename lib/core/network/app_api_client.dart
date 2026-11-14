@@ -577,7 +577,10 @@ class AppApiClient implements OutboxTransport {
     }
 
     // Session closed / signing out: do not hit the network (auth paths OK).
-    if (_apiBlocked && !_isAuthPath(path)) {
+    // DELETE /devices must still run so logout can unregister the push token.
+    if (_apiBlocked &&
+        !_isAuthPath(path) &&
+        !_isLogoutDeviceUnregister(method, path)) {
       return Result.failure(
         const AuthError(message: 'Sign-in needed', code: '401'),
       );
@@ -1013,6 +1016,12 @@ class AppApiClient implements OutboxTransport {
         path.contains('/public/tenant') ||
         path.contains('/auth/login') ||
         path.contains('/auth/logout');
+  }
+
+  /// Logout must DELETE `/devices/{token}` while the access token is still
+  /// valid, even though [noteSessionClosed] / signing-out already block APIs.
+  bool _isLogoutDeviceUnregister(String method, String path) {
+    return method.toUpperCase() == 'DELETE' && path.startsWith('/devices');
   }
 
   bool get _suppressErrorDialogs {
