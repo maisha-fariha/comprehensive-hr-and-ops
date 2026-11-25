@@ -50,16 +50,19 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
     String? clientId,
   }) async {
     final id = clientId?.trim();
-    final result = await _api.get(
-      ApiEndpoints.conversationContacts,
+    // Web walks every page of /conversations/contacts. Reading only page 1
+    // hid staff beyond it (e.g. those with no residence) from the pickers.
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.conversationContacts,
       query: {
         if (id != null && id.isNotEmpty) 'clientId': id,
       },
       silent: true,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(CommunicationMapper.contactsFrom(body)),
+      success: (rows) async =>
+          Result.success(CommunicationMapper.contactsFrom({'data': rows})),
       failure: (error) async => Result.failure(error),
     );
   }
