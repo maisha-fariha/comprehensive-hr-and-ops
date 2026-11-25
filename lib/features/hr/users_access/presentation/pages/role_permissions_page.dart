@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/app_permissions.dart';
@@ -63,14 +64,23 @@ class _RolePermissionsPageState extends State<RolePermissionsPage> {
       _loading = true;
       _error = null;
     });
-    final result = await _api.get(
-      ApiEndpoints.roleById(widget.roleId),
+    // The API has no GET /roles/:id (404 ROUTE_NOT_FOUND); the list carries
+    // each role's permissions, as the web does.
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.roles,
       silent: true,
     );
     if (!mounted) return;
     result.when(
-      success: (body) {
-        final map = JsonCodec.unwrapMap(body);
+      success: (rows) {
+        final map = rows
+            .whereType<Map>()
+            .map(JsonCodec.asMap)
+            .firstWhere(
+              (r) => JsonCodec.string(r['id']) == widget.roleId,
+              orElse: () => const <String, dynamic>{},
+            );
         final raw = JsonCodec.listAt(map, 'permissions');
         final keys = <String>{};
         for (final item in raw) {
@@ -92,7 +102,7 @@ class _RolePermissionsPageState extends State<RolePermissionsPage> {
         });
       },
       failure: (error) {
-        // Fall back to list payload when GET /roles/:id is unavailable.
+        // Keep whatever the list already gave us.
         setState(() {
           _loading = false;
           if (_selected.isEmpty) _error = error.message;
