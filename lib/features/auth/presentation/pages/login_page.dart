@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -172,6 +173,8 @@ class _LoginPageState extends State<LoginPage> {
             _SupportRow(accent: _primaryTeal),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             const _LegalRow(),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            const _AppVersionLabel(),
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
           ],
         ),
@@ -963,4 +966,32 @@ class _PulseLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// "Version 1.0.0 (1)" — the installed app version and build code.
+class _AppVersionLabel extends StatelessWidget {
+  const _AppVersionLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        if (info == null) return const SizedBox.shrink();
+        final build = info.buildNumber.isEmpty ? '' : ' (${info.buildNumber})';
+        return Center(
+          child: Text(
+            'Version ${info.version}$build',
+            key: const ValueKey('login-app-version'),
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: AppColors.textMuted,
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
