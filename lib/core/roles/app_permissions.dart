@@ -130,7 +130,13 @@ abstract final class AppPermissions {
   /// Web `tenantNavItems` — any listed permission grants the item.
   static const List<WebNavItem> tenantNav = [
     WebNavItem('Dashboard', ['dashboard:read']),
-    WebNavItem('Users & Access', ['users:read', 'roles:read']),
+    WebNavItem('Users & Access', [
+      'users:read',
+      'roles:read',
+      'staff:read',
+      'staff:update',
+      'staff:write',
+    ]),
     WebNavItem('Residences', ['residences:read']),
     WebNavItem('Clients', ['clients:read']),
     WebNavItem('Scheduling', ['scheduling:read'], module: 'scheduling'),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/formatting/web_formats.dart';
@@ -23,12 +24,17 @@ Future<bool> showHrAppointmentFormSheet(
   BuildContext context, {
   required HrAppointmentsController controller,
   HrAppointment? editing,
+  DateTime? initialDate,
 }) async {
   final saved = await showAppBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => HrAppointmentFormSheet(controller: controller, editing: editing),
+    builder: (_) => HrAppointmentFormSheet(
+      controller: controller,
+      editing: editing,
+      initialDate: initialDate,
+    ),
   );
   return saved == true;
 }
@@ -37,7 +43,15 @@ class HrAppointmentFormSheet extends StatefulWidget {
   final HrAppointmentsController controller;
   final HrAppointment? editing;
 
-  const HrAppointmentFormSheet({super.key, required this.controller, this.editing});
+  /// Pre-fills the date (web: "Book an appointment" on a calendar day).
+  final DateTime? initialDate;
+
+  const HrAppointmentFormSheet({
+    super.key,
+    required this.controller,
+    this.editing,
+    this.initialDate,
+  });
 
   @override
   State<HrAppointmentFormSheet> createState() => _HrAppointmentFormSheetState();
@@ -54,6 +68,9 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
   HrAppointmentClient? _client;
   DateTime? _date;
   TimeOfDay? _time;
+  Set<String> _assigneeIds = {};
+  // Web default reminder for a new appointment: 2 hours before.
+  int? _reminder = 120;
   bool _pickerOpen = false;
   bool _submitted = false;
   bool _saving = false;
@@ -73,6 +90,11 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
     _type = 'family_visit';
     _date = DateTime(now.year, now.month, now.day);
     _time = TimeOfDay(hour: now.hour, minute: 0);
+    final initial = widget.initialDate;
+    if (initial != null) {
+      _date = DateTime(initial.year, initial.month, initial.day);
+      _time = const TimeOfDay(hour: 9, minute: 0);
+    }
     final e = widget.editing;
     if (e != null) {
       _type = e.isFamilyVisit ? 'family_visit' : 'external';
@@ -90,7 +112,10 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
       _location.text = e.location ?? '';
       _purpose.text = e.purpose ?? '';
       _notes.text = e.notes ?? '';
+      _assigneeIds = {...e.assigneeIds};
+      _reminder = e.reminderMinutesBefore;
     }
+    widget.controller.loadStaffOptions(_client?.residenceId);
     for (final c in [_location, _purpose, _notes]) {
       c.addListener(_refresh);
     }
@@ -150,6 +175,8 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
         location: _trimmed(_location),
         purpose: _trimmed(_purpose),
         notes: _trimmed(_notes),
+        assigneeStaffIds: _assigneeIds.toList(),
+        reminderMinutesBefore: _reminder,
       ),
       editing: widget.editing,
     );
@@ -162,6 +189,92 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
       _saving = false;
       _saveError = error;
     });
+  }
+
+  String _goingSummary() {
+    if (_assigneeIds.isEmpty) return 'Nobody assigned';
+    final names = _staffOptionsWithEditing()
+        .where((o) => _assigneeIds.contains(o.id))
+        .map((o) => o.label)
+        .toList();
+    return names.isEmpty ? '${_assigneeIds.length} assigned' : names.join(', ');
+  }
+
+  /// Directory options plus anyone already on the appointment who is not in
+  /// the directory result (web `F`).
+  List<HrAppointmentOption> _staffOptionsWithEditing() {
+    final base = widget.controller.staffOptions.toList();
+    final e = widget.editing;
+    if (e != null) {
+      for (var i = 0; i < e.assigneeIds.length; i++) {
+        if (!base.any((o) => o.id == e.assigneeIds[i])) {
+          base.add(HrAppointmentOption(
+            id: e.assigneeIds[i],
+            label: i < e.assigneeNames.length ? e.assigneeNames[i] : 'Staff',
+          ));
+        }
+      }
+    }
+    return base;
+  }
+
+  Widget _staffPicker(BuildContext context) {
+    return Obx(() {
+      final options = _staffOptionsWithEditing();
+      final loading = widget.controller.staffLoading.value;
+      final value = _assigneeIds.isEmpty
+          ? ''
+          : options
+              .where((o) => _assigneeIds.contains(o.id))
+              .map((o) => o.label)
+              .join(', ');
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          HandoverSelect(
+            key: const ValueKey('appointment-form-staff'),
+            label: 'Assigned staff',
+            value: value,
+            placeholder: loading ? 'Loading staff…' : 'Choose who goes…',
+            onTap: loading ? null : () => _pickStaff(options),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _type == 'external'
+                ? 'They are told when they are assigned, and when it changes or is cancelled.'
+                : 'Optional for a family visit — whoever will receive the family.',
+            style: handoverText(context, 12, color: AppColors.textMuted),
+          ),
+        ],
+      );
+    });
+  }
+
+  Future<void> _pickStaff(List<HrAppointmentOption> options) async {
+    final picked = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _StaffMultiPicker(options: options, selected: _assigneeIds),
+    );
+    if (picked != null) setState(() => _assigneeIds = picked);
+  }
+
+  Future<void> _pickReminder() async {
+    final picked = await pickHandoverOption(
+      context,
+      title: 'Reminder',
+      options: [
+        for (final o in HrAppointment.reminderOptions) ('${o.$1 ?? 0}', o.$2),
+      ],
+      selected: '${_reminder ?? 0}',
+    );
+    if (picked != null) {
+      setState(() => _reminder = picked == '0' ? null : int.tryParse(picked));
+    }
   }
 
   Future<void> _pickType() async {
@@ -218,7 +331,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
                 title: _isEdit ? 'Edit Appointment' : 'Create Appointment',
                 description: _isEdit
                     ? 'Correct the time, place or notes. Approving or refusing is done from the queue.'
-                    : 'A family visit arrives pending and needs approving; one the home books itself is confirmed straight away.',
+                    : 'Book a visit or appointment for a resident.',
                 badges: [
                   if (_isEdit)
                     Text(
@@ -263,7 +376,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
                         const SizedBox(height: 8),
                         Text(
                           _type == 'family_visit'
-                              ? 'A family visit is created pending, and appears in the queue for approval.'
+                              ? 'A family visit is created as pending and needs approval.'
                               : 'An external appointment is confirmed as soon as it is booked.',
                           style: handoverText(context, 12, color: AppColors.textMuted),
                         ),
@@ -343,6 +456,25 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
                     gap,
                     _Step(
                       n: 4,
+                      title: "Who's Going & Reminder",
+                      description: 'Staff going with the resident, and when to remind them',
+                      children: [
+                        if (widget.controller.canPickStaff) ...[
+                          _staffPicker(context),
+                          const SizedBox(height: 14),
+                        ],
+                        HandoverSelect(
+                          key: const ValueKey('appointment-form-reminder'),
+                          label: 'Reminder',
+                          value: HrAppointment.reminderText(_reminder),
+                          placeholder: 'No reminder',
+                          onTap: _pickReminder,
+                        ),
+                      ],
+                    ),
+                    gap,
+                    _Step(
+                      n: 5,
                       title: 'Purpose & Notes',
                       description: 'Why it was asked for, and anything the team should know',
                       children: [
@@ -364,7 +496,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
                     ),
                     gap,
                     _Step(
-                      n: 5,
+                      n: 6,
                       title: 'Summary',
                       description: 'Review before saving',
                       children: [
@@ -377,6 +509,8 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
                             HrAppointmentInfo('Date', _date == null ? '' : WebFormat.date(_date)),
                             HrAppointmentInfo('Time', _timeText),
                             HrAppointmentInfo('Purpose', _purpose.text.isEmpty ? 'Not given' : _purpose.text),
+                            HrAppointmentInfo('Going', _goingSummary()),
+                            HrAppointmentInfo('Reminder', HrAppointment.reminderText(_reminder)),
                             HrAppointmentInfo(
                               'Status on save',
                               _type == 'family_visit' ? 'Pending approval' : 'Approved',
@@ -540,11 +674,15 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
                         InkWell(
                           key: ValueKey('appointment-form-resident-${c.id}'),
                           borderRadius: BorderRadius.circular(8),
-                          onTap: () => setState(() {
-                            _client = c;
-                            _search.clear();
-                            _pickerOpen = false;
-                          }),
+                          onTap: () {
+                            setState(() {
+                              _client = c;
+                              _search.clear();
+                              _pickerOpen = false;
+                              _assigneeIds = {};
+                            });
+                            widget.controller.loadStaffOptions(c.residenceId);
+                          },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                             child: Row(
@@ -988,6 +1126,95 @@ class _Initials extends StatelessWidget {
       child: Text(
         hrAppointmentInitials(name),
         style: handoverText(context, size > 30 ? 12 : 10, weight: FontWeight.w700, color: AppColors.secondaryTeal),
+      ),
+    );
+  }
+}
+
+
+/// Searchable multi-select for the assigned-staff field.
+class _StaffMultiPicker extends StatefulWidget {
+  final List<HrAppointmentOption> options;
+  final Set<String> selected;
+
+  const _StaffMultiPicker({required this.options, required this.selected});
+
+  @override
+  State<_StaffMultiPicker> createState() => _StaffMultiPickerState();
+}
+
+class _StaffMultiPickerState extends State<_StaffMultiPicker> {
+  late final Set<String> _picked = {...widget.selected};
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = [
+      for (final o in widget.options)
+        if (_query.isEmpty || o.label.toLowerCase().contains(_query)) o,
+    ];
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.7,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Assigned staff',
+                      style: handoverText(context, 16, weight: FontWeight.w600),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(_picked),
+                    child: const Text('Done'),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                decoration: const InputDecoration(
+                  hintText: 'Search staff…',
+                  prefixIcon: Icon(Icons.search),
+                  isDense: true,
+                ),
+                onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+              ),
+            ),
+            Expanded(
+              child: rows.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No staff to choose from',
+                        style: handoverText(context, 13.5, color: AppColors.textMuted),
+                      ),
+                    )
+                  : ListView(
+                      children: [
+                        for (final o in rows)
+                          CheckboxListTile(
+                            value: _picked.contains(o.id),
+                            title: Text(o.label),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            onChanged: (on) => setState(() {
+                              if (on == true) {
+                                _picked.add(o.id);
+                              } else {
+                                _picked.remove(o.id);
+                              }
+                            }),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -82,6 +82,8 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
   String? _directStaffId;
   String? _residenceId;
   final Set<String> _groupMemberIds = {};
+  // Web default: "All staff at this residence".
+  bool _everyone = true;
   String? _familyClientId;
   final Set<String> _familyMemberIds = {};
   List<HrMessageContact> _familyContacts = const [];
@@ -132,10 +134,17 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
         return _directStaffId != null && _directStaffId!.isNotEmpty;
       case ConversationCreateType.residenceGroup:
         return (_residenceId?.isNotEmpty ?? false) &&
-            _groupName.text.trim().isNotEmpty;
+            (_everyone || _groupMemberIds.isNotEmpty);
       case ConversationCreateType.familySupport:
         return _familyClientId != null && _familyClientId!.isNotEmpty;
     }
+  }
+
+  /// Contacts that belong to the chosen residence (web `belongsToHome`).
+  List<HrMessageContact> _homeContacts(String query) {
+    final id = _residenceId;
+    if (id == null || id.isEmpty) return const [];
+    return _filterContacts(query).where((c) => c.belongsToHome(id)).toList();
   }
 
   List<HrMessageContact> _filterContacts(String query) {
@@ -218,7 +227,7 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
         _banner = switch (_type) {
           ConversationCreateType.direct => 'Select a staff member.',
           ConversationCreateType.residenceGroup =>
-            'Group name and residence are required.',
+            'Choose a residence, and who is in the group.',
           ConversationCreateType.familySupport => 'Select a resident.',
         };
       });
@@ -230,13 +239,15 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
         type: _type,
         title: switch (_type) {
           ConversationCreateType.direct => null,
-          ConversationCreateType.residenceGroup => _groupName.text.trim(),
+          ConversationCreateType.residenceGroup =>
+            _groupName.text.trim().isEmpty ? null : _groupName.text.trim(),
           ConversationCreateType.familySupport =>
             _subject.text.trim().isEmpty ? null : _subject.text.trim(),
         },
         memberUserIds: switch (_type) {
           ConversationCreateType.direct => [_directStaffId!],
-          ConversationCreateType.residenceGroup => _groupMemberIds.toList(),
+          ConversationCreateType.residenceGroup =>
+            _everyone ? const <String>[] : _groupMemberIds.toList(),
           ConversationCreateType.familySupport => _familyMemberIds.toList(),
         },
         residenceId: _residenceId,
@@ -418,7 +429,10 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
               for (final r in widget.residences)
                 DropdownMenuItem(value: r.id, child: Text(r.name)),
             ],
-            onChanged: (v) => setState(() => _residenceId = v),
+            onChanged: (v) => setState(() {
+              _residenceId = v;
+              _groupMemberIds.clear();
+            }),
           ),
           const SizedBox(height: 4),
           const Text(
@@ -430,52 +444,140 @@ class _NewConversationDialogState extends State<NewConversationDialog> {
             ),
           ),
           const SizedBox(height: 14),
-          const _FieldLabel('Group members'),
+          const _FieldLabel('Who is in it'),
           const SizedBox(height: 8),
-          _OutlinedField(
-            controller: _membersSearch,
-            hint: 'Add people to this group...',
-            prefixIcon: Icons.search_rounded,
-            onChanged: (_) => setState(() {}),
+          DropdownButtonFormField<bool>(
+            key: ValueKey('group-scope-$_everyone'),
+            initialValue: _everyone,
+            decoration: _inputDecoration(),
+            items: const [
+              DropdownMenuItem(
+                value: true,
+                child: Text('All staff at this residence'),
+              ),
+              DropdownMenuItem(value: false, child: Text('Choose people')),
+            ],
+            onChanged: (v) => setState(() {
+              _everyone = v ?? true;
+              _groupMemberIds.clear();
+            }),
           ),
-          if (_groupMemberIds.isNotEmpty) ...[
+          if (_everyone) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'Everyone working there now. People who join later are not added.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 12,
+                color: AppColors.textMuted,
+              ),
+            ),
+          ] else if (_residenceId == null || _residenceId!.isEmpty) ...[
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final id in _groupMemberIds)
-                  Chip(
-                    label: Text(
-                      widget.contacts
-                          .firstWhere(
-                            (c) => c.id == id,
-                            orElse: () => HrMessageContact(
-                              id: id,
-                              name: 'Member',
-                            ),
-                          )
-                          .name,
+            const Text(
+              'Choose the residence first — its staff and management are listed here.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 12.5,
+                color: AppColors.textMuted,
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 14),
+            const _FieldLabel('Group members'),
+            const SizedBox(height: 8),
+            _OutlinedField(
+              controller: _membersSearch,
+              hint: 'Add people to this group...',
+              prefixIcon: Icons.search_rounded,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 6),
+            Builder(builder: (context) {
+              final shown = _homeContacts(_membersSearch.text);
+              final allSelected = shown.isNotEmpty &&
+                  shown.every((c) => _groupMemberIds.contains(c.id));
+              return Row(
+                children: [
+                  Expanded(
+                    child: TextButton.icon(
+                      key: const ValueKey('group-select-all'),
+                      onPressed: shown.isEmpty
+                          ? null
+                          : () => setState(() {
+                                if (allSelected) {
+                                  _groupMemberIds
+                                      .removeAll(shown.map((c) => c.id));
+                                } else {
+                                  _groupMemberIds
+                                      .addAll(shown.map((c) => c.id));
+                                }
+                              }),
+                      icon: Icon(
+                        allSelected
+                            ? Icons.check_box_rounded
+                            : Icons.check_box_outline_blank_rounded,
+                        size: 18,
+                      ),
+                      label: Text(
+                        'Select all (${shown.length} '
+                        '${_membersSearch.text.trim().isNotEmpty ? 'shown' : shown.length == 1 ? 'person' : 'people'})',
+                      ),
+                      style: TextButton.styleFrom(
+                        alignment: Alignment.centerLeft,
+                      ),
                     ),
-                    onDeleted: () => setState(() => _groupMemberIds.remove(id)),
                   ),
-              ],
+                  if (_groupMemberIds.isNotEmpty)
+                    TextButton(
+                      key: const ValueKey('group-clear'),
+                      onPressed: () => setState(_groupMemberIds.clear),
+                      child: const Text('Clear'),
+                    ),
+                ],
+              );
+            }),
+            if (_groupMemberIds.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final id in _groupMemberIds)
+                    Chip(
+                      label: Text(
+                        widget.contacts
+                            .firstWhere(
+                              (c) => c.id == id,
+                              orElse: () => HrMessageContact(
+                                id: id,
+                                name: 'Member',
+                              ),
+                            )
+                            .name,
+                      ),
+                      onDeleted: () =>
+                          setState(() => _groupMemberIds.remove(id)),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+            _ContactList(
+              contacts: _homeContacts(_membersSearch.text),
+              selectedIds: _groupMemberIds,
+              maxShown: 200,
+              onToggle: (contact) {
+                setState(() {
+                  if (_groupMemberIds.contains(contact.id)) {
+                    _groupMemberIds.remove(contact.id);
+                  } else {
+                    _groupMemberIds.add(contact.id);
+                  }
+                });
+              },
             ),
           ],
-          const SizedBox(height: 8),
-          _ContactList(
-            contacts: _filterContacts(_membersSearch.text),
-            selectedIds: _groupMemberIds,
-            onToggle: (contact) {
-              setState(() {
-                if (_groupMemberIds.contains(contact.id)) {
-                  _groupMemberIds.remove(contact.id);
-                } else {
-                  _groupMemberIds.add(contact.id);
-                }
-              });
-            },
-          ),
         ];
       case ConversationCreateType.familySupport:
         final familyMatches = _familyContacts.where((contact) {
@@ -1085,11 +1187,13 @@ class _ContactList extends StatelessWidget {
   final List<HrMessageContact> contacts;
   final Set<String> selectedIds;
   final ValueChanged<HrMessageContact> onToggle;
+  final int maxShown;
 
   const _ContactList({
     required this.contacts,
     required this.selectedIds,
     required this.onToggle,
+    this.maxShown = 12,
   });
 
   @override
@@ -1104,7 +1208,7 @@ class _ContactList extends StatelessWidget {
         ),
       );
     }
-    final shown = contacts.take(12).toList();
+    final shown = contacts.take(maxShown).toList();
     return Column(
       children: [
         for (final contact in shown)

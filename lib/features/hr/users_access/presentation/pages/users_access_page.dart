@@ -58,8 +58,19 @@ class _UsersAccessPageState extends State<UsersAccessPage>
   String _roleQuery = '';
   bool _creatingRole = false;
 
-  bool get _canUsers => _session.can('users:read');
+  // Product rule: read-only viewing is allowed with users:read OR staff:read.
+  bool get _canUsers => _session.canAny(['users:read', 'staff:read']);
   bool get _canWriteUsers => _session.can('users:write');
+  // Web: staff:update / staff:write lets a manager edit the staff profile;
+  // roles and password-reset stay locked behind users:write.
+  // Web: staff:update OR staff:write lets a manager edit the staff record.
+  bool get _canWriteStaff => _session.canAny(['staff:update', 'staff:write']);
+  // Web `canCreateStaff`: staff:create OR staff:write.
+  bool get _canAddPeople =>
+      _canWriteUsers || _session.canAny(['staff:create', 'staff:write']);
+  bool get _canEditPeople => _canWriteUsers || _canWriteStaff;
+  // Web `onDelete`: users:write OR staff:update/write.
+  bool get _canDeletePeople => _canWriteUsers || _canWriteStaff;
   bool get _canRoles => _session.can('roles:read');
   bool get _canWriteRoles => _session.can('roles:write');
   bool get _canReadCategories => _session.can('staff-categories:read');
@@ -170,10 +181,10 @@ class _UsersAccessPageState extends State<UsersAccessPage>
   }
 
   Future<void> _openAddUser() async {
-    if (!_canWriteUsers) {
+    if (!_canAddPeople) {
       AppSnackbar.show(
         'Not allowed',
-        'Adding people needs users:write.',
+        'Adding people needs staff:create or users:write.',
         force: true,
       );
       return;
@@ -183,11 +194,11 @@ class _UsersAccessPageState extends State<UsersAccessPage>
   }
 
   Future<void> _openEditUser(DirectoryPerson person) async {
-    if (!_canWriteUsers && !_canUsers) return;
-    if (!_canWriteUsers) {
+    if (person.isDeleted) return;
+    if (!_canEditPeople) {
       AppSnackbar.show(
         'Not allowed',
-        'Editing people needs users:write.',
+        'Editing people needs staff:update, staff:write or users:write.',
         force: true,
       );
       return;
@@ -196,6 +207,7 @@ class _UsersAccessPageState extends State<UsersAccessPage>
       context,
       repository: _repo,
       person: person,
+      canManageAccess: _canWriteUsers,
     );
     if (saved == true && mounted) await _loadPeople();
   }
@@ -216,15 +228,81 @@ class _UsersAccessPageState extends State<UsersAccessPage>
     );
   }
 
-  Future<void> _personAction(DirectoryPerson person) async {
-    if (person.userId.isEmpty) {
-      AppSnackbar.show(
-        'No login account',
-        'This person has no user login to manage.',
-        force: true,
+  Future<void> _deletePerson(DirectoryPerson person) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete ${person.name}?'),
+        content: const Text(
+          'This is permanent: they lose access and their email can be used '
+          'for a new account, which will not have their history. If they are '
+          'only away for a while, use Deactivate instead.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.criticalRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    // Same order as web: staff record (staff:update/write) then login.
+    if (person.staffId.isNotEmpty && _canWriteStaff) {
+      final r = await _repo.deleteStaff(person.staffId);
+      var failed = false;
+      r.when(
+        success: (_) {},
+        failure: (e) {
+          failed = true;
+          AppSnackbar.show('Could not delete', e.message, force: true);
+        },
       );
-      return;
+      if (failed || !mounted) return;
     }
+    if (person.userId.isNotEmpty && _canWriteUsers) {
+      final r = await _repo.deleteUser(person.userId);
+      var failed = false;
+      r.when(
+        success: (_) {},
+        failure: (e) {
+          failed = true;
+          AppSnackbar.show('Could not delete', e.message, force: true);
+        },
+      );
+      if (failed || !mounted) return;
+    }
+    AppSnackbar.show('Deleted', person.name, force: true);
+    await _loadPeople();
+  }
+
+  Future<void> _restorePerson(DirectoryPerson person) async {
+    var failed = false;
+    void onFail(dynamic e) {
+      failed = true;
+      AppSnackbar.show('Could not restore', e.message as String, force: true);
+    }
+
+    if (person.userId.isNotEmpty && _canWriteUsers) {
+      (await _repo.restoreUser(person.userId))
+          .when(success: (_) {}, failure: onFail);
+    }
+    if (!failed && person.staffId.isNotEmpty && _canWriteStaff) {
+      (await _repo.restoreStaff(person.staffId))
+          .when(success: (_) {}, failure: onFail);
+    }
+    if (failed || !mounted) return;
+    AppSnackbar.show('Restored', person.name, force: true);
+    await _loadPeople();
+  }
+
+  Future<void> _personAction(DirectoryPerson person) async {
+    if (person.userId.isEmpty && person.staffId.isEmpty) return;
     final action = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -241,29 +319,53 @@ class _UsersAccessPageState extends State<UsersAccessPage>
               ),
               subtitle: Text(person.email),
             ),
-            if (_canWriteUsers && person.isDeactivated)
+            if (person.isDeleted &&
+                (_canWriteUsers || _canWriteStaff))
+              ListTile(
+                leading: const Icon(Icons.restore_from_trash_outlined),
+                title: const Text('Restore'),
+                onTap: () => Navigator.pop(ctx, 'restore'),
+              ),
+            if (!person.isDeleted &&
+                _canWriteUsers &&
+                person.isDeactivated)
               ListTile(
                 leading: const Icon(Icons.restart_alt),
                 title: const Text('Reactivate'),
                 onTap: () => Navigator.pop(ctx, 'reactivate'),
               ),
-            if (_canWriteUsers && !person.isDeactivated)
+            if (!person.isDeleted &&
+                _canWriteUsers &&
+                person.hasLogin &&
+                !person.isDeactivated)
               ListTile(
                 leading: const Icon(Icons.person_off_outlined),
                 title: const Text('Deactivate'),
                 onTap: () => Navigator.pop(ctx, 'deactivate'),
               ),
-            if (_canWriteUsers && person.hasLogin)
+            if (!person.isDeleted && _canWriteUsers && person.hasLogin)
               ListTile(
                 leading: const Icon(Icons.lock_reset_outlined),
                 title: const Text('Send password reset'),
                 onTap: () => Navigator.pop(ctx, 'reset'),
               ),
-            if (_canWriteUsers)
+            if (!person.isDeleted && _canWriteUsers && person.hasLogin)
               ListTile(
                 leading: const Icon(Icons.badge_outlined),
                 title: const Text('Assign roles'),
                 onTap: () => Navigator.pop(ctx, 'roles'),
+              ),
+            if (!person.isDeleted && _canDeletePeople)
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: AppColors.criticalRed,
+                ),
+                title: const Text(
+                  'Delete',
+                  style: TextStyle(color: AppColors.criticalRed),
+                ),
+                onTap: () => Navigator.pop(ctx, 'delete'),
               ),
             ListTile(
               leading: const Icon(Icons.close),
@@ -309,6 +411,10 @@ class _UsersAccessPageState extends State<UsersAccessPage>
         );
       case 'roles':
         await _assignRoles(person);
+      case 'delete':
+        await _deletePerson(person);
+      case 'restore':
+        await _restorePerson(person);
     }
   }
 
@@ -511,7 +617,7 @@ class _UsersAccessPageState extends State<UsersAccessPage>
                 _loadPeople();
               },
               child: Text(
-                _showDeactivated ? 'Hide deactivated' : 'Show deactivated',
+                _showDeactivated ? 'Hide deleted' : 'Show deleted',
               ),
             ),
           ],
@@ -536,7 +642,7 @@ class _UsersAccessPageState extends State<UsersAccessPage>
                   label: Text(_creatingRole ? 'Creating…' : 'New role'),
                 )
               : null)
-          : (_canWriteUsers
+          : (_canAddPeople
               ? FloatingActionButton.extended(
                   onPressed: _openAddUser,
                   backgroundColor: AppColors.primaryNavy,
@@ -869,7 +975,7 @@ class _UsersAccessPageState extends State<UsersAccessPage>
           for (final person in _people) ...[
             _PersonCard(
               person: person,
-              canManage: _canWriteUsers,
+              canManage: _canEditPeople,
               onOpen: () => _openEditUser(person),
               onActions: () => _personAction(person),
             ),
@@ -1204,8 +1310,12 @@ class _PersonCard extends StatelessWidget {
                           _Tag(person.loginLabel),
                           _Tag('Cert: ${person.certificationLabel}'),
                           _Tag(
-                            person.isDeactivated ? 'Inactive' : 'Active',
-                            tone: person.isDeactivated
+                            person.isDeleted
+                                ? 'Deleted'
+                                : person.isDeactivated
+                                    ? 'Inactive'
+                                    : 'Active',
+                            tone: person.isDeleted || person.isDeactivated
                                 ? AppColors.criticalRed
                                 : AppColors.activeGreen,
                           ),
@@ -1214,7 +1324,7 @@ class _PersonCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (canManage || person.userId.isNotEmpty)
+                if (canManage || person.userId.isNotEmpty || person.staffId.isNotEmpty)
                   IconButton(
                     onPressed: onActions,
                     icon: const Icon(Icons.more_vert),

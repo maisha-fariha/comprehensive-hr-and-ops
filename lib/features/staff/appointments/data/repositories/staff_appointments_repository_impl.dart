@@ -82,6 +82,9 @@ class StaffAppointmentsRepositoryImpl implements StaffAppointmentsRepository {
         'location': input.location!.trim(),
       if (input.residenceId != null && input.residenceId!.isNotEmpty)
         'residenceId': input.residenceId,
+      if (input.assigneeStaffIds.isNotEmpty)
+        'assigneeStaffIds': input.assigneeStaffIds,
+      'reminderMinutesBefore': input.reminderMinutesBefore,
     };
     final result = await _api.post(
       ApiEndpoints.appointments,

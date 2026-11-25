@@ -8,7 +8,7 @@ import '../../../domain/entities/create_shift_draft.dart';
 
 extension CreateShiftStepX on CreateShiftStep {
   String get label => switch (this) {
-        CreateShiftStep.shiftInformation => 'Shift Information',
+        CreateShiftStep.shiftInformation => 'Shift & Staff',
         CreateShiftStep.staffAssignment => 'Staffing',
         CreateShiftStep.openShift => 'Open Shift',
         CreateShiftStep.recurring => 'Recurring',
@@ -16,17 +16,21 @@ extension CreateShiftStepX on CreateShiftStep {
       };
 
   String get description => switch (this) {
-        CreateShiftStep.shiftInformation => 'Timing & residence',
+        CreateShiftStep.shiftInformation => 'Timing, residence & staffing',
         CreateShiftStep.staffAssignment => 'Assign or open for bids',
         CreateShiftStep.openShift => 'Bidding & eligibility',
         CreateShiftStep.recurring => 'Repeat pattern',
         CreateShiftStep.notifications => 'Alerts & reminders',
       };
 
-  /// Wizard steps shown in the tab strip (Open Shift is merged into Staff).
+  /// Wizard steps shown in the tab strip. Web puts shift details and staffing
+  /// (assign / open shift) on one step, so Staffing and Open Shift fold into
+  /// Shift & Staff.
   static List<CreateShiftStep> get visibleSteps => [
         for (final step in CreateShiftStep.values)
-          if (step != CreateShiftStep.openShift) step,
+          if (step != CreateShiftStep.openShift &&
+              step != CreateShiftStep.staffAssignment)
+            step,
       ];
 }
 

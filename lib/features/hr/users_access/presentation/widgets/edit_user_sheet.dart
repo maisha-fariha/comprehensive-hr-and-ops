@@ -16,10 +16,15 @@ Future<bool?> showEditUserSheet(
   BuildContext context, {
   required UsersAccessRepository repository,
   required DirectoryPerson person,
+  bool canManageAccess = true,
 }) {
   return showClientSheet<bool>(
     context,
-    _EditUserSheet(repository: repository, person: person),
+    _EditUserSheet(
+      repository: repository,
+      person: person,
+      canManageAccess: canManageAccess,
+    ),
   );
 }
 
@@ -47,9 +52,14 @@ class _EditUserSheet extends StatefulWidget {
   final UsersAccessRepository repository;
   final DirectoryPerson person;
 
+  /// users:write — roles, login patch and residence sync. Without it
+  /// (staff:update only) those controls stay locked.
+  final bool canManageAccess;
+
   const _EditUserSheet({
     required this.repository,
     required this.person,
+    this.canManageAccess = true,
   });
 
   @override
@@ -161,7 +171,9 @@ class _EditUserSheetState extends State<_EditUserSheet> {
 
   Future<void> _bootstrap() async {
     final residences = await widget.repository.fetchResidences();
-    final roles = await widget.repository.fetchRoles();
+    final roles = widget.canManageAccess
+        ? await widget.repository.fetchRoles()
+        : null;
     Map<String, dynamic> staff = {};
     Map<String, dynamic> user = {};
 
@@ -172,7 +184,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
         failure: (_) {},
       );
     }
-    if (_userId.isNotEmpty) {
+    if (_userId.isNotEmpty && widget.canManageAccess) {
       final userResult = await widget.repository.fetchUser(_userId);
       userResult.when(
         success: (m) => user = m,
@@ -185,7 +197,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       success: (rows) => _residences = rows,
       failure: (_) {},
     );
-    roles.when(
+    roles?.when(
       success: (rows) => _roles = rows,
       failure: (_) {},
     );
@@ -458,7 +470,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       case _EditStep.residence:
         return _residenceIds.isNotEmpty && _primaryResidenceId.isNotEmpty;
       case _EditStep.account:
-        return _userId.isEmpty || _roleIds.isNotEmpty;
+        return _userId.isEmpty || !widget.canManageAccess || _roleIds.isNotEmpty;
     }
   }
 
@@ -509,7 +521,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
           }
         }
       case _EditStep.account:
-        if (_userId.isNotEmpty && _roleIds.isEmpty) {
+        if (_userId.isNotEmpty && widget.canManageAccess && _roleIds.isEmpty) {
           errors['roleIds'] = 'A login needs at least one role.';
         }
     }
@@ -658,8 +670,10 @@ class _EditUserSheetState extends State<_EditUserSheet> {
             _numOrNull(_hourlyRate.text) != null)
           'hourlyRate': _numOrNull(_hourlyRate.text),
         'medAdminApproved': _medAdminApproved,
-        'residenceIds': _residenceIds.toList(growable: false),
-        'primaryResidenceId': _primaryResidenceId,
+        if (widget.canManageAccess) ...{
+          'residenceIds': _residenceIds.toList(growable: false),
+          'primaryResidenceId': _primaryResidenceId,
+        },
       };
       final patch = await widget.repository.patchStaff(_staffId, staffBody);
       if (!mounted) return;
@@ -672,7 +686,7 @@ class _EditUserSheetState extends State<_EditUserSheet> {
       }
     }
 
-    if (_userId.isNotEmpty) {
+    if (_userId.isNotEmpty && widget.canManageAccess) {
       final userPatch = await widget.repository.patchUser(_userId, {
         'name':
             '${_firstName.text.trim()} ${_lastName.text.trim()}'.trim(),
@@ -1266,7 +1280,12 @@ class _EditUserSheetState extends State<_EditUserSheet> {
               : 'Roles decide what this login may do.',
         ),
         _gap,
-        if (_userId.isEmpty)
+        if (_userId.isNotEmpty && !widget.canManageAccess)
+          Text(
+            'Roles and password reset are locked. They need the users:write permission.',
+            style: handoverText(context, 13, color: AppColors.textMuted),
+          )
+        else if (_userId.isEmpty)
           Text(
             'No login account is linked. Use the row menu to invite or create access later.',
             style: handoverText(context, 13, color: AppColors.textMuted),

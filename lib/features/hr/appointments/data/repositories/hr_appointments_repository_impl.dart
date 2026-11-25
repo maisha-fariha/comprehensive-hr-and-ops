@@ -52,6 +52,8 @@ class HrAppointmentsRepositoryImpl implements HrAppointmentsRepository {
         'type': ?blank(query.type),
         'residenceId': ?blank(query.residenceId),
         'search': ?blank(query.search),
+        'from': ?query.from?.toUtc().toIso8601String(),
+        'to': ?query.to?.toUtc().toIso8601String(),
       },
       silent: true,
     );
@@ -80,6 +82,9 @@ class HrAppointmentsRepositoryImpl implements HrAppointmentsRepository {
         'location': ?input.location,
         'purpose': ?input.purpose,
         'notes': ?input.notes,
+        if (input.assigneeStaffIds.isNotEmpty)
+          'assigneeStaffIds': input.assigneeStaffIds,
+        'reminderMinutesBefore': input.reminderMinutesBefore,
       });
 
   @override
@@ -100,11 +105,34 @@ class HrAppointmentsRepositoryImpl implements HrAppointmentsRepository {
             'location': input.location,
             'purpose': input.purpose,
             'notes': input.notes,
+            'assigneeStaffIds': input.assigneeStaffIds,
+            'reminderMinutesBefore': input.reminderMinutesBefore,
           },
           silent: true,
           allowQueue: false,
         ),
       );
+
+  @override
+  Future<Result<List<HrAppointmentOption>>> staffOptions({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      '/staff/directory',
+      query: {
+        'page': 1,
+        'limit': 100,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) =>
+          Result.success(HrAppointmentsMapper.staffOptionsFrom(body)),
+      failure: Result.failure,
+    );
+  }
 
   @override
   Future<Result<void>> approve(String id) =>

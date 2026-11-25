@@ -141,6 +141,15 @@ class ClientsController extends GetxController {
     result.when(
       success: (data) {
         clients.assignAll(data.items);
+        // Roles without residences:read (e.g. Scheduler) cannot load the
+        // residence list; seed the pickers from the rows we do have.
+        for (final c in data.items) {
+          final id = c.residenceId;
+          final name = c.residenceName;
+          if (id != null && id.isNotEmpty && name != null && name.isNotEmpty) {
+            residenceNames.putIfAbsent(id, () => name);
+          }
+        }
         total.value = data.total;
         totalPages.value = data.totalPages;
         loadError.value = null;
@@ -186,7 +195,10 @@ class ClientsController extends GetxController {
 
   Future<void> _loadResidenceNames() async {
     final result = await repository.getResidenceNames();
-    result.when(success: residenceNames.assignAll, failure: (_) {});
+    result.when(
+      success: (names) => residenceNames.addAll(names),
+      failure: (_) {},
+    );
   }
 
   Future<void> _loadClientLimit() async {

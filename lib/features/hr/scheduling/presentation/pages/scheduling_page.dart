@@ -12,6 +12,8 @@ import '../widgets/calendar_tab_view.dart';
 import '../widgets/scheduling_filter_bar.dart';
 import '../widgets/open_shift_bids_sheet.dart';
 import '../widgets/schedule_side_rails.dart';
+import '../widgets/schedule_day_sheet.dart';
+import '../../domain/entities/scheduling_overview.dart';
 import '../widgets/schedule_span_panel.dart';
 import '../widgets/scheduling_top_bar.dart';
 import '../widgets/staff_rostered_hours_sheet.dart';
@@ -67,16 +69,50 @@ class _SchedulingPageState extends State<SchedulingPage> {
     );
   }
 
-  Future<void> _openCreateShift(SchedulingController controller) async {
+  Future<void> _openCreateShift(
+    SchedulingController controller, {
+    DateTime? date,
+  }) async {
     final created = await Get.to<bool>(
       () => CreateShiftPage(
         initialResidenceId: controller.residenceFilter.value,
-        initialShiftDate: controller.selectedDay.value,
+        initialShiftDate: date ?? controller.selectedDay.value,
       ),
     );
     if (created == true) {
       await controller.refresh();
     }
+  }
+
+  /// Web: clicking a month cell opens the day dialog (shifts by home, Add
+  /// shift, open/edit, delete).
+  Future<void> _openDaySheet(
+    BuildContext context,
+    SchedulingController controller,
+    DateTime date,
+    SchedulingOverview overview,
+  ) {
+    final dayShifts = [
+      for (final s in overview.calendar.weekShifts)
+        if (s.occursOn case final o?
+            when o.year == date.year &&
+                o.month == date.month &&
+                o.day == date.day)
+          s,
+    ];
+    return showScheduleDaySheet(
+      context: context,
+      date: date,
+      title:
+          '${const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][date.weekday - 1]} '
+          '${date.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.month - 1]}',
+      shifts: dayShifts,
+      canWrite: controller.canWrite,
+      initialResidenceId: controller.residenceFilter.value,
+      onAdd: (_) => _openCreateShift(controller, date: date),
+      onEdit: (shift) => _openEditShift(controller, shift.id),
+      onDelete: (shift) => _confirmDeleteShift(context, controller, shift),
+    );
   }
 
   Future<void> _openEditShift(
@@ -295,6 +331,11 @@ class _SchedulingPageState extends State<SchedulingPage> {
                     ScheduleSpan.month => ScheduleMonthView(
                       controller: controller,
                       shifts: overview.calendar.weekShifts,
+                      onDayTap: (date) =>
+                          _openDaySheet(context, controller, date, overview),
+                      onDayAdd: controller.canWrite
+                          ? (date) => _openCreateShift(controller, date: date)
+                          : null,
                     ),
                     ScheduleSpan.list => ScheduleAllShiftsView(
                       controller: controller,
@@ -306,6 +347,7 @@ class _SchedulingPageState extends State<SchedulingPage> {
                     ),
                     ScheduleSpan.week => CalendarTabView(
                       data: overview.calendar,
+                      holidayOf: controller.holidayName,
                       onPreviousWeek: controller.goToPreviousWeek,
                       onNextWeek: controller.goToNextWeek,
                       onDaySelected: (day) =>

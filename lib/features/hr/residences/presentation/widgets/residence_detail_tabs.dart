@@ -628,6 +628,14 @@ class _AddRoomFormState extends State<_AddRoomForm> {
           const SizedBox(height: 10),
           ResidenceTextInput(
               field: 'roomSleeps', label: 'Sleeps', numeric: true, controller: _sleeps, onChanged: (_) {}),
+          const SizedBox(height: 8),
+          Text(
+            'A new room is added to this home with all of its beds free. '
+            'The Beds and Free counts go up by the number it sleeps until '
+            'somebody is placed in it.',
+            key: const ValueKey('residence-room-add-note'),
+            style: handoverText(context, 12, color: AppColors.textMuted),
+          ),
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(_error!, style: handoverText(context, 12, color: AppColors.criticalRed)),

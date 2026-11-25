@@ -70,6 +70,8 @@ class PurchasingController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // Web: a suppliers-only role lands on Suppliers, not an empty orders list.
+    if (!canReadOrders && canReadSuppliers) tab.value = PurchasingTab.suppliers;
     refreshAll();
     loadOptions();
   }

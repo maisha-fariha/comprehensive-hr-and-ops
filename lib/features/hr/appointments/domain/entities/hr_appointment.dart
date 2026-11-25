@@ -22,6 +22,9 @@ class HrAppointment {
   final String? deciderName;
   final DateTime? decidedAt;
   final String? decisionReason;
+  final List<String> assigneeIds;
+  final List<String> assigneeNames;
+  final int? reminderMinutesBefore;
 
   const HrAppointment({
     required this.id,
@@ -41,7 +44,34 @@ class HrAppointment {
     this.deciderName,
     this.decidedAt,
     this.decisionReason,
+    this.assigneeIds = const [],
+    this.assigneeNames = const [],
+    this.reminderMinutesBefore,
   });
+
+  static const reminderOptions = <(int?, String)>[
+    (null, 'No reminder'),
+    (15, '15 minutes before'),
+    (30, '30 minutes before'),
+    (60, '1 hour before'),
+    (120, '2 hours before'),
+    (240, '4 hours before'),
+    (1440, '24 hours before'),
+    (2880, '48 hours before'),
+  ];
+
+  static String reminderText(int? minutes) {
+    if (minutes == null || minutes == 0) return 'No reminder';
+    for (final o in reminderOptions) {
+      if (o.$1 == minutes) return o.$2;
+    }
+    return '$minutes minutes before';
+  }
+
+  /// Web "Going With" — staff who go along with the resident.
+  String get goingLabel =>
+      assigneeNames.isEmpty ? 'Nobody assigned' : assigneeNames.join(', ');
+  String get reminderLabel => reminderText(reminderMinutesBefore);
 
   static const statusLabels = {
     'pending': 'Pending',
@@ -133,6 +163,10 @@ class HrAppointmentQuery {
   final String? residenceId;
   final String? search;
 
+  /// Calendar window (ISO instants); the list leaves these out.
+  final DateTime? from;
+  final DateTime? to;
+
   const HrAppointmentQuery({
     required this.page,
     required this.limit,
@@ -140,6 +174,8 @@ class HrAppointmentQuery {
     this.type,
     this.residenceId,
     this.search,
+    this.from,
+    this.to,
   });
 }
 
@@ -213,6 +249,8 @@ class HrAppointmentInput {
   final String? location;
   final String? purpose;
   final String? notes;
+  final List<String> assigneeStaffIds;
+  final int? reminderMinutesBefore;
 
   const HrAppointmentInput({
     required this.type,
@@ -222,5 +260,7 @@ class HrAppointmentInput {
     this.location,
     this.purpose,
     this.notes,
+    this.assigneeStaffIds = const [],
+    this.reminderMinutesBefore,
   });
 }

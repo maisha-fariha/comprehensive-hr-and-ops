@@ -187,19 +187,129 @@ class ScheduleMonthView extends StatelessWidget {
   final SchedulingController controller;
   final List<CalendarShift> shifts;
 
+  /// Web: any day (empty or with shifts) opens Add New Shift on that date.
+  final ValueChanged<DateTime>? onDayTap;
+
+  /// Web cell "+" button: Add New Shift straight away (writers only).
+  final ValueChanged<DateTime>? onDayAdd;
+
   const ScheduleMonthView({
     super.key,
     required this.controller,
     required this.shifts,
+    this.onDayTap,
+    this.onDayAdd,
   });
 
+  // Observe holidays/month here: this build runs outside the page's Obx.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _buildMonth(context));
+
+  Widget _buildMonth(BuildContext context) {
     final month = controller.monthOf.value;
     final first = DateTime(month.year, month.month, 1);
     final days = DateTime(month.year, month.month + 1, 0).day;
     final lead = first.weekday % 7;
-    final cells = lead + days;
+    final rows = ((lead + days) / 7).ceil();
+    final gridStart = first.subtract(Duration(days: lead));
+    final today = TenantClock.now();
+    final todayDay = DateTime(today.year, today.month, today.day);
+    final holidays = <(DateTime, String)>[
+      for (var d = 1; d <= days; d++)
+        if (controller.holidayName(DateTime(month.year, month.month, d))
+            case final name?)
+          (DateTime(month.year, month.month, d), name),
+    ];
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    List<CalendarShift> shiftsOn(DateTime date) => [
+      for (final shift in shifts)
+        if (shift.occursOn case final o?
+            when o.year == date.year &&
+                o.month == date.month &&
+                o.day == date.day)
+          shift,
+    ];
+
+    Widget cell(DateTime date) {
+      final inMonth = date.month == month.month;
+      final isToday = date == todayDay;
+      final dayShifts = inMonth ? shiftsOn(date) : const <CalendarShift>[];
+      final open = dayShifts.where((s) => s.apiStatus == 'open').length;
+      final holiday = controller.holidayName(date);
+      return InkWell(
+        onTap: !inMonth
+            ? null
+            : onDayTap == null
+            ? (dayShifts.isEmpty ? null : () => controller.openWeekOf(date))
+            : () => onDayTap!(date),
+        onLongPress: inMonth && onDayAdd != null ? () => onDayAdd!(date) : null,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(5, 4, 4, 4),
+          decoration: BoxDecoration(
+            color: isToday
+                ? AppColors.secondaryTeal.withValues(alpha: 0.08)
+                : holiday != null
+                ? AppColors.urgentBackgroundSoft
+                : null,
+            border: Border.all(color: AppColors.cardBorder, width: 0.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                '${date.day}',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: isToday
+                      ? AppColors.secondaryTeal
+                      : inMonth
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary.withValues(alpha: 0.45),
+                ),
+              ),
+                  if (inMonth && onDayAdd != null)
+                    GestureDetector(
+                      key: ValueKey('month-cell-add-${date.day}'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onDayAdd!(date),
+                      child: const Icon(
+                        Icons.add,
+                        size: 15,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
+              if (holiday != null && inMonth)
+                const Icon(
+                  Icons.celebration_outlined,
+                  size: 12,
+                  color: AppColors.urgentAmber,
+                ),
+              if (dayShifts.isNotEmpty) ...[
+                const Spacer(),
+                _MonthPill(
+                  '${dayShifts.length}',
+                  AppColors.dividerLight,
+                  AppColors.textSecondary,
+                ),
+                if (open > 0)
+                  _MonthPill(
+                    '$open open',
+                    AppColors.criticalBackgroundSoft,
+                    AppColors.criticalRed,
+                  ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -236,47 +346,129 @@ class ScheduleMonthView extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: cells,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              mainAxisExtent: 52,
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceWhite,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.cardBorder),
             ),
-            itemBuilder: (context, index) {
-              if (index < lead) return const SizedBox.shrink();
-              final day = index - lead + 1;
-              final date = DateTime(month.year, month.month, day);
-              final count = shifts.where((shift) {
-                final occurs = shift.occursOn;
-                return occurs != null &&
-                    occurs.year == date.year &&
-                    occurs.month == date.month &&
-                    occurs.day == date.day;
-              }).length;
-              return InkWell(
-                onTap: count == 0 ? null : () => controller.openWeekOf(date),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('$day', style: const TextStyle(fontSize: 13)),
-                    if (count > 0)
-                      Text(
-                        '$count',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.secondaryTeal,
-                          fontWeight: FontWeight.w700,
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                Container(
+                  color: AppColors.dividerLight,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      for (final d in weekdays)
+                        Expanded(
+                          child: Text(
+                            d.toUpperCase(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.4,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
-              );
-            },
+                for (var r = 0; r < rows; r++)
+                  SizedBox(
+                    height: 72,
+                    child: Row(
+                      children: [
+                        for (var c = 0; c < 7; c++)
+                          Expanded(
+                            child: cell(
+                              gridStart.add(Duration(days: r * 7 + c)),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
+        if (holidays.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Public holidays',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final (date, name) in holidays)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.celebration_outlined,
+                          size: 14,
+                          color: AppColors.urgentAmber,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '${date.day} ${IsoDateRange.formatMonthYear(first).split(' ').first} · $name\n'
+                            '${controller.holidayDetail(date)}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
       ],
+    );
+  }
+}
+
+class _MonthPill extends StatelessWidget {
+  final String text;
+  final Color background;
+  final Color foreground;
+
+  const _MonthPill(this.text, this.background, this.foreground);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.clip,
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          color: foreground,
+        ),
+      ),
     );
   }
 }

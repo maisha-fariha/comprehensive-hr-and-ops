@@ -2,6 +2,7 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/network/holidays_service.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
@@ -33,6 +34,50 @@ class SchedulingController extends BaseController<SchedulingOverview> {
 
   /// Filters sheet: `null` means "All homes" / every shift status.
   final RxnString residenceFilter = RxnString();
+
+  /// Public holidays keyed `yyyy-MM-dd` for the visible week + month.
+  final RxMap<String, Holiday> holidays = <String, Holiday>{}.obs;
+  int _holidayGeneration = 0;
+
+  /// Web tooltip copy: statutory vs observed provinces.
+  String holidayDetail(DateTime date) {
+    final h = holidays[HolidaysService.key(date)];
+    if (h == null) return '';
+    if (h.provinces.isEmpty) return 'A public holiday across Canada';
+    return 'Statutory holiday in ${h.provinces.join(', ')}';
+  }
+
+  String? holidayName(DateTime date) => holidays[HolidaysService.key(date)]?.name;
+
+  Future<void> _loadHolidays() async {
+    final generation = ++_holidayGeneration;
+    final week = weekOf.value;
+    final month = monthOf.value;
+    final monthStart = DateTime(month.year, month.month, 1);
+    final monthEnd = DateTime(month.year, month.month + 1, 0);
+    final weekEnd = week.add(const Duration(days: 6));
+    final from = week.isBefore(monthStart) ? week : monthStart;
+    final to = weekEnd.isAfter(monthEnd) ? weekEnd : monthEnd;
+    final loaded = await HolidaysService.fetch(
+      from: from,
+      to: to,
+      residenceId: residenceFilter.value,
+      fallbackProvince: provinceForHolidays,
+    );
+    if (generation != _holidayGeneration) return;
+    holidays.assignAll(loaded);
+  }
+
+  /// Province of the filtered residence (provincial holidays); `null` with
+  /// "All residences" so only national holidays show.
+  String? get provinceForHolidays {
+    final id = residenceFilter.value;
+    if (id == null) return null;
+    for (final r in residences) {
+      if (r.id == id) return r.province;
+    }
+    return null;
+  }
   final Rxn<ShiftStatusFilter> statusFilter = Rxn<ShiftStatusFilter>();
 
   /// Homes for the Filters sheet "Home" dropdown.
@@ -45,8 +90,8 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   /// Web Week / Month / All shifts switch. Week is the default.
   final Rx<ScheduleSpan> span = ScheduleSpan.week.obs;
   final Rx<DateTime> monthOf = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
+    TenantClock.now().year,
+    TenantClock.now().month,
     1,
   ).obs;
 
@@ -175,6 +220,7 @@ class SchedulingController extends BaseController<SchedulingOverview> {
 
     final requestedWeek = weekOf.value;
     final requestedDay = selectedDay.value;
+    _loadHolidays();
     final result = await repository.getOverview(
       weekOf: requestedWeek,
       selectedDay: requestedDay,
@@ -227,6 +273,11 @@ class SchedulingController extends BaseController<SchedulingOverview> {
 
   void selectSpan(ScheduleSpan next) {
     if (span.value == next) return;
+    if (next == ScheduleSpan.month) {
+      // Open the month of the week the manager is looking at (web does too).
+      final anchor = selectedDay.value;
+      monthOf.value = DateTime(anchor.year, anchor.month, 1);
+    }
     span.value = next;
     loadOverview();
   }

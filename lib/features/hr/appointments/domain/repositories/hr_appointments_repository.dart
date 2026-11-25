@@ -34,6 +34,10 @@ abstract class HrAppointmentsRepository {
   /// `GET /residences` for the residence filter.
   Future<Result<List<HrAppointmentOption>>> residences();
 
+  /// `GET /staff/directory` — who can go along (needs `staff:directory` or
+  /// `staff:read`).
+  Future<Result<List<HrAppointmentOption>>> staffOptions({String? residenceId});
+
   /// `GET /clients` for the form's resident picker.
   Future<Result<List<HrAppointmentClient>>> clients();
 

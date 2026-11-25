@@ -101,7 +101,11 @@ List<ManagerDestination> managerDestinations() {
         keywords: const ['home', 'overview'],
         inMoreMenu: false,
       ),
-    if (can('users:read') || can('roles:read'))
+    if (can('users:read') ||
+        can('roles:read') ||
+        can('staff:read') ||
+        can('staff:update') ||
+        can('staff:write'))
       ManagerDestination(
         title: 'Users & Access',
         subtitle: 'Accounts, roles and permission grants',
@@ -110,7 +114,13 @@ List<ManagerDestination> managerDestinations() {
         iconColor: AppColors.nightPurple,
         open: () => openPermittedPage(
           title: 'Users & Access',
-          anyOf: const ['users:read', 'roles:read'],
+          anyOf: const [
+            'users:read',
+            'roles:read',
+            'staff:read',
+            'staff:update',
+            'staff:write',
+          ],
           builder: () => const UsersAccessPage(),
         ),
         keywords: const ['users', 'roles', 'permissions', 'access', 'rbac'],

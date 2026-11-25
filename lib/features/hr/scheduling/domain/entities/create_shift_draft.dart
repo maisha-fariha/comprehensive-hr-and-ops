@@ -328,6 +328,11 @@ class CreateShiftDraft {
     if (step == CreateShiftStep.staffAssignment) {
       return isOpenShift || assignedStaff.isNotEmpty;
     }
+    if (step == CreateShiftStep.shiftInformation) {
+      // Shift details and staffing share one step (web parity).
+      return stepFields[step]!.every(_hasValue) &&
+          isStepComplete(CreateShiftStep.staffAssignment);
+    }
     final fields = stepFields[step]!;
     return fields.isNotEmpty && fields.every(_hasValue);
   }
@@ -391,6 +396,14 @@ class CreateShiftDraft {
 
   /// Errors the "Next" button reports for [step].
   Map<String, String> validateStep(CreateShiftStep step) {
+    if (step == CreateShiftStep.shiftInformation) {
+      return {
+        ..._validateFieldsOf(step),
+        // Web lets you move on with nobody assigned (the banner warns);
+        // only submit/publish require staff. Bidding rules still apply.
+        if (isOpenShift) ...validateStep(CreateShiftStep.staffAssignment),
+      };
+    }
     if (step == CreateShiftStep.staffAssignment) {
       final bidding = validate()[CreateShiftField.biddingDeadline];
       if (isOpenShift) {
@@ -404,6 +417,10 @@ class CreateShiftDraft {
       }
       return const {};
     }
+    return _validateFieldsOf(step);
+  }
+
+  Map<String, String> _validateFieldsOf(CreateShiftStep step) {
     final fields = stepFields[step]!;
     if (fields.isEmpty) return const {};
     final all = validate();
@@ -415,7 +432,11 @@ class CreateShiftDraft {
 
   static CreateShiftStep stepOf(String field) {
     for (final entry in stepFields.entries) {
-      if (entry.value.contains(field)) return entry.key;
+      if (entry.value.contains(field)) {
+        return entry.key == CreateShiftStep.staffAssignment
+            ? CreateShiftStep.shiftInformation
+            : entry.key;
+      }
     }
     return CreateShiftStep.recurring;
   }

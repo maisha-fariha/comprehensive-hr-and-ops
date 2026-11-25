@@ -36,8 +36,7 @@ const _createShiftErrorKeys = <String, Key>{
   CreateShiftField.biddingDeadline: ValueKey('create-shift-bid-deadline'),
   CreateShiftField.endDate: ValueKey('create-shift-end-date'),
   CreateShiftField.occurrenceCount: ValueKey('create-shift-occurrences'),
-  CreateShiftField.restOverrideReason:
-      ValueKey('shift-rest-override-reason'),
+  CreateShiftField.restOverrideReason: ValueKey('shift-rest-override-reason'),
 };
 
 /// "Add New Shift" wizard — same steps, fields, validation and
@@ -85,6 +84,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   CreateShiftStep _step = CreateShiftStep.shiftInformation;
   Map<String, String> _errors = const {};
   String? _submitError;
+
   /// Which footer action is in flight (Bug Report 002 — only that button spins).
   String? _busyAction;
   Future<void>? _clockReady;
@@ -107,22 +107,27 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     _repository = GetIt.instance<SchedulingRepository>();
     final residenceId = widget.initialResidenceId?.trim();
     _draft = CreateShiftDraft(
-      residenceId: residenceId == null || residenceId.isEmpty ? null : residenceId,
+      residenceId: residenceId == null || residenceId.isEmpty
+          ? null
+          : residenceId,
       shiftDate: widget.initialShiftDate ?? DateTime.now(),
     );
     _titleController = TextEditingController(text: _draft.title);
     _notesController = TextEditingController(text: _draft.notes);
-    _requiredStaffCountController =
-        TextEditingController(text: _draft.requiredStaffCount);
+    _requiredStaffCountController = TextEditingController(
+      text: _draft.requiredStaffCount,
+    );
     _maxBidsController = TextEditingController(text: _draft.maxBids);
-    _noteToBiddersController =
-        TextEditingController(text: _draft.noteToBidders);
-    _occurrenceController =
-        TextEditingController(text: _draft.occurrenceCount);
-    _messageController =
-        TextEditingController(text: _draft.notificationMessage);
-    _restOverrideReasonController =
-        TextEditingController(text: _draft.restOverrideReason);
+    _noteToBiddersController = TextEditingController(
+      text: _draft.noteToBidders,
+    );
+    _occurrenceController = TextEditingController(text: _draft.occurrenceCount);
+    _messageController = TextEditingController(
+      text: _draft.notificationMessage,
+    );
+    _restOverrideReasonController = TextEditingController(
+      text: _draft.restOverrideReason,
+    );
     _initialSnapshot = _draft.snapshot();
     _clockReady = _bootstrap();
   }
@@ -183,8 +188,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       if (current.roleLabel.isNotEmpty || current.residenceLabel.isNotEmpty) {
         continue;
       }
-      final option =
-          _staffOptions.where((o) => o.id == current.staffId).firstOrNull;
+      final option = _staffOptions
+          .where((o) => o.id == current.staffId)
+          .firstOrNull;
       if (option == null) continue;
       staff[i] = AssignedShiftStaff(
         staffId: current.staffId,
@@ -247,8 +253,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   Future<void> _loadStaff() async {
     if (_isLoadingStaff) return;
-    final residenceId =
-        _draft.residenceId.isEmpty ? null : _draft.residenceId;
+    final residenceId = _draft.residenceId.isEmpty ? null : _draft.residenceId;
     // Web only offers staff for the selected residence.
     if (residenceId == null) {
       if (!mounted) return;
@@ -272,8 +277,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           ..clear()
           ..addAll(data);
         final allowed = {for (final o in data) o.id};
-        _draft.assignedStaff
-            .removeWhere((s) => allowed.isNotEmpty && !allowed.contains(s.staffId));
+        _draft.assignedStaff.removeWhere(
+          (s) => allowed.isNotEmpty && !allowed.contains(s.staffId),
+        );
         _labelAssignedStaff();
       }),
       failure: (error) => setState(() {
@@ -314,9 +320,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   Future<void> _refreshStaffConflicts() async {
     final serial = ++_conflictSerial;
     final window = _draft.shiftWindow;
-    final staffIds = [
-      for (final staff in _draft.assignedStaff) staff.staffId,
-    ]..sort();
+    final staffIds = [for (final staff in _draft.assignedStaff) staff.staffId]
+      ..sort();
 
     if (window == null) {
       if (!mounted || serial != _conflictSerial) return;
@@ -335,10 +340,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     // Web `useShifts` for the badge sends from/to/limit only, so a shift at
     // another residence still marks "(Has Shift)". Conflicts stay scoped
     // to the residence on this form.
-    final shiftsFuture = _repository.listShiftsInRange(
-      from: from,
-      to: to,
-    );
+    final shiftsFuture = _repository.listShiftsInRange(from: from, to: to);
     final conflictsFuture = staffIds.isEmpty
         ? Future<Result<ShiftConflictsResult>>.value(
             Result.success(const ShiftConflictsResult()),
@@ -378,8 +380,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     setState(() {
       _staffWithOverlappingShifts = hasShift;
       _conflicts = nextConflicts;
-      if (nextConflicts.rest.isEmpty &&
-          _draft.restOverrideReason.isNotEmpty) {
+      if (nextConflicts.rest.isEmpty && _draft.restOverrideReason.isNotEmpty) {
         _draft.restOverrideReason = '';
         _restOverrideReasonController.clear();
         _errors = {
@@ -421,10 +422,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       return true;
     }
     setState(() {
-      _errors = {
-        ..._errors,
-        CreateShiftField.restOverrideReason: message,
-      };
+      _errors = {..._errors, CreateShiftField.restOverrideReason: message};
     });
     return false;
   }
@@ -445,10 +443,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       } else if (_errors.containsKey(CreateShiftField.restOverrideReason) ||
           value.trim().isNotEmpty) {
         // Live web-parity hint once they type, or after a failed submit.
-        _errors = {
-          ..._errors,
-          CreateShiftField.restOverrideReason: message,
-        };
+        _errors = {..._errors, CreateShiftField.restOverrideReason: message};
       }
     });
   }
@@ -460,18 +455,15 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       _draft.restOverrideReason,
       submitted: true,
     );
-    final fromApi =
-        CreateShiftRestOverride.matchesApiMinLengthMessage(message);
+    final fromApi = CreateShiftRestOverride.matchesApiMinLengthMessage(message);
     if (!fromApi && localMessage == null) return false;
-    final fieldMessage = localMessage ??
+    final fieldMessage =
+        localMessage ??
         'At least 10 characters required for the reason to roster anyway.';
     setState(() {
       _busyAction = null;
       _submitError = null;
-      _errors = {
-        ..._errors,
-        CreateShiftField.restOverrideReason: fieldMessage,
-      };
+      _errors = {..._errors, CreateShiftField.restOverrideReason: fieldMessage};
     });
     _goTo(CreateShiftStep.staffAssignment);
     _scrollToFirstShiftError({
@@ -524,8 +516,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   }
 
   void _goTo(CreateShiftStep step) {
-    if (step == CreateShiftStep.openShift) {
-      step = CreateShiftStep.staffAssignment;
+    // Shift details + staffing (assign / open shift) are one step.
+    if (step == CreateShiftStep.openShift ||
+        step == CreateShiftStep.staffAssignment) {
+      step = CreateShiftStep.shiftInformation;
     }
     FocusScope.of(context).unfocus();
     setState(() => _step = step);
@@ -548,17 +542,20 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       _scrollToFirstShiftError(stepErrors);
       return;
     }
-    if (_step == CreateShiftStep.staffAssignment &&
+    if (_step == CreateShiftStep.shiftInformation &&
         !_validateRestOverrideReason()) {
       return;
     }
-    if (_step == CreateShiftStep.staffAssignment && _staffingBlocked) {
+    if (_step == CreateShiftStep.shiftInformation && _staffingBlocked) {
       AppSnackbar.show('Staff assignment', _staffingBlockedToast);
       return;
     }
     // Web combines Assign Staff + Open Shift on one step; skip the legacy
     // dedicated Open Shift page when staffing method was already chosen.
     var index = _step.index + 1;
+    if (_step == CreateShiftStep.shiftInformation) {
+      index = CreateShiftStep.recurring.index;
+    }
     if (index == CreateShiftStep.openShift.index) {
       index += 1;
     }
@@ -567,11 +564,33 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     }
   }
 
+  /// Web: nobody assigned and not an open shift => cannot publish.
+  bool get _needsStaff => !_draft.isOpenShift && _draft.assignedStaff.isEmpty;
+
+  void _flagMissingStaff() {
+    setState(() {
+      _errors = {
+        ..._errors,
+        CreateShiftField.assignedStaff: 'Assign at least one staff member',
+      };
+    });
+    _goTo(CreateShiftStep.shiftInformation);
+    AppSnackbar.show(
+      'Staff not assigned',
+      'Assign staff, or publish as an open shift so staff can bid.',
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToFirstShiftError({
+        CreateShiftField.assignedStaff: 'Assign at least one staff member',
+      });
+    });
+  }
+
   void _goToGuarded(CreateShiftStep step) {
     // Web blocks leaving Staff Assignment while conflicts/leave are present.
     final leavingStaff =
-        _step == CreateShiftStep.staffAssignment &&
-        step != CreateShiftStep.staffAssignment;
+        _step == CreateShiftStep.shiftInformation &&
+        step != CreateShiftStep.shiftInformation;
     if (leavingStaff && !_validateRestOverrideReason()) {
       return;
     }
@@ -584,8 +603,8 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   void _back() {
     var index = _step.index - 1;
-    if (index == CreateShiftStep.openShift.index) {
-      index -= 1;
+    if (_step == CreateShiftStep.recurring) {
+      index = CreateShiftStep.shiftInformation.index;
     }
     if (index >= 0) _goTo(CreateShiftStep.values[index]);
   }
@@ -599,6 +618,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       setState(() => _errors = errors);
       _goTo(CreateShiftDraft.stepOf(errors.keys.first));
       _scrollToFirstShiftError(errors);
+      return;
+    }
+    if (!asDraft && _needsStaff) {
+      _flagMissingStaff();
       return;
     }
     if (!asDraft && !_validateRestOverrideReason()) {
@@ -741,14 +764,14 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   Future<void> _saveEdit({bool publishDraft = false}) async {
     final staffIds = [for (final staff in _draft.assignedStaff) staff.staffId];
-    final staffUnchanged = staffIds.length == _draft.loadedStaffIds.length &&
+    final staffUnchanged =
+        staffIds.length == _draft.loadedStaffIds.length &&
         staffIds.toSet().containsAll(_draft.loadedStaffIds);
     // Publishing a draft notifies via PATCH; skip assignment PUT when staff
     // list is unchanged so assignees are not notified twice.
     final skipAssignments = publishDraft
         ? staffUnchanged
-        : staffUnchanged &&
-            (_draft.restOverrideReason.trim().isEmpty);
+        : staffUnchanged && (_draft.restOverrideReason.trim().isEmpty);
     final result = await _repository.updateShift(
       shiftId: widget.editShiftId!,
       payload: _draft.toUpdateBody(publishDraft: publishDraft),
@@ -790,6 +813,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       setState(() => _errors = errors);
       _goTo(CreateShiftDraft.stepOf(errors.keys.first));
       _scrollToFirstShiftError(errors);
+      return;
+    }
+    if (_needsStaff) {
+      _flagMissingStaff();
       return;
     }
     if (!_validateRestOverrideReason()) {
@@ -1021,8 +1048,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       searchable: true,
       options: [
         const ShiftFormChoice('', 'Not one-to-one'),
-        for (final client in _clients)
-          ShiftFormChoice(client.id, client.name),
+        for (final client in _clients) ShiftFormChoice(client.id, client.name),
       ],
       selected: _draft.oneToOneClientId ?? '',
       hasSelection: true,
@@ -1095,9 +1121,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   Widget _pickerTheme(BuildContext context, Widget? child) {
     return Theme(
       data: Theme.of(context).copyWith(
-        colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: AppColors.secondaryTeal,
-            ),
+        colorScheme: Theme.of(
+          context,
+        ).colorScheme.copyWith(primary: AppColors.secondaryTeal),
       ),
       child: child!,
     );
@@ -1120,8 +1146,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   void _toggleStaff(ShiftStaffOption option) {
     _update(() {
-      final index =
-          _draft.assignedStaff.indexWhere((s) => s.staffId == option.id);
+      final index = _draft.assignedStaff.indexWhere(
+        (s) => s.staffId == option.id,
+      );
       if (index >= 0) {
         _draft.assignedStaff.removeAt(index);
       } else {
@@ -1140,7 +1167,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     if (!mounted) return;
     result.when(
       success: (_) async {
-        AppSnackbar.show('Bid accepted', 'Staff is now assigned to this shift.');
+        AppSnackbar.show(
+          'Bid accepted',
+          'Staff is now assigned to this shift.',
+        );
         await _loadShift();
       },
       failure: (error) async =>
@@ -1173,8 +1203,18 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   }
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   String? _formatDate(DateTime? date) {
@@ -1260,7 +1300,19 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (_submitError != null) _SubmitErrorBanner(_submitError!),
+                        if (_submitError != null)
+                          _SubmitErrorBanner(_submitError!),
+                        if (_needsStaff)
+                          _StaffNotAssignedBanner(
+                            onAssign: () {
+                              _goTo(CreateShiftStep.shiftInformation);
+                              WidgetsBinding.instance.addPostFrameCallback(
+                                (_) => _scrollToFirstShiftError({
+                                  CreateShiftField.assignedStaff: '',
+                                }),
+                              );
+                            },
+                          ),
                         _bodyForStep(),
                       ],
                     ),
@@ -1319,129 +1371,135 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     );
   }
 
+  Widget _shiftInfoForm() {
+    return CreateShiftInfoForm(
+      titleController: _titleController,
+      notesController: _notesController,
+      residenceValue: _residenceLabel,
+      isLoadingResidences:
+          _isLoadingResidences && _draft.residenceId.isNotEmpty,
+      onResidenceTap: _pickResidence,
+      shiftTypeValue: _draft.shiftTypeOption?.label,
+      onShiftTypeTap: _pickShiftType,
+      shiftDateValue: _formatDate(_draft.shiftDate),
+      onShiftDateTap: () async {
+        final date = await _pickDate(_draft.shiftDate);
+        if (date != null) _update(() => _draft.shiftDate = date);
+      },
+      startTimeValue: _formatTime(_draft.startMinutes),
+      onStartTimeTap: () async {
+        final time = await _pickTime(_draft.startMinutes);
+        if (time != null) {
+          _update(() => _draft.startMinutes = time);
+          _surfaceTimeOverlapError();
+        }
+      },
+      endTimeValue: _formatTime(_draft.endMinutes),
+      onEndTimeTap: () async {
+        final time = await _pickTime(_draft.endMinutes);
+        if (time != null) {
+          _update(() => _draft.endMinutes = time);
+          _surfaceTimeOverlapError();
+        }
+      },
+      breakDurationValue: CreateShiftChoices.labelOf([
+        for (final option in ShiftBreakDurationOption.predefined)
+          ShiftFormChoice(option.minutes, option.label),
+      ], _draft.breakMinutes),
+      onBreakDurationTap: _pickBreak,
+      oneToOneValue: _draft.oneToOneClientName ?? 'Not one-to-one',
+      oneToOneEnabled: _draft.residenceId.isNotEmpty,
+      onOneToOneTap: _pickOneToOne,
+      onTextChanged: _onTextChanged,
+      errors: _errors,
+    );
+  }
+
+  Widget _staffAssignmentForm() {
+    return CreateShiftStaffAssignmentForm(
+      assignedStaff: _draft.assignedStaff,
+      isLoadingStaff: _isLoadingStaff,
+      isOpenShift: _draft.isOpenShift,
+      scheduleConflicts: _conflicts.conflicts,
+      leaveConflicts: _conflicts.leave,
+      restConflicts: _conflicts.rest,
+      minimumRestHours: _conflicts.minimumRestHours,
+      restOverrideReasonController: _restOverrideReasonController,
+      restOverrideReasonError: _errors[CreateShiftField.restOverrideReason],
+      onRestOverrideReasonChanged: _onRestOverrideReasonChanged,
+      residenceName: _residenceLabel,
+      pendingBids: _draft.pendingBids,
+      onAcceptBid: _isEdit ? _acceptPendingBid : null,
+      onRejectBid: _isEdit ? _rejectPendingBid : null,
+      onOpenShiftChanged: (value) => _update(() {
+        // Keep assigned staff while toggling methods so switching back
+        // to "Assign Specific Staff" restores the previous picks.
+        _draft.isOpenShift = value;
+      }),
+      openShiftFields: CreateShiftOpenShiftForm(
+        embedded: true,
+        isOpenShift: true,
+        onChanged: (_) {},
+        requiredStaffCountController: _requiredStaffCountController,
+        maxBidsController: _maxBidsController,
+        noteToBiddersController: _noteToBiddersController,
+        deadlineDateValue: _formatDate(_draft.biddingDeadlineDate),
+        deadlineError: _errors[CreateShiftField.biddingDeadline],
+        onDeadlineDateTap: () async {
+          final date = await _pickDate(_draft.biddingDeadlineDate);
+          if (date != null) {
+            _update(() => _draft.biddingDeadlineDate = date);
+            _refreshBiddingError();
+          }
+        },
+        deadlineTimeValue: _formatTime(_draft.biddingDeadlineMinutes),
+        onDeadlineTimeTap: () async {
+          final time = await _pickTime(_draft.biddingDeadlineMinutes);
+          if (time != null) {
+            _update(() => _draft.biddingDeadlineMinutes = time);
+            _refreshBiddingError();
+          }
+        },
+        priorityValue: CreateShiftChoices.labelOf(
+          CreateShiftChoices.priorities,
+          _draft.priority,
+        ),
+        onPriorityTap: () async {
+          final value = await _pickOption<String>(
+            title: 'Priority',
+            options: CreateShiftChoices.priorities,
+            selected: _draft.priority,
+            hasSelection: true,
+          );
+          if (value != null) _update(() => _draft.priority = value);
+        },
+        awardMethodValue: CreateShiftChoices.labelOf(
+          CreateShiftChoices.awardMethods,
+          _draft.awardMethod,
+        ),
+        onAwardMethodTap: () async {
+          final value = await _pickOption<String>(
+            title: 'Award Method',
+            options: CreateShiftChoices.awardMethods,
+            selected: _draft.awardMethod,
+            hasSelection: true,
+          );
+          if (value != null) _update(() => _draft.awardMethod = value);
+        },
+        onTextChanged: _onTextChanged,
+      ),
+      onAddStaff: _openStaffPicker,
+      onRemoveStaff: _removeStaff,
+    );
+  }
+
   Widget _bodyForStep() {
     switch (_step) {
       case CreateShiftStep.shiftInformation:
-        return CreateShiftInfoForm(
-          titleController: _titleController,
-          notesController: _notesController,
-          residenceValue: _residenceLabel,
-          isLoadingResidences:
-              _isLoadingResidences && _draft.residenceId.isNotEmpty,
-          onResidenceTap: _pickResidence,
-          shiftTypeValue: _draft.shiftTypeOption?.label,
-          onShiftTypeTap: _pickShiftType,
-          shiftDateValue: _formatDate(_draft.shiftDate),
-          onShiftDateTap: () async {
-            final date = await _pickDate(_draft.shiftDate);
-            if (date != null) _update(() => _draft.shiftDate = date);
-          },
-          startTimeValue: _formatTime(_draft.startMinutes),
-          onStartTimeTap: () async {
-            final time = await _pickTime(_draft.startMinutes);
-            if (time != null) {
-              _update(() => _draft.startMinutes = time);
-              _surfaceTimeOverlapError();
-            }
-          },
-          endTimeValue: _formatTime(_draft.endMinutes),
-          onEndTimeTap: () async {
-            final time = await _pickTime(_draft.endMinutes);
-            if (time != null) {
-              _update(() => _draft.endMinutes = time);
-              _surfaceTimeOverlapError();
-            }
-          },
-          breakDurationValue: CreateShiftChoices.labelOf(
-            [
-              for (final option in ShiftBreakDurationOption.predefined)
-                ShiftFormChoice(option.minutes, option.label),
-            ],
-            _draft.breakMinutes,
-          ),
-          onBreakDurationTap: _pickBreak,
-          oneToOneValue: _draft.oneToOneClientName ?? 'Not one-to-one',
-          oneToOneEnabled: _draft.residenceId.isNotEmpty,
-          onOneToOneTap: _pickOneToOne,
-          onTextChanged: _onTextChanged,
-          errors: _errors,
-        );
       case CreateShiftStep.staffAssignment:
-        return CreateShiftStaffAssignmentForm(
-          assignedStaff: _draft.assignedStaff,
-          isLoadingStaff: _isLoadingStaff,
-          isOpenShift: _draft.isOpenShift,
-          scheduleConflicts: _conflicts.conflicts,
-          leaveConflicts: _conflicts.leave,
-          restConflicts: _conflicts.rest,
-          minimumRestHours: _conflicts.minimumRestHours,
-          restOverrideReasonController: _restOverrideReasonController,
-          restOverrideReasonError:
-              _errors[CreateShiftField.restOverrideReason],
-          onRestOverrideReasonChanged: _onRestOverrideReasonChanged,
-          residenceName: _residenceLabel,
-          pendingBids: _draft.pendingBids,
-          onAcceptBid: _isEdit ? _acceptPendingBid : null,
-          onRejectBid: _isEdit ? _rejectPendingBid : null,
-          onOpenShiftChanged: (value) => _update(() {
-            // Keep assigned staff while toggling methods so switching back
-            // to "Assign Specific Staff" restores the previous picks.
-            _draft.isOpenShift = value;
-          }),
-          openShiftFields: CreateShiftOpenShiftForm(
-            embedded: true,
-            isOpenShift: true,
-            onChanged: (_) {},
-            requiredStaffCountController: _requiredStaffCountController,
-            maxBidsController: _maxBidsController,
-            noteToBiddersController: _noteToBiddersController,
-            deadlineDateValue: _formatDate(_draft.biddingDeadlineDate),
-            deadlineError: _errors[CreateShiftField.biddingDeadline],
-            onDeadlineDateTap: () async {
-              final date = await _pickDate(_draft.biddingDeadlineDate);
-              if (date != null) {
-                _update(() => _draft.biddingDeadlineDate = date);
-                _refreshBiddingError();
-              }
-            },
-            deadlineTimeValue: _formatTime(_draft.biddingDeadlineMinutes),
-            onDeadlineTimeTap: () async {
-              final time = await _pickTime(_draft.biddingDeadlineMinutes);
-              if (time != null) {
-                _update(() => _draft.biddingDeadlineMinutes = time);
-                _refreshBiddingError();
-              }
-            },
-            priorityValue: CreateShiftChoices.labelOf(
-              CreateShiftChoices.priorities,
-              _draft.priority,
-            ),
-            onPriorityTap: () async {
-              final value = await _pickOption<String>(
-                title: 'Priority',
-                options: CreateShiftChoices.priorities,
-                selected: _draft.priority,
-                hasSelection: true,
-              );
-              if (value != null) _update(() => _draft.priority = value);
-            },
-            awardMethodValue: CreateShiftChoices.labelOf(
-              CreateShiftChoices.awardMethods,
-              _draft.awardMethod,
-            ),
-            onAwardMethodTap: () async {
-              final value = await _pickOption<String>(
-                title: 'Award Method',
-                options: CreateShiftChoices.awardMethods,
-                selected: _draft.awardMethod,
-                hasSelection: true,
-              );
-              if (value != null) _update(() => _draft.awardMethod = value);
-            },
-            onTextChanged: _onTextChanged,
-          ),
-          onAddStaff: _openStaffPicker,
-          onRemoveStaff: _removeStaff,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [_shiftInfoForm(), _staffAssignmentForm()],
         );
       case CreateShiftStep.openShift:
         // Legacy step — navigation skips this; kept for enum/progress parity.
@@ -1478,8 +1536,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           },
           occurrenceController: _occurrenceController,
           onTextChanged: _onTextChanged,
-          plannedOccurrences:
-              _draft.shiftDate == null ? 0 : _draft.plannedOccurrences(),
+          plannedOccurrences: _draft.shiftDate == null
+              ? 0
+              : _draft.plannedOccurrences(),
           errors: _errors,
         );
       case CreateShiftStep.notifications:
@@ -1512,9 +1571,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       hasSelection: _draft.reminderMinutes != null,
     );
     if (value == null) return;
-    _update(
-      () => _draft.reminderMinutes = value == noReminder ? null : value,
-    );
+    _update(() => _draft.reminderMinutes = value == noReminder ? null : value);
   }
 }
 
@@ -1543,6 +1600,64 @@ class _SubmitErrorBanner extends StatelessWidget {
             color: AppColors.criticalRed,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Web banner shown above every step while nobody is on the shift and it is
+/// not open for bids.
+class _StaffNotAssignedBanner extends StatelessWidget {
+  final VoidCallback onAssign;
+
+  const _StaffNotAssignedBanner({required this.onAssign});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('create-shift-staff-not-assigned'),
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        border: Border.all(color: AppColors.urgentAmber),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.error_outline,
+            size: 18,
+            color: AppColors.urgentAmber,
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Staff not assigned',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryNavy,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Nobody is on this shift and it is not open for bids, so it will show as unfilled.',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(onPressed: onAssign, child: const Text('Assign staff')),
+        ],
       ),
     );
   }

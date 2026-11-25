@@ -245,6 +245,7 @@ abstract final class ApiEndpoints {
   /// Combined people directory (employees + family) — `users:read`.
   static const String usersDirectory = '/users/directory';
   /// Atomic staff + login onboarding — `users:write`.
+  static const String usersEmailAvailable = '/users/email-available';
   static const String usersOnboard = '/users/onboard';
   /// Email invite with temporary credentials — `users:write`.
   static const String usersInvite = '/users/invite';

@@ -398,6 +398,9 @@ abstract final class SchedulingMapper {
             name,
           ),
           name: name,
+          province: JsonCodec.string(
+            json['stateProvince'] ?? json['province'] ?? json['state'],
+          ),
         ),
       );
     }

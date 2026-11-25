@@ -18,6 +18,8 @@ import '../../../emergency/presentation/widgets/raise_emergency_sheet.dart';
 import '../../../hr_shell.dart';
 import '../../../incidents/presentation/pages/hr_incident_details_page.dart';
 import '../../../incidents/presentation/pages/incidents_list_page.dart';
+import '../../../../../core/errors/app_snackbar.dart';
+import '../../../presentation/manager_destinations.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_company_brand.dart';
 import '../../../presentation/widgets/manager_page_search_sheet.dart';
@@ -161,15 +163,7 @@ class ManagerDashboardPage extends StatelessWidget {
                       _TodaysOverviewSection(
                         stats: overview.overviewStats.take(4).toList(),
                         lastUpdatedLabel: overview.lastUpdatedLabel,
-                        onStatTap: (stat) {
-                          if (stat.id == 'open-incidents') {
-                            openPermittedPage(
-                              title: 'Incident Reports',
-                              anyOf: const ['incidents:read'],
-                              builder: () => const IncidentsListPage(),
-                            );
-                          }
-                        },
+                        onStatTap: _openStat,
                       ),
                       if (_permittedQuickActions(overview.quickActions)
                           case final actions when actions.isNotEmpty) ...[
@@ -232,6 +226,46 @@ class ManagerDashboardPage extends StatelessWidget {
         })
           action,
     ];
+  }
+
+  /// Web: every number card opens its page (Residences card →
+  /// /dashboard/residences, etc.). A role without that module gets a clear
+  /// "not allowed" instead of a dead tap.
+  void _openStat(OverviewStat stat) {
+    if (stat.id == 'open-incidents') {
+      openPermittedPage(
+        title: 'Incident Reports',
+        anyOf: const ['incidents:read'],
+        builder: () => const IncidentsListPage(),
+      );
+      return;
+    }
+    final targets = switch (stat.id) {
+      'staff-on-duty' => const ['Attendance', 'Users & Access'],
+      'medications-due' => const [
+          'Medication Administration Record (MAR)',
+        ],
+      'pending-approvals' => const ['Attendance', 'Task Management'],
+      'tasks-due' => const ['Task Management'],
+      'attendance-alerts' => const ['Attendance'],
+      _ => const <String>[],
+    };
+    final all = managerDestinations();
+    for (final title in targets) {
+      for (final d in all) {
+        if (d.title == title) {
+          d.open();
+          return;
+        }
+      }
+    }
+    if (targets.isNotEmpty) {
+      AppSnackbar.show(
+        'Not allowed',
+        'Your role cannot open ${stat.label}.',
+        force: true,
+      );
+    }
   }
 
   void _onQuickActionTap(QuickAction action) {

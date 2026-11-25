@@ -191,6 +191,8 @@ class StaffCreateAppointmentInput {
   final String? notes;
   final String? location;
   final String? residenceId;
+  final List<String> assigneeStaffIds;
+  final int? reminderMinutesBefore;
 
   const StaffCreateAppointmentInput({
     required this.type,
@@ -200,6 +202,8 @@ class StaffCreateAppointmentInput {
     this.notes,
     this.location,
     this.residenceId,
+    this.assigneeStaffIds = const [],
+    this.reminderMinutesBefore,
   });
 }
 

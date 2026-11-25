@@ -89,6 +89,8 @@ class DirectoryPerson {
   final String status;
   final String accountStatus;
   final bool hasLogin;
+  /// Web `accountDeleted` — soft-deleted login (shown with Restore).
+  final bool accountDeleted;
   final DateTime? lastLoginAt;
   final String certificationStatus;
   final String employeeCode;
@@ -110,6 +112,7 @@ class DirectoryPerson {
     required this.status,
     required this.accountStatus,
     required this.hasLogin,
+    this.accountDeleted = false,
     required this.lastLoginAt,
     required this.certificationStatus,
     required this.employeeCode,
@@ -126,10 +129,12 @@ class DirectoryPerson {
   bool get isActive =>
       status.toLowerCase() == 'active' ||
       accountStatus.toLowerCase() == 'active';
+  bool get isDeleted => accountDeleted || status.toLowerCase() == 'deleted';
   bool get isDeactivated =>
-      status.toLowerCase() == 'inactive' ||
+      !isDeleted &&
+      (status.toLowerCase() == 'inactive' ||
       accountStatus.toLowerCase() == 'inactive' ||
-      status.toLowerCase() == 'deactivated';
+      status.toLowerCase() == 'deactivated');
 
   String get typeLabel {
     if (isEmployee) return 'Employee';
@@ -231,6 +236,7 @@ class DirectoryPerson {
       status: JsonCodec.stringOr(json['status'], ''),
       accountStatus: JsonCodec.stringOr(json['accountStatus'], ''),
       hasLogin: JsonCodec.boolean(json['hasLogin']) ?? false,
+      accountDeleted: JsonCodec.boolean(json['accountDeleted']) ?? false,
       lastLoginAt: JsonCodec.dateTime(json['lastLoginAt']),
       certificationStatus: JsonCodec.stringOr(
         json['certificationStatus'] ?? json['trainingStatus'],

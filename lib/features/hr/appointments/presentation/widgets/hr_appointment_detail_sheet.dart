@@ -120,6 +120,8 @@ class _HrAppointmentDetailSheetState extends State<HrAppointmentDetailSheet> {
                           HrAppointmentInfo('Date', a.requestedDate),
                           HrAppointmentInfo('Time', a.time),
                           HrAppointmentInfo('Location', a.location ?? 'Not set'),
+                          HrAppointmentInfo('Going With', a.goingLabel),
+                          HrAppointmentInfo('Reminder', a.reminderLabel),
                           HrAppointmentInfo('Reviewed By', reviewed),
                         ],
                       ),

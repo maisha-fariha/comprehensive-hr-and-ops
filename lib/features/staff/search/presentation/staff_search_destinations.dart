@@ -98,13 +98,13 @@ List<StaffSearchDestination> staffSearchDestinations() {
     // Admissions UI temporarily hidden for all roles (code kept).
     StaffSearchDestination(
       label: 'Users & Access',
-      permissions: const ['users:read', 'roles:read'],
+      permissions: const ['users:read', 'roles:read', 'staff:read', 'staff:update', 'staff:write'],
       icon: Icons.admin_panel_settings_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
       open: () => openPermittedPage(
         title: 'Users & Access',
-        anyOf: const ['users:read', 'roles:read'],
+        anyOf: const ['users:read', 'roles:read', 'staff:read', 'staff:update', 'staff:write'],
         builder: () => const UsersAccessPage(),
       ),
     ),

@@ -6,9 +6,13 @@ class ShiftResidenceOption {
   final String id;
   final String name;
 
+  /// `stateProvince` — drives provincial holidays on the calendars.
+  final String? province;
+
   const ShiftResidenceOption({
     required this.id,
     required this.name,
+    this.province,
   });
 }
 

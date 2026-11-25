@@ -116,6 +116,8 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
   bool _loadingLookups = true;
   String? _banner;
   Map<String, String> _errors = {};
+  String? _emailTaken;
+  String _emailChecked = '';
 
   String? _photoPath;
   final _firstName = TextEditingController();
@@ -279,6 +281,31 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
     }
   }
 
+  /// Web blur check — `GET /users/email-available` flags a taken email on
+  /// step 1 before the user reaches Save.
+  Future<void> _checkEmail() async {
+    final email = _email.text.trim();
+    final key = email.toLowerCase();
+    if (email.isEmpty || !email.contains('@') || key == _emailChecked) return;
+    final result = await widget.repository.emailAvailable(email);
+    if (!mounted || _email.text.trim().toLowerCase() != key) return;
+    result.when(
+      success: (r) => setState(() {
+        _emailChecked = key;
+        _emailTaken = r.available
+            ? null
+            : r.login
+                ? 'A login with this email already exists.'
+                : r.employee
+                    ? 'An employee with this email already exists.'
+                    : 'This email is already in use.';
+        _errors = {..._errors}..remove('email');
+        if (_emailTaken != null) _errors['email'] = _emailTaken!;
+      }),
+      failure: (_) {},
+    );
+  }
+
   Map<String, String> _validateStep(_UserStep step) {
     final errors = <String, String>{};
     switch (step) {
@@ -291,6 +318,9 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
         }
         if (_email.text.trim().isEmpty) {
           errors['email'] = 'Email is required.';
+        } else if (_emailTaken != null &&
+            _emailChecked == _email.text.trim().toLowerCase()) {
+          errors['email'] = _emailTaken!;
         }
       case _UserStep.emergency:
         if (_emergencyName.text.trim().isEmpty) {
@@ -730,14 +760,27 @@ class _AddUserOnboardSheetState extends State<_AddUserOnboardSheet> {
           error: _errors['lastName'],
         ),
         _gap,
-        ClientInput(
-          label: 'Email',
-          required: true,
-          controller: _email,
-          enabled: !_saving,
-          keyboardType: TextInputType.emailAddress,
-          helper: 'Must be unique within your organization.',
-          error: _errors['email'],
+        Focus(
+          onFocusChange: (focused) {
+            if (!focused) _checkEmail();
+          },
+          child: ClientInput(
+            label: 'Email',
+            required: true,
+            controller: _email,
+            enabled: !_saving,
+            keyboardType: TextInputType.emailAddress,
+            helper: 'Must be unique within your organization.',
+            error: _errors['email'],
+            onChanged: (_) {
+              if (_emailTaken != null || _errors.containsKey('email')) {
+                setState(() {
+                  _emailTaken = null;
+                  _errors = {..._errors}..remove('email');
+                });
+              }
+            },
+          ),
         ),
         _gap,
         ClientInput(

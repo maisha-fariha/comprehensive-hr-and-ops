@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:gems_core/gems_core.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../../../core/constants/app_colors.dart';
+import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_appointment.dart';
 import '../controllers/staff_appointments_controller.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
@@ -91,6 +96,7 @@ class _CreateSheetState extends State<_CreateSheet> {
   @override
   void initState() {
     super.initState();
+    if (widget.editing == null) _loadStaff();
     final editing = widget.editing;
     if (editing != null) {
       _type = editing.type == 'external' ? 'external' : 'family_visit';
@@ -104,6 +110,91 @@ class _CreateSheetState extends State<_CreateSheet> {
         _time = TimeOfDay(hour: at.hour, minute: at.minute);
       }
     }
+  }
+
+  // Web "Who's Going & Reminder": assigned staff + reminder (default 2 h).
+  final Map<String, String> _staffNames = {};
+  final Set<String> _assigneeIds = {};
+  int? _reminder = 120;
+  static const _reminderChoices = <(int?, String)>[
+    (null, 'No reminder'),
+    (15, '15 minutes before'),
+    (30, '30 minutes before'),
+    (60, '1 hour before'),
+    (120, '2 hours before'),
+    (240, '4 hours before'),
+    (1440, '24 hours before'),
+    (2880, '48 hours before'),
+  ];
+
+  Future<void> _loadStaff() async {
+    final session = Get.isRegistered<UserSession>() ? Get.find<UserSession>() : null;
+    if (session == null || !session.canAny(['staff:directory', 'staff:read'])) {
+      return;
+    }
+    final result = await GetIt.instance<AppApiClient>().get(
+      ApiEndpoints.staffDirectory,
+      query: {'page': 1, 'limit': 100},
+      silent: true,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (body) => setState(() {
+        for (final row in JsonCodec.unwrapList(body).whereType<Map>()) {
+          final id = JsonCodec.string(row['id']);
+          if (id == null) continue;
+          final name = [row['firstName'], row['lastName']]
+              .map((p) => JsonCodec.string(p) ?? '')
+              .where((p) => p.isNotEmpty)
+              .join(' ');
+          _staffNames[id] =
+              name.isEmpty ? JsonCodec.stringOr(row['name'], 'Unnamed') : name;
+        }
+      }),
+      failure: (_) {},
+    );
+  }
+
+  Future<void> _pickStaff() async {
+    final picked = <String>{..._assigneeIds};
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.7,
+            ),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final e in _staffNames.entries)
+                  CheckboxListTile(
+                    value: picked.contains(e.key),
+                    title: Text(e.value),
+                    onChanged: (on) => setSheet(() {
+                      on == true ? picked.add(e.key) : picked.remove(e.key);
+                    }),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Done'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    setState(() {
+      _assigneeIds
+        ..clear()
+        ..addAll(picked);
+    });
   }
 
   @override
@@ -219,6 +310,8 @@ class _CreateSheetState extends State<_CreateSheet> {
           location:
               _location.text.trim().isEmpty ? null : _location.text.trim(),
           residenceId: client?.residenceId,
+          assigneeStaffIds: _assigneeIds.toList(),
+          reminderMinutesBefore: _reminder,
         ),
       );
     }
@@ -306,7 +399,7 @@ class _CreateSheetState extends State<_CreateSheet> {
                                 ),
                                 const SizedBox(height: 2),
                                 const Text(
-                                  'Book a family visit or external appointment for a resident.',
+                                  'Book a visit or appointment for a resident.',
                                   style: TextStyle(
                                     fontFamily: 'Outfit',
                                     fontSize: 12.5,
@@ -363,6 +456,17 @@ class _CreateSheetState extends State<_CreateSheet> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _type == 'family_visit'
+                          ? 'A family visit is created as pending and needs approval.'
+                          : 'An external appointment is confirmed as soon as it is booked.',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        color: AppColors.textMuted,
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -486,6 +590,39 @@ class _CreateSheetState extends State<_CreateSheet> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 14),
+                    if (widget.editing == null && _staffNames.isNotEmpty) ...[
+                      _Labeled(
+                        label: 'Assigned staff (optional)',
+                        child: OutlinedButton(
+                          onPressed: _pickStaff,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _assigneeIds.isEmpty
+                                  ? 'Choose who goes…'
+                                  : _assigneeIds
+                                      .map((id) => _staffNames[id] ?? 'Staff')
+                                      .join(', '),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    if (widget.editing == null)
+                    _Labeled(
+                      label: 'Reminder',
+                      child: DropdownButtonFormField<int?>(
+                        initialValue: _reminder,
+                        decoration: _apptFieldDecoration(hint: 'No reminder'),
+                        items: [
+                          for (final o in _reminderChoices)
+                            DropdownMenuItem(value: o.$1, child: Text(o.$2)),
+                        ],
+                        onChanged: (v) => setState(() => _reminder = v),
+                      ),
                     ),
                     const SizedBox(height: 14),
                     _Labeled(

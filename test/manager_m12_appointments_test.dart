@@ -185,6 +185,12 @@ class _FakeRepo implements HrAppointmentsRepository {
   Future<Result<void>> delete(String id) => _log('delete $id');
 
   @override
+  Future<Result<List<HrAppointmentOption>>> staffOptions({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
   Future<Result<List<HrAppointmentOption>>> residences() async =>
       Result.success(const [HrAppointmentOption(id: 'elm', label: 'Elm House')]);
 
@@ -421,6 +427,7 @@ void main() {
         'clientId': 'c1',
         'residenceId': 'elm',
         'scheduledAt': '2026-10-05T10:00:00.000Z',
+        'reminderMinutesBefore': null,
       });
 
       await repo.update('a1', HrAppointmentInput(type: 'external', clientId: 'c1', scheduledAt: at, purpose: 'GP'));
@@ -430,6 +437,8 @@ void main() {
         'location': null,
         'purpose': 'GP',
         'notes': null,
+        'assigneeStaffIds': <String>[],
+        'reminderMinutesBefore': null,
       });
 
       await repo.reschedule('a1', HrAppointmentInput(type: 'family_visit', clientId: 'c1', scheduledAt: at));

@@ -137,6 +137,8 @@ class HrAppointmentCard extends StatelessWidget {
                           HrAppointmentInfo('Date', a.requestedDate),
                           HrAppointmentInfo('Time', a.time),
                           HrAppointmentInfo('Purpose', a.purposeColumn),
+                          if (a.assigneeNames.isNotEmpty)
+                            HrAppointmentInfo('Going', a.goingLabel),
                           _Stacked(
                             label: 'Reviewed By',
                             value: a.deciderName ?? '—',

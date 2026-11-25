@@ -12,6 +12,7 @@ import '../widgets/hr_appointment_card.dart';
 import '../widgets/hr_appointment_detail_sheet.dart';
 import '../widgets/hr_appointment_form_sheet.dart';
 import '../widgets/hr_appointment_reason_dialog.dart';
+import '../widgets/hr_appointments_calendar.dart';
 import '../widgets/hr_appointments_kpi_grid.dart';
 import '../widgets/hr_appointments_toolbar.dart';
 import '../widgets/hr_outing_card.dart';
@@ -46,8 +47,13 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
     super.dispose();
   }
 
-  Future<void> _openForm({HrAppointment? editing}) =>
-      showHrAppointmentFormSheet(context, controller: _c, editing: editing);
+  Future<void> _openForm({HrAppointment? editing, DateTime? date}) =>
+      showHrAppointmentFormSheet(
+        context,
+        controller: _c,
+        editing: editing,
+        initialDate: date,
+      );
 
   Future<void> _view(HrAppointment a) async {
     final edit = await showHrAppointmentDetailSheet(context, controller: _c, appointment: a);
@@ -186,8 +192,18 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
                       onToggleFilters: _c.toggleFilters,
                     ),
                     const SizedBox(height: 15),
+                    if (!_c.showingOutings) ...[
+                      _viewToggle(context),
+                      const SizedBox(height: 12),
+                    ],
                     if (_c.showingOutings)
                       _outingsRegister(context)
+                    else if (_c.calendarView)
+                      HrAppointmentsCalendar(
+                        controller: _c,
+                        onView: _view,
+                        onBook: _c.canWrite ? (d) => _openForm(date: d) : null,
+                      )
                     else
                       _register(context),
                   ],
@@ -197,6 +213,50 @@ class _HrAppointmentsPageState extends State<HrAppointmentsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _viewToggle(BuildContext context) {
+    Widget chip(String id, String label, IconData icon) {
+      final active = _c.view.value == id;
+      return Expanded(
+        child: Material(
+          color: active ? AppColors.secondaryTeal : AppColors.filterButtonBackground,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            key: ValueKey('appointments-view-$id'),
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _c.setView(id),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: active ? Colors.white : AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: handoverText(
+                      context,
+                      13,
+                      weight: FontWeight.w600,
+                      color: active ? Colors.white : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        chip('list', 'List', Icons.view_list_rounded),
+        const SizedBox(width: 8),
+        chip('calendar', 'Calendar', Icons.calendar_month_rounded),
+      ],
     );
   }
 

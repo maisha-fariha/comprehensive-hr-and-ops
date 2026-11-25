@@ -5,6 +5,7 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/network/holidays_service.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/storage/media_store_download.dart';
 import '../../domain/entities/hr_appointment.dart';
@@ -84,6 +85,140 @@ class HrAppointmentsController extends GetxController {
   bool get canExport => session.can('appointments:export');
   bool get canReadDailyLogs => session.can('daily-logs:read');
 
+  /// Web: assigned-staff picker needs `staff:directory` or `staff:read`.
+  bool get canPickStaff => session.canAny(['staff:directory', 'staff:read']);
+
+  // ── Calendar view (web `?view=calendar`) ────────────────────────────────
+  final RxString view = 'list'.obs;
+  final Rx<DateTime> calendarMonth =
+      DateTime(DateTime.now().year, DateTime.now().month, 1).obs;
+  final RxList<HrAppointment> calendarItems = <HrAppointment>[].obs;
+  final RxBool calendarLoading = false.obs;
+  /// True once a calendar fetch has finished (success or failure), so an
+  /// empty month shows the grid instead of a spinner.
+  final RxBool calendarLoaded = false.obs;
+  final RxBool calendarTruncated = false.obs;
+  final RxMap<String, Holiday> holidays = <String, Holiday>{}.obs;
+  int _calendarSerial = 0;
+
+  bool get calendarView => view.value == 'calendar';
+
+  String? holidayName(DateTime date) => holidays[HolidaysService.key(date)]?.name;
+
+  void setView(String value) {
+    if (view.value == value) return;
+    view.value = value;
+    if (value == 'calendar') {
+      loadCalendar();
+    } else {
+      load();
+    }
+  }
+
+  void shiftMonth(int delta) {
+    final m = calendarMonth.value;
+    calendarMonth.value = DateTime(m.year, m.month + delta, 1);
+    loadCalendar();
+  }
+
+  void goToThisMonth() {
+    final n = DateTime.now();
+    calendarMonth.value = DateTime(n.year, n.month, 1);
+    loadCalendar();
+  }
+
+  /// Month grid window, Sunday-first, as the web builds it.
+  (DateTime, DateTime) get calendarWindow {
+    final m = calendarMonth.value;
+    final first = DateTime(m.year, m.month, 1);
+    final last = DateTime(m.year, m.month + 1, 0);
+    final start = first.subtract(Duration(days: first.weekday % 7));
+    final end = last.add(Duration(days: 6 - (last.weekday % 7)));
+    return (start, end);
+  }
+
+  Future<void> loadCalendar() async {
+    if (!canRead) {
+      calendarLoaded.value = true;
+      calendarLoading.value = false;
+      return;
+    }
+    final serial = ++_calendarSerial;
+    calendarLoading.value = true;
+    try {
+      final (start, end) = calendarWindow;
+      final base = query;
+      final listFuture = repository
+          .list(
+            HrAppointmentQuery(
+              page: 1,
+              limit: 100,
+              status: base.status,
+              type: base.type,
+              residenceId: base.residenceId,
+              search: base.search,
+              from: start.subtract(const Duration(days: 1)),
+              to: end.add(const Duration(days: 2)),
+            ),
+          )
+          .timeout(const Duration(seconds: 25));
+      final holidayFuture = HolidaysService.fetch(
+        from: start,
+        to: end,
+        residenceId: residenceId.value.isEmpty ? null : residenceId.value,
+      ).timeout(const Duration(seconds: 10), onTimeout: () => const {});
+      final result = await listFuture;
+      final holidayMap = await holidayFuture;
+      if (serial != _calendarSerial) return;
+      result.when(
+        success: (data) {
+          calendarItems.assignAll(data.items);
+          calendarTruncated.value = data.total > data.items.length;
+          loadError.value = null;
+        },
+        failure: (error) {
+          calendarItems.clear();
+          calendarTruncated.value = false;
+          loadError.value = error.message;
+        },
+      );
+      holidays.assignAll(holidayMap);
+    } catch (_) {
+      if (serial != _calendarSerial) return;
+      calendarItems.clear();
+      loadError.value = 'Could not load the calendar. Pull to retry.';
+    } finally {
+      if (serial == _calendarSerial) {
+        calendarLoaded.value = true;
+        calendarLoading.value = false;
+      }
+    }
+  }
+
+  /// Appointments on [day], earliest first.
+  List<HrAppointment> calendarOn(DateTime day) {
+    final rows = [
+      for (final a in calendarItems)
+        if (a.scheduledAt != null &&
+            a.scheduledAt!.toLocal().year == day.year &&
+            a.scheduledAt!.toLocal().month == day.month &&
+            a.scheduledAt!.toLocal().day == day.day)
+          a,
+    ]..sort((a, b) => a.scheduledAt!.compareTo(b.scheduledAt!));
+    return rows;
+  }
+
+  final RxList<HrAppointmentOption> staffOptions = <HrAppointmentOption>[].obs;
+  final RxBool staffLoading = false.obs;
+
+  Future<void> loadStaffOptions(String? residenceId) async {
+    if (!canPickStaff) return;
+    staffLoading.value = true;
+    final result = await repository.staffOptions(residenceId: residenceId);
+    result.when(success: staffOptions.assignAll, failure: (_) {});
+    staffLoading.value = false;
+  }
+
   /// Web: approve/decline outings only for management roles (+ `appointments:write`).
   bool get canDecideOutings {
     if (!canWrite) return false;
@@ -144,9 +279,14 @@ class HrAppointmentsController extends GetxController {
     super.onClose();
   }
 
-  Future<void> refreshAll() => Future.wait([load(), loadSummary()]);
+  Future<void> refreshAll() =>
+      Future.wait([calendarView ? loadCalendar() : load(), loadSummary()]);
 
   Future<void> load() async {
+    if (calendarView && !showingOutings) {
+      await loadCalendar();
+      return;
+    }
     if (showingOutings) {
       await loadOutings();
       return;

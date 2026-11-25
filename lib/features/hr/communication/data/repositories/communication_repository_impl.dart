@@ -183,12 +183,10 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
             const ValidationError(message: 'Residence is required.'),
           );
         }
-        if (trimmedTitle == null || trimmedTitle.isEmpty) {
-          return Result.failure(
-            const ValidationError(message: 'Group name is required.'),
-          );
-        }
+        // Web: the name is optional, and "All staff at this residence" sends
+        // an empty `memberUserIds` so the server seeds the home's staff.
         data['residenceId'] = residence;
+        data['memberUserIds'] = members;
       case ConversationCreateType.familySupport:
         final client = clientId?.trim();
         if (client == null || client.isEmpty) {

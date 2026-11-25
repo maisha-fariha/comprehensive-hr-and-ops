@@ -26,9 +26,13 @@ class CalendarTabView extends StatelessWidget {
   final List<Widget> leading;
   final List<Widget> trailing;
 
+  /// Holiday name for a date (web `/holidays`), `null` when none.
+  final String? Function(DateTime date)? holidayOf;
+
   const CalendarTabView({
     super.key,
     required this.data,
+    this.holidayOf,
     this.onPreviousWeek,
     this.onNextWeek,
     this.onDaySelected,
@@ -36,6 +40,15 @@ class CalendarTabView extends StatelessWidget {
     this.leading = const [],
     this.trailing = const [],
   });
+
+  String? _selectedHoliday() {
+    for (final day in data.days) {
+      if (day.isSelected) {
+        return holidayOf?.call(day.date);
+      }
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +92,7 @@ class CalendarTabView extends StatelessWidget {
                   _WeekStrip(
                     days: data.days,
                     onDaySelected: onDaySelected,
+                    holidayOf: holidayOf,
                   ),
                 ],
               ),
@@ -94,6 +108,9 @@ class CalendarTabView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _HolidayBanner(
+                  name: _selectedHoliday(),
+                ),
                 _DaySummaryHeader(
                   dateLabel: data.selectedDateLabel,
                   summaryLabel: data.shiftsSummaryLabel,
@@ -226,8 +243,13 @@ class _MonthNavButton extends StatelessWidget {
 class _WeekStrip extends StatelessWidget {
   final List<CalendarDay> days;
   final ValueChanged<CalendarDay>? onDaySelected;
+  final String? Function(DateTime date)? holidayOf;
 
-  const _WeekStrip({required this.days, this.onDaySelected});
+  const _WeekStrip({
+    required this.days,
+    this.onDaySelected,
+    this.holidayOf,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -256,6 +278,7 @@ class _WeekStrip extends StatelessWidget {
           Expanded(
             child: _DayCell(
               day: day,
+              isHoliday: holidayOf?.call(day.date) != null,
               onTap: onDaySelected == null ? null : () => onDaySelected!(day),
             ),
           ),
@@ -267,8 +290,9 @@ class _WeekStrip extends StatelessWidget {
 class _DayCell extends StatelessWidget {
   final CalendarDay day;
   final VoidCallback? onTap;
+  final bool isHoliday;
 
-  const _DayCell({required this.day, this.onTap});
+  const _DayCell({required this.day, this.onTap, this.isHoliday = false});
 
   @override
   Widget build(BuildContext context) {
@@ -282,9 +306,11 @@ class _DayCell extends StatelessWidget {
 
     final dayNumberColor = isSelected
         ? Colors.white
-        : isIndicator
-            ? AppColors.secondaryTeal
-            : AppColors.textHeading;
+        : isHoliday
+            ? AppColors.urgentAmber
+            : isIndicator
+                ? AppColors.secondaryTeal
+                : AppColors.textHeading;
 
     final verticalPad = ResponsiveHelper.getResponsiveHeight(context, 10);
     final horizontalPad = ResponsiveHelper.getResponsiveWidth(context, 8);
@@ -344,10 +370,12 @@ class _DayCell extends StatelessWidget {
           SizedBox(
             height: indicatorSlot,
             width: indicatorSlot,
-            child: isIndicator
-                ? const DecoratedBox(
+            child: isIndicator || isHoliday
+                ? DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.secondaryTeal,
+                      color: isHoliday && !isIndicator
+                          ? AppColors.urgentAmber
+                          : AppColors.secondaryTeal,
                       shape: BoxShape.circle,
                     ),
                   )
@@ -362,6 +390,51 @@ class _DayCell extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Day summary header
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _HolidayBanner extends StatelessWidget {
+  final String? name;
+
+  const _HolidayBanner({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = name;
+    if (label == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.urgentBackgroundSoft,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.celebration_outlined,
+                size: 16,
+                color: AppColors.urgentAmber,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.urgentAmber,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _DaySummaryHeader extends StatelessWidget {
   final String dateLabel;

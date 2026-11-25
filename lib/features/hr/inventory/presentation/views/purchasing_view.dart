@@ -72,9 +72,9 @@ class _PurchasingViewState extends State<PurchasingView> {
         padding: const EdgeInsets.all(6),
         child: Row(
           children: [
-            for (final (tab, label) in const [
-              (PurchasingTab.orders, 'Purchase orders'),
-              (PurchasingTab.suppliers, 'Suppliers'),
+            for (final (tab, label) in [
+              if (_c.canReadOrders) (PurchasingTab.orders, 'Purchase orders'),
+              if (_c.canReadSuppliers) (PurchasingTab.suppliers, 'Suppliers'),
             ])
               Expanded(
                 child: InkWell(

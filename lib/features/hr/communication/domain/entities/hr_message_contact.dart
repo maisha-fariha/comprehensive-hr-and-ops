@@ -8,13 +8,21 @@ class HrMessageContact {
   final List<String> residenceIds;
   final String? relationship;
 
+  /// Web `tenantWide` — management who belong to every home.
+  final bool tenantWide;
+
   const HrMessageContact({
     required this.id,
     required this.name,
     this.roles = const [],
     this.residenceIds = const [],
     this.relationship,
+    this.tenantWide = false,
   });
+
+  /// Web `belongsToHome`: tenant-wide people or those posted to [residenceId].
+  bool belongsToHome(String residenceId) =>
+      tenantWide || residenceIds.contains(residenceId);
 
   String get roleLabel {
     final relation = relationship?.trim();

@@ -29,8 +29,35 @@ abstract final class HrAppointmentsMapper {
       deciderName: _name(json, 'decider'),
       decidedAt: JsonCodec.dateTime(json['decidedAt']),
       decisionReason: JsonCodec.string(json['decisionReason']),
+      assigneeIds: [
+        for (final a in (json['assignees'] as List? ?? const []).whereType<Map>())
+          JsonCodec.string(a['staffId'] ?? a['id']) ?? '',
+      ]..removeWhere((e) => e.isEmpty),
+      assigneeNames: [
+        for (final a in (json['assignees'] as List? ?? const []).whereType<Map>())
+          JsonCodec.string(a['name']) ?? 'Staff',
+      ],
+      reminderMinutesBefore: JsonCodec.integer(json['reminderMinutesBefore']),
     );
   }
+
+  /// `GET /staff/directory` rows for the "Assigned staff" picker.
+  static List<HrAppointmentOption> staffOptionsFrom(dynamic body) => [
+        for (final row in JsonCodec.unwrapList(body).whereType<Map>())
+          if (JsonCodec.string(row['id']) case final id?)
+            HrAppointmentOption(
+              id: id,
+              label: () {
+                final full = [row['firstName'], row['lastName']]
+                    .map((p) => JsonCodec.string(p) ?? '')
+                    .where((p) => p.isNotEmpty)
+                    .join(' ')
+                    .trim();
+                if (full.isNotEmpty) return full;
+                return JsonCodec.stringOr(row['name'], 'Unnamed');
+              }(),
+            ),
+      ];
 
   static HrAppointmentPage pageFrom(dynamic body) {
     final items = [

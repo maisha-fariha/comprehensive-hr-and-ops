@@ -151,6 +151,7 @@ abstract final class CommunicationMapper {
                 .where((role) => role.isNotEmpty)
                 .toList(),
             relationship: JsonCodec.string(json['relationship']),
+            tenantWide: JsonCodec.boolean(json['tenantWide']) ?? false,
             residenceIds: JsonCodec.listAt(json, 'residenceIds')
                 .map((id) => id?.toString() ?? '')
                 .where((id) => id.isNotEmpty)

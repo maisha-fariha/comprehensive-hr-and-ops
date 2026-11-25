@@ -37,7 +37,8 @@ class UsersAccessRepository {
       if (residenceId != null && residenceId.isNotEmpty)
         'residenceId': residenceId,
       'hasLogin': ?hasLogin,
-      if (includeInactive) 'includeInactive': true,
+      // Web query key (`includeDeactivated=true`) — also returns deleted rows.
+      if (includeInactive) 'includeDeactivated': true,
     };
     final result = await _api.get(
       ApiEndpoints.usersDirectory,
@@ -314,6 +315,61 @@ class UsersAccessRepository {
 
   Future<Result<void>> reactivateUser(String userId) async {
     final result = await _api.post(ApiEndpoints.userReactivate(userId));
+    return result.when(
+      success: (_) => Result.success(null),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  /// Web `GET /users/email-available?email=` → `{available, login, employee}`.
+  Future<Result<({bool available, bool login, bool employee})>>
+      emailAvailable(String email) async {
+    final result = await _api.get(
+      ApiEndpoints.usersEmailAvailable,
+      query: {'email': email.trim()},
+      silent: true,
+    );
+    return result.when(
+      success: (body) {
+        final m = JsonCodec.unwrapMap(body);
+        return Result.success((
+          available: JsonCodec.boolean(m['available']) ?? true,
+          login: JsonCodec.boolean(m['login']) ?? false,
+          employee: JsonCodec.boolean(m['employee']) ?? false,
+        ));
+      },
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  /// Web "Delete": staff record first, then the login (frees the email).
+  Future<Result<void>> deleteStaff(String staffId) async {
+    final result = await _api.delete(ApiEndpoints.staffById(staffId));
+    return result.when(
+      success: (_) => Result.success(null),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  Future<Result<void>> deleteUser(String userId) async {
+    final result = await _api.delete(ApiEndpoints.userById(userId));
+    return result.when(
+      success: (_) => Result.success(null),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  Future<Result<void>> restoreUser(String userId) async {
+    final result = await _api.post('${ApiEndpoints.userById(userId)}/restore');
+    return result.when(
+      success: (_) => Result.success(null),
+      failure: (error) => Result.failure(error),
+    );
+  }
+
+  Future<Result<void>> restoreStaff(String staffId) async {
+    final result =
+        await _api.post('${ApiEndpoints.staffById(staffId)}/restore');
     return result.when(
       success: (_) => Result.success(null),
       failure: (error) => Result.failure(error),
