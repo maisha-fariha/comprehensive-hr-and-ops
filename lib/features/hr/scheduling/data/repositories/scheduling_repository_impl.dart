@@ -261,54 +261,52 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
         !Get.find<UserSession>().canReadStaffList) {
       return Result.success(const []);
     }
-    final result = await _api.get(
-      ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': _pageSize,
-        if (residenceId != null && residenceId.isNotEmpty)
-          'residenceId': residenceId,
-      },
-      silent: true,
-    );
-    return result.when(
-      success: (body) async {
-        var options = SchedulingMapper.staffFrom(body);
-        // Defense in depth: keep only staff linked to the selected home when
-        // the API still returns a wider directory.
-        if (residenceId != null && residenceId.isNotEmpty) {
-          // Web keeps staff with no residence at all ("Unassigned, any
-          // residence") selectable at every home, tagged as such.
-          final scoped = [
-            for (final o in options)
-              if (o.residenceIds.contains(residenceId))
-                o
-              else if (o.residenceIds.isEmpty)
-                ShiftStaffOption(
-                  id: o.id,
-                  name: o.name,
-                  detail: [
-                    if (o.role != null && o.role!.isNotEmpty) o.role!,
-                    'Unassigned, any residence',
-                  ].join(' · '),
-                  initials: o.initials,
-                  role: o.role,
-                  categoryId: o.categoryId,
-                  residenceLabel: 'Unassigned, any residence',
-                  residenceIds: o.residenceIds,
-                ),
-          ];
-          // Prefer the scoped list when we could resolve residence links;
-          // otherwise trust the residenceId-filtered API payload.
-          if (scoped.isNotEmpty ||
-              options.any((o) => o.residenceIds.isNotEmpty)) {
-            options = scoped;
-          }
-        }
-        return Result.success(options);
-      },
-      failure: (error) async => Result.failure(error),
-    );
+    // Web `useStaffOptions`: GET /staff for EVERYONE (all pages, no residence
+    // filter), then narrow in the client. Filtering server-side with
+    // `residenceId` would drop staff with no residence, who may work anywhere.
+    final all = <ShiftStaffOption>[];
+    for (var page = 1; page <= 20; page++) {
+      final result = await _api.get(
+        ApiEndpoints.staff,
+        query: {'page': page, 'limit': _pageSize},
+        silent: true,
+      );
+      if (result.isFailure) {
+        if (page == 1) return Result.failure(result.error!);
+        break;
+      }
+      final batch = SchedulingMapper.staffFrom(result.value);
+      all.addAll(batch);
+      final rawCount = JsonCodec.unwrapList(result.value).length;
+      if (rawCount < _pageSize) break;
+    }
+    final seen = <String>{};
+    var options = [
+      for (final o in all)
+        if (seen.add(o.id)) o,
+    ];
+    if (residenceId != null && residenceId.isNotEmpty) {
+      options = [
+        for (final o in options)
+          if (o.residenceIds.contains(residenceId))
+            o
+          else if (o.residenceIds.isEmpty)
+            ShiftStaffOption(
+              id: o.id,
+              name: o.name,
+              detail: [
+                if (o.role != null && o.role!.isNotEmpty) o.role!,
+                'Unassigned, any residence',
+              ].join(' · '),
+              initials: o.initials,
+              role: o.role,
+              categoryId: o.categoryId,
+              residenceLabel: 'Unassigned, any residence',
+              residenceIds: o.residenceIds,
+            ),
+      ];
+    }
+    return Result.success(options);
   }
 
   @override

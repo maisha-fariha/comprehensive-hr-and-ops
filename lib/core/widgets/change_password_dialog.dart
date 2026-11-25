@@ -102,12 +102,31 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AppSheetDialog(
-      title: const Text('Change password'),
+      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      title: const Row(
+        children: [
+          Icon(Icons.lock_outline_rounded, color: AppColors.secondaryTeal),
+          SizedBox(width: 10),
+          Text('Change password'),
+        ],
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(24, 6, 24, 8),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: Text(
+                'Enter your current password, then choose a new one of at '
+                'least 8 characters.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
             if (_error != null)
               Container(
                 key: const ValueKey('change-password-error'),
@@ -148,13 +167,33 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
           ],
         ),
       ),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.textHeading,
+            side: const BorderSide(color: AppColors.cardBorder),
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
           child: const Text('Cancel'),
         ),
         TextButton(
           onPressed: _canSubmit ? _submit : null,
+          style: TextButton.styleFrom(
+            backgroundColor: AppColors.secondaryTeal,
+            disabledBackgroundColor:
+                AppColors.secondaryTeal.withValues(alpha: 0.35),
+            foregroundColor: Colors.white,
+            disabledForegroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
           child: Text(_saving ? 'Saving…' : 'Change password'),
         ),
       ],
@@ -186,6 +225,12 @@ class PasswordField extends StatefulWidget {
 class _PasswordFieldState extends State<PasswordField> {
   bool _visible = false;
 
+  static OutlineInputBorder _border(Color color, {double width = 1}) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: color, width: width),
+      );
+
   @override
   Widget build(BuildContext context) {
     return TextField(
@@ -195,9 +240,23 @@ class _PasswordFieldState extends State<PasswordField> {
       autocorrect: false,
       autofillHints: widget.autofillHints,
       onSubmitted: widget.onSubmitted,
+      style: const TextStyle(fontFamily: 'Outfit', fontSize: 15),
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
+        filled: true,
+        fillColor: AppColors.surfaceWhite,
+        floatingLabelStyle: const TextStyle(color: AppColors.secondaryTeal),
+        prefixIcon: const Icon(
+          Icons.lock_outline_rounded,
+          size: 20,
+          color: AppColors.textMuted,
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        border: _border(AppColors.cardBorder),
+        enabledBorder: _border(const Color(0xFFE4E9EF)),
+        focusedBorder: _border(AppColors.secondaryTeal, width: 1.6),
         suffixIcon: IconButton(
           tooltip: _visible ? 'Hide password' : 'Show password',
           icon: Icon(

@@ -254,16 +254,6 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   Future<void> _loadStaff() async {
     if (_isLoadingStaff) return;
     final residenceId = _draft.residenceId.isEmpty ? null : _draft.residenceId;
-    // Web only offers staff for the selected residence.
-    if (residenceId == null) {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingStaff = false;
-        _staffError = null;
-        _staffOptions.clear();
-      });
-      return;
-    }
     setState(() {
       _isLoadingStaff = true;
       _staffError = null;

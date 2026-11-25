@@ -21,8 +21,12 @@ class HrMessageContact {
   });
 
   /// Web `belongsToHome`: tenant-wide people or those posted to [residenceId].
+  /// Staff with no assigned residence (`residenceIds: []`) may work in any
+  /// residence, so they belong to every home's group too.
   bool belongsToHome(String residenceId) =>
-      tenantWide || residenceIds.contains(residenceId);
+      tenantWide ||
+      residenceIds.contains(residenceId) ||
+      (residenceIds.isEmpty && (relationship?.trim().isEmpty ?? true));
 
   String get roleLabel {
     final relation = relationship?.trim();
