@@ -12,6 +12,7 @@ import '../controllers/stock_counts_controller.dart';
 import '../inventory_labels.dart';
 import '../widgets/inventory_common.dart';
 import '../widgets/stock_count_sheets.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Web "Stock counts".
 class StockCountsView extends StatefulWidget {
@@ -36,15 +37,10 @@ class _StockCountsViewState extends State<StockCountsView> {
     super.dispose();
   }
 
-  Future<void> _start() async {
-    final id = await showStartCountSheet(context, controller: _c);
-    if (id != null && mounted) await showStockCountSheet(context, controller: _c, countId: id);
-  }
-
   @override
   Widget build(BuildContext context) {
     final pad = ResponsiveHelper.getResponsiveWidth(context, 16);
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: AppColors.secondaryTeal,
       onRefresh: _c.load,
       child: Obx(
@@ -52,18 +48,6 @@ class _StockCountsViewState extends State<StockCountsView> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
           children: [
-            if (_c.canAdjust)
-              InventoryToolbar(
-                children: [
-                  HandoverButton(
-                    key: const ValueKey('count-start'),
-                    label: 'Start a count',
-                    icon: Icons.add_rounded,
-                    filled: true,
-                    onPressed: _start,
-                  ),
-                ],
-              ),
             ..._list(context),
           ],
         ),

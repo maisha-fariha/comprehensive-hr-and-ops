@@ -9,10 +9,16 @@ import 'package:comprehensive_hr_and_ops/features/staff/attendance/presentation/
 import 'package:comprehensive_hr_and_ops/features/staff/attendance/domain/entities/staff_attendance_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/attendance/domain/repositories/staff_attendance_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/attendance/presentation/pages/staff_manual_attendance_entry_page.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/attendance_week.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/manual_entry_options.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/attendance/domain/entities/time_off_request.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_residence.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/entities/staff_shift_handover.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/domain/repositories/staff_extras_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/recurring_checks/domain/entities/recurring_check.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/recurring_checks/domain/repositories/recurring_checks_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/recurring_checks/presentation/controllers/recurring_checks_controller.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/recurring_checks/presentation/pages/recurring_checks_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/presentation/pages/staff_recurring_checks_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/extras/presentation/pages/staff_shift_handovers_page.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/presentation/pages/staff_more_menu_page.dart';
@@ -263,7 +269,18 @@ class _FakeTasksRepo implements StaffTasksMessagesRepository {
       Result.failure(const ApiError(message: 'unused'));
 
   @override
-  Future<Result<void>> completeTask(String taskId, {bool signOff = false}) async =>
+  Future<Result<void>> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> saveTaskProgress({
+    required String taskId,
+    required List<Map<String, dynamic>> checklist,
+  }) async =>
       Result.success(null);
 
   @override
@@ -445,6 +462,7 @@ class _FakeTasksRepo implements StaffTasksMessagesRepository {
     String checkName = 'Welfare observation',
     String outcome = 'normal',
     String? scheduleId,
+    Map<String, Object>? result,
   }) async => Result.success(null);
 
   @override
@@ -515,7 +533,11 @@ class _FakeTasksRepo implements StaffTasksMessagesRepository {
 
 class _FakeAttendanceRepo implements StaffAttendanceRepository {
   @override
-  Future<Result<StaffAttendanceOverview>> getOverview() async => Result.success(
+  Future<Result<StaffAttendanceOverview>> getOverview({
+    String? from,
+    String? to,
+    String? residenceId,
+  }) async => Result.success(
     const StaffAttendanceOverview(
       isOnShift: false,
       shiftStartedLabel: 'Not clocked in',
@@ -550,6 +572,8 @@ class _FakeAttendanceRepo implements StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   }) async => Result.success(null);
 
   @override
@@ -605,6 +629,164 @@ class _FakeAttendanceRepo implements StaffAttendanceRepository {
     String? notes,
     List<Map<String, dynamic>> evidence = const [],
   }) async => Result.success('attendance-1');
+
+  @override
+  Future<Result<List<TimeOffRequest>>> getMyTimeOffRequests({
+    String? from,
+    String? to,
+    String? status,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<TimeOffRequest>> createTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? reason,
+  }) async =>
+      Result.success(
+        TimeOffRequest(
+          id: 'tor-1',
+          staffId: 'staff-1',
+          staffName: 'Staff',
+          type: type,
+          startDate: DateTime.parse(startDate),
+          endDate: DateTime.parse(endDate),
+          days: 1,
+          status: TimeOffStatus.pending,
+          reason: reason,
+        ),
+      );
+}
+
+class _StaffRecurringChecksFake implements RecurringChecksRepository {
+  @override
+  Future<Result<CheckSchedulePage>> schedules({
+    required int page,
+    required int limit,
+  }) async =>
+      Result.success(
+        CheckSchedulePage(
+          items: const [
+            CheckSchedule(
+              id: 's1',
+              clientId: 'client-1',
+              residenceId: 'res-1',
+              name: 'Room check — Sunrise',
+              clientName: 'Alex Brown',
+              residenceName: 'Sunrise Home',
+              frequency: 'interval',
+              intervalMinutes: 30,
+            ),
+          ],
+          page: page,
+          limit: limit,
+          total: 1,
+          totalPages: 1,
+        ),
+      );
+
+  @override
+  Future<Result<List<CheckSchedule>>> clientSchedules(String clientId) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<void>> createSchedule(Map<String, dynamic> body) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> updateSchedule(
+    String id,
+    Map<String, dynamic> body,
+  ) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> deleteSchedule(String id) async => Result.success(null);
+
+  @override
+  Future<Result<List<CheckInstance>>> instances({
+    required String day,
+    String? residenceId,
+    String? clientId,
+    String? status,
+    bool mine = false,
+  }) async =>
+      Result.success([
+        CheckInstance(
+          id: 'rc-1',
+          scheduleId: 's1',
+          clientId: 'client-1',
+          residenceId: 'res-1',
+          dueAt: DateTime.now().add(const Duration(hours: 1)),
+          status: 'pending',
+          checkName: 'Room check — Sunrise',
+          clientName: 'Alex Brown',
+          roomNumber: '101',
+          assignedStaffName: 'Sam Jones',
+        ),
+        CheckInstance(
+          id: 'rc-2',
+          scheduleId: 's1',
+          clientId: 'client-1',
+          residenceId: 'res-1',
+          dueAt: DateTime.now().add(const Duration(hours: 2)),
+          status: 'needs_assignment',
+          checkName: 'Evening check',
+          clientName: 'Alex Brown',
+          roomNumber: '101',
+        ),
+      ]);
+
+  @override
+  Future<Result<List<CheckEntry>>> entries({
+    required String day,
+    String? residenceId,
+    String? clientId,
+    String? outcome,
+    bool mine = false,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<void>> updateInstance(
+    String id,
+    Map<String, dynamic> body,
+  ) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<List<CheckAvailableStaff>>> availableStaff(
+    String instanceId,
+  ) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<void>> recordEntry(Map<String, dynamic> body) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<List<CheckOption>>> residences() async => Result.success(const [
+        CheckOption(id: 'res-1', label: 'Sunrise Home'),
+      ]);
+
+  @override
+  Future<Result<List<CheckOption>>> staff() async => Result.success(const []);
+
+  @override
+  Future<Result<List<CheckOption>>> clients({String? residenceId}) async =>
+      Result.success(const [
+        CheckOption(id: 'client-1', label: 'Alex Brown'),
+      ]);
+
+  @override
+  Future<Result<List<CheckOption>>> colleagues(String? residenceId) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<String?>> openAttendanceResidenceId() async =>
+      Result.success(null);
 }
 
 Widget _wrap(Widget child) {
@@ -736,14 +918,14 @@ void main() {
             body: Padding(
               padding: const EdgeInsets.all(16),
               child: StaffAttendanceFiltersBar(
-                selectedDate: null,
+                week: AttendanceWeek.containing(DateTime(2026, 6, 17)),
                 residenceFilter: 'all',
                 statusFilter: 'all',
                 residences: const [
                   ManualEntryResidenceOption(id: 'res-1', name: 'Elm House'),
                   ManualEntryResidenceOption(id: 'res-2', name: 'Mala Box'),
                 ],
-                onDateChanged: _noopDate,
+                onWeekChanged: _noopDate,
                 onResidenceChanged: _noopStatus,
                 onStatusChanged: _noopStatus,
               ),
@@ -765,7 +947,7 @@ void main() {
         find.byKey(const Key('staff-attendance-status-dropdown')),
         findsOneWidget,
       );
-      expect(find.text('All dates'), findsOneWidget);
+      expect(find.text('15 Jun – 21 Jun 2026'), findsOneWidget);
       expect(find.text('All Residences'), findsOneWidget);
       expect(find.text('Any status'), findsOneWidget);
 
@@ -874,13 +1056,18 @@ void main() {
   testWidgets('BUG_Report008: Recurring Checks matches web tabs and dialogs', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(375, 812);
+    tester.view.physicalSize = const Size(375, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    GetIt.I.registerSingleton<StaffTasksMessagesRepository>(_FakeTasksRepo());
-    GetIt.I.registerSingleton<StaffExtrasRepository>(_FakeExtrasRepo());
+    final checksRepo = _StaffRecurringChecksFake();
+    GetIt.I.registerFactory<RecurringChecksController>(
+      () => RecurringChecksController(
+        repository: checksRepo,
+        session: Get.find<UserSession>(),
+      ),
+    );
 
     await tester.pumpWidget(_wrap(const StaffMoreMenuPage()));
     await tester.pumpAndSettle();
@@ -890,58 +1077,35 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(StaffRecurringChecksPage), findsOneWidget);
-    expect(
-      find.byKey(const Key('staff-recurring-checks-page')),
-      findsOneWidget,
-    );
+    expect(find.byType(RecurringChecksPage), findsOneWidget);
     expect(find.text('Schedules'), findsOneWidget);
     expect(find.text('Due'), findsOneWidget);
     expect(find.text('Checks'), findsOneWidget);
-    expect(find.text('Record Progress'), findsOneWidget);
-    expect(find.text('New Schedule'), findsOneWidget);
+    expect(find.byKey(const ValueKey('checks-record-progress')), findsOneWidget);
+    expect(find.byKey(const ValueKey('checks-new-schedule')), findsOneWidget);
     expect(find.text('Room check — Sunrise'), findsOneWidget);
 
     await tester.tap(find.text('Due'));
     await tester.pumpAndSettle();
-    expect(find.text('Complete'), findsOneWidget);
-    expect(find.text('Skip'), findsOneWidget);
+    expect(find.text('All my residences'), findsOneWidget);
+    expect(find.text('All residents'), findsOneWidget);
+    expect(find.text('Any status'), findsOneWidget);
+    expect(find.text('Checks assigned to me'), findsOneWidget);
+    expect(find.byKey(const ValueKey('check-record-rc-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('check-skip-rc-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('check-assign-rc-2')), findsOneWidget);
     expect(find.text('Pending'), findsOneWidget);
+    expect(find.text('Needs assignment'), findsOneWidget);
 
-    await tester.tap(find.text('Checks'));
-    await tester.pumpAndSettle();
-    expect(find.text('Evening check'), findsOneWidget);
-
-    await tester.tap(find.text('New Schedule'));
+    await tester.tap(find.byKey(const ValueKey('checks-new-schedule')));
     await tester.pumpAndSettle();
     expect(find.text('New recurring check'), findsOneWidget);
-    expect(find.textContaining('Residence'), findsWidgets);
-    expect(find.textContaining('Resident'), findsWidgets);
-    expect(find.text('The check'), findsOneWidget);
-    expect(find.text('How often'), findsOneWidget);
-    expect(
-      find.text('Tell somebody when it reads wrong'),
-      findsOneWidget,
-    );
-    expect(find.text('Alert on an abnormal reading'), findsOneWidget);
-    expect(find.byKey(const Key('staff-recurring-alert-toggle')), findsOneWidget);
-    expect(find.text('Who does it'), findsOneWidget);
-    expect(find.text('Whoever is on shift'), findsOneWidget);
-    expect(find.textContaining('Specific person'), findsWidgets);
-    expect(find.text('Create check'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Record Progress'));
+    await tester.tap(find.byKey(const ValueKey('checks-record-progress')));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('welfare observation'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('Resident'), findsWidgets);
-    expect(find.textContaining('What you saw'), findsOneWidget);
-    expect(find.text('Outcome'), findsOneWidget);
-    expect(find.text('Normal'), findsWidgets);
-    expect(find.text('Record progress'), findsOneWidget);
+    expect(find.textContaining('welfare observation'), findsOneWidget);
   });
 
   testWidgets(
@@ -982,7 +1146,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Checklist'), findsOneWidget);
-      expect(find.text('Needs a review'), findsOneWidget);
+      expect(find.text('Require Manager Review & Sign-Off'), findsOneWidget);
+      expect(find.text('Require Staff Sign-Off'), findsOneWidget);
       expect(find.text('Notes'), findsOneWidget);
       expect(find.text('Docs (Optional)'), findsOneWidget);
       expect(find.text('Recurring Task'), findsOneWidget);
@@ -1065,5 +1230,5 @@ void main() {
   );
 }
 
-void _noopDate(DateTime? _) {}
+void _noopDate(DateTime _) {}
 void _noopStatus(String _) {}

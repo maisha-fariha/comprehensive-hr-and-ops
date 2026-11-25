@@ -10,6 +10,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../daily_logs/domain/repositories/staff_daily_logs_repository.dart';
 import '../widgets/staff_goal_checkoff_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff "Clients" module — web `/dashboard/clients` Client Directory parity
 /// (BUG_Report010: Daily Logs and Clients must both appear).
@@ -224,7 +225,7 @@ class _StaffClientsPageState extends State<StaffClientsPage> {
                   )
                 : _error != null
                 ? Center(child: Text(_error!))
-                : RefreshIndicator(
+                : AppRefreshIndicator(
                     color: AppColors.secondaryTeal,
                     onRefresh: _load,
                     child: _clients.isEmpty

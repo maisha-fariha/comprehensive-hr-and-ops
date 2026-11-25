@@ -1,6 +1,7 @@
 import '../../../../../core/formatting/web_formats.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/hr_appointment.dart';
+import '../../domain/entities/hr_outing.dart';
 
 abstract final class HrAppointmentsMapper {
   static String? _name(Map<String, dynamic> json, String key) =>
@@ -112,6 +113,52 @@ abstract final class HrAppointmentsMapper {
       return '"${value.replaceAll('"', '""')}"';
     }
     return value;
+  }
+
+  static HrOuting? outingFrom(Map<String, dynamic> json) {
+    final id = JsonCodec.string(json['id']);
+    final depart = JsonCodec.dateTime(json['departAt']);
+    final back = JsonCodec.dateTime(json['returnAt']);
+    if (id == null || depart == null || back == null) return null;
+    final residence = JsonCodec.mapAt(json, 'residence');
+    final requester = JsonCodec.mapAt(json, 'requester');
+    final decidedBy = JsonCodec.mapAt(json, 'decidedBy');
+    return HrOuting(
+      id: id,
+      clientId: JsonCodec.stringOr(json['clientId'], ''),
+      clientName: JsonCodec.stringOr(json['clientName'], 'Resident'),
+      residenceId: JsonCodec.string(residence?['id'] ?? json['residenceId']),
+      residenceName: JsonCodec.string(residence?['name']),
+      destination: JsonCodec.stringOr(json['destination'], 'Outing'),
+      purpose: JsonCodec.string(json['purpose']),
+      departAt: depart,
+      returnAt: back,
+      responsibleAdultName:
+          JsonCodec.stringOr(json['responsibleAdultName'], '—'),
+      responsibleAdultPhone:
+          JsonCodec.stringOr(json['responsibleAdultPhone'], '—'),
+      transportType: JsonCodec.string(json['transportType']),
+      needsMedicationPack: JsonCodec.boolean(json['needsMedicationPack']) ?? false,
+      specialInstructions: JsonCodec.string(json['specialInstructions']),
+      status: JsonCodec.stringOr(json['status'], 'pending'),
+      requesterName: JsonCodec.string(requester?['name']),
+      decisionNotes: JsonCodec.string(json['decisionNotes']),
+      decidedByName: JsonCodec.string(decidedBy?['name']),
+    );
+  }
+
+  static HrOutingPage outingPageFrom(dynamic body) {
+    final items = [
+      for (final row in JsonCodec.unwrapList(body).whereType<Map>())
+        ?outingFrom(JsonCodec.asMap(row)),
+    ];
+    final meta = JsonCodec.metaOf(body);
+    return HrOutingPage(
+      items: items,
+      total: JsonCodec.integer(meta?['total']) ?? items.length,
+      totalPages:
+          JsonCodec.integer(meta?['totalPages']) ?? (items.isEmpty ? 0 : 1),
+    );
   }
 
   /// The register as CSV, with the web table's columns.

@@ -11,6 +11,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../hr/emergency/presentation/widgets/emergency_alert_motion.dart';
+import '../pages/staff_emergency_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
 /// Result of a successful raise — used by callers that need to refresh lists.
@@ -332,6 +333,16 @@ class _StaffRaiseEmergencyDialogState extends State<StaffRaiseEmergencyDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      ActiveEmergencyQueueBanner(
+                        onViewQueue: () {
+                          Get.back();
+                          Get.to(
+                            () => const StaffEmergencyPage(
+                              initialStatus: StaffEmergencyStatusFilter.active,
+                            ),
+                          );
+                        },
+                      ),
                       _requiredLabel('Which home'),
                       const SizedBox(height: 8),
                       if (_loadingHomes)

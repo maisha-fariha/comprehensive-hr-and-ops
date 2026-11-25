@@ -13,23 +13,36 @@ import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../controllers/staff_medication_controller.dart';
+import '../../../../hr/medication/presentation/widgets/mar_count_stock_sheet.dart';
+import '../../../../hr/medication/presentation/widgets/mar_stock_tab.dart';
 import '../widgets/given_tab_view.dart';
 import '../widgets/mar_registry_tab_view.dart';
 import '../widgets/prn_registry_tab_view.dart';
-import '../widgets/resident_chart_tab_view.dart';
+import '../../../../hr/medication/presentation/widgets/mar_resident_chart_tab.dart';
 import '../widgets/staff_client_medications_sheet.dart';
 import '../widgets/staff_medication_header.dart';
 import '../widgets/staff_medication_metrics_strip.dart';
 import '../widgets/staff_mar_filters_bar.dart';
 import '../widgets/staff_medication_tab_bar.dart';
 import '../widgets/staff_mar_metrics_row.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
-/// Staff Medication MAR — web console parity:
-/// metrics + MAR / PRN / Given / Resident chart tabs.
+
+/// Shared Medication MAR for every role — web console parity:
+/// metrics + MAR / PRN / Given / Stock / Resident chart tabs.
+///
+/// Staff shell keeps the MAR / Tasks bottom nav; manager opens the same UI
+/// as a pushed page (`showStaffBottomNav: false`).
 class StaffMedicationPage extends StatelessWidget {
-  static const int _marTasksTabIndex = 3;
+  static const int _marTasksTabIndex = 4;
 
-  const StaffMedicationPage({super.key});
+  /// When false (manager / notification deep-link), hide staff bottom nav.
+  final bool showStaffBottomNav;
+
+  const StaffMedicationPage({
+    super.key,
+    this.showStaffBottomNav = true,
+  });
 
   StaffMedicationController _resolveController() {
     try {
@@ -54,10 +67,12 @@ class StaffMedicationPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: _marTasksTabIndex,
-        onTap: _onBottomNavTap,
-      ),
+      bottomNavigationBar: showStaffBottomNav
+          ? StaffBottomNavBar(
+              currentIndex: _marTasksTabIndex,
+              onTap: _onBottomNavTap,
+            )
+          : null,
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;
@@ -120,7 +135,7 @@ class StaffMedicationPage extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(
@@ -164,6 +179,13 @@ class StaffMedicationPage extends StatelessWidget {
                           onEdit: controller.canEditMedicines
                               ? (dose) => controller.editDose(context, dose)
                               : null,
+                          onDelete: controller.canEditMedicines
+                              ? (dose) => controller.deleteDose(context, dose)
+                              : null,
+                          onDiscontinue: controller.canEditMedicines
+                              ? (dose) =>
+                                  controller.discontinueDose(context, dose)
+                              : null,
                           administeredByName: controller.administeredByName,
                           isPendingSync: controller.isPendingSync,
                           onOpenClientMedications: (dose) {
@@ -198,6 +220,16 @@ class StaffMedicationPage extends StatelessWidget {
                               ? (item) =>
                                   controller.editMedication(context, item)
                               : null,
+                          onDelete: controller.canEditMedicines
+                              ? (item) =>
+                                  controller.deleteMedication(context, item)
+                              : null,
+                          onDiscontinue: controller.canEditMedicines
+                              ? (item) => controller.discontinueMedication(
+                                    context,
+                                    item,
+                                  )
+                              : null,
                           onGive: controller.givePrn,
                           onOpenChart: (item) {
                             if (item.clientId.isEmpty) return;
@@ -213,27 +245,56 @@ class StaffMedicationPage extends StatelessWidget {
                       StaffMedicationTab.given => GivenTabView(
                           doses: controller.givenItems.toList(),
                         ),
+                      StaffMedicationTab.stock => MarStockTab(
+                          rows: controller.stockRows,
+                          residences: controller.stockResidenceOptions,
+                          residenceId: controller.stockResidenceFilter.value,
+                          loading: controller.stockLoading.value,
+                          error: controller.stockError.value,
+                          canWrite: canWrite,
+                          lowCount: controller.stockLowCount,
+                          onResidenceChange: controller.setStockResidence,
+                          onClearResidence: () =>
+                              controller.setStockResidence(''),
+                          onCountStock: (row) => showMarCountStockSheet(
+                            context,
+                            row: row,
+                            onSave: controller.countStock,
+                          ),
+                        ),
                       StaffMedicationTab.residentChart =>
-                        ResidentChartTabView(
-                          clients: controller.chartClients.toList(),
-                          loading: controller.loadingExtras.value &&
-                              controller.chartClients.isEmpty,
-                          onOpenChart: (client) {
-                            showStaffClientMedicationsSheet(
-                              context,
-                              clientId: client.id,
-                              clientName: client.name,
-                            );
-                          },
+                        MarResidentChartTab(
+                          clientId: controller.chartClientId.value,
+                          clientOptions: [
+                            for (final c in controller.chartClients)
+                              (c.id, c.name),
+                          ],
+                          chart: controller.residentChart.value,
+                          loading: controller.chartLoading.value ||
+                              (controller.loadingExtras.value &&
+                                  controller.chartClients.isEmpty),
+                          onClientChange: controller.loadResidentChart,
                         ),
                     },
-                    StaffMedicationSideCards(
-                      overview: overview,
-                      onReviewAllMissed: controller.reviewAllMissed,
-                      onChartDue: canWrite
-                          ? (dose) => controller.markAdministered(dose.id)
-                          : null,
-                    ),
+                    // Web right column — MAR / PRN / Resident chart.
+                    if (controller.selectedTab.value ==
+                            StaffMedicationTab.mar ||
+                        controller.selectedTab.value ==
+                            StaffMedicationTab.prn ||
+                        controller.selectedTab.value ==
+                            StaffMedicationTab.residentChart) ...[
+                      SizedBox(
+                        height:
+                            ResponsiveHelper.getResponsiveHeight(context, 12),
+                      ),
+                      StaffMedicationSideCards(
+                        overview: overview,
+                        onReviewAllMissed: controller.reviewAllMissed,
+                        onChartDue: canWrite
+                            ? (dose) => controller.markAdministered(dose.id)
+                            : null,
+                      ),
+                    ],
                   ],
                 ),
               ),

@@ -1,30 +1,30 @@
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
 import '../../domain/entities/shift_residence_option.dart';
+import '../../domain/entities/shift_staff_conflict.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
 import '../mappers/scheduling_mapper.dart';
 
 class SchedulingRepositoryImpl implements SchedulingRepository {
-  static const _pageSize = 100;
-  static const _maxPages = 5;
+  static const _pageSize = ApiPageFetcher.defaultPageSize;
 
   final AppApiClient _api;
-  final UserSession _session;
 
   SchedulingRepositoryImpl({
     required AppApiClient api,
-    required UserSession session,
-  })  : _api = api,
-        _session = session;
+  }) : _api = api;
 
   @override
   Future<Result<SchedulingOverview>> getOverview({
@@ -33,20 +33,40 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     String? residenceId,
     ShiftStatusFilter? status,
     bool mine = false,
+    ScheduleSpan span = ScheduleSpan.week,
+    DateTime? monthOf,
   }) async {
-    final scopedResidenceId = residenceId ?? _session.residenceId;
-    final anchor = weekOf ?? DateTime.now();
-    final from = IsoDateRange.startOfWeek(anchor).toUtc().toIso8601String();
-    final to = IsoDateRange.endOfWeek(anchor).toUtc().toIso8601String();
+    // Always refresh org timezone so Settings → General changes match the web.
+    // Reuse cached org timezone unless unset (force only wastes /settings/general).
+    await TenantClock.syncFromApi(_api);
+    // Web schedule is tenant-wide until a residence filter is chosen.
+    // Do not fall back to session.residenceId (role/home-house scoping gap).
+    final scopedResidenceId = residenceId?.trim().isNotEmpty == true
+        ? residenceId!.trim()
+        : null;
+    final anchor = weekOf ?? TenantClock.now();
+    final weekStart = IsoDateRange.startOfWeek(anchor);
+    final weekEnd = IsoDateRange.endOfWeek(anchor);
+    final from = TenantClock.at(weekStart, 0).toUtc().toIso8601String();
+    final to = TenantClock.at(weekEnd, 0).toUtc().toIso8601String();
+    final month = monthOf ?? DateTime(anchor.year, anchor.month, 1);
+    final monthStart = DateTime(month.year, month.month, 1);
+    final monthEnd = DateTime(month.year, month.month + 1, 0);
 
-    final weekResult = await _fetchAllPages(
+    // All shifts must paginate like Week/Month — a single `limit: 50` page
+    // truncated the list vs web (e.g. 50 of 54).
+    final weekResult = await ApiPageFetcher.fetchAll(
+      _api,
       path: ApiEndpoints.shifts,
-      baseQuery: {
-        'from': from,
-        'to': to,
+      query: {
+        if (span != ScheduleSpan.list) ...{
+          'from': span == ScheduleSpan.month ? _ymd(monthStart) : from,
+          'to': span == ScheduleSpan.month ? _ymd(monthEnd) : to,
+        },
         'residenceId': ?scopedResidenceId,
         if (mine) 'mine': true,
       },
+      pageSize: _pageSize,
     );
     if (weekResult.isFailure) {
       return Result.failure(
@@ -61,48 +81,53 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     );
 
     final swapBase = <String, dynamic>{
-      'from': from,
-      'to': to,
       'residenceId': ?scopedResidenceId,
     };
 
     final results = await Future.wait([
-      _fetchAllPages(
+      // Web Open shifts rail follows the same week/month date filter as the
+      // calendar (Past unstaffed / Upcoming only count opens in range).
+      ApiPageFetcher.fetchAll(
+        _api,
         path: ApiEndpoints.shifts,
-        baseQuery: {
+        query: {
           'status': 'open',
-          'from': from,
-          'to': to,
+          'from': span == ScheduleSpan.month ? _ymd(monthStart) : from,
+          'to': span == ScheduleSpan.month ? _ymd(monthEnd) : to,
           'residenceId': ?scopedResidenceId,
           if (mine) 'mine': true,
         },
+        pageSize: _pageSize,
       ),
-      _api.get(
-        ApiEndpoints.shiftSwaps,
+      // Web "Swap Requests" / pending queue is manager-actionable only
+      // (`awaiting_manager`). `awaiting_peer` handovers are peer-owned and
+      // must not appear as pending manager cards (empty on web).
+      ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.shiftSwaps,
         query: {
           ...swapBase,
-          'status': 'awaiting_peer,awaiting_manager',
-          'page': 1,
-          'limit': _pageSize,
+          'status': 'awaiting_manager',
         },
+        pageSize: _pageSize,
       ),
-      _api.get(
-        ApiEndpoints.shiftSwaps,
+      ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.shiftSwaps,
         query: {
           ...swapBase,
           'status': 'approved',
-          'page': 1,
-          'limit': _pageSize,
         },
+        pageSize: _pageSize,
       ),
-      _api.get(
-        ApiEndpoints.shiftSwaps,
+      ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.shiftSwaps,
         query: {
           ...swapBase,
           'status': 'declined,rejected',
-          'page': 1,
-          'limit': _pageSize,
         },
+        pageSize: _pageSize,
       ),
     ]);
 
@@ -115,11 +140,34 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       }
     }
 
+    var coverageRows = week;
+    if (span != ScheduleSpan.week) {
+      final coverageResult = await ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.shifts,
+        query: {
+          'from': from,
+          'to': to,
+          'residenceId': ?scopedResidenceId,
+          if (mine) 'mine': true,
+        },
+        pageSize: _pageSize,
+      );
+      if (coverageResult.isSuccess) {
+        coverageRows = _applyShiftFilters(
+          coverageResult.value ?? const [],
+          residenceId: residenceId,
+          status: status,
+        );
+      }
+    }
+
     return Result.success(
       SchedulingMapper.compose(
         weekBody: week,
+        coverageBody: coverageRows,
         openBody: _applyShiftFilters(
-          results[0].value as List<dynamic>? ?? const [],
+          results[0].value ?? const <dynamic>[],
           residenceId: residenceId,
         ),
         pendingSwapsBody: results[1].value,
@@ -157,33 +205,6 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     }).toList();
   }
 
-  /// Walks `page=1..n` until a short page is returned (or [_maxPages]).
-  Future<Result<List<dynamic>>> _fetchAllPages({
-    required String path,
-    required Map<String, dynamic> baseQuery,
-  }) async {
-    final all = <dynamic>[];
-    for (var page = 1; page <= _maxPages; page++) {
-      final result = await _api.get(
-        path,
-        query: {
-          ...baseQuery,
-          'page': page,
-          'limit': _pageSize,
-        },
-      );
-      if (result.isFailure) {
-        return Result.failure(
-          result.error ?? const ApiError(message: 'Could not load shifts.'),
-        );
-      }
-      final rows = JsonCodec.unwrapList(result.value);
-      all.addAll(rows);
-      if (rows.length < _pageSize) break;
-    }
-    return Result.success(all);
-  }
-
   @override
   Future<Result<List<ShiftResidenceOption>>> getResidences() async {
     final result = await _api.get(
@@ -198,15 +219,135 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
   }
 
   @override
-  Future<Result<List<ShiftStaffOption>>> getStaffOptions() async {
+  Future<Result<int>> getDefaultBreakMinutes() async {
+    await _loadTenantTimeZone();
     final result = await _api.get(
-      ApiEndpoints.staff,
-      query: {'page': 1, 'limit': _pageSize},
+      ApiEndpoints.settingsScheduling,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        final minutes = JsonCodec.integer(json['defaultBreakMinutes']) ?? 30;
+        return Result.success(minutes.clamp(0, 240));
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  /// `GET /settings/general` timezone, so shift times match the web.
+  Future<void> _loadTenantTimeZone() =>
+      TenantClock.syncFromApi(_api, force: true);
+
+  @override
+  Future<Result<List<ShiftClientOption>>> getClients(String residenceId) async {
+    final result = await _api.get(
+      ApiEndpoints.clients,
+      query: {'residenceId': residenceId, 'page': 1, 'limit': _pageSize},
       silent: true,
     );
     return result.when(
       success: (body) async =>
-          Result.success(SchedulingMapper.staffFrom(body)),
+          Result.success(SchedulingMapper.clientsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions({
+    String? residenceId,
+  }) async {
+    if (!Get.isRegistered<UserSession>() ||
+        !Get.find<UserSession>().canReadStaffList) {
+      return Result.success(const []);
+    }
+    final result = await _api.get(
+      ApiEndpoints.staff,
+      query: {
+        'page': 1,
+        'limit': _pageSize,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        var options = SchedulingMapper.staffFrom(body);
+        // Defense in depth: keep only staff linked to the selected home when
+        // the API still returns a wider directory.
+        if (residenceId != null && residenceId.isNotEmpty) {
+          final scoped = [
+            for (final o in options)
+              if (o.residenceIds.contains(residenceId)) o,
+          ];
+          // Prefer the scoped list when we could resolve residence links;
+          // otherwise trust the residenceId-filtered API payload.
+          if (scoped.isNotEmpty ||
+              options.any((o) => o.residenceIds.isNotEmpty)) {
+            options = scoped;
+          }
+        }
+        return Result.success(options);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
+    required String from,
+    required String to,
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'from': from,
+        'to': to,
+        'limit': 200,
+        'page': 1,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.shiftWindowRowsFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<ShiftConflictsResult>> checkStaffConflicts({
+    required List<String> staffIds,
+    required String startsAtIso,
+    required String endsAtIso,
+    String? residenceId,
+    String? excludeShiftId,
+  }) async {
+    if (staffIds.isEmpty) {
+      return Result.success(const ShiftConflictsResult());
+    }
+    final result = await _api.post(
+      ApiEndpoints.shiftConflicts,
+      data: {
+        'staffIds': staffIds,
+        'windows': [
+          {'startsAt': startsAtIso, 'endsAt': endsAtIso},
+        ],
+        if (excludeShiftId != null && excludeShiftId.isNotEmpty)
+          'excludeShiftId': excludeShiftId,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      allowQueue: false,
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.shiftConflictsFrom(body)),
       failure: (error) async => Result.failure(error),
     );
   }
@@ -239,6 +380,8 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
     required String shiftId,
     required Map<String, dynamic> payload,
     required List<String> staffIds,
+    String? restOverrideReason,
+    bool updateAssignments = true,
   }) async {
     final patched = await _api.patch(
       ApiEndpoints.shiftById(shiftId),
@@ -246,9 +389,14 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       allowQueue: false,
     );
     if (patched.isFailure) return Result.failure(patched.error!);
+    if (!updateAssignments) return Result.success(null);
+    final reason = restOverrideReason?.trim();
     final assigned = await _api.put(
       ApiEndpoints.shiftAssignments(shiftId),
-      data: {'staffIds': staffIds},
+      data: {
+        'staffIds': staffIds,
+        if (reason != null && reason.isNotEmpty) 'restOverrideReason': reason,
+      },
       allowQueue: false,
     );
     return assigned.when(
@@ -273,6 +421,192 @@ class SchedulingRepositoryImpl implements SchedulingRepository {
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  @override
+  Future<Result<void>> acceptShiftBid({
+    required String shiftId,
+    required String bidId,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftBidAccept(shiftId, bidId),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> rejectShiftBid({
+    required String shiftId,
+    required String bidId,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftBidReject(shiftId, bidId),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> placeShiftBid({
+    required String shiftId,
+    required String staffId,
+    String? note,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftBids(shiftId),
+      data: {
+        'staffId': staffId,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> openShift(String shiftId) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftOpen(shiftId),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> cancelShift(String shiftId) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftCancel(shiftId),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> deleteShift(String shiftId) async {
+    final result = await _api.delete(
+      ApiEndpoints.shiftById(shiftId),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> requestSwap({
+    required String shiftId,
+    String? note,
+    String? targetStaffId,
+    String? toShiftId,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.shiftSwapRequests(shiftId),
+      data: {
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        if (targetStaffId != null && targetStaffId.isNotEmpty)
+          'targetStaffId': targetStaffId,
+        if (toShiftId != null && toShiftId.isNotEmpty) 'toShiftId': toShiftId,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> listSwapColleagues({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: {
+        'page': 1,
+        'limit': 100,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(SchedulingMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<({String id, String label})>>> listColleagueShifts(
+    String staffId,
+  ) async {
+    final today = TenantClock.now();
+    final from =
+        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'page': 1,
+        'limit': 50,
+        'from': from,
+        'staffId': staffId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final shifts = <({String id, String label})>[];
+        for (final item in JsonCodec.unwrapList(body)) {
+          if (item is! Map) continue;
+          final json = JsonCodec.asMap(item);
+          final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
+          if (status == 'cancelled' || status == 'canceled') continue;
+          final id = JsonCodec.string(json['id']);
+          final start = JsonCodec.dateTime(
+            json['startsAt'] ?? json['startAt'],
+          );
+          if (id == null || start == null) continue;
+          final wall = TenantClock.wallOf(start);
+          shifts.add((id: id, label: _swapShiftLabel(wall)));
+        }
+        return Result.success(shifts);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  static String _swapShiftLabel(DateTime start) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final day = start.day.toString().padLeft(2, '0');
+    final month = start.month.toString().padLeft(2, '0');
+    final hour = start.hour.toString().padLeft(2, '0');
+    final minute = start.minute.toString().padLeft(2, '0');
+    return '${days[start.weekday - 1]} $day/$month/${start.year} $hour:$minute';
+  }
+
+  static String _ymd(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 
   /// `POST /shifts` answers with one shift, or a list for a recurring series.

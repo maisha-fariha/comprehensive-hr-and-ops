@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
@@ -339,7 +340,10 @@ class _StaffEmergencyDetailsSheetState
                                       ],
                                     ),
                             ),
-                            if (!_alert.isResolved) ...[
+                            if (!_alert.isResolved &&
+                                (!Get.isRegistered<UserSession>() ||
+                                    Get.find<UserSession>()
+                                        .can('emergency:respond'))) ...[
                               const SizedBox(height: 12),
                               _SectionCard(
                                 title: 'Add to the response',

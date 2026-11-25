@@ -1,5 +1,23 @@
-/// Which tab of the Incidents list is selected.
+/// Which tab of the Incidents list is selected (legacy / badge helpers).
 enum IncidentsTab { open, underReview, closed }
+
+/// Web Incident Reports status dropdown (`GET /incidents?status=`).
+enum IncidentListStatus { open, investigating, closed }
+
+extension IncidentListStatusApi on IncidentListStatus {
+  /// Exact query value used by the web Any Status dropdown.
+  String get apiValue => switch (this) {
+        IncidentListStatus.open => 'open',
+        IncidentListStatus.investigating => 'investigating',
+        IncidentListStatus.closed => 'closed',
+      };
+
+  String get label => switch (this) {
+        IncidentListStatus.open => 'Open',
+        IncidentListStatus.investigating => 'Investigating',
+        IncidentListStatus.closed => 'Closed',
+      };
+}
 
 /// Severity of an open incident, driving the trailing severity pill color.
 /// `low` only appears as a selectable option in the "Create Incident"

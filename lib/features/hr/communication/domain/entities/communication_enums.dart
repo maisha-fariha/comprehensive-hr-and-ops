@@ -1,4 +1,13 @@
-enum CommunicationTab { messages, communicationLog }
+enum CommunicationTab { messages, announcements, monitoring, communicationLog }
+
+extension CommunicationTabLabel on CommunicationTab {
+  String get label => switch (this) {
+        CommunicationTab.messages => 'Messages',
+        CommunicationTab.announcements => 'Announcements',
+        CommunicationTab.monitoring => 'Monitoring',
+        CommunicationTab.communicationLog => 'Communication log',
+      };
+}
 
 enum ConversationFilter { all, direct, group, family }
 

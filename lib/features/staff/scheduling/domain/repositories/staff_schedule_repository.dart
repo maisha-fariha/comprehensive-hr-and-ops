@@ -46,4 +46,12 @@ abstract class StaffScheduleRepository {
     String? search,
     String? residenceId,
   });
+
+  /// Colleagues for Request a swap (`GET /staff/directory`).
+  Future<Result<List<StaffShiftStaffOption>>> listColleagues({
+    String? residenceId,
+  });
+
+  /// That colleague's upcoming shifts (`GET /shifts?staffId=`).
+  Future<Result<List<StaffColleagueShift>>> listColleagueShifts(String staffId);
 }

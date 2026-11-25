@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../../../core/widgets/surface_card.dart';
@@ -18,6 +19,7 @@ import '../widgets/daily_note_client_info_card.dart';
 import '../widgets/daily_note_field_row.dart';
 import '../widgets/daily_note_handover_section.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The "Daily Note" screen: a client-specific care-note form opened from a
 /// Staff Daily Logs client row/card.
@@ -30,7 +32,7 @@ class DailyNotePage extends StatelessWidget {
   const DailyNotePage({super.key, this.client = DailyNoteClientInfo.fallback});
 
   /// Index of the "Clients" slot in [StaffBottomNavBar.items].
-  static const int _clientsTabIndex = 2;
+  static const int _clientsTabIndex = 3;
 
   DailyNoteController _resolveController() {
     try {
@@ -58,10 +60,15 @@ class DailyNotePage extends StatelessWidget {
       ),
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Obx(() {
+          final canWrite = !Get.isRegistered<UserSession>() ||
+              Get.find<UserSession>().can('daily-logs:write');
+          return Column(
           children: [
             DailyNoteAppBar(
-              onSave: () => controller.saveNote(client, submit: false),
+              onSave: canWrite
+                  ? () => controller.saveNote(client, submit: false)
+                  : null,
             ),
             Expanded(
               child: Obx(() {
@@ -85,7 +92,7 @@ class DailyNotePage extends StatelessWidget {
                   );
                 }
 
-                return RefreshIndicator(
+                return AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: () => controller.loadForClient(client),
                   child: ListView(
@@ -154,13 +161,17 @@ class DailyNotePage extends StatelessWidget {
                       ),
                       DailyNoteAttachmentsSection(
                         attachments: controller.attachments.toList(),
-                        onAddPhoto: () => controller.pickAndUploadAttachment(
-                          imagesOnly: true,
-                        ),
-                        onAddFiles: () => controller.pickAndUploadAttachment(
-                          imagesOnly: false,
-                        ),
-                        onRemove: controller.removeAttachment,
+                        onAddPhoto: canWrite
+                            ? () => controller.pickAndUploadAttachment(
+                                  imagesOnly: true,
+                                )
+                            : null,
+                        onAddFiles: canWrite
+                            ? () => controller.pickAndUploadAttachment(
+                                  imagesOnly: false,
+                                )
+                            : null,
+                        onRemove: canWrite ? controller.removeAttachment : null,
                       ),
                       SizedBox(
                         height: ResponsiveHelper.getResponsiveHeight(context, 20),
@@ -170,8 +181,9 @@ class DailyNotePage extends StatelessWidget {
                         submitLabel: overview.isSubmitted
                             ? 'Amend Note'
                             : 'Submit Note',
-                        onSubmit: () =>
-                            controller.saveNote(client, submit: true),
+                        onSubmit: canWrite
+                            ? () => controller.saveNote(client, submit: true)
+                            : null,
                       ),
                     ],
                   ),
@@ -179,7 +191,8 @@ class DailyNotePage extends StatelessWidget {
               }),
             ),
           ],
-        ),
+          );
+        }),
       ),
     );
   }

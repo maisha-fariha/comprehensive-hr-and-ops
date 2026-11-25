@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_outbox_section.dart';
@@ -19,38 +20,77 @@ import '../widgets/shift_details_card.dart';
 import '../widgets/staff_attendance_filters_bar.dart';
 import '../widgets/staff_attendance_header.dart';
 import '../widgets/staff_attendance_metrics_strip.dart';
+import '../widgets/staff_time_off_section.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Attendance — web-parity metrics, filters, list, and clock in/out.
-class StaffAttendancePage extends StatelessWidget {
-  const StaffAttendancePage({super.key});
+class StaffAttendancePage extends StatefulWidget {
+  /// Opened from a time-off notification: scroll to that section.
+  final bool focusTimeOff;
 
-  static const int _moreTabIndex = 4;
+  /// False when this page is the Attendance tab inside [StaffShell].
+  final bool showStaffBottomNav;
 
-  StaffAttendanceController _resolveController() {
-    try {
-      return Get.find<StaffAttendanceController>();
-    } catch (_) {
-      return Get.put(
-        GetIt.instance<StaffAttendanceController>(),
-        permanent: true,
-      );
-    }
+  const StaffAttendancePage({
+    super.key,
+    this.focusTimeOff = false,
+    this.showStaffBottomNav = true,
+  });
+
+  /// Attendance slot in [StaffBottomNavBar.items].
+  static const int tabIndex = 2;
+
+  @override
+  State<StaffAttendancePage> createState() => _StaffAttendancePageState();
+}
+
+class _StaffAttendancePageState extends State<StaffAttendancePage> {
+  late final StaffAttendanceController _controller;
+  final _timeOffKey = GlobalKey();
+  var _scrolledToTimeOff = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final alreadyOpen = Get.isRegistered<StaffAttendanceController>();
+    _controller = alreadyOpen
+        ? Get.find<StaffAttendanceController>()
+        : Get.put(
+            GetIt.instance<StaffAttendanceController>(),
+            permanent: true,
+          );
+    // The controller stays alive after the page closes, so a clock-out from
+    // Home would still be showing the previous punch until this reload.
+    if (alreadyOpen) _controller.loadOverview();
   }
 
   void _onBottomNavTap(int index) {
     Get.offAll(() => StaffShell(initialIndex: index));
   }
 
+  void _scrollToTimeOff() {
+    if (!widget.focusTimeOff || _scrolledToTimeOff) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _scrolledToTimeOff) return;
+      final target = _timeOffKey.currentContext;
+      if (target == null) return;
+      _scrolledToTimeOff = true;
+      Scrollable.ensureVisible(target, alignment: 0.05);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
+    final controller = _controller;
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: _moreTabIndex,
-        onTap: _onBottomNavTap,
-      ),
+      bottomNavigationBar: widget.showStaffBottomNav
+          ? StaffBottomNavBar(
+              currentIndex: StaffAttendancePage.tabIndex,
+              onTap: _onBottomNavTap,
+            )
+          : null,
       body: Obx(() {
         final response = controller.state.value;
         final overview = response.data;
@@ -70,6 +110,17 @@ class StaffAttendancePage extends StatelessWidget {
           );
         }
 
+        final session = Get.isRegistered<UserSession>()
+            ? Get.find<UserSession>()
+            : null;
+        // Clock in/out is own attendance (`attendance:write`). Manual Entry
+        // creates or corrects a record and needs `attendance:manage`.
+        // Web always shows Clock in when the user can write; geofence is
+        // enforced in the clock sheet / controller, not by hiding the button
+        // (hiding it also failed during "Checking location…" / GPS denial).
+        final canClock = session == null || session.can('attendance:write');
+        final canManual = session == null || session.can('attendance:manage');
+        _scrollToTimeOff();
         return Column(
           children: [
             ColoredBox(
@@ -79,9 +130,10 @@ class StaffAttendancePage extends StatelessWidget {
                 child: StaffAttendanceHeader(
                   onBackTap: () => Navigator.maybePop(context),
                   isOnShift: overview.isOnShift,
-                  onClockInTap: controller.clockIn,
-                  onClockOutTap: controller.clockOut,
-                  onManualEntryTap: controller.showManualEntryDialog,
+                  onClockInTap: canClock ? controller.clockIn : null,
+                  onClockOutTap: canClock ? controller.clockOut : null,
+                  onManualEntryTap:
+                      canManual ? controller.showManualEntryDialog : null,
                 ),
               ),
             ),
@@ -90,7 +142,7 @@ class StaffAttendancePage extends StatelessWidget {
               onSynced: () => controller.refresh(),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(
@@ -130,6 +182,9 @@ class StaffAttendancePage extends StatelessWidget {
                         locationName: overview.shiftLocationName,
                         timeRange: overview.shiftTimeRange,
                         elapsedTimeLabel: controller.liveElapsedLabel.value,
+                        breakLabel: overview.breakMinutes > 0
+                            ? '${overview.breakMinutes}m break'
+                            : '',
                         isWithinGeofence: overview.isWithinGeofence,
                         geofenceStatusLabel: overview.geofenceStatusLabel,
                         geofenceAddress: overview.geofenceAddress,
@@ -149,7 +204,7 @@ class StaffAttendancePage extends StatelessWidget {
                       ),
                       BreakRow(
                         isOnBreak: overview.isOnBreak,
-                        statusLabel: overview.breakStatusLabel,
+                        statusLabel: controller.liveBreakStatusLabel.value,
                         onToggleBreak: controller.toggleBreak,
                       ),
                       SizedBox(
@@ -158,11 +213,11 @@ class StaffAttendancePage extends StatelessWidget {
                       ),
                     ],
                     StaffAttendanceFiltersBar(
-                      selectedDate: controller.historyDateFilter.value,
+                      week: controller.historyWeek.value,
                       residenceFilter: controller.historyResidenceFilter.value,
                       statusFilter: controller.historyStatusFilter.value,
                       residences: controller.residenceOptions.toList(),
-                      onDateChanged: controller.setHistoryDateFilter,
+                      onWeekChanged: controller.setHistoryWeek,
                       onResidenceChanged:
                           controller.setHistoryResidenceFilter,
                       onStatusChanged: controller.setHistoryStatusFilter,
@@ -172,6 +227,13 @@ class StaffAttendancePage extends StatelessWidget {
                     ),
                     AttendanceHistorySection(
                       items: controller.filteredHistory,
+                    ),
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 20),
+                    ),
+                    KeyedSubtree(
+                      key: _timeOffKey,
+                      child: StaffTimeOffSection(controller: controller),
                     ),
                   ],
                 ),

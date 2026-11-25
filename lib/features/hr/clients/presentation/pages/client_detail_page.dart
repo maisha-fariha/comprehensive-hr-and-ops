@@ -3,7 +3,10 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/offline/offline_image.dart';
+import '../../../../../core/time/tenant_clock.dart';
+import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
 import '../../domain/entities/client_summary.dart';
@@ -33,6 +36,7 @@ const _sections = [
   ('family', 'Family / Guardian', 'Family / contact'),
   ('medical', 'Medical Information', 'Health information'),
   ('care', 'Care Planning', 'Goals & progress'),
+  ('logs', 'Daily Logs', 'Activity summary'),
   ('spend', 'Inventory Spend', 'Purchases & stock'),
 ];
 
@@ -194,11 +198,22 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                     key: _keys['family'],
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 14),
-                      child: ClientFamilyContacts(
-                        controller: _controller,
-                        clientId: c.id,
-                        readOnly: readOnly,
-                        onCount: (n) => setState(() => _contacts = n),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ClientFamilyContacts(
+                            controller: _controller,
+                            clientId: c.id,
+                            readOnly: readOnly,
+                            onCount: (n) => setState(() => _contacts = n),
+                          ),
+                          const SizedBox(height: 14),
+                          ClientPortalVisibilityCard(
+                            form: _form,
+                            enabled: !readOnly,
+                            onChanged: _changed,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -216,8 +231,31 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                         key: ValueKey('client-goals-${c.id}'),
                         controller: _controller,
                         clientId: c.id,
+                        firstName: _form.firstName.text.trim().isEmpty
+                            ? c.firstName
+                            : _form.firstName.text.trim(),
                         readOnly: readOnly,
                       ),
+                    ),
+                  ),
+                  _panel(
+                    'logs',
+                    ClientDailyLogsSection(
+                      clientId: c.id,
+                      residenceId: c.residenceId ?? _form.currentResidence,
+                      onViewAll: () {
+                        if (!_controller.can('daily-logs:read')) {
+                          AppSnackbar.show(
+                            'You need daily logs access to open the full board.',
+                            '',
+                            force: true,
+                          );
+                          return;
+                        }
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const DailyLogsPage()),
+                        );
+                      },
                     ),
                   ),
                   _panel('spend', ClientSpendSection(controller: _controller, clientId: c.id)),
@@ -238,51 +276,103 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
         child: HandoverPanel(padding: const EdgeInsets.all(16), child: child),
       );
 
+  Future<void> _exportProgressReport(ClientSummary c) async {
+    if (!_controller.canExport && !_controller.can('reports:read')) return;
+    // Web exports immediately with the last 30 days (no date dialog).
+    final now = TenantClock.now();
+    final to = DateTime(now.year, now.month, now.day);
+    final from = to.subtract(const Duration(days: 30));
+    await _controller.exportProgressReport(
+      clientId: c.id,
+      from: from,
+      to: to,
+      clientName: c.fullName,
+    );
+  }
+
   Widget _header(BuildContext context, ClientSummary c) {
     final photo = c.photoUrl;
+    final canExportProgress =
+        _controller.canExport || _controller.can('reports:read');
     return Container(
       width: double.infinity,
       color: AppColors.surfaceWhite,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: const Color(0xFFB4805A),
-            foregroundImage: photo == null ? null : OfflineImage.provider(photo),
-            onForegroundImageError: photo == null ? null : (_, _) {},
-            child: const Icon(Icons.person_outline_rounded, color: AppColors.surfaceWhite),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFFB4805A),
+                foregroundImage:
+                    photo == null ? null : OfflineImage.provider(photo),
+                onForegroundImageError: photo == null ? null : (_, _) {},
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: AppColors.surfaceWhite,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(c.fullName, style: handoverText(context, 16, weight: FontWeight.w700)),
-                    ClientPill(
-                      label: ClientsLabels.humanise(c.status).toUpperCase(),
-                      tone: ClientToneColors.forStatus(c.status),
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          c.fullName,
+                          style: handoverText(
+                            context,
+                            16,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        ClientPill(
+                          label: ClientsLabels.humanise(c.status).toUpperCase(),
+                          tone: ClientToneColors.forStatus(c.status),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        c.fullName,
+                        'ID #${c.shortId}',
+                        ?c.residenceName,
+                        if (c.careLevel != null) 'Care ${c.careLevel}',
+                      ].join(' · '),
+                      style: handoverText(
+                        context,
+                        12.5,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    c.fullName,
-                    'ID #${c.shortId}',
-                    ?c.residenceName,
-                    if (c.careLevel != null) 'Care ${c.careLevel}',
-                  ].join(' · '),
-                  style: handoverText(context, 12.5, color: AppColors.textMuted),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
+          if (canExportProgress) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Obx(() {
+                final busy = _controller.isExportingProgress.value;
+                return HandoverButton(
+                  key: const ValueKey('client-export-progress'),
+                  label: busy ? 'Preparing…' : 'Export Progress Report',
+                  icon: Icons.description_outlined,
+                  compact: true,
+                  onPressed: busy ? null : () => _exportProgressReport(c),
+                );
+              }),
+            ),
+          ],
         ],
       ),
     );
@@ -316,7 +406,7 @@ class _ClientDetailPageState extends State<ClientDetailPage> {
                           style: handoverText(context, 13, weight: FontWeight.w500),
                         ),
                         Text(
-                          [ClientsLabels.date(t.transferredAt?.toLocal()), ?t.reason].join(' · '),
+                          [TenantClock.formatDate(t.transferredAt), ?t.reason].join(' · '),
                           style: handoverText(context, 12, color: AppColors.textMuted),
                         ),
                       ],

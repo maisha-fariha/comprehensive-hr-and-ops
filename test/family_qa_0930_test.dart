@@ -246,9 +246,12 @@ void main() {
           },
         };
 
-    test('tenant_admin and platform realm are web-only', () {
+    test('tenant and platform admins are web-only; hr_admin uses the HR shell',
+        () {
       expect(AuthMapper.isWebOnlyAccount(me(['tenant_admin'])), isTrue);
       expect(AuthMapper.isWebOnlyAccount(me(['Tenant admin'])), isTrue);
+      expect(AuthMapper.isWebOnlyAccount(me(['platform_admin'])), isTrue);
+      expect(AuthMapper.isWebOnlyAccount(me(['hr_admin'])), isFalse);
       expect(
         AuthMapper.isWebOnlyAccount(me(['manager'], realm: 'platform')),
         isTrue,
@@ -260,6 +263,7 @@ void main() {
         'family',
         'residence_manager',
         'manager',
+        'hr_admin',
         'nurse',
         'caregiver',
         'housekeeper',

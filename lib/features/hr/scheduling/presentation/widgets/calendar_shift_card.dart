@@ -96,6 +96,39 @@ class CalendarShiftCard extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (shift.isDraft) ...[
+                            Container(
+                              padding: ResponsiveHelper.getResponsivePadding(
+                                context,
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.urgentBackgroundSoft,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'DRAFT',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    11,
+                                  ),
+                                  color: AppColors.urgentAmber,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: ResponsiveHelper.getResponsiveWidth(
+                                context,
+                                6,
+                              ),
+                            ),
+                          ],
                           Container(
                             padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
@@ -124,6 +157,25 @@ class CalendarShiftCard extends StatelessWidget {
                           color: AppColors.textMuted,
                         ),
                       ),
+                      if ((shift.residenceName ?? '').trim().isNotEmpty) ...[
+                        SizedBox(
+                          height: ResponsiveHelper.getResponsiveHeight(context, 2),
+                        ),
+                        Text(
+                          shift.residenceName!.trim(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w500,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              11.5,
+                            ),
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                       SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(999),

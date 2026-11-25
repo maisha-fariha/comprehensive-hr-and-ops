@@ -53,7 +53,7 @@ class ResidenceFormValues {
     this.country = 'United States',
     this.latitude = '',
     this.longitude = '',
-    this.timeZone = 'America/Los_Angeles',
+    this.timeZone = 'UTC',
     this.geofenceRadius = '150',
     this.enableGpsTracking = true,
     this.totalBeds = '',
@@ -93,6 +93,7 @@ class ResidenceFormValues {
       longitude: text(_plain(r.longitude)),
       timeZone: r.timezone ?? empty.timeZone,
       geofenceRadius: text(r.gpsRadiusMeters),
+      enableGpsTracking: r.gpsTrackingEnabled,
       totalBeds: text(r.bedCapacity),
       availableBeds: text(r.availableBeds),
       initialOccupiedBeds: text(r.initialOccupiedBeds),
@@ -185,7 +186,13 @@ class ResidenceFormValues {
       'latitude': ?_number(latitude),
       'longitude': ?_number(longitude),
       'timezone': _trim(timeZone) ?? 'UTC',
-      if (radius != null) 'geofence': {'radiusMeters': radius},
+      // Web sends top-level `geofenceEnabled` plus nested radius.
+      'geofenceEnabled': enableGpsTracking,
+      if (radius != null)
+        'geofence': {
+          'radiusMeters': radius,
+          'enabled': enableGpsTracking,
+        },
       'bedCapacity': ?_number(totalBeds),
       'initialOccupiedBeds': ?_number(initialOccupiedBeds),
       'operatingHours': ?_trim(operatingHours),

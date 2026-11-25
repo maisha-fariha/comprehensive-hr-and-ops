@@ -23,7 +23,7 @@ class FamilyDashboardRepositoryImpl implements FamilyDashboardRepository {
         _session = session;
 
   @override
-  Future<Result<FamilyDashboardOverview>> getOverview() async {
+  Future<Result<FamilyDashboardOverview>> getOverview({String? clientId}) async {
     final home = await _api.get(ApiEndpoints.familyHome);
     if (home.isFailure) {
       return Result.failure(
@@ -32,18 +32,23 @@ class FamilyDashboardRepositoryImpl implements FamilyDashboardRepository {
     }
 
     Result<dynamic>? updates;
+    Result<dynamic>? activities;
     final homeJson = JsonCodec.unwrapMap(home.value);
     final clients = JsonCodec.listAt(homeJson, 'linkedClients');
-    var clientId = _session.selectedClientId;
-    if ((clientId == null || clientId.isEmpty) &&
-        clients.isNotEmpty &&
-        clients.first is Map) {
-      clientId = JsonCodec.string(JsonCodec.asMap(clients.first as Map)['id']);
+    var resolvedId = (clientId ?? _session.selectedClientId ?? '').trim();
+    if (resolvedId.isEmpty && clients.isNotEmpty && clients.first is Map) {
+      resolvedId =
+          JsonCodec.string(JsonCodec.asMap(clients.first as Map)['id']) ?? '';
     }
     final visibility = JsonCodec.mapAt(homeJson, 'visibility') ?? {};
     final showLogs = JsonCodec.boolean(visibility['dailyLogs']) ?? true;
-    if (clientId != null && clientId.isNotEmpty && showLogs) {
-      updates = await _api.get(ApiEndpoints.familyDailyUpdates(clientId));
+    final showActivities = JsonCodec.boolean(visibility['activities']) ?? true;
+    if (resolvedId.isNotEmpty && showLogs) {
+      updates = await _api.get(ApiEndpoints.familyDailyUpdates(resolvedId));
+    }
+    if (resolvedId.isNotEmpty && showActivities) {
+      activities =
+          await _api.get(ApiEndpoints.familyClientActivities(resolvedId));
     }
 
     var unread = JsonCodec.integerOr(homeJson['unreadCount'], 0);
@@ -58,6 +63,8 @@ class FamilyDashboardRepositoryImpl implements FamilyDashboardRepository {
         session: _session,
         homeBody: home.value,
         updatesBody: updates?.value,
+        activitiesBody: activities?.value,
+        selectedClientId: resolvedId,
         unreadNotificationCount: unread,
       ),
     );

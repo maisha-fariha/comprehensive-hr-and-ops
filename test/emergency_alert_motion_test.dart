@@ -87,4 +87,38 @@ void main() {
     expect(find.byKey(const ValueKey('emergency-active-count')), findsNothing);
     await tester.pumpAndSettle();
   });
+
+  testWidgets('raise sheet shows active queue banner like web', (tester) async {
+    final repo = _Repo(1);
+    Get.put<UserSession>(UserSession());
+    GetIt.I.registerSingleton<EmergencyRepository>(repo);
+    var openedQueue = false;
+
+    await tester.pumpWidget(
+      _app(
+        ActiveEmergencyQueueBanner(onViewQueue: () => openedQueue = true),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('raise-emergency-active-queue')),
+      findsOneWidget,
+    );
+    expect(find.text('1 active emergency alert in progress'), findsOneWidget);
+    expect(find.text('View Active Queue →'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('raise-emergency-active-queue')));
+    await tester.pump();
+    expect(openedQueue, isTrue);
+
+    repo.total = 0;
+    await ActiveEmergencyAlerts.refresh();
+    await tester.pump();
+    expect(
+      find.byKey(const ValueKey('raise-emergency-active-queue')),
+      findsNothing,
+    );
+    await tester.pumpAndSettle();
+  });
 }

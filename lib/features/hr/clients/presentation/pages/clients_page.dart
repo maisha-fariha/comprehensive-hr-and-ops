@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import '../../domain/entities/client_summary.dart';
 import '../clients_labels.dart';
 import '../controllers/clients_controller.dart';
@@ -17,6 +18,7 @@ import '../widgets/clients_common.dart';
 import '../widgets/deleted_clients_sheet.dart';
 import '../widgets/move_client_sheet.dart';
 import 'client_detail_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Web `/dashboard/clients` ("Client Directory").
 class ClientsPage extends StatefulWidget {
@@ -97,14 +99,41 @@ class _ClientsPageState extends State<ClientsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      appBar: hrSubPageAppBar(context, 'Client Directory'),
+      appBar: hrSubPageAppBar(
+        context,
+        'Client Directory',
+        actions: [
+          Obx(() {
+            if (!controller.canCreate) return const SizedBox.shrink();
+            final limited = controller.isLimitReached;
+            final cap = controller.clientLimit.value;
+            final action = HrHeaderPrimaryAction(
+              actionKey: const ValueKey('clients-add'),
+              label: 'Client',
+              onTap: limited
+                  ? () {}
+                  : () async {
+                      final created = await showAddClientSheet(context, controller);
+                      if (created != null && context.mounted) {
+                        await _open(created, editing: true);
+                      }
+                    },
+            );
+            if (!limited || cap == null) return action;
+            return Tooltip(
+              message: ClientsLabels.planLimitTooltip(controller.limitCount, cap),
+              child: Opacity(opacity: 0.45, child: action),
+            );
+          }),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: Obx(() {
           final items = controller.clients.toList();
           final loading = controller.isLoading.value;
           final error = controller.loadError.value;
-          return RefreshIndicator(
+          return AppRefreshIndicator(
             color: AppColors.secondaryTeal,
             onRefresh: controller.refresh,
             child: ListView(
@@ -196,28 +225,12 @@ class _ClientsPageState extends State<ClientsPage> {
 
   Widget _actions(BuildContext context) {
     final c = _controller;
-    final limited = c.isLimitReached;
-    final cap = c.clientLimit.value;
-    final exporting = c.isExporting.value;
-    final add = HandoverButton(
-      key: const ValueKey('clients-add'),
-      label: limited ? 'Limit Exceeded' : 'Add Client',
-      icon: Icons.add_rounded,
-      filled: true,
-      onPressed: limited ? null : () => showAddClientSheet(context, c),
-    );
+    final exporting = c.isExportingList.value;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       alignment: WrapAlignment.end,
       children: [
-        if (c.canCreate)
-          limited && cap != null
-              ? Tooltip(
-                  message: ClientsLabels.planLimitTooltip(c.limitCount, cap),
-                  child: add,
-                )
-              : add,
         if (c.canDelete)
           HandoverButton(
             key: const ValueKey('clients-deleted'),

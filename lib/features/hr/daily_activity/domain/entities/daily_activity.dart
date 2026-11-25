@@ -239,3 +239,48 @@ class DailyActivityLocalFile {
 
   const DailyActivityLocalFile({required this.path, required this.name});
 }
+
+/// Body for `POST /client-activities/batch` (web "Record a group activity").
+@immutable
+class DailyActivityBatchDraft {
+  final List<String> clientIds;
+  final String activityDate;
+  final String activityType;
+  final String status;
+  final String description;
+  final DateTime? occurredAt;
+  final bool? shareWithFamily;
+  final Map<String, String> individualNotes;
+  final List<DailyActivityAttachment> attachments;
+
+  const DailyActivityBatchDraft({
+    required this.clientIds,
+    required this.activityDate,
+    required this.activityType,
+    required this.status,
+    required this.description,
+    this.occurredAt,
+    this.shareWithFamily,
+    this.individualNotes = const {},
+    this.attachments = const [],
+  });
+
+  Map<String, dynamic> toJson() {
+    final notes = <String, String>{
+      for (final e in individualNotes.entries)
+        if (e.value.trim().isNotEmpty) e.key: e.value.trim(),
+    };
+    return {
+      'clientIds': clientIds,
+      'activityDate': activityDate,
+      'activityType': activityType,
+      'status': status,
+      'description': description.trim(),
+      if (occurredAt != null) 'occurredAt': occurredAt!.toUtc().toIso8601String(),
+      if (shareWithFamily != null) 'shareWithFamily': shareWithFamily,
+      if (attachments.isNotEmpty)
+        'attachments': [for (final a in attachments) a.toJson()],
+      if (notes.isNotEmpty) 'individualNotes': notes,
+    };
+  }
+}

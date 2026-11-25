@@ -214,7 +214,7 @@ class RequestCard extends StatelessWidget {
               ],
             ),
           ),
-          if (isPending) ...[
+          if (isPending && (onApprove != null || onDecline != null)) ...[
             SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
             Row(
               children: [

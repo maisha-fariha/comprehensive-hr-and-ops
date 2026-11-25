@@ -6,7 +6,9 @@ import 'package:get/get.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../hr/scheduling/domain/entities/create_shift_draft.dart';
 import '../../../../hr/scheduling/domain/entities/shift_break_duration_option.dart';
 import '../../../../hr/scheduling/domain/entities/shift_type_option.dart';
@@ -156,29 +158,41 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
     setState(() => _isLoadingResidences = true);
     final result = await widget.repository.getResidences();
     if (!mounted) return;
-    setState(() => _isLoadingResidences = false);
+    final loaded = <StaffShiftResidenceOption>[];
+    String? loadError;
     result.when(
-      success: (data) {
-        setState(() {
-          _residences
-            ..clear()
-            ..addAll(data);
-          final selectedId = _selectedResidence?.id;
-          if (selectedId != null) {
-            for (final option in data) {
-              if (option.id == selectedId) {
-                _selectedResidence = option;
-                break;
-              }
-            }
-          } else if (data.isNotEmpty) {
-            _selectedResidence = data.first;
-          }
-        });
-      },
-      failure: (error) =>
-          AppSnackbar.show('Could not load residences', error.message),
+      success: loaded.addAll,
+      failure: (error) => loadError = error.message,
     );
+    final session = Get.find<UserSession>();
+    final merged = mergeResidencePickerOptions<StaffShiftResidenceOption>(
+      loaded: loaded,
+      idOf: (r) => r.id,
+      nameOf: (r) => r.name,
+      create: (id, name) => StaffShiftResidenceOption(id: id, name: name),
+      sessionId: session.residenceId,
+      sessionName: session.residenceName,
+    );
+    setState(() {
+      _isLoadingResidences = false;
+      _residences
+        ..clear()
+        ..addAll(merged);
+      final selectedId = _selectedResidence?.id;
+      if (selectedId != null) {
+        for (final option in merged) {
+          if (option.id == selectedId) {
+            _selectedResidence = option;
+            break;
+          }
+        }
+      } else if (merged.isNotEmpty) {
+        _selectedResidence = merged.first;
+      }
+    });
+    if (loadError != null && merged.isEmpty) {
+      AppSnackbar.show('Could not load residences', loadError!);
+    }
   }
 
   Future<void> _loadStaffPool({String? search}) async {
@@ -394,16 +408,6 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
     });
   }
 
-  void _addChecklistItem(String staffId) {
-    final draft = _checklistDraftControllers[staffId];
-    final text = draft?.text.trim() ?? '';
-    if (text.isEmpty) return;
-    setState(() {
-      _assignments[staffId]?.checklist.add(text);
-      draft?.clear();
-    });
-  }
-
   bool _validateCurrentStep() {
     if (_currentStep != 0) return true;
     if (_selectedResidence == null || _selectedResidence!.id.trim().isEmpty) {
@@ -451,8 +455,11 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
   }
 
   String _formatTime(TimeOfDay time) {
-    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
     final minute = time.minute.toString().padLeft(2, '0');
+    if (TenantClock.is24Hour) {
+      return '${time.hour.toString().padLeft(2, '0')}:$minute';
+    }
+    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
     final period = time.period == DayPeriod.am ? 'AM' : 'PM';
     return '${hour.toString().padLeft(2, '0')}:$minute $period';
   }
@@ -944,16 +951,7 @@ class _StaffCreateShiftPageState extends State<StaffCreateShiftPage> {
             for (final draft in assigned) ...[
               _StaffTaskCard(
                 draft: draft,
-                checklistDraftController:
-                    _checklistDraftControllers[draft.staff.id]!,
-                onToggleExpand: () => setState(() {
-                  draft.expanded = !draft.expanded;
-                }),
                 onRemove: () => _removeAssignment(draft.staff.id),
-                onAddChecklist: () => _addChecklistItem(draft.staff.id),
-                onRemoveChecklist: (index) => setState(() {
-                  draft.checklist.removeAt(index);
-                }),
               ),
               const SizedBox(height: 12),
             ],
@@ -1214,21 +1212,14 @@ class _AssignedStaffField extends StatelessWidget {
   }
 }
 
+/// Web staffing: name + category only — no per-staff Task Assignment UI.
 class _StaffTaskCard extends StatelessWidget {
   final _StaffAssignmentDraft draft;
-  final TextEditingController checklistDraftController;
-  final VoidCallback onToggleExpand;
   final VoidCallback onRemove;
-  final VoidCallback onAddChecklist;
-  final ValueChanged<int> onRemoveChecklist;
 
   const _StaffTaskCard({
     required this.draft,
-    required this.checklistDraftController,
-    required this.onToggleExpand,
     required this.onRemove,
-    required this.onAddChecklist,
-    required this.onRemoveChecklist,
   });
 
   @override
@@ -1245,108 +1236,36 @@ class _StaffTaskCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.searchBorder),
         ),
-        child: Column(
-          children: [
-            ListTile(
-              contentPadding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
-              leading: CircleAvatar(
-                backgroundColor: const Color(0xFFE8E4F5),
-                child: Text(
-                  draft.staff.initials,
-                  style: const TextStyle(
-                    color: Color(0xFF5B4B8A),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+          leading: CircleAvatar(
+            backgroundColor: const Color(0xFFE8E4F5),
+            child: Text(
+              draft.staff.initials,
+              style: const TextStyle(
+                color: Color(0xFF5B4B8A),
+                fontWeight: FontWeight.w700,
               ),
-              title: Text(
-                draft.staff.name,
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              subtitle: Text(
-                category,
-                style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  color: AppColors.textMuted,
-                ),
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    onPressed: onToggleExpand,
-                    icon: Icon(
-                      draft.expanded
-                          ? Icons.expand_less_rounded
-                          : Icons.expand_more_rounded,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: onRemove,
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-              onTap: onToggleExpand,
             ),
-            if (draft.expanded) ...[
-              const Divider(height: 1, color: AppColors.cardBorder),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const CreateShiftFieldLabel('Task Title'),
-                    CreateShiftTextField(
-                      controller: draft.taskTitleController,
-                      hint: 'e.g. Morning medication round',
-                    ),
-                    const CreateShiftHelperText(
-                      'Leave empty to assign the shift without a task.',
-                    ),
-                    const SizedBox(height: 12),
-                    const CreateShiftFieldLabel('Task Description'),
-                    CreateShiftTextField(
-                      controller: draft.taskDescriptionController,
-                      hint:
-                          'Describe what this staff member is responsible for during this shift...',
-                      maxLines: 3,
-                      keyboardType: TextInputType.multiline,
-                    ),
-                    const SizedBox(height: 12),
-                    const CreateShiftFieldLabel('Task Checklist'),
-                    CreateShiftTextField(
-                      controller: checklistDraftController,
-                      hint: 'Add a checklist item...',
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: onAddChecklist,
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Add checklist item'),
-                    ),
-                    for (var i = 0; i < draft.checklist.length; i++)
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(
-                          Icons.check_box_outline_blank_rounded,
-                          size: 18,
-                        ),
-                        title: Text(draft.checklist[i]),
-                        trailing: IconButton(
-                          onPressed: () => onRemoveChecklist(i),
-                          icon: const Icon(Icons.close_rounded, size: 18),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+          ),
+          title: Text(
+            draft.staff.name,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          subtitle: Text(
+            category,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              color: AppColors.textMuted,
+            ),
+          ),
+          trailing: IconButton(
+            onPressed: onRemove,
+            icon: const Icon(Icons.close_rounded),
+          ),
         ),
       ),
     );

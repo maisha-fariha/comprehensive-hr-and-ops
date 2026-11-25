@@ -29,12 +29,47 @@ abstract final class AppErrorDialog {
 
   static DateTime? _lastOfflineNoticeAt;
   static String? _lastOfflineNoticeKey;
+  static DateTime? _holdTransientUntil;
+
+  /// True for a short window after the app starts or returns to the foreground.
+  static bool get holdingTransient {
+    final until = _holdTransientUntil;
+    return until != null && DateTime.now().isBefore(until);
+  }
+
+  /// Suppress network and server dialogs that fire before the connection is up.
+  ///
+  /// Longer than the 30s API timeout, so a request that starts as the phone
+  /// comes back from power-off still fails inside this window.
+  static void holdTransient([
+    Duration duration = const Duration(seconds: 45),
+  ]) {
+    final until = DateTime.now().add(duration);
+    final current = _holdTransientUntil;
+    if (current == null || until.isAfter(current)) {
+      _holdTransientUntil = until;
+    }
+  }
+
+  /// The network answered, so a later failure is a real error.
+  static void releaseTransient() {
+    _holdTransientUntil = null;
+  }
 
   static Future<void> showError(
     AppError? error, {
     String? fallbackTitle,
     VoidCallback? onRetry,
+    VoidCallback? onDismissed,
   }) {
+    // Network / 5xx is not a rejected session. A blocking "Care home is
+    // unavailable" sheet over a screen that still has data alarms users.
+    if (AppErrorMapper.isTransient(error)) {
+      if (holdingTransient) return Future.value();
+      final info = AppErrorMapper.from(error, fallbackTitle: fallbackTitle);
+      _offlineNotice(info.title, info.message);
+      return Future.value();
+    }
     final info = AppErrorMapper.from(error, fallbackTitle: fallbackTitle);
     if (info.isOffline && inlineOfflineNotices) {
       _offlineNotice(info.title, info.message);
@@ -45,6 +80,7 @@ abstract final class AppErrorDialog {
       message: info.message,
       isOffline: info.isOffline,
       onRetry: info.canRetry ? onRetry : null,
+      onDismissed: onDismissed,
     );
   }
 
@@ -89,6 +125,7 @@ abstract final class AppErrorDialog {
     required String message,
     bool isOffline = false,
     VoidCallback? onRetry,
+    VoidCallback? onDismissed,
   }) async {
     final key = '$title|$message';
     final now = DateTime.now();
@@ -184,6 +221,7 @@ abstract final class AppErrorDialog {
       ),
       barrierDismissible: true,
     );
+    onDismissed?.call();
   }
 
   /// Prefer [Navigator.pop] over [Get.back].

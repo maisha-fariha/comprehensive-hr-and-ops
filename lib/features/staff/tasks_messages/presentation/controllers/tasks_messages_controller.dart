@@ -2,6 +2,7 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/offline/offline_outbox.dart';
@@ -46,6 +47,7 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
                 dueTimeLabel: t.dueTimeLabel,
                 location: t.location,
                 status: TaskStatus.done,
+                awaitingReview: t.awaitingReview,
               )
             : t,
     ];
@@ -201,24 +203,41 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     );
   }
 
-  Future<void> completeTask(String taskId, {bool signOff = false}) async {
-    final result = await repository.completeTask(taskId, signOff: signOff);
+  /// Returns `null` on success. On failure returns the API message so the
+  /// task sheet can show it above the open bottom sheet (root snackbars /
+  /// [AppErrorDialog] are suppressed while a sheet is open).
+  Future<String?> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+    bool requiresReview = false,
+  }) async {
+    final result = await repository.completeTask(
+      taskId,
+      signOff: signOff,
+      checklist: checklist,
+    );
     if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not complete task',
-      );
-      return;
+      return result.error?.message ?? 'Could not complete task.';
     }
+    final title = requiresReview
+        ? (signOff ? 'Signed off and sent for review' : 'Sent for review')
+        : (signOff ? 'Signed off and completed' : 'Task completed');
     AppSnackbar.show(
-      'Task completed',
-      signOff ? 'Signed off and completed.' : 'Marked as completed.',
+      title,
+      signOff && !requiresReview ? 'Signed off and completed.' : '',
+      force: true,
     );
     await loadOverview();
+    return null;
   }
 
   /// Opens New Task wizard (BUG_Report009).
   Future<void> showCreateTaskDialog() async {
+    if (Get.isRegistered<UserSession>() &&
+        !Get.find<UserSession>().can('tasks:manage')) {
+      return;
+    }
     final optionsResult = await repository.getTaskCreationOptions();
     if (optionsResult.isFailure || optionsResult.value == null) {
       AppErrorDialog.showResultError(
@@ -236,55 +255,21 @@ class TasksMessagesController extends BaseController<TasksMessagesOverview> {
     if (created == true) await loadOverview();
   }
 
-  Future<void> addTaskNote({
+  /// `null` when the note was saved. The task sheet shows the message itself:
+  /// root snackbars and error dialogs stay behind the open sheet.
+  Future<String?> addTaskNote({
     required String taskId,
     required String body,
   }) async {
     final text = body.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty) {
+      return 'Add a note or reminder for this task.';
+    }
     final result = await repository.addTaskNote(taskId: taskId, body: text);
     if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not add note',
-      );
-      return;
+      return result.error?.message ?? 'Could not add note.';
     }
-    AppSnackbar.show('Note added', 'Your note was saved.');
-  }
-
-  Future<void> completeRecurringCheck(RecurringCheckInstance check) async {
-    final result = await repository.updateRecurringCheck(
-      instanceId: check.id,
-      status: 'requires_review',
-      statusNote: 'Completed from Tasks tab',
-    );
-    if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not update check',
-      );
-      return;
-    }
-    AppSnackbar.show('Check updated', check.title);
-    await loadOverview();
-  }
-
-  Future<void> skipRecurringCheck(RecurringCheckInstance check) async {
-    final result = await repository.updateRecurringCheck(
-      instanceId: check.id,
-      status: 'skipped',
-      statusNote: 'Skipped from Tasks tab',
-    );
-    if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not skip check',
-      );
-      return;
-    }
-    AppSnackbar.show('Check skipped', check.title);
-    await loadOverview();
+    return null;
   }
 
   @override

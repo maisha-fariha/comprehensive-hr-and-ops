@@ -4,6 +4,7 @@ import '../entities/create_shift_draft.dart';
 import '../entities/scheduling_enums.dart';
 import '../entities/scheduling_overview.dart';
 import '../entities/shift_residence_option.dart';
+import '../entities/shift_staff_conflict.dart';
 import '../entities/shift_staff_option.dart';
 
 /// Contract for fetching the HR/Manager Scheduling screen's data (its
@@ -24,14 +25,72 @@ abstract class SchedulingRepository {
     String? residenceId,
     ShiftStatusFilter? status,
     bool mine = false,
+    ScheduleSpan span = ScheduleSpan.week,
+    DateTime? monthOf,
   });
+
+  /// `POST /shifts/{id}/open`.
+  Future<Result<void>> openShift(String shiftId);
+
+  /// `POST /shifts/{id}/cancel`.
+  Future<Result<void>> cancelShift(String shiftId);
+
+  /// `DELETE /shifts/{id}`. The shift is kept and can be restored.
+  Future<Result<void>> deleteShift(String shiftId);
+
+  /// `POST /shifts/{shiftId}/swap-requests`. An empty colleague means cover.
+  Future<Result<void>> requestSwap({
+    required String shiftId,
+    String? note,
+    String? targetStaffId,
+    String? toShiftId,
+  });
+
+  /// Colleagues for Request a swap (`GET /staff/directory`).
+  Future<Result<List<ShiftStaffOption>>> listSwapColleagues({
+    String? residenceId,
+  });
+
+  /// Upcoming shifts for a colleague (`GET /shifts?staffId&from=today`).
+  Future<Result<List<({String id, String label})>>> listColleagueShifts(
+    String staffId,
+  );
 
   /// Residences for the Create Shift "Residence" dropdown (`GET /residences`).
   Future<Result<List<ShiftResidenceOption>>> getResidences();
 
+  /// `GET /settings/scheduling` — e.g. `defaultBreakMinutes` (web create-shift default).
+  Future<Result<int>> getDefaultBreakMinutes();
+
   /// Tenant staff for the Create Shift "Assigned Staff" picker
   /// (`GET /staff?page=1&limit=100`, searched client-side like the web).
-  Future<Result<List<ShiftStaffOption>>> getStaffOptions();
+  /// Optional `residenceId` matches web Create Shift — only staff assigned to
+  /// that home are selectable.
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions({String? residenceId});
+
+  /// Residents of one home for "One-to-one with"
+  /// (`GET /clients?residenceId=`).
+  Future<Result<List<ShiftClientOption>>> getClients(String residenceId);
+
+  /// Shifts in a day window for the "Has Shift" staff-picker badge
+  /// (`GET /shifts?from&to&limit=200`).
+  ///
+  /// Leave [residenceId] unset. The live web badge counts overlapping
+  /// shifts at every residence.
+  Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
+    required String from,
+    required String to,
+    String? residenceId,
+  });
+
+  /// `POST /shifts/conflicts` — overlapping roster + approved leave.
+  Future<Result<ShiftConflictsResult>> checkStaffConflicts({
+    required List<String> staffIds,
+    required String startsAtIso,
+    required String endsAtIso,
+    String? residenceId,
+    String? excludeShiftId,
+  });
 
   /// Creates a shift (or a recurring series) via `POST /shifts`.
   /// Returns how many shifts were created.
@@ -41,16 +100,42 @@ abstract class SchedulingRepository {
   Future<Result<CreateShiftDraft>> getShiftDraft(String shiftId);
 
   /// Saves an edited shift like the web: `PATCH /shifts/{id}` with
-  /// [payload], then `PUT /shifts/{id}/assignments` with [staffIds].
+  /// [payload], then `PUT /shifts/{id}/assignments` with [staffIds]
+  /// (and optional [restOverrideReason] for short-rest audits).
   Future<Result<void>> updateShift({
     required String shiftId,
     required Map<String, dynamic> payload,
     required List<String> staffIds,
+    String? restOverrideReason,
+
+    /// When false, skip `PUT …/assignments` (web publish/edit when staff
+    /// unchanged — avoids a second notify).
+    bool updateAssignments = true,
   });
 
   /// Manager decision on a pending shift-swap request.
   Future<Result<void>> decideShiftSwap({
     required String swapId,
     required bool approve,
+  });
+
+  /// Accept a staff bid on an open shift
+  /// (`POST /shifts/{shiftId}/bids/{bidId}/accept`).
+  Future<Result<void>> acceptShiftBid({
+    required String shiftId,
+    required String bidId,
+  });
+
+  /// Reject a staff bid (`POST /shifts/{shiftId}/bids/{bidId}/reject`).
+  Future<Result<void>> rejectShiftBid({
+    required String shiftId,
+    required String bidId,
+  });
+
+  /// Place a bid (`POST /shifts/{shiftId}/bids`) — same as staff Open shifts.
+  Future<Result<void>> placeShiftBid({
+    required String shiftId,
+    required String staffId,
+    String? note,
   });
 }

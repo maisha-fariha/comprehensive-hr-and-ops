@@ -8,6 +8,7 @@ import '../../domain/entities/staff_shift.dart';
 import '../../domain/entities/staff_shift_form_option.dart';
 import '../../domain/entities/staff_shift_swap.dart';
 import '../../domain/entities/week_day.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffScheduleMapper {
   /// Parse `GET /residences` into Create Shift dropdown options.
@@ -153,8 +154,8 @@ abstract final class StaffScheduleMapper {
               weekDays[i].copyWith(isSelected: i == 0),
           ];
 
-    final shifts = _shifts(mineBody);
-    final openShifts = _shifts(openBody);
+    final shifts = _shifts(mineBody, ownStaffId: currentStaffId);
+    final openShifts = _shifts(openBody, ownStaffId: currentStaffId);
     final swaps = swapsFrom(swapsBody, currentStaffId: currentStaffId);
     final appointments = appointmentsFrom(appointmentsBody);
 
@@ -173,14 +174,22 @@ abstract final class StaffScheduleMapper {
     );
   }
 
-  static List<StaffShift> _shifts(dynamic body) {
+  static List<StaffShift> _shifts(dynamic body, {String? ownStaffId}) {
     return JsonCodec.unwrapList(body)
         .whereType<Map>()
-        .map((item) => shiftFromJson(JsonCodec.asMap(item)))
+        .map(
+          (item) => shiftFromJson(
+            JsonCodec.asMap(item),
+            ownStaffId: ownStaffId,
+          ),
+        )
         .toList();
   }
 
-  static StaffShift shiftFromJson(Map<String, dynamic> json) {
+  static StaffShift shiftFromJson(
+    Map<String, dynamic> json, {
+    String? ownStaffId,
+  }) {
     final start = JsonCodec.dateTime(
       json['startAt'] ?? json['startsAt'] ?? json['startTime'] ?? json['from'],
     );
@@ -188,7 +197,7 @@ abstract final class StaffScheduleMapper {
       json['endAt'] ?? json['endsAt'] ?? json['endTime'] ?? json['to'],
     );
     final now = DateTime.now();
-    final localStart = start?.toLocal();
+    final localStart = (start == null ? null : TenantClock.wallOf(start));
     final isToday =
         localStart != null &&
         localStart.year == now.year &&
@@ -260,6 +269,7 @@ abstract final class StaffScheduleMapper {
     final statusRaw = (JsonCodec.string(json['status']) ?? 'Confirmed')
         .toLowerCase();
     final statusLabel = switch (statusRaw) {
+      'draft' => 'DRAFT',
       'published' || 'confirmed' || 'assigned' => 'Confirmed',
       'open' => 'Open',
       'cancelled' || 'canceled' => 'Cancelled',
@@ -301,13 +311,93 @@ abstract final class StaffScheduleMapper {
         'Staff',
       ),
       statusLabel: statusLabel,
+      apiStatus: statusRaw,
       staffingLevel: ratio >= 0.9
           ? StaffingLevel.high
           : ratio >= 0.7
           ? StaffingLevel.medium
           : StaffingLevel.low,
       startAt: localStart,
+      endAt: end == null ? null : TenantClock.wallOf(end),
+      residenceId: JsonCodec.string(
+        json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
+      ),
+      staffIds: [
+        for (final person in avatarSource)
+          if (person is Map)
+            ?JsonCodec.string(
+              JsonCodec.asMap(person)['id'] ??
+                  JsonCodec.asMap(person)['staffId'],
+            ),
+      ],
+      pendingBidCount: _pendingBidCount(json),
+      ownBidPending: _ownBidPending(json, ownStaffId),
     );
+  }
+
+  static int _pendingBidCount(Map<String, dynamic> json) {
+    var count = 0;
+    for (final row in JsonCodec.listAt(json, 'bids')) {
+      if (row is! Map) continue;
+      final status =
+          (JsonCodec.string(JsonCodec.asMap(row)['status']) ?? '').toLowerCase();
+      if (status.isEmpty ||
+          status == 'bid_pending' ||
+          status == 'pending' ||
+          status == 'bidding') {
+        count++;
+      }
+    }
+    for (final row in JsonCodec.listAt(json, 'staff')) {
+      if (row is! Map) continue;
+      final status =
+          (JsonCodec.string(JsonCodec.asMap(row)['status']) ?? '').toLowerCase();
+      if (status == 'bid_pending' ||
+          status == 'pending' ||
+          status == 'bidding') {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  static bool _ownBidPending(Map<String, dynamic> json, String? ownStaffId) {
+    if (ownStaffId == null || ownStaffId.isEmpty) return false;
+    bool matches(Map raw) {
+      final map = JsonCodec.asMap(raw);
+      final staff = JsonCodec.asMap(map['staff']);
+      final id = JsonCodec.string(
+        map['staffId'] ?? staff['id'] ?? map['id'],
+      );
+      return id == ownStaffId;
+    }
+
+    for (final row in JsonCodec.listAt(json, 'bids')) {
+      if (row is Map && matches(row)) {
+        final status =
+            (JsonCodec.string(JsonCodec.asMap(row)['status']) ?? '')
+                .toLowerCase();
+        if (status.isEmpty ||
+            status == 'bid_pending' ||
+            status == 'pending' ||
+            status == 'bidding') {
+          return true;
+        }
+      }
+    }
+    for (final row in JsonCodec.listAt(json, 'staff')) {
+      if (row is! Map) continue;
+      final map = JsonCodec.asMap(row);
+      final status = (JsonCodec.string(map['status']) ?? '').toLowerCase();
+      if (status != 'bid_pending' &&
+          status != 'pending' &&
+          status != 'bidding') {
+        continue;
+      }
+      final id = JsonCodec.string(map['staffId'] ?? map['id']);
+      if (id == ownStaffId) return true;
+    }
+    return false;
   }
 
   static String? _shiftTypeTitle(String? shiftType) {
@@ -359,7 +449,7 @@ abstract final class StaffScheduleMapper {
           final fromStart = _shiftStart(fromShift);
           // Drop swaps whose giving shift is fully in the past.
           if (fromStart != null) {
-            final local = fromStart.toLocal();
+            final local = TenantClock.wallOf(fromStart);
             final shiftDay = DateTime(local.year, local.month, local.day);
             if (shiftDay.isBefore(todayStart)) return null;
           }
@@ -452,7 +542,7 @@ abstract final class StaffScheduleMapper {
       );
       if (start != null) {
         return [
-          IsoDateRange.formatShortDate(start.toLocal()),
+          IsoDateRange.formatShortDate(TenantClock.wallOf(start)),
           if (name != null && name.isNotEmpty) name,
           if (residence != null && residence.isNotEmpty) residence,
         ].join(' · ');
@@ -487,7 +577,7 @@ abstract final class StaffScheduleMapper {
       }
       // Upcoming section: drop past calendar days.
       if (at != null) {
-        final local = at.toLocal();
+        final local = TenantClock.wallOf(at);
         final day = DateTime(local.year, local.month, local.day);
         if (day.isBefore(todayStart)) continue;
       }
@@ -498,7 +588,7 @@ abstract final class StaffScheduleMapper {
           title: _appointmentTitle(json),
           dateTimeLabel: at == null
               ? JsonCodec.stringOr(json['dateLabel'], '')
-              : IsoDateRange.dateTimeLabel(at.toLocal()),
+              : IsoDateRange.dateTimeLabel(at),
           location: JsonCodec.stringOr(
             json['location'] ??
                 json['mode'] ??

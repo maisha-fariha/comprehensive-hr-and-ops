@@ -13,6 +13,14 @@ class ChatPanel extends StatelessWidget {
   final VoidCallback onSend;
   final bool isLoading;
   final bool isSending;
+  final bool readOnly;
+  final VoidCallback? onBack;
+  final VoidCallback? onHide;
+  final VoidCallback? onShowParticipants;
+  final VoidCallback? onUnarchive;
+
+  /// Card chrome for the side-by-side layout. A full-screen thread turns this off.
+  final bool framed;
 
   const ChatPanel({
     super.key,
@@ -22,6 +30,12 @@ class ChatPanel extends StatelessWidget {
     required this.onSend,
     this.isLoading = false,
     this.isSending = false,
+    this.readOnly = false,
+    this.onBack,
+    this.onHide,
+    this.onShowParticipants,
+    this.onUnarchive,
+    this.framed = true,
   });
 
   @override
@@ -53,14 +67,21 @@ class ChatPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 16),
-        ),
-        border: Border.all(color: AppColors.cardBorder),
+        borderRadius: framed
+            ? BorderRadius.circular(
+                ResponsiveHelper.getResponsiveRadius(context, 16),
+              )
+            : null,
+        border: framed ? Border.all(color: AppColors.cardBorder) : null,
       ),
       child: Column(
         children: [
-          _ChatHeader(conversation: conversation!),
+          _ChatHeader(
+            conversation: conversation!,
+            onBack: onBack,
+            onHide: onHide,
+            onShowParticipants: onShowParticipants,
+          ),
           const Divider(height: 1, color: AppColors.cardBorder),
           if (conversation!.isMonitored) const _MonitoredBanner(),
           Expanded(
@@ -100,12 +121,17 @@ class ChatPanel extends StatelessWidget {
                         },
                       ),
           ),
-          const Divider(height: 1, color: AppColors.cardBorder),
-          _Composer(
-            controller: messageController,
-            onSend: isSending ? null : onSend,
-            isSending: isSending,
-          ),
+          if (conversation!.isArchived) ...[
+            const Divider(height: 1, color: AppColors.cardBorder),
+            _ArchivedBar(onUnarchive: onUnarchive),
+          ] else if (!readOnly) ...[
+            const Divider(height: 1, color: AppColors.cardBorder),
+            _Composer(
+              controller: messageController,
+              onSend: isSending ? null : onSend,
+              isSending: isSending,
+            ),
+          ],
         ],
       ),
     );
@@ -114,8 +140,16 @@ class ChatPanel extends StatelessWidget {
 
 class _ChatHeader extends StatelessWidget {
   final HrConversation conversation;
+  final VoidCallback? onBack;
+  final VoidCallback? onHide;
+  final VoidCallback? onShowParticipants;
 
-  const _ChatHeader({required this.conversation});
+  const _ChatHeader({
+    required this.conversation,
+    this.onBack,
+    this.onHide,
+    this.onShowParticipants,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +161,19 @@ class _ChatHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
+          if (onBack != null)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              onPressed: onBack,
+              icon: Icon(
+                Icons.arrow_back,
+                semanticLabel: 'Back',
+                size: ResponsiveHelper.getResponsiveSize(context, 22),
+                color: AppColors.textHeading,
+              ),
+            ),
           Container(
             width: ResponsiveHelper.getResponsiveSize(context, 40),
             height: ResponsiveHelper.getResponsiveSize(context, 40),
@@ -163,26 +210,50 @@ class _ChatHeader extends StatelessWidget {
                 SizedBox(
                   height: ResponsiveHelper.getResponsiveHeight(context, 2),
                 ),
-                Text(
-                  conversation.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w400,
-                    fontSize:
-                        ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textSecondary,
+                GestureDetector(
+                  onTap: onShowParticipants,
+                  child: Text(
+                    conversation.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w400,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 12),
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          Icon(
-            Icons.vertical_split_rounded,
-            size: ResponsiveHelper.getResponsiveSize(context, 22),
-            color: AppColors.textMuted,
-          ),
+          if (onHide != null)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              onPressed: onHide,
+              icon: Icon(
+                Icons.visibility_off_outlined,
+                semanticLabel: 'Hide conversation',
+                size: ResponsiveHelper.getResponsiveSize(context, 20),
+                color: AppColors.textMuted,
+              ),
+            ),
+          if (onShowParticipants != null)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              onPressed: onShowParticipants,
+              icon: Icon(
+                Icons.people_alt_outlined,
+                semanticLabel: 'Participants',
+                size: ResponsiveHelper.getResponsiveSize(context, 20),
+                color: AppColors.textMuted,
+              ),
+            ),
         ],
       ),
     );
@@ -233,6 +304,56 @@ class _MonitoredBanner extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ArchivedBar extends StatelessWidget {
+  final VoidCallback? onUnarchive;
+
+  const _ArchivedBar({this.onUnarchive});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: ResponsiveHelper.getResponsivePadding(
+        context,
+        horizontal: 12,
+        vertical: 8,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'This conversation is archived — read only.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w400,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          if (onUnarchive != null)
+            TextButton.icon(
+              onPressed: onUnarchive,
+              icon: Icon(
+                Icons.unarchive_outlined,
+                size: ResponsiveHelper.getResponsiveSize(context, 16),
+                color: AppColors.secondaryTeal,
+              ),
+              label: Text(
+                'Un-archive',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                  color: AppColors.secondaryTeal,
+                ),
+              ),
+            ),
         ],
       ),
     );

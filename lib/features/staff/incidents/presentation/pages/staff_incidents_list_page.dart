@@ -6,6 +6,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/offline/outbox_feature.dart';
 import '../../../../../core/offline/presentation/pending_outbox_section.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/staff_incidents_enums.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
@@ -20,21 +21,36 @@ import '../widgets/staff_incidents_side_panels.dart';
 import '../widgets/staff_incidents_tab_bar.dart';
 import 'create_incident_page.dart';
 import 'incident_details_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Incident Reports list — metrics, tabs, filters, side panels, cards.
 ///
 /// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
 /// matches reference frames that show the staff bottom nav.
-class StaffIncidentsListPage extends StatefulWidget {
+class StaffIncidentsListPage extends StatelessWidget {
   const StaffIncidentsListPage({super.key});
 
   @override
-  State<StaffIncidentsListPage> createState() => _StaffIncidentsListPageState();
+  Widget build(BuildContext context) {
+    return PermissionGate(
+      anyOf: const ['incidents:read'],
+      title: 'Incident Reports',
+      builder: () => const _StaffIncidentsListBody(),
+    );
+  }
 }
 
-class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
+class _StaffIncidentsListBody extends StatefulWidget {
+  const _StaffIncidentsListBody();
+
+  @override
+  State<_StaffIncidentsListBody> createState() =>
+      _StaffIncidentsListBodyState();
+}
+
+class _StaffIncidentsListBodyState extends State<_StaffIncidentsListBody> {
   /// Index of the "More" slot in [StaffBottomNavBar.items].
-  static const int _moreTabIndex = 4;
+  static const int _moreTabIndex = 5;
 
   late final StaffIncidentsController _controller;
   final TextEditingController _searchController = TextEditingController();
@@ -194,7 +210,7 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                 onSynced: () => _controller.refresh(),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.refresh,
                   child: ListView(
@@ -226,8 +242,11 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                         severityFilter: _controller.severityFilter.value,
                         residenceFilterId: _controller.residenceFilterId.value,
                         clientFilterId: _controller.clientFilterId.value,
+                        investigatorFilterId:
+                            _controller.investigatorFilterId.value,
                         residences: _controller.residences.toList(),
                         clients: _controller.clients.toList(),
+                        investigators: _controller.investigators.toList(),
                         fromDate: _controller.fromDate.value,
                         toDate: _controller.toDate.value,
                         onStatusChanged: _controller.setStatusFilter,
@@ -236,6 +255,8 @@ class _StaffIncidentsListPageState extends State<StaffIncidentsListPage> {
                           _controller.setResidenceFilter(id);
                         },
                         onClientChanged: _controller.setClientFilter,
+                        onInvestigatorChanged:
+                            _controller.setInvestigatorFilter,
                         onPickDateRange: _pickDateRange,
                         onClearFilters: _controller.clearFilters,
                       ),

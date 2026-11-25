@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
@@ -26,7 +25,11 @@ class TasksMessagesHeader extends StatelessWidget {
     final buttonRadius = ResponsiveHelper.getResponsiveRadius(context, 12);
 
     final backButton = GestureDetector(
-      onTap: onBack ?? Get.back,
+      onTap: onBack ??
+          () {
+            final navigator = Navigator.of(context);
+            if (navigator.canPop()) navigator.pop();
+          },
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: buttonSize,

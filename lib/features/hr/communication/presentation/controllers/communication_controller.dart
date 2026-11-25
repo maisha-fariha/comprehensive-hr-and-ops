@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_conversation.dart';
@@ -22,6 +23,8 @@ class CommunicationController extends BaseController<List<HrConversation>> {
   }
 
   final selectedTab = CommunicationTab.messages.obs;
+  final monitoring = false.obs;
+  final showingArchived = false.obs;
   final selectedFilter = ConversationFilter.all.obs;
   final searchQuery = ''.obs;
   final selectedConversationId = RxnString();
@@ -83,7 +86,21 @@ class CommunicationController extends BaseController<List<HrConversation>> {
         (sum, conversation) => sum + conversation.unreadCount,
       );
 
-  void selectTab(CommunicationTab tab) => selectedTab.value = tab;
+  void selectTab(CommunicationTab tab) {
+    selectedTab.value = tab;
+    if (tab == CommunicationTab.messages || tab == CommunicationTab.monitoring) {
+      monitoring.value = tab == CommunicationTab.monitoring;
+      showingArchived.value = false;
+      loadConversations();
+    }
+  }
+
+  void toggleArchived() {
+    showingArchived.value = !showingArchived.value;
+    selectedConversationId.value = null;
+    activeMessages.clear();
+    loadConversations();
+  }
 
   void selectFilter(ConversationFilter filter) => selectedFilter.value = filter;
 
@@ -91,7 +108,10 @@ class CommunicationController extends BaseController<List<HrConversation>> {
 
   Future<void> loadConversations() async {
     setLoading(true);
-    final result = await repository.getConversations();
+    final result = await repository.getConversations(
+      monitor: monitoring.value,
+      archived: showingArchived.value,
+    );
     result.when(
       success: (items) {
         setSuccess(items);
@@ -101,6 +121,8 @@ class CommunicationController extends BaseController<List<HrConversation>> {
           selectedConversationId.value = null;
           activeMessages.clear();
         } else if (selected != null) {
+          _clearUnreadLocally(selected);
+          repository.markThreadRead(selected);
           loadMessages(selected);
         }
       },
@@ -127,9 +149,22 @@ class CommunicationController extends BaseController<List<HrConversation>> {
 
   Future<void> loadResidences() async {
     final result = await repository.getResidences();
-    result.when(
-      success: (items) => residences.assignAll(items),
-      failure: (_) {},
+    final loaded = <CommunicationResidenceOption>[];
+    result.when(success: loaded.addAll, failure: (_) {});
+    UserSession? session;
+    try {
+      session = Get.find<UserSession>();
+    } catch (_) {}
+    residences.assignAll(
+      mergeResidencePickerOptions<CommunicationResidenceOption>(
+        loaded: loaded,
+        idOf: (r) => r.id,
+        nameOf: (r) => r.name,
+        create: (id, name) =>
+            CommunicationResidenceOption(id: id, name: name),
+        sessionId: session?.residenceId,
+        sessionName: session?.residenceName,
+      ),
     );
   }
 
@@ -142,11 +177,22 @@ class CommunicationController extends BaseController<List<HrConversation>> {
   }
 
   Future<void> selectConversation(String id) async {
-    if (selectedConversationId.value == id) return;
+    final alreadyOpen = selectedConversationId.value == id;
     selectedConversationId.value = id;
-    await loadMessages(id);
-    await repository.markThreadRead(id);
+    // Drop the previous thread before the next screen builds, so chat B
+    // never paints chat A's messages while its own request is in flight.
+    if (!alreadyOpen) {
+      activeMessages.clear();
+      messageController.clear();
+      draftText.value = '';
+      isLoadingMessages.value = true;
+    }
+    // Drop the badge as soon as the thread is open. The web does the same
+    // with POST /conversations/:id/read, including when the row is tapped
+    // again after the list reloads.
     _clearUnreadLocally(id);
+    if (!alreadyOpen) await loadMessages(id);
+    await repository.markThreadRead(id);
   }
 
   Future<void> loadMessages(String conversationId) async {
@@ -168,12 +214,19 @@ class CommunicationController extends BaseController<List<HrConversation>> {
         }
       },
     );
-    isLoadingMessages.value = false;
+    if (selectedConversationId.value == conversationId) {
+      isLoadingMessages.value = false;
+    }
+  }
+
+  bool get canWriteMessages {
+    if (!Get.isRegistered<UserSession>()) return true;
+    return Get.find<UserSession>().can('messaging:write');
   }
 
   Future<void> sendMessage() async {
     final text = messageController.text.trim();
-    if (text.isEmpty || isSending.value) return;
+    if (text.isEmpty || isSending.value || !canWriteMessages) return;
     final id = selectedConversationId.value;
     if (id == null) return;
 
@@ -199,7 +252,8 @@ class CommunicationController extends BaseController<List<HrConversation>> {
     isSending.value = false;
   }
 
-  Future<void> startConversation({
+  /// Returns the new thread id, or null when the server rejected it.
+  Future<String?> startConversation({
     required ConversationCreateType type,
     List<String> memberUserIds = const [],
     String? title,
@@ -207,7 +261,7 @@ class CommunicationController extends BaseController<List<HrConversation>> {
     String? clientId,
     String firstMessage = '',
   }) async {
-    if (isStarting.value) return;
+    if (isStarting.value) return null;
 
     isStarting.value = true;
     final result = await repository.startConversation(
@@ -218,7 +272,7 @@ class CommunicationController extends BaseController<List<HrConversation>> {
       clientId: clientId,
     );
 
-    await result.when(
+    final createdId = await result.when<Future<String?>>(
       success: (conversation) async {
         final existing = List<HrConversation>.from(conversations);
         existing.removeWhere((item) => item.id == conversation.id);
@@ -250,15 +304,93 @@ class CommunicationController extends BaseController<List<HrConversation>> {
         }
 
         AppSnackbar.show('Conversation started', conversation.title);
+        return conversation.id;
       },
       failure: (error) async {
         AppErrorDialog.showResultError(
           error,
           fallbackTitle: 'Could not start conversation',
         );
+        return null;
       },
     );
     isStarting.value = false;
+    return createdId;
+  }
+
+  /// Family contacts for one resident (`GET /conversations/contacts?clientId=`).
+  Future<List<HrMessageContact>> familyContactsFor(String clientId) async {
+    final result = await repository.getContacts(clientId: clientId);
+    return result.when(
+      success: (contacts) => contacts,
+      failure: (_) => const [],
+    );
+  }
+
+  /// Puts an archived thread back in the inbox (`archived: false`).
+  Future<void> unarchiveConversation() async {
+    final id = selectedConversationId.value;
+    if (id == null) return;
+    final result = await repository.updateConversation(
+      conversationId: id,
+      archived: false,
+    );
+    result.when(
+      success: (_) {
+        setSuccess(conversations.where((item) => item.id != id).toList());
+        selectedConversationId.value = null;
+        activeMessages.clear();
+        AppSnackbar.show('Conversation restored', '');
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not restore conversation',
+      ),
+    );
+  }
+
+  /// Web header action: archive the open thread so it leaves the list.
+  Future<void> hideConversation() async {
+    final id = selectedConversationId.value;
+    if (id == null) return;
+    final result = await repository.updateConversation(
+      conversationId: id,
+      archived: true,
+    );
+    result.when(
+      success: (_) {
+        setSuccess(conversations.where((item) => item.id != id).toList());
+        selectedConversationId.value = null;
+        activeMessages.clear();
+        AppSnackbar.show('Conversation hidden', '');
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not hide conversation',
+      ),
+    );
+  }
+
+  Future<bool> addParticipants(List<String> memberUserIds) async {
+    final id = selectedConversationId.value;
+    if (id == null || memberUserIds.isEmpty) return false;
+    final result = await repository.addMembers(
+      conversationId: id,
+      memberUserIds: memberUserIds,
+    );
+    var added = false;
+    result.when(
+      success: (_) {
+        added = true;
+        AppSnackbar.show('Participant added', '');
+      },
+      failure: (error) => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not add participant',
+      ),
+    );
+    if (added) await loadConversations();
+    return added;
   }
 
   Future<void> markAllRead() async {

@@ -107,4 +107,11 @@ abstract class ClientsRepository {
   /// download; a roster CSV built from `GET /clients` when status or download
   /// is not allowed for this role.
   Future<Result<List<int>>> exportRosterCsv();
+
+  /// Web "Export Progress Report": `GET /reports/client-progress` PDF.
+  Future<Result<List<int>>> exportProgressReportPdf({
+    required String clientId,
+    required String from,
+    required String to,
+  });
 }

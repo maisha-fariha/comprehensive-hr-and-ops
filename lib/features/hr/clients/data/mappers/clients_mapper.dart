@@ -51,6 +51,11 @@ abstract final class ClientsMapper {
       admissionDate: JsonCodec.dateTime(json['admissionDate']),
       gender: JsonCodec.string(json['gender']),
       fundingSource: JsonCodec.string(json['fundingSource']),
+      fundingVendorName: JsonCodec.string(json['fundingVendorName']),
+      fundingVendorId: JsonCodec.string(json['fundingVendorId']),
+      rateAmount: JsonCodec.number(json['rateAmount'] ?? json['dailyRate'])
+          ?.toDouble(),
+      rateFrequency: JsonCodec.string(json['rateFrequency']),
       portalVisibility: _flags(json['portalVisibility']),
       allergies: _strings(medical['allergies']),
       conditions: _strings(medical['conditions']),
@@ -58,6 +63,9 @@ abstract final class ClientsMapper {
       currentMedications: _strings(medical['currentMedications']),
       doctorName: _text(medical['doctorName']),
       pharmacyName: _text(medical['pharmacyName']),
+      healthCardNumber: _text(
+        medical['healthCardNumber'] ?? json['healthCardNumber'],
+      ),
       behavioralTriggers: _text(medical['behavioralTriggers']),
       safetyPlanNotes: _text(medical['safetyPlanNotes']),
       carePlanGoals: _strings(carePlan['goals']),
@@ -108,6 +116,7 @@ abstract final class ClientsMapper {
         ClientFamilyMember(
           id: id,
           name: JsonCodec.stringOr(json['name'], ''),
+          middleName: JsonCodec.string(json['middleName']),
           userId: JsonCodec.string(json['userId']),
           relationship: JsonCodec.string(json['relationship']),
           email: JsonCodec.string(json['email']),

@@ -8,15 +8,25 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../hr/handovers/presentation/controllers/handovers_controller.dart';
+import '../../../../hr/handovers/presentation/widgets/record_handover_sheet.dart';
 import '../../domain/entities/staff_residence.dart';
 import '../../domain/entities/staff_shift_handover.dart';
 import '../../domain/repositories/staff_extras_repository.dart';
-import '../widgets/staff_record_handover_dialog.dart';
 import '../widgets/staff_shift_handover_card.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 class StaffShiftHandoversPage extends StatefulWidget {
-  const StaffShiftHandoversPage({super.key});
+  /// Set from clock-out "Write it" so the record form opens for that shift.
+  final String? focusShiftId;
+  final String? focusResidenceId;
+
+  const StaffShiftHandoversPage({
+    super.key,
+    this.focusShiftId,
+    this.focusResidenceId,
+  });
 
   @override
   State<StaffShiftHandoversPage> createState() =>
@@ -40,12 +50,27 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
   DateTime? _startDate;
   DateTime? _endDate;
 
+  bool _openedFocus = false;
+
   @override
   void initState() {
     super.initState();
     _repository = GetIt.instance<StaffExtrasRepository>();
     _session = Get.find<UserSession>();
     _bootstrap();
+    final shiftId = widget.focusShiftId?.trim() ?? '';
+    if (shiftId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openFocusedShift());
+    }
+  }
+
+  Future<void> _openFocusedShift() async {
+    if (!mounted || _openedFocus) return;
+    _openedFocus = true;
+    await _createHandover(
+      shiftId: widget.focusShiftId,
+      residenceId: widget.focusResidenceId,
+    );
   }
 
   Future<void> _bootstrap() async {
@@ -146,9 +171,39 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
     await _load();
   }
 
-  Future<void> _createHandover() async {
-    final saved = await StaffRecordHandoverDialog.show();
-    if (saved == true) _load();
+  /// Same web Record Handover sheet managers use. Role differences come from
+  /// my-shifts vs residence shifts (`on behalf`), not a separate form.
+  Future<void> _createHandover({String? shiftId, String? residenceId}) async {
+    const tag = 'staff-record-handover';
+    final owned = !Get.isRegistered<HandoversController>(tag: tag);
+    final controller = owned
+        ? Get.put(GetIt.instance<HandoversController>(), tag: tag)
+        : Get.find<HandoversController>(tag: tag);
+    await controller.ensureOptionsLoaded();
+    final home = (residenceId ?? '').trim().isNotEmpty
+        ? residenceId!.trim()
+        : (_session.residenceId?.trim() ?? '');
+    if (!mounted) return;
+    await showRecordHandoverSheet(
+      context,
+      controller: controller,
+      initialFromShiftId: shiftId,
+      initialResidenceId: home.isEmpty ? null : home,
+    );
+    if (owned && Get.isRegistered<HandoversController>(tag: tag)) {
+      Get.delete<HandoversController>(tag: tag);
+    }
+    if (mounted) await _load();
+  }
+
+  /// Match web `canTake`: the author never acknowledges their own handover.
+  bool _isOwnHandover(StaffShiftHandover handover) {
+    final author = handover.authorId.trim();
+    if (author.isEmpty) return false;
+    final userId = _session.userId?.trim();
+    final staffId = _session.staffId?.trim();
+    return (userId != null && userId.isNotEmpty && author == userId) ||
+        (staffId != null && staffId.isNotEmpty && author == staffId);
   }
 
   Future<void> _acknowledge(StaffShiftHandover handover) async {
@@ -219,7 +274,8 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
 
   @override
   Widget build(BuildContext context) {
-    final canWrite = _session.canAccessHandovers;
+    return Obx(() {
+    final canWrite = _session.can('shift-handovers:write');
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
@@ -397,7 +453,7 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
                           ),
                         ),
                       )
-                    : RefreshIndicator(
+                    : AppRefreshIndicator(
                         color: AppColors.secondaryTeal,
                         onRefresh: _load,
                         child: _items.isEmpty
@@ -436,11 +492,14 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
                                 ),
                                 itemBuilder: (context, index) {
                                   final handover = _items[index];
+                                  // Web: author never "takes" their own note —
+                                  // delete only. Incoming staff get Acknowledge.
+                                  final own = _isOwnHandover(handover);
                                   return StaffShiftHandoverCard(
                                     handover: handover,
                                     residenceFallback:
                                         _session.residenceName ?? '',
-                                    onAcknowledge: canWrite
+                                    onAcknowledge: canWrite && !own
                                         ? () => _acknowledge(handover)
                                         : null,
                                     onDelete: canWrite
@@ -454,6 +513,7 @@ class _StaffShiftHandoversPageState extends State<StaffShiftHandoversPage> {
         ],
       ),
     );
+    });
   }
 }
 

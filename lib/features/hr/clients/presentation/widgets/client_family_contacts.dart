@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/client_extras.dart';
 import '../client_form.dart';
@@ -10,6 +11,7 @@ import 'clients_common.dart';
 
 class _ContactDraft {
   final name = TextEditingController();
+  final middleName = TextEditingController();
   final relationship = TextEditingController();
   final email = TextEditingController();
   final phone = TextEditingController();
@@ -29,6 +31,7 @@ class _ContactDraft {
       ..emergencyAlerts = m.emergencyAlerts
       ..portalAccess = m.hasPortalAccess;
     d.name.text = m.name;
+    d.middleName.text = m.middleName ?? '';
     d.relationship.text = m.relationship ?? '';
     d.email.text = m.email ?? '';
     d.phone.text = m.phone ?? '';
@@ -37,6 +40,7 @@ class _ContactDraft {
 
   void dispose() {
     name.dispose();
+    middleName.dispose();
     relationship.dispose();
     email.dispose();
     phone.dispose();
@@ -123,9 +127,11 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
     if (d == null) return;
     final errors = <String, String>{};
     final name = requiredNameError(d.name.text, 'Name');
+    final middle = optionalNameError(d.middleName.text.trim(), 'Middle name');
     final phone = optionalPhoneError(d.phone.text);
     final email = optionalEmailError(d.email.text);
     if (name != null) errors['name'] = name;
+    if (middle != null) errors['middleName'] = middle;
     if (phone != null) errors['phone'] = phone;
     if (email != null) {
       errors['email'] = email;
@@ -140,8 +146,10 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
     final relationship = d.relationship.text.trim();
     final emailText = d.email.text.trim();
     final phoneText = d.phone.text.trim();
+    final middleName = d.middleName.text.trim();
     final base = <String, dynamic>{
       'name': d.name.text.trim(),
+      'middleName': middleName.isEmpty ? null : middleName,
       'isPrimaryGuardian': d.isPrimaryGuardian,
       'isEmergencyContact': d.isEmergencyContact,
       'receiveNotifications': d.receiveNotifications,
@@ -262,9 +270,21 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
           ),
           const SizedBox(height: 12),
           ClientInput(
+            key: const ValueKey('client-contact-middle-name'),
+            label: 'Middle name',
+            placeholder: 'Optional',
+            controller: d.middleName,
+            error: _errors['middleName'],
+          ),
+          const SizedBox(height: 12),
+          ClientSelect(
             label: 'Relationship',
-            placeholder: 'Daughter, son, spouse…',
-            controller: d.relationship,
+            placeholder: 'Select relationship',
+            value: d.relationship.text,
+            options: [
+              for (final r in ClientsLabels.relationships) (r, r),
+            ],
+            onChanged: (v) => setState(() => d.relationship.text = v),
           ),
           const SizedBox(height: 12),
           ClientInput(
@@ -290,7 +310,9 @@ class _ClientFamilyContactsState extends State<ClientFamilyContacts> {
             description: hasUser
                 ? 'Already has a login. Remove it from the People directory.'
                 : 'Sends an invitation so they can sign in and follow this resident.',
-            value: d.portalAccess,
+            // Web shows this off (and locked) when a login already exists —
+            // portal users are removed from People, not toggled here.
+            value: hasUser ? false : d.portalAccess,
             bordered: true,
             onChanged: hasUser ? null : (v) => set(() => d.portalAccess = v),
           ),
@@ -554,7 +576,7 @@ class _ClientSpendSectionState extends State<ClientSpendSection> {
                       style: handoverText(context, 12.5, color: AppColors.textSecondary),
                     ),
                     Text(
-                      'Ordered ${ClientsLabels.date(p.orderedAt?.toLocal())}',
+                      'Ordered ${TenantClock.formatDate(p.orderedAt)}',
                       style: handoverText(context, 12, color: AppColors.textMuted),
                     ),
                   ],

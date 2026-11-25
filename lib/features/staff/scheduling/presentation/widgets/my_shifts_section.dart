@@ -83,13 +83,15 @@ class MyShiftsSection extends StatelessWidget {
                         : () => onShiftTap!(shifts[i]),
                     showDividerBar: true,
                   ),
-                  if (onRequestSwap != null) ...[
+                  // Web only offers Request swap when startsAt is still ahead.
+                  if (onRequestSwap != null && shifts[i].canRequestSwap) ...[
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 10),
                     ),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: GestureDetector(
+                        key: ValueKey('request-swap-${shifts[i].id}'),
                         onTap: () => onRequestSwap!(shifts[i]),
                         behavior: HitTestBehavior.opaque,
                         child: Container(

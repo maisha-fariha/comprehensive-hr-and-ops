@@ -1,7 +1,9 @@
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
+import '../../domain/entities/time_off_request.dart';
 
 abstract final class AttendanceMapper {
   static AttendanceRecordPage recordPageFrom(
@@ -101,8 +103,13 @@ abstract final class AttendanceMapper {
     for (final item in JsonCodec.unwrapList(body)) {
       if (item is! Map) continue;
       final json = JsonCodec.asMap(item);
-      if (JsonCodec.string(json['checkInAt']) == null) continue;
-      if (JsonCodec.string(json['checkOutAt']) != null) continue;
+      final checkIn = JsonCodec.string(
+        json['checkInAt'] ?? json['clockInAt'],
+      );
+      if (checkIn == null) continue;
+      if (JsonCodec.string(json['checkOutAt'] ?? json['clockOutAt']) != null) {
+        continue;
+      }
       final id = JsonCodec.string(json['id']);
       final residenceId = JsonCodec.string(json['residenceId']);
       if (id == null || residenceId == null) continue;
@@ -111,6 +118,10 @@ abstract final class AttendanceMapper {
         id: id,
         residenceId: residenceId,
         residenceName: JsonCodec.string(residence['name']),
+        shiftId: JsonCodec.string(
+          json['shiftId'] ?? JsonCodec.mapAt(json, 'shift')?['id'],
+        ),
+        breakStartedAt: JsonCodec.dateTime(json['breakStartedAt']),
       );
     }
     return null;
@@ -169,13 +180,9 @@ abstract final class AttendanceMapper {
     return options;
   }
 
-  /// `dd/MM/yyyy HH:mm` in device local time.
-  static String formatDateTime(DateTime value) {
-    final local = value.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} '
-        '${two(local.hour)}:${two(local.minute)}';
-  }
+  /// `dd/MM/yyyy HH:mm` in the organisation timezone.
+  static String formatDateTime(DateTime value) =>
+      TenantClock.formatDateTime(value);
 
   static List<ManualEntryResidenceOption> residencesFrom(dynamic body) {
     final options = <ManualEntryResidenceOption>[];
@@ -321,10 +328,50 @@ abstract final class AttendanceMapper {
   }
 
   static String _formatShiftClock(DateTime dt) {
-    final local = dt.toLocal();
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final minute = local.minute.toString().padLeft(2, '0');
-    final period = local.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $period';
+    final formatted = TenantClock.formatTime(dt);
+    if (formatted == '—') return formatted;
+    return formatted.replaceAll(' am', ' AM').replaceAll(' pm', ' PM');
+  }
+
+  static List<TimeOffRequest> timeOffListFrom(dynamic body) {
+    final rows = <TimeOffRequest>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final row = timeOffFrom(JsonCodec.asMap(item));
+      if (row != null) rows.add(row);
+    }
+    return rows;
+  }
+
+  static TimeOffRequest? timeOffFrom(Map<String, dynamic> json) {
+    final id = JsonCodec.string(json['id']);
+    final start = JsonCodec.dateTime(json['startDate']);
+    final end = JsonCodec.dateTime(json['endDate']);
+    final type = TimeOffType.fromApi(JsonCodec.string(json['type']));
+    final status = TimeOffStatus.fromApi(JsonCodec.string(json['status']));
+    if (id == null || start == null || end == null || type == null) {
+      return null;
+    }
+    final staff = JsonCodec.mapAt(json, 'staff') ?? const {};
+    final staffName = JsonCodec.stringOr(
+      json['staffName'] ?? staff['name'],
+      'Staff',
+    );
+    final startDay = DateTime(start.year, start.month, start.day);
+    final endDay = DateTime(end.year, end.month, end.day);
+    final computedDays = endDay.difference(startDay).inDays + 1;
+    return TimeOffRequest(
+      id: id,
+      staffId: JsonCodec.stringOr(json['staffId'] ?? staff['id'], ''),
+      staffName: staffName,
+      type: type,
+      startDate: startDay,
+      endDate: endDay,
+      days: JsonCodec.integerOr(json['days'], computedDays),
+      status: status ?? TimeOffStatus.pending,
+      reason: JsonCodec.string(json['reason'] ?? json['notes']),
+      reviewNotes: JsonCodec.string(json['reviewNotes']),
+      createdAt: JsonCodec.dateTime(json['createdAt']),
+    );
   }
 }

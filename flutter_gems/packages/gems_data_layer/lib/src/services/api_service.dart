@@ -213,22 +213,26 @@ class ApiService {
     return null;
   }
 
-  /// Top-level `errors`, or `{ error: { details: { fieldErrors } } }`.
+  /// Top-level `errors`, field errors, or the `{ error: { code, details } }`
+  /// envelope so callers can read codes such as HANDOVER_REQUIRED.
   Map<String, dynamic>? _bodyErrors(dynamic data) {
     if (data is! Map) return null;
     final errors = data['errors'];
     if (errors is Map<String, dynamic>) return errors;
     final error = data['error'];
-    if (error is Map) {
-      final details = error['details'];
-      if (details is Map) {
-        final fieldErrors = details['fieldErrors'];
-        if (fieldErrors is Map && fieldErrors.isNotEmpty) {
-          return Map<String, dynamic>.from(fieldErrors);
-        }
+    if (error is! Map) return null;
+    final details = error['details'];
+    if (details is Map) {
+      final fieldErrors = details['fieldErrors'];
+      if (fieldErrors is Map && fieldErrors.isNotEmpty) {
+        return Map<String, dynamic>.from(fieldErrors);
       }
     }
-    return null;
+    return {
+      if (error['code'] != null) 'code': error['code'],
+      if (error['message'] != null) 'message': error['message'],
+      if (details is Map) 'details': Map<String, dynamic>.from(details),
+    };
   }
 
   /// Handle error response

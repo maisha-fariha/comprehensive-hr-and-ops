@@ -9,6 +9,7 @@ abstract class DailyActivityRepository {
     required int limit,
     String? search,
     String? clientId,
+    String? residenceId,
     String? recordedByStaffId,
     String? activityType,
     String? status,
@@ -24,6 +25,9 @@ abstract class DailyActivityRepository {
 
   Future<Result<void>> create(DailyActivityDraft draft);
 
+  /// `POST /client-activities/batch` — one activity for several residents.
+  Future<Result<void>> createBatch(DailyActivityBatchDraft draft);
+
   /// `PATCH /client-activities/:id` with the full form body.
   Future<Result<void>> update(String id, DailyActivityDraft draft);
 
@@ -32,7 +36,7 @@ abstract class DailyActivityRepository {
 
   Future<Result<void>> delete(String id);
 
-  Future<Result<List<DailyActivityOption>>> clients();
+  Future<Result<List<DailyActivityOption>>> clients({String? residenceId});
 
   Future<Result<List<DailyActivityOption>>> staff();
 

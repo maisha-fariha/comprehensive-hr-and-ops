@@ -9,8 +9,10 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/incident_ai_draft.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
 import '../../domain/entities/incident_client_option.dart';
@@ -22,6 +24,8 @@ import '../../domain/entities/incidents_enums.dart';
 import '../../domain/repositories/incidents_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/searchable_option_list.dart';
+import '../widgets/draft_from_notes_sheet.dart';
 
 /// GetX controller for the 5-step "Create Incident" wizard (web parity).
 class IncidentCreationController extends GetxController {
@@ -105,6 +109,8 @@ class IncidentCreationController extends GetxController {
       Rxn<IncidentCirTemplateOption>();
 
   final TextEditingController incidentTitleController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
+  final TextEditingController categoryDetailController = TextEditingController();
   final TextEditingController clientController = TextEditingController();
   final Rxn<IncidentClientOption> selectedClient = Rxn<IncidentClientOption>();
   final RxList<IncidentClientOption> clientSuggestions =
@@ -125,13 +131,118 @@ class IncidentCreationController extends GetxController {
   final TextEditingController incidentTimeController = TextEditingController();
   final TextEditingController endTimeController = TextEditingController();
   final Rx<IncidentSeverity> severity = IncidentSeverity.high.obs;
+  final RxInt formRevision = 0.obs;
   final RxnString detectedDuring = RxnString();
+
+  /// Web `useAiDrafting()` — button only when `GET /ai` reports enabled.
+  final RxBool aiDraftingEnabled = false.obs;
 
   static const Duration _clientSearchDebounce = Duration(milliseconds: 350);
   Timer? _clientSearchDebounceTimer;
   int _clientSearchRequestId = 0;
 
   String? get incidentCategory => selectedCategory.value?.name;
+
+  /// Web shows this extra prompt only for a few categories.
+  static const categoryDetailHints = {
+    'Injury to Child':
+        'Describe the level of harm and who was involved (self / peer / staff / community member).',
+    'Injury to Staff/Caregiver': 'Describe the level of harm and who was involved.',
+    'Allegation of Abuse/Neglect':
+        'Describe who the allegation relates to (current staff, peer, parent/guardian, previous caregiver, community member).',
+    'Substance Use/Abuse':
+        'Note whether use occurred in or outside of the licensed facility/placement.',
+  };
+
+  String? get categoryDetailHint => categoryDetailHints[selectedCategory.value?.name];
+
+  static const stepTips = {
+    IncidentCreationStep.details:
+        'Reports auto-save as draft. Critical incidents notify the on-call supervisor instantly.',
+    IncidentCreationStep.people:
+        'CFS status and CIP details are optional but speed up compliance notification.',
+    IncidentCreationStep.investigate:
+        'Investigation Status here matches the Status column on the incident list.',
+    IncidentCreationStep.evidence:
+        'Attach evidence and confirm who has been notified before submitting.',
+    IncidentCreationStep.reportForm:
+        'The form is stored with the report, so a later revision cannot change what this one asked.',
+  };
+
+  static const stepDescriptions = {
+    IncidentCreationStep.details: 'What happened & how serious',
+    IncidentCreationStep.people: 'Residence, client & staff',
+    IncidentCreationStep.investigate: 'Findings & corrective action',
+    IncidentCreationStep.evidence: 'Attachments & notifications',
+    IncidentCreationStep.reportForm: 'The form the regulator requires',
+  };
+
+  static const stepTitles = {
+    IncidentCreationStep.details: 'Incident Details',
+    IncidentCreationStep.people: 'Location & People',
+    IncidentCreationStep.investigate: 'Investigation',
+    IncidentCreationStep.evidence: 'Evidence & Submission',
+    IncidentCreationStep.reportForm: 'Report Form',
+  };
+
+  /// Web checklist marks every step before the one on screen.
+  bool stepChecked(IncidentCreationStep step) =>
+      steps.indexOf(step) < currentStepIndex;
+
+  /// Required fields the web uses for "N of 5 steps complete".
+  int get completedStepCount {
+    formRevision.value;
+    var count = 0;
+    final detailsReady = selectedCategory.value != null &&
+        incidentTitleController.text.trim().isNotEmpty &&
+        incidentDateController.text.trim().isNotEmpty &&
+        incidentTimeController.text.trim().isNotEmpty &&
+        descriptionController.text.trim().isNotEmpty;
+    if (detailsReady) count++;
+    final residenceId = selectedResidenceId.value ?? '';
+    if (residenceId.isNotEmpty && (reportedBy.value ?? '').trim().isNotEmpty) {
+      count++;
+    }
+    return count;
+  }
+
+  String get severityLabel {
+    final name = severity.value.name;
+    return '${name[0].toUpperCase()}${name.substring(1)}';
+  }
+
+  String? validateCurrentStep() {
+    switch (currentStep.value) {
+      case IncidentCreationStep.details:
+        if (selectedCategory.value == null) return 'Incident category is required.';
+        if (incidentTitleController.text.trim().isEmpty) {
+          return 'Incident title is required.';
+        }
+        if (incidentDateController.text.trim().isEmpty) {
+          return 'Incident date is required.';
+        }
+        if (incidentTimeController.text.trim().isEmpty) {
+          return 'Incident time is required.';
+        }
+        if (descriptionController.text.trim().isEmpty) {
+          return 'Incident description is required.';
+        }
+        return null;
+      case IncidentCreationStep.people:
+        final residenceId = selectedResidenceId.value ?? session.residenceId;
+        if (residenceId == null || residenceId.isEmpty) {
+          return 'Residence is required.';
+        }
+        if ((reportedBy.value ?? '').trim().isEmpty) {
+          return 'Reported by staff is required.';
+        }
+        return null;
+      case IncidentCreationStep.investigate:
+      case IncidentCreationStep.evidence:
+      case IncidentCreationStep.reportForm:
+        return null;
+    }
+  }
   String? get cirTemplateLabel {
     final template = selectedCirTemplate.value;
     if (template == null) return null;
@@ -244,6 +355,15 @@ class IncidentCreationController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    for (final field in [
+      incidentTitleController,
+      incidentDateController,
+      incidentTimeController,
+      descriptionController,
+    ]) {
+      field.addListener(_bumpForm);
+    }
+
     if (!isEditMode) {
       final now = DateTime.now();
       incidentDateController.text = _formatIncidentDate(now);
@@ -279,10 +399,279 @@ class IncidentCreationController extends GetxController {
       loadCirTemplates(),
       loadResidences(),
       loadStaff(),
+      loadAiDraftingStatus(),
     ]);
     if (isEditMode) {
       await loadForEdit(editIncidentId!.trim());
     }
+  }
+
+  Future<void> loadAiDraftingStatus() async {
+    final result = await repository.isAiDraftingEnabled();
+    result.when(
+      success: (enabled) => aiDraftingEnabled.value = enabled,
+      failure: (_) => aiDraftingEnabled.value = false,
+    );
+  }
+
+  /// Opens the web-parity "Draft from my notes" sheet and applies the result.
+  Future<void> openDraftFromNotes(BuildContext context) async {
+    if (!aiDraftingEnabled.value) return;
+    final draft = await showDraftFromNotesSheet(
+      context,
+      repository: repository,
+      initialNotes: descriptionController.text,
+      residenceId: selectedResidenceId.value ?? session.residenceId,
+      clientId: selectedClient.value?.id,
+      categoryId: selectedCategory.value?.id,
+      detectedDuringOptions: detectedDuringOptions,
+      notificationParties: defaultPartyNames,
+    );
+    if (draft == null) return;
+    applyAiDraft(draft);
+    AppSnackbar.show(
+      'Draft applied',
+      'Fields were filled from your notes. Review before continuing.',
+      force: true,
+    );
+  }
+
+  /// Applies `POST /ai/incidents/draft` the same way the web Create Incident
+  /// form does after "Put it in the report".
+  void applyAiDraft(IncidentAiDraft draft) {
+    if (draft.date != null && draft.date!.trim().isNotEmpty) {
+      final parsed = _parseAiDate(draft.date!);
+      if (parsed != null) {
+        incidentDateController.text = _formatIncidentDate(parsed);
+      }
+    }
+    if (draft.time != null && draft.time!.trim().isNotEmpty) {
+      final parsed = _parseIncidentTime(draft.time!);
+      if (parsed != null) {
+        incidentTimeController.text = _formatIncidentTime(parsed);
+      }
+    }
+    if (draft.endTime != null && draft.endTime!.trim().isNotEmpty) {
+      final parsed = _parseIncidentTime(draft.endTime!);
+      if (parsed != null) {
+        endTimeController.text = _formatIncidentTime(parsed);
+      }
+    }
+
+    if (selectedCategory.value == null &&
+        draft.categoryId != null &&
+        draft.categoryId!.isNotEmpty) {
+      IncidentCategoryOption? match;
+      for (final option in categories) {
+        if (option.id == draft.categoryId) {
+          match = option;
+          break;
+        }
+      }
+      if (match != null) {
+        selectedCategory.value = match;
+      }
+    }
+
+    if ((selectedResidenceId.value == null ||
+            selectedResidenceId.value!.isEmpty) &&
+        draft.residenceId != null &&
+        draft.residenceId!.isNotEmpty) {
+      IncidentResidenceOption? match;
+      for (final option in residences) {
+        if (option.id == draft.residenceId) {
+          match = option;
+          break;
+        }
+      }
+      if (match != null) {
+        selectResidence(match);
+      } else {
+        selectedResidenceId.value = draft.residenceId;
+      }
+    }
+
+    if (selectedClient.value == null &&
+        draft.clientId != null &&
+        draft.clientId!.isNotEmpty) {
+      selectedClient.value = IncidentClientOption(
+        id: draft.clientId!,
+        name: 'Client',
+      );
+      clientController.text = 'Client';
+    }
+
+    if ((detectedDuring.value == null || detectedDuring.value!.isEmpty) &&
+        draft.detectedDuring != null &&
+        draft.detectedDuring!.trim().isNotEmpty) {
+      detectedDuring.value = draft.detectedDuring!.trim();
+    }
+
+    if (draft.witnesses.isNotEmpty) {
+      final merged = <String>{
+        ...witnesses,
+        ...draft.witnesses.map((w) => w.trim()).where((w) => w.isNotEmpty),
+      };
+      witnesses.assignAll(merged.toList());
+    }
+
+    final agency = draft.externalAgency;
+    if (agency != null && agency.type.trim().isNotEmpty) {
+      if (externalAgencyType.value == null ||
+          externalAgencyType.value!.isEmpty) {
+        externalAgencyType.value = agency.type.trim();
+      }
+      if (agency.reference != null &&
+          agency.reference!.trim().isNotEmpty &&
+          agencyReferenceController.text.trim().isEmpty) {
+        agencyReferenceController.text = agency.reference!.trim();
+      }
+      if (agency.responder != null &&
+          agency.responder!.trim().isNotEmpty &&
+          agencyResponderController.text.trim().isEmpty) {
+        agencyResponderController.text = agency.responder!.trim();
+      }
+    }
+
+    if (draft.notifications.isNotEmpty) {
+      for (var i = 0; i < partyNotifications.length; i++) {
+        final current = partyNotifications[i];
+        IncidentAiNotification? match;
+        for (final note in draft.notifications) {
+          if (note.party == current.party) {
+            match = note;
+            break;
+          }
+        }
+        if (match == null) continue;
+        partyNotifications[i] = current.copyWith(
+          notified: true,
+          contactName: current.contactName.trim().isNotEmpty
+              ? current.contactName
+              : (match.contactName ?? ''),
+          dateNotified: current.dateNotified.trim().isNotEmpty
+              ? current.dateNotified
+              : (match.date ?? ''),
+        );
+      }
+    }
+
+    incidentTitleController.text = draft.title;
+    descriptionController.text = draft.description;
+    if (draft.immediateAction.trim().isNotEmpty) {
+      immediateActionController.text = draft.immediateAction.trim();
+    }
+
+    if (draft.severity != null && draft.severity!.isNotEmpty) {
+      severity.value = IncidentSeverity.values.firstWhere(
+        (value) => value.name == draft.severity,
+        orElse: () => severity.value,
+      );
+    }
+
+    if (draft.emergencyServicesContacted != null) {
+      emergencyServicesContacted.value = draft.emergencyServicesContacted!;
+    }
+    if (draft.familyNotified != null) {
+      familyGuardianNotified.value = draft.familyNotified!;
+    }
+
+    if ((categoryDetailController.text.trim().isEmpty) &&
+        draft.categoryDetail != null &&
+        draft.categoryDetail!.trim().isNotEmpty) {
+      categoryDetailController.text = draft.categoryDetail!.trim();
+    }
+
+    if (selectedReporter.value == null && draft.reportedBy != null) {
+      final person = draft.reportedBy!;
+      selectedReporter.value = _staffById(person.id) ??
+          IncidentStaffOption(id: person.id, name: person.name);
+      reportedBy.value = selectedReporter.value?.name ?? person.name;
+    }
+
+    if (selectedSupervisor.value == null && draft.supervisor != null) {
+      final person = draft.supervisor!;
+      selectSupervisor(
+        _staffById(person.id) ??
+            IncidentStaffOption(id: person.id, name: person.name),
+      );
+    }
+
+    final child = draft.child;
+    if (child != null) {
+      if (child.idNumber != null &&
+          child.idNumber!.trim().isNotEmpty &&
+          childIdController.text.trim().isEmpty) {
+        childIdController.text = child.idNumber!.trim();
+      }
+      if (child.cfsStatus.isNotEmpty) {
+        cfsStatuses.assignAll({
+          ...cfsStatuses,
+          ...child.cfsStatus
+              .map((s) => s.trim().toUpperCase())
+              .where(cfsStatusOptions.contains),
+        }.toList());
+      }
+      if (child.cipName != null &&
+          child.cipName!.trim().isNotEmpty &&
+          cipController.text.trim().isEmpty) {
+        cipController.text = child.cipName!.trim();
+      }
+      if (child.cipOffice != null &&
+          child.cipOffice!.trim().isNotEmpty &&
+          cipOfficeController.text.trim().isEmpty) {
+        cipOfficeController.text = child.cipOffice!.trim();
+      }
+      if (child.informedOfRights != null) {
+        childInformedOfRights.value = child.informedOfRights!;
+      }
+    }
+
+    if (draft.followUp?.required != null) {
+      followUpRequired.value = draft.followUp!.required!;
+    }
+    if (draft.followUp?.dueDate != null &&
+        draft.followUp!.dueDate!.trim().isNotEmpty &&
+        followUpDateController.text.trim().isEmpty) {
+      followUpRequired.value = true;
+      final parsed = _parseAiDate(draft.followUp!.dueDate!);
+      followUpDateController.text = parsed == null
+          ? draft.followUp!.dueDate!.trim()
+          : _formatIncidentDate(parsed);
+    }
+
+    if (draft.debrief?.completed != null) {
+      debriefCompleted.value = draft.debrief!.completed!;
+    }
+    if (draft.debrief?.details != null &&
+        draft.debrief!.details!.trim().isNotEmpty &&
+        debriefDetailsController.text.trim().isEmpty) {
+      debriefCompleted.value = true;
+      debriefDetailsController.text = draft.debrief!.details!.trim();
+    }
+
+    if (draft.cirAnswers.isNotEmpty) {
+      for (final entry in draft.cirAnswers.entries) {
+        final controller = reportFormAnswerController(entry.key);
+        if (controller.text.trim().isNotEmpty) continue;
+        final value = entry.value;
+        if (value is List) {
+          controller.text = value.map((e) => e.toString()).join(', ');
+        } else if (value != null) {
+          controller.text = value.toString();
+        }
+      }
+    }
+
+    _bumpForm();
+  }
+
+  DateTime? _parseAiDate(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final iso = DateTime.tryParse(text);
+    if (iso != null) return DateTime(iso.year, iso.month, iso.day);
+    return _parseIncidentDate(text);
   }
 
   // ── Lookups ────────────────────────────────────────────────────────────
@@ -334,6 +723,13 @@ class IncidentCreationController extends GetxController {
         }
       },
       failure: (error) {
+        // Compliance can open an incident without residences:read. The web
+        // keeps the residence already on the report and does not toast.
+        final code = (error.code ?? '').toUpperCase();
+        final missingPermission = code == '403' ||
+            code == 'FORBIDDEN' ||
+            error.message.toLowerCase().contains('missing permission');
+        if (missingPermission) return;
         AppSnackbar.show('Could not load residences', error.message);
       },
     );
@@ -376,15 +772,7 @@ class IncidentCreationController extends GetxController {
 
     _clientSearchDebounceTimer?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _clientSearchRequestId++;
-      isSearchingClients.value = false;
-      clientSuggestions.clear();
-      showClientSuggestions.value = false;
-      clientSearchError.value = '';
-      return;
-    }
-
+    // Empty query still loads the client directory (web / create-task pattern).
     showClientSuggestions.value = true;
     _clientSearchDebounceTimer = Timer(
       _clientSearchDebounce,
@@ -423,13 +811,6 @@ class IncidentCreationController extends GetxController {
     showClientSuggestions.value = false;
     clientSearchError.value = '';
     isSearchingClients.value = false;
-
-    // Keep Step 2 involved client in sync when empty / same client.
-    if (selectedInvolvedClient.value == null ||
-        involvedClientController.text.trim().isEmpty ||
-        selectedInvolvedClient.value?.id == option.id) {
-      selectInvolvedClient(option);
-    }
 
     if (option.residenceName != null && option.residenceName!.isNotEmpty) {
       selectResidence(
@@ -762,6 +1143,53 @@ class IncidentCreationController extends GetxController {
     if (selected != null) detectedDuring.value = selected;
   }
 
+  Future<void> pickSeverity(BuildContext context) async {
+    final selected = await showAppBottomSheet<IncidentSeverity>(
+      context: context,
+      backgroundColor: AppColors.surfaceWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Severity',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+              ),
+              for (final option in IncidentSeverity.values)
+                ListTile(
+                  title: Text(
+                    '${option.name[0].toUpperCase()}${option.name.substring(1)}',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  trailing: severity.value == option
+                      ? const Icon(Icons.check_rounded, color: AppColors.secondaryTeal)
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(option),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null) severity.value = selected;
+  }
+
   Future<void> pickStaffInvolved(BuildContext context) async {
     final selected = await _pickStaff(context, title: 'Staff involved');
     if (selected != null) selectStaffInvolved(selected);
@@ -908,6 +1336,8 @@ class IncidentCreationController extends GetxController {
       selectedId: null,
       idOf: (option) => option.id,
       onRetry: loadStaff,
+      showInitials: true,
+      searchHint: 'Search ${title.toLowerCase()}...',
     );
   }
 
@@ -921,9 +1351,12 @@ class IncidentCreationController extends GetxController {
     required Future<void> Function() onRetry,
     String? selectedId,
     String Function(T)? subtitleOf,
+    bool showInitials = false,
+    String? searchHint,
   }) {
     return showAppBottomSheet<T>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -962,50 +1395,21 @@ class IncidentCreationController extends GetxController {
                 ),
               );
             }
-            return ListView(
-              shrinkWrap: true,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                ),
-                for (final option in options)
-                  ListTile(
-                    title: Text(
-                      labelOf(option),
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textHeading,
-                      ),
-                    ),
-                    subtitle: subtitleOf == null ||
-                            subtitleOf(option).trim().isEmpty
-                        ? null
-                        : Text(
-                            subtitleOf(option),
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                    trailing: selectedId != null && idOf(option) == selectedId
-                        ? const Icon(
-                            Icons.check_rounded,
-                            color: AppColors.secondaryTeal,
-                          )
-                        : null,
-                    onTap: () => Navigator.of(sheetContext).pop(option),
-                  ),
-              ],
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+              ),
+              child: SearchableOptionList<T>(
+                title: title,
+                options: options.toList(),
+                labelOf: labelOf,
+                subtitleOf: subtitleOf,
+                idOf: idOf,
+                selectedId: selectedId,
+                showInitials: showInitials,
+                searchHint: searchHint ?? 'Search $title',
+                onSelected: (option) => Navigator.of(sheetContext).pop(option),
+              ),
             );
           }),
         );
@@ -1377,6 +1781,12 @@ class IncidentCreationController extends GetxController {
       orElse: () => IncidentSeverity.high,
     );
 
+    descriptionController.text = JsonCodec.stringOr(
+      payload['description'] ?? payload['summary'] ?? json['description'],
+      '',
+    );
+    categoryDetailController.text =
+        JsonCodec.stringOr(payload['categoryDetail'], '');
     locationController.text = JsonCodec.stringOr(payload['location'], '');
     detectedDuring.value = JsonCodec.string(payload['detectedDuring']);
     immediateActionController.text = JsonCodec.stringOr(
@@ -1461,13 +1871,73 @@ class IncidentCreationController extends GetxController {
     }
 
     final investigation = JsonCodec.mapAt(json, 'investigation') ?? const {};
+    // Web: Investigation Status matches the Status column — hydrate from
+    // investigation.status (preferred) or top-level / payload fallbacks.
+    final statusRaw = (JsonCodec.string(
+              investigation['status'] ??
+                  payload['investigationStatus'] ??
+                  json['status'],
+            ) ??
+            'open')
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_');
+    String? matchedStatus;
+    for (final option in investigationStatusOptions) {
+      if (option.$1 == statusRaw) {
+        matchedStatus = option.$1;
+        break;
+      }
+    }
+    investigationStatus.value = matchedStatus ??
+        (statusRaw.contains('investigat')
+            ? 'investigating'
+            : statusRaw.contains('close') || statusRaw.contains('resolv')
+                ? 'closed'
+                : 'open');
+
+    final investigatorId = JsonCodec.string(
+      investigation['investigatorId'] ??
+          investigation['assignedToId'] ??
+          payload['investigatorId'],
+    );
+    final investigatorName = JsonCodec.string(
+      investigation['investigatorName'] ??
+          payload['investigatorName'] ??
+          (JsonCodec.mapAt(investigation, 'investigator') == null
+              ? null
+              : IsoDateRange.personName(
+                  JsonCodec.mapAt(investigation, 'investigator'),
+                )),
+    );
+    if (investigatorId != null && investigatorId.isNotEmpty) {
+      selectedInvestigator.value = _staffById(investigatorId) ??
+          IncidentStaffOption(
+            id: investigatorId,
+            name: investigatorName ?? 'Investigator',
+          );
+    } else if (investigatorName != null && investigatorName.isNotEmpty) {
+      selectedInvestigator.value = IncidentStaffOption(
+        id: investigatorName,
+        name: investigatorName,
+      );
+    }
+
     investigationNotesController.text = JsonCodec.stringOr(
       investigation['findings'] ?? payload['investigationNotes'],
       '',
     );
+    rootCauseController.text = JsonCodec.stringOr(
+      investigation['rootCause'] ?? payload['rootCause'],
+      '',
+    );
+    correctiveActionController.text = JsonCodec.stringOr(
+      investigation['correctiveActions'] ?? payload['correctiveAction'],
+      '',
+    );
     if (immediateActionController.text.trim().isEmpty) {
       immediateActionController.text = JsonCodec.stringOr(
-        investigation['correctiveActions'],
+        investigation['correctiveActions'] ?? payload['immediateAction'],
         '',
       );
     }
@@ -1508,9 +1978,24 @@ class IncidentCreationController extends GetxController {
 
   // ── Navigation ─────────────────────────────────────────────────────────
 
-  void goToStep(IncidentCreationStep step) => currentStep.value = step;
+  void goToStep(IncidentCreationStep step) {
+    final target = steps.indexOf(step);
+    if (target > currentStepIndex) {
+      final error = validateCurrentStep();
+      if (error != null) {
+        AppSnackbar.show('Check your details', error, force: true);
+        return;
+      }
+    }
+    currentStep.value = step;
+  }
 
   void nextStep() {
+    final error = validateCurrentStep();
+    if (error != null) {
+      AppSnackbar.show('Check your details', error, force: true);
+      return;
+    }
     final index = currentStepIndex;
     if (index < steps.length - 1) {
       currentStep.value = steps[index + 1];
@@ -1575,7 +2060,10 @@ class IncidentCreationController extends GetxController {
         title: title,
         severity: severity.value.name,
         payload: payload,
-        status: existingStatus.value ?? 'investigating',
+        // Web Status column tracks investigation status.
+        status: investigationStatus.value ??
+            existingStatus.value ??
+            'investigating',
         reportedAt: reportedAt,
         residentChecked: false,
         supervisorNotified: supervisorNotified,
@@ -1610,7 +2098,7 @@ class IncidentCreationController extends GetxController {
         title: title,
         severity: severity.value.name,
         payload: payload,
-        status: 'open',
+        status: investigationStatus.value ?? 'open',
         reportedAt: reportedAt,
         residentChecked: false,
         supervisorNotified: supervisorNotified,
@@ -1645,33 +2133,31 @@ class IncidentCreationController extends GetxController {
     final immediate = immediateActionController.text.trim();
     final rootCause = rootCauseController.text.trim();
     final corrective = correctiveActionController.text.trim();
-    if (!asDraft &&
-        (findings.isNotEmpty ||
-            immediate.isNotEmpty ||
-            rootCause.isNotEmpty ||
-            corrective.isNotEmpty)) {
-      final investigation = await repository.recordInvestigation(
-        incidentId: incidentId,
-        findings: findings.isEmpty
-            ? (immediate.isEmpty ? rootCause : immediate)
-            : findings,
-        rootCause: rootCause.isEmpty ? null : rootCause,
-        correctiveActions: corrective.isEmpty
-            ? (immediate.isEmpty ? null : immediate)
-            : corrective,
-        status: investigationStatus.value ??
-            (isEditMode ? (existingStatus.value ?? 'open') : 'open'),
-      );
-      investigation.when(
-        success: (_) {},
-        failure: (error) {
-          AppSnackbar.show(
-            isEditMode ? 'Incident updated' : 'Incident created',
-            'Investigation notes could not be saved: ${error.message}',
-          );
-        },
-      );
-    }
+    final investigationStatusValue = investigationStatus.value ??
+        (isEditMode ? (existingStatus.value ?? 'open') : 'open');
+    // Always sync investigation status (web Status column), even without notes.
+    final investigation = await repository.recordInvestigation(
+      incidentId: incidentId,
+      findings: findings.isEmpty
+          ? (immediate.isEmpty ? rootCause : immediate)
+          : findings,
+      rootCause: rootCause.isEmpty ? null : rootCause,
+      correctiveActions: corrective.isEmpty
+          ? (immediate.isEmpty ? null : immediate)
+          : corrective,
+      status: investigationStatusValue,
+    );
+    investigation.when(
+      success: (_) {
+        existingStatus.value = investigationStatusValue;
+      },
+      failure: (error) {
+        AppSnackbar.show(
+          isEditMode ? 'Incident updated' : 'Incident created',
+          'Investigation status could not be saved: ${error.message}',
+        );
+      },
+    );
 
     for (final file in evidenceFiles.where(
       (item) => item.isReady && item.localPath.trim().isNotEmpty,
@@ -1733,7 +2219,9 @@ class IncidentCreationController extends GetxController {
   }
 
   Map<String, dynamic> _buildPayload() {
+    final description = descriptionController.text.trim();
     final summaryParts = <String>[
+      if (description.isNotEmpty) description,
       if (immediateActionController.text.trim().isNotEmpty)
         immediateActionController.text.trim(),
       if (investigationNotesController.text.trim().isNotEmpty)
@@ -1743,6 +2231,9 @@ class IncidentCreationController extends GetxController {
     ];
 
     return <String, dynamic>{
+      if (description.isNotEmpty) 'description': description,
+      if (categoryDetailController.text.trim().isNotEmpty)
+        'categoryDetail': categoryDetailController.text.trim(),
       'summary': summaryParts.isEmpty
           ? incidentTitleController.text.trim()
           : summaryParts.join('\n\n'),
@@ -1888,11 +2379,23 @@ class IncidentCreationController extends GetxController {
     return '$hour:$minute';
   }
 
+  void _bumpForm() => formRevision.value++;
+
   @override
   void onClose() {
+    for (final field in [
+      incidentTitleController,
+      incidentDateController,
+      incidentTimeController,
+      descriptionController,
+    ]) {
+      field.removeListener(_bumpForm);
+    }
     _clientSearchDebounceTimer?.cancel();
     _involvedClientDebounce?.cancel();
     incidentTitleController.dispose();
+    descriptionController.dispose();
+    categoryDetailController.dispose();
     clientController.dispose();
     incidentDateController.dispose();
     incidentTimeController.dispose();

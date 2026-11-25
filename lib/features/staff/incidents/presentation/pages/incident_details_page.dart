@@ -4,8 +4,10 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/permission_gate.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import 'create_incident_page.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
 import '../../../staff_shell.dart';
 import '../controllers/incident_details_controller.dart';
@@ -21,24 +23,44 @@ import '../widgets/incident_details/incident_web_header_card.dart';
 import '../widgets/incident_details/incident_witness_statements_section.dart';
 import '../widgets/staff_incidents_header.dart';
 
-/// Read-only Incident Details screen — web modal content order on mobile scroll.
+/// Incident Details — view with `incidents:read`; Edit / Acknowledge need write.
 ///
 /// Hosts [StaffBottomNavBar] with "More" selected so the pushed route still
 /// matches reference frames that show the staff bottom nav.
-class IncidentDetailsPage extends StatefulWidget {
+class IncidentDetailsPage extends StatelessWidget {
   final String incidentId;
-
-  /// Index of the "More" slot in [StaffBottomNavBar.items].
-  static const int _moreTabIndex = 4;
 
   const IncidentDetailsPage({super.key, required this.incidentId});
 
   @override
-  State<IncidentDetailsPage> createState() => _IncidentDetailsPageState();
+  Widget build(BuildContext context) {
+    return PermissionGate(
+      anyOf: const ['incidents:read'],
+      title: 'Incident Details',
+      builder: () => _IncidentDetailsBody(incidentId: incidentId),
+    );
+  }
 }
 
-class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
+class _IncidentDetailsBody extends StatefulWidget {
+  final String incidentId;
+
+  /// Index of the "More" slot in [StaffBottomNavBar.items].
+  static const int _moreTabIndex = 5;
+
+  const _IncidentDetailsBody({required this.incidentId});
+
+  @override
+  State<_IncidentDetailsBody> createState() => _IncidentDetailsBodyState();
+}
+
+class _IncidentDetailsBodyState extends State<_IncidentDetailsBody> {
   late final IncidentDetailsController _controller;
+
+  bool get _canWrite {
+    if (!Get.isRegistered<UserSession>()) return false;
+    return Get.find<UserSession>().can('incidents:write');
+  }
 
   @override
   void initState() {
@@ -63,7 +85,14 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
   }
 
   void _onEdit() {
-    AppSnackbar.show('Edit', 'Editing opens on web for now');
+    if (!_canWrite) return;
+    Get.to(
+      () => CreateIncidentPage(incidentId: widget.incidentId),
+    )?.then((saved) {
+      if (saved == true) {
+        _controller.loadDetail(widget.incidentId, force: true);
+      }
+    });
   }
 
   @override
@@ -71,7 +100,7 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: IncidentDetailsPage._moreTabIndex,
+        currentIndex: _IncidentDetailsBody._moreTabIndex,
         onTap: _onBottomNavTap,
       ),
       body: SafeArea(
@@ -81,7 +110,7 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
             StaffIncidentsHeader(
               title: 'Incident Details',
               subtitle: 'View full incident report and details',
-              onBack: Get.back,
+              onBack: () => Navigator.of(context).maybePop(),
               trailing: StaffIncidentsHeader.iconButton(
                 context: context,
                 onTap: _controller.shareCirPdf,
@@ -107,6 +136,7 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
               child: Obx(() {
                 final response = _controller.state.value;
                 final detail = response.data;
+                final canWrite = _canWrite;
 
                 if (detail == null && _controller.isLoading.value) {
                   return const Center(
@@ -187,7 +217,7 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                     SizedBox(height: gap),
                     IncidentEvidenceSection(
                       items: detail.evidence,
-                      isBusy: _controller.isOpeningEvidence.value,
+                      busyUrl: _controller.openingEvidenceUrl.value,
                       onDownload: _controller.openEvidence,
                     ),
                     SizedBox(height: gap),
@@ -197,10 +227,11 @@ class _IncidentDetailsPageState extends State<IncidentDetailsPage> {
                           ResponsiveHelper.getResponsiveHeight(context, 20),
                     ),
                     IncidentDetailsActions(
-                      onClose: Get.back,
+                      onClose: () => Navigator.of(context).maybePop(),
                       onEdit: _onEdit,
                       onAcknowledge: _controller.acknowledge,
-                      showAcknowledge: !detail.acknowledged,
+                      showAcknowledge: canWrite && !detail.acknowledged,
+                      showEdit: canWrite,
                     ),
                   ],
                 );

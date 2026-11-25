@@ -54,23 +54,27 @@ class StaffMedicationHeader extends StatelessWidget {
           ),
           child: SizedBox(
             height: buttonSize,
-            child: Stack(
-              alignment: Alignment.center,
+            child: Row(
               children: [
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 18),
-                    color: AppColors.textHeading,
-                    height: 1.2,
+                backButton,
+                SizedBox(
+                  width: ResponsiveHelper.getResponsiveWidth(context, 12),
+                ),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 16),
+                      color: AppColors.textHeading,
+                      height: 1.2,
+                    ),
                   ),
                 ),
-                Align(alignment: Alignment.centerLeft, child: backButton),
               ],
             ),
           ),

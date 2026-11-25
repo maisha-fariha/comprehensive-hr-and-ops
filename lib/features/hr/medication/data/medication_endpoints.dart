@@ -18,6 +18,9 @@ abstract final class MedicationEndpoints {
   static String prnMedication(String id) => '/prn-medications/$id';
   static String discontinuePrn(String id) => '/prn-medications/$id/discontinue';
 
+  /// Web Stock tab — trolley counts (`GET` / `PUT /medication-stock`).
+  static const String medicationStock = '/medication-stock';
+
   static const String residences = '/residences';
   static const String clients = '/clients';
   static const String staff = '/staff';

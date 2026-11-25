@@ -50,6 +50,19 @@ class FamilyMessagesController extends BaseController<List<ConversationPreview>>
     setLoading(false);
   }
 
+  /// Web `markRead`: the open thread's badge drops before the list reloads.
+  void markConversationReadLocally(String id) {
+    var changed = false;
+    final updated = conversations.map((conversation) {
+      if (conversation.id != id || conversation.unreadCount == 0) {
+        return conversation;
+      }
+      changed = true;
+      return conversation.copyWith(unreadCount: 0);
+    }).toList();
+    if (changed) setSuccess(updated);
+  }
+
   @override
   Future<void> refresh() => loadConversations();
 }

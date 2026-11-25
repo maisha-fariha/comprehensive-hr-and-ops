@@ -3,6 +3,7 @@ import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_enums.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_residence_option.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_staff_conflict.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_staff_option.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_type_option.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/repositories/scheduling_repository.dart';
@@ -33,7 +34,42 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     String? residenceId,
     ShiftStatusFilter? status,
     bool mine = false,
+    ScheduleSpan span = ScheduleSpan.week,
+    DateTime? monthOf,
   }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> openShift(String shiftId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> cancelShift(String shiftId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> deleteShift(String shiftId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<void>> requestSwap({
+    required String shiftId,
+    String? note,
+    String? targetStaffId,
+    String? toShiftId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> listSwapColleagues({
+    String? residenceId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Result<List<({String id, String label})>>> listColleagueShifts(
+    String staffId,
+  ) =>
       throw UnimplementedError();
 
   @override
@@ -44,7 +80,14 @@ class _FakeSchedulingRepo implements SchedulingRepository {
       ]);
 
   @override
-  Future<Result<List<ShiftStaffOption>>> getStaffOptions() async =>
+  Future<Result<int>> getDefaultBreakMinutes() async => Result.success(30);
+
+  @override
+  Future<Result<List<ShiftClientOption>>> getClients(String residenceId) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions({String? residenceId}) async =>
       Result.success(const [
         ShiftStaffOption(
           id: 'staff-shakib',
@@ -64,6 +107,24 @@ class _FakeSchedulingRepo implements SchedulingRepository {
       ]);
 
   @override
+  Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
+    required String from,
+    required String to,
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<ShiftConflictsResult>> checkStaffConflicts({
+    required List<String> staffIds,
+    required String startsAtIso,
+    required String endsAtIso,
+    String? residenceId,
+    String? excludeShiftId,
+  }) async =>
+      Result.success(const ShiftConflictsResult());
+
+  @override
   Future<Result<int>> createShift(Map<String, dynamic> payload) async {
     created.add(payload);
     final recurrence = payload['recurrence'];
@@ -81,6 +142,8 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     required String shiftId,
     required Map<String, dynamic> payload,
     required List<String> staffIds,
+    String? restOverrideReason,
+    bool updateAssignments = true,
   }) =>
       throw UnimplementedError();
 
@@ -88,6 +151,13 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   Future<Result<void>> decideShiftSwap({
     required String swapId,
     required bool approve,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> acceptShiftBid({
+    required String shiftId,
+    required String bidId,
   }) async =>
       Result.success(null);
 }
@@ -165,10 +235,16 @@ Future<void> _pumpWizard(WidgetTester tester, {String? residenceId}) async {
 
 Finder _label(String text) => find.textContaining(text, findRichText: true);
 
-Finder _tab(String label) => find.descendant(
-      of: find.byType(CreateShiftStepTabs),
-      matching: find.text(label),
-    );
+Finder _tab(String label) {
+  final resolved = switch (label) {
+    'Staff Assignment' || 'Open Shift' => 'Staffing',
+    _ => label,
+  };
+  return find.descendant(
+    of: find.byType(CreateShiftStepTabs),
+    matching: find.text(resolved),
+  );
+}
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
@@ -221,6 +297,7 @@ void main() {
       'Start Time',
       'End Time',
       'Break Duration',
+      'One-to-one with',
       'Title',
       'Shift Notes',
     ]) {
@@ -247,7 +324,7 @@ void main() {
       (tester) async {
     await _pumpWizard(tester);
 
-    expect(find.text('STEP 0 OF 5'), findsOneWidget);
+    expect(find.text('STEP 0 OF 4'), findsOneWidget);
     expect(find.text('0% complete'), findsOneWidget);
 
     await _tap(tester, _tab('Recurring'));
@@ -256,8 +333,8 @@ void main() {
 
     await _tap(tester, _tab('Shift Information'));
     await _pickResidence(tester, 'Elm House');
-    expect(find.text('STEP 1 OF 5'), findsOneWidget);
-    expect(find.text('20% complete'), findsOneWidget);
+    expect(find.text('STEP 1 OF 4'), findsOneWidget);
+    expect(find.text('25% complete'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('create-shift-step-done-shiftInformation')),
       findsOneWidget,
@@ -265,8 +342,8 @@ void main() {
 
     await _tap(tester, _tab('Staff Assignment'));
     await _addStaff(tester, 'Shakib Hasan');
-    expect(find.text('STEP 2 OF 5'), findsOneWidget);
-    expect(find.text('40% complete'), findsOneWidget);
+    expect(find.text('STEP 2 OF 4'), findsOneWidget);
+    expect(find.text('50% complete'), findsOneWidget);
   });
 
   testWidgets('BUG06: Next validates step 1 and Back returns', (tester) async {
@@ -295,7 +372,7 @@ void main() {
     expect(find.text('Assigned Staff (0)'), findsOneWidget);
     expect(
       find.text(
-        'No staff assigned yet. Select above to add someone, or leave this shift open in the next step.',
+        'No staff assigned yet. Select above to add someone, or choose Publish as Open Shift above to let staff bid.',
       ),
       findsOneWidget,
     );
@@ -316,24 +393,21 @@ void main() {
 
     expect(find.text('Assigned Staff (1)'), findsOneWidget);
     expect(find.text('Care Worker · Elm House'), findsOneWidget);
+    // Web does not auto-expand Task Assignment after picking staff.
+    expect(find.text('Task Assignment'), findsNothing);
+
+    await _tap(
+      tester,
+      find.byKey(const ValueKey('assigned-staff-toggle-staff-shakib')),
+    );
     expect(find.text('Task Assignment'), findsOneWidget);
     expect(_label('Task Title'), findsOneWidget);
     expect(_label('Task Description'), findsOneWidget);
-    expect(_label('Task Checklist'), findsOneWidget);
+    expect(_label('Note'), findsOneWidget);
+    expect(find.text('Task Checklist'), findsNothing);
+    expect(find.text('Add checklist item'), findsNothing);
     expect(find.text('Leave empty to assign the shift without a task.'),
         findsOneWidget);
-
-    await tester.enterText(
-      find.byKey(const ValueKey('checklist-input-staff-shakib')),
-      'Give 8am meds',
-    );
-    await _tap(tester, find.byKey(const ValueKey('checklist-add-staff-shakib')));
-    expect(find.text('Give 8am meds'), findsOneWidget);
-    expect(find.text('1 step'), findsOneWidget);
-
-    await _tap(tester, find.byTooltip('Remove checklist item'));
-    expect(find.text('Give 8am meds'), findsNothing);
-    expect(find.text('1 step'), findsNothing);
 
     await _tap(
       tester,
@@ -356,7 +430,7 @@ void main() {
 
     await _tap(tester, _tab('Open Shift'));
     expect(_label('People needed'), findsNothing);
-    await _tap(tester, find.byKey(const ValueKey('create-shift-open-toggle')));
+    await _tap(tester, find.byKey(const ValueKey('create-shift-method-open')));
     for (final field in const [
       'People needed',
       'Bidding Deadline',
@@ -461,12 +535,17 @@ void main() {
     );
     await _tap(tester, _tab('Staff Assignment'));
     await _addStaff(tester, 'Shakib Hasan');
+    // Task fields are collapsed until the staff card is expanded (web parity).
+    await _tap(
+      tester,
+      find.byKey(const ValueKey('assigned-staff-toggle-staff-shakib')),
+    );
     await tester.enterText(
       find.byKey(const ValueKey('task-title-staff-shakib')),
       'Morning medication round',
     );
     await _tap(tester, _tab('Open Shift'));
-    await _tap(tester, find.byKey(const ValueKey('create-shift-open-toggle')));
+    await _tap(tester, find.byKey(const ValueKey('create-shift-method-open')));
     await tester.enterText(
       find.byKey(const ValueKey('create-shift-people-needed')),
       '2',
@@ -489,11 +568,14 @@ void main() {
     final body = _repo.created.single;
     expect(body, {
       'residenceId': 'elm',
+      'oneToOneClientId': null,
       'startsAt': DateTime(2026, 10, 5, 7).toUtc().toIso8601String(),
       'endsAt': DateTime(2026, 10, 5, 15).toUtc().toIso8601String(),
-      'staffIds': ['staff-shakib'],
+      // Web keeps pre-assigned staff on open shifts.
+      'staffIds': <String>['staff-shakib'],
       'shiftType': 'morning',
       'breakMinutes': 30,
+      'open': true,
       'requiredStaffCount': 2,
       'reminderMinutesBefore': 60,
       'notifyAssignedStaff': true,
@@ -624,17 +706,21 @@ void main() {
 
     test('step completion only counts steps with required fields', () {
       final d = CreateShiftDraft(shiftDate: DateTime(2026, 10, 5));
-      expect(d.completionPercent, 0);
-      d.residenceId = 'elm';
+      // Open Shift is merged into Staff Assignment — always counted complete.
+      expect(d.completedSteps, 1);
       expect(d.completionPercent, 20);
+      d.residenceId = 'elm';
+      // residence + preset type/times/date completes Shift Information.
+      expect(d.completedSteps, 2);
+      expect(d.completionPercent, 40);
       d.assignedStaff.add(
         AssignedShiftStaff(staffId: 's1', staffName: 'Shakib Hasan'),
       );
       d
         ..isOpenShift = true
         ..isRecurring = true;
-      expect(d.completedSteps, 2);
-      expect(d.completionPercent, 40);
+      expect(d.completedSteps, 3);
+      expect(d.completionPercent, 60);
     });
   });
 }

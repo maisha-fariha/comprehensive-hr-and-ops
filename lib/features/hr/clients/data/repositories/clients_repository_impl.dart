@@ -373,6 +373,61 @@ class ClientsRepositoryImpl implements ClientsRepository {
     return _buildRosterCsvFromApi();
   }
 
+  @override
+  Future<Result<List<int>>> exportProgressReportPdf({
+    required String clientId,
+    required String from,
+    required String to,
+  }) async {
+    try {
+      final headers = <String, dynamic>{
+        'Accept': 'application/pdf, application/octet-stream, */*',
+      };
+      final token = _tokens?.accessToken;
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      final subdomain = _tenant?.subdomain;
+      if (subdomain != null && subdomain.isNotEmpty) {
+        headers['X-Tenant-Subdomain'] = subdomain;
+      }
+      final base = AppEnv.apiBaseUrl.replaceAll(RegExp(r'/+$'), '');
+      final query = {
+        'clientId': clientId,
+        'from': from,
+        'to': to,
+        'format': 'pdf',
+      };
+      final response = await Dio().get<List<int>>(
+        '$base${ClientsEndpoints.clientProgressReport}',
+        queryParameters: query,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers,
+          validateStatus: (code) => code != null && code < 500,
+        ),
+      );
+      final code = response.statusCode ?? 0;
+      final bytes = response.data ?? const <int>[];
+      if (code < 200 || code >= 300 || bytes.isEmpty) {
+        return Result.failure(
+          const ApiError(message: 'Could not download the progress report.'),
+        );
+      }
+      // Reject JSON error bodies that arrived with a 200 + wrong content-type.
+      if (bytes.length >= 2 && bytes[0] == 0x7B /* { */) {
+        return Result.failure(
+          const ApiError(message: 'Could not download the progress report.'),
+        );
+      }
+      return Result.success(bytes);
+    } catch (_) {
+      return Result.failure(
+        const ApiError(message: 'Could not download the progress report.'),
+      );
+    }
+  }
+
   static const stillRunningMessage =
       'Export is still running — it will appear on the Reports page when it finishes.';
 

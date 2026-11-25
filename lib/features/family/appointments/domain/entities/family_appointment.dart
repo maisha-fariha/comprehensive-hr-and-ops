@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'family_appointments_enums.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 /// A single row shown on the Family Visits & Appointments list. The
 /// presentation layer splits this flat list into "Upcoming Visits" /
@@ -104,7 +105,7 @@ class FamilyAppointment {
   }
 
   static String _shortDecisionTime(DateTime value) {
-    final d = value.toLocal();
+    final d = TenantClock.wallOf(value);
     final day = d.day.toString().padLeft(2, '0');
     final month = d.month.toString().padLeft(2, '0');
     final hour = d.hour.toString().padLeft(2, '0');

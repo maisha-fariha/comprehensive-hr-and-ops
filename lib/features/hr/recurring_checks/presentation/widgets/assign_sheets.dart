@@ -127,8 +127,8 @@ class _AssignInstanceSheetState extends State<_AssignInstanceSheet> {
                         ),
                         Text(
                           person.shiftTitle ??
-                              '${WebFormat.time(person.shiftStartsAt?.toLocal())}'
-                                  '–${WebFormat.time(person.shiftEndsAt?.toLocal())}',
+                              '${WebFormat.time(person.shiftStartsAt)}'
+                                  '–${WebFormat.time(person.shiftEndsAt)}',
                           style: handoverText(context, 11, color: AppColors.textMuted),
                         ),
                       ],

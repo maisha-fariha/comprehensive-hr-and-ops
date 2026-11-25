@@ -12,6 +12,7 @@ import '../controllers/stock_transfers_controller.dart';
 import '../inventory_labels.dart';
 import '../widgets/inventory_common.dart';
 import '../widgets/stock_transfer_sheets.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Web "Stock transfers".
 class StockTransfersView extends StatefulWidget {
@@ -47,7 +48,7 @@ class _StockTransfersViewState extends State<StockTransfersView> {
   @override
   Widget build(BuildContext context) {
     final pad = ResponsiveHelper.getResponsiveWidth(context, 16);
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: AppColors.secondaryTeal,
       onRefresh: _c.load,
       child: Obx(
@@ -55,18 +56,6 @@ class _StockTransfersViewState extends State<StockTransfersView> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
           children: [
-            if (_c.canRequest)
-              InventoryToolbar(
-                children: [
-                  HandoverButton(
-                    key: const ValueKey('transfer-new'),
-                    label: 'Move stock',
-                    icon: Icons.add_rounded,
-                    filled: true,
-                    onPressed: () => showTransferRequestSheet(context, controller: _c),
-                  ),
-                ],
-              ),
             ..._list(context),
           ],
         ),

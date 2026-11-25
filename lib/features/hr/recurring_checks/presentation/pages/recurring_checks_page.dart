@@ -16,7 +16,9 @@ import '../widgets/check_common.dart';
 import '../widgets/record_check_sheet.dart';
 import '../widgets/schedule_form_sheet.dart';
 import '../widgets/skip_check_sheet.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Recurring Checks" — mirrors web `/dashboard/recurring-checks`.
 class RecurringChecksPage extends StatefulWidget {
@@ -108,13 +110,28 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
                         style: handoverText(context, 18, weight: FontWeight.w700),
                       ),
                     ),
+                    if (_c.canRecordProgress) ...[
+                      HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('checks-record-progress'),
+                        label: 'Progress',
+                        icon: Icons.assignment_turned_in_outlined,
+                        onTap: () => showRecordCheckSheet(context, controller: _c),
+                      ),
+                      SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                    ],
+                    if (_c.canWrite)
+                      HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('checks-new-schedule'),
+                        label: 'Schedule',
+                        onTap: () => showScheduleFormSheet(context, controller: _c),
+                      ),
                   ],
                 ),
               ),
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshCurrent,
               child: Obx(
@@ -122,8 +139,6 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(pad, 14, pad, 24),
                   children: [
-                    _actions(context),
-                    const SizedBox(height: 15),
                     _tabs(context),
                     const SizedBox(height: 15),
                     if (_c.tab.value == RecurringChecksTab.schedules)
@@ -143,32 +158,6 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _actions(BuildContext context) {
-    if (!_c.canRecordProgress && !_c.canWrite) return const SizedBox.shrink();
-    return Wrap(
-      alignment: WrapAlignment.end,
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        if (_c.canRecordProgress)
-          HandoverButton(
-            key: const ValueKey('checks-record-progress'),
-            label: 'Record Progress',
-            icon: Icons.assignment_turned_in_outlined,
-            onPressed: () => showRecordCheckSheet(context, controller: _c),
-          ),
-        if (_c.canWrite)
-          HandoverButton(
-            key: const ValueKey('checks-new-schedule'),
-            label: 'New Schedule',
-            icon: Icons.add_rounded,
-            filled: true,
-            onPressed: () => showScheduleFormSheet(context, controller: _c),
-          ),
-      ],
     );
   }
 
@@ -217,6 +206,10 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
       ('', 'All my residences'),
       for (final r in _c.residences) (r.id, r.label),
     ];
+    final residentOptions = [
+      ('', 'All residents'),
+      for (final c in _c.filterClients) (c.id, c.label),
+    ];
     final statusOptions = [('', 'Any status'), ...CheckLabels.statuses];
     String? labelOf(List<(String, String)> options, String? id) =>
         id == null ? null : options.where((o) => o.$1 == id).firstOrNull?.$2;
@@ -234,6 +227,24 @@ class _RecurringChecksPageState extends State<RecurringChecksPage> {
                   title: 'Residence', options: residenceOptions,
                   selected: _c.residenceId.value ?? '');
               if (picked != null) _c.setResidence(picked.isEmpty ? null : picked);
+            },
+          ),
+          const SizedBox(height: 12),
+          HandoverSelect(
+            key: const ValueKey('checks-resident-filter'),
+            label: 'Resident',
+            value: labelOf(residentOptions, _c.clientId.value),
+            placeholder: 'All residents',
+            onTap: () async {
+              final picked = await pickHandoverOption(
+                context,
+                title: 'Resident',
+                options: residentOptions,
+                selected: _c.clientId.value ?? '',
+              );
+              if (picked != null) {
+                _c.setClient(picked.isEmpty ? null : picked);
+              }
             },
           ),
           const SizedBox(height: 12),

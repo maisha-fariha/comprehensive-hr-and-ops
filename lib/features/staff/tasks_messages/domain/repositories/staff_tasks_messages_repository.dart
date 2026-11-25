@@ -16,10 +16,10 @@ abstract class StaffTasksMessagesRepository {
   /// Loads tasks, stats, conversations, and today's recurring checks.
   Future<Result<TasksMessagesOverview>> getOverview();
 
-  /// `GET /tasks?page=1&limit=50&residenceId=` (staff "My tasks" / same as Postman B5).
+  /// `GET /tasks?assignee=me` — staff "My tasks" (not HR unscoped Task Management).
   Future<Result<List<StaffTask>>> getMyTasks();
 
-  /// `GET /tasks/stats`
+  /// `GET /tasks/stats?assignee=me`
   Future<Result<TaskStats>> getTaskStats();
 
   /// `GET /tasks/{id}` + `GET /tasks/{id}/notes`
@@ -27,7 +27,19 @@ abstract class StaffTasksMessagesRepository {
 
   /// `PATCH /tasks/{id}` with `{ "status": "completed" }`, plus
   /// `"signOff": true` when the task requires sign-off.
-  Future<Result<void>> completeTask(String taskId, {bool signOff = false});
+  ///
+  /// [checklist] is the same list the web sends with Submit for review.
+  Future<Result<void>> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+  });
+
+  /// `PATCH /tasks/{id}` with `{ "checklist": [...] }`. Web “Save progress”.
+  Future<Result<void>> saveTaskProgress({
+    required String taskId,
+    required List<Map<String, dynamic>> checklist,
+  });
 
   /// API-backed options for the staff task creation form.
   Future<Result<TaskCreationOptions>> getTaskCreationOptions();
@@ -126,6 +138,7 @@ abstract class StaffTasksMessagesRepository {
     String checkName = 'Welfare observation',
     String outcome = 'normal',
     String? scheduleId,
+    Map<String, Object>? result,
   });
 
   /// `GET /recurring-checks/entries`

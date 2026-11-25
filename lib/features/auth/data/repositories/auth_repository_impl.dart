@@ -20,6 +20,14 @@ class AuthRepositoryImpl implements AuthRepository {
   final TenantStore _tenant;
   final ResponseCache? _cache;
 
+  /// One refresh at a time. Waiters share the call that stores the rotated
+  /// refresh token before it completes.
+  Future<Result<void>>? _refreshInFlight;
+
+  /// Do not call refresh again before this instant (429 / 5xx backoff).
+  DateTime? _refreshNotBefore;
+  int _refreshBackoffSeconds = 2;
+
   AuthRepositoryImpl({
     required AppApiClient api,
     required TokenStore tokens,
@@ -119,8 +127,18 @@ class AuthRepositoryImpl implements AuthRepository {
             ),
           );
         }
+        // `/mobile/me` omits the profile photo. Always enrich from `/auth/me`
+        // when avatarUrl is missing — including silent restore/refresh — so
+        // the photo survives app relaunch (upload alone only updates memory).
         if (profile.avatarUrl == null) {
           body = await _withAuthMeAvatar(body);
+          profile = AuthMapper.profileFromJson(body) ?? profile;
+        }
+        // `/mobile/me` only returns a flat `name` (no middleName). Staff
+        // records hold first/middle/last — merge so My Profile shows all parts.
+        final staffId = profile.staffId?.trim();
+        if (staffId != null && staffId.isNotEmpty) {
+          body = await _withStaffNameParts(body, staffId);
           profile = AuthMapper.profileFromJson(body) ?? profile;
         }
         await _tokens.saveLastMe(body);
@@ -142,6 +160,41 @@ class AuthRepositoryImpl implements AuthRepository {
         : null;
     if (avatarUrl == null) return mobileMeBody;
     return {...JsonCodec.unwrapMap(mobileMeBody), 'avatarUrl': avatarUrl};
+  }
+
+  /// Merge `GET /staff/:id` name parts into the `/mobile/me` payload.
+  Future<dynamic> _withStaffNameParts(
+    dynamic mobileMeBody,
+    String staffId,
+  ) async {
+    final result = await _api.get(
+      ApiEndpoints.staffById(staffId),
+      silent: true,
+    );
+    if (!result.isSuccess) return mobileMeBody;
+    final staff = JsonCodec.unwrapMap(result.value);
+    final first = JsonCodec.string(staff['firstName']);
+    final middle = JsonCodec.string(staff['middleName']);
+    final last = JsonCodec.string(staff['lastName']);
+    if (first == null && middle == null && last == null) {
+      return mobileMeBody;
+    }
+    final map = JsonCodec.unwrapMap(mobileMeBody);
+    final nested = JsonCodec.mapAt(map, 'staff') ?? <String, dynamic>{};
+    return {
+      ...map,
+      if (first != null) 'firstName': first,
+      if (middle != null) 'middleName': middle,
+      if (last != null) 'lastName': last,
+      'staff': {
+        ...nested,
+        if (first != null) 'firstName': first,
+        if (middle != null) 'middleName': middle,
+        if (last != null) 'lastName': last,
+        if (JsonCodec.string(staff['photoUrl']) != null)
+          'photoUrl': staff['photoUrl'],
+      },
+    };
   }
 
   @override
@@ -197,11 +250,53 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Result<void>> refreshTokens({bool silent = false}) async {
+  Future<Result<void>> refreshTokens({
+    bool silent = false,
+    bool force = false,
+  }) {
+    // A still-valid token must not join (or block) a real exchange.
+    if (!force && !_tokens.accessExpiresSoon) {
+      return Future.value(Result.success(null));
+    }
+    final existing = _refreshInFlight;
+    if (existing != null) return existing;
+    final run = _refreshTokens(silent: silent, force: force);
+    _refreshInFlight = run;
+    return run.whenComplete(() {
+      if (identical(_refreshInFlight, run)) _refreshInFlight = null;
+    });
+  }
+
+  Future<Result<void>> _refreshTokens({
+    required bool silent,
+    required bool force,
+  }) async {
+    // Access token still has more than the proactive window left — do not exchange.
+    if (!force && !_tokens.accessExpiresSoon) {
+      return Result.success(null);
+    }
+    final heldUntil = _refreshNotBefore;
+    if (heldUntil != null && DateTime.now().isBefore(heldUntil)) {
+      // Still have a usable access token — keep working quietly.
+      if (!_tokens.accessExpiresSoon) {
+        return Result.success(null);
+      }
+      // Access is dead and we must wait — never show "Too many token
+      // refreshes" on Home; send the user to sign in instead.
+      return Result.failure(
+        const AuthError(
+          message: 'Your session has expired. Sign in again.',
+          code: 'refresh_rejected',
+        ),
+      );
+    }
     final refreshToken = _tokens.refreshToken;
     if (refreshToken == null || refreshToken.isEmpty) {
       return Result.failure(
-        const AuthError(message: 'No refresh token available.'),
+        const AuthError(
+          message: 'No refresh token available.',
+          code: 'refresh_rejected',
+        ),
       );
     }
     // Do not attempt another refresh if this call itself returns 401.
@@ -213,9 +308,51 @@ class AuthRepositoryImpl implements AuthRepository {
       allowQueue: false,
     );
     return result.when(
-      success: (body) => _saveTokens(body),
-      failure: (error) async => Result.failure(error),
+      success: (body) async {
+        _refreshBackoffSeconds = 2;
+        _refreshNotBefore = null;
+        // Persist the rotated refresh token before waiters resume.
+        return _saveTokens(body);
+      },
+      failure: (error) async {
+        final status = error is ApiError ? error.statusCode : null;
+        if (status == 401) {
+          return Result.failure(
+            AuthError(
+              message: error.message,
+              code: 'refresh_rejected',
+            ),
+          );
+        }
+        if (status == 429) {
+          final wait = _retryAfterSeconds(error) ?? 60;
+          _refreshNotBefore = DateTime.now().add(Duration(seconds: wait));
+          return Result.failure(error);
+        }
+        if (status == null || status == 0 || status >= 500) {
+          final wait = _refreshBackoffSeconds;
+          _refreshBackoffSeconds = (wait * 2).clamp(2, 8);
+          _refreshNotBefore = DateTime.now().add(Duration(seconds: wait));
+        }
+        return Result.failure(error);
+      },
     );
+  }
+
+  int? _retryAfterSeconds(AppError error) {
+    if (error is! ApiError) return null;
+    final data = error.responseData;
+    if (data == null) return null;
+    final details = data['details'];
+    if (details is Map) {
+      final nested = JsonCodec.integer(
+        details['retryAfterSec'] ?? details['retryAfter'],
+      );
+      if (nested != null && nested > 0) return nested;
+    }
+    final top = JsonCodec.integer(data['retryAfterSec'] ?? data['retryAfter']);
+    if (top != null && top > 0) return top;
+    return null;
   }
 
   @override
@@ -238,12 +375,20 @@ class AuthRepositoryImpl implements AuthRepository {
     required String token,
     required String platform,
     String? appVersion,
-  }) {
-    return _voidPost(ApiEndpoints.devices, {
-      'token': token,
-      'platform': platform,
-      if (appVersion != null && appVersion.isNotEmpty) 'appVersion': appVersion,
-    });
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.devices,
+      data: {
+        'token': token,
+        'platform': platform,
+        if (appVersion != null && appVersion.isNotEmpty) 'appVersion': appVersion,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
   }
 
   @override
@@ -286,7 +431,9 @@ class AuthRepositoryImpl implements AuthRepository {
     await _tokens.save(
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
+      accessExpiresAt: tokens.accessExpiresAt,
     );
+    _api.noteSessionOpened();
     return Result.success(null);
   }
 

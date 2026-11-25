@@ -70,6 +70,17 @@ abstract class ResidenceAdminRepository {
   /// `PATCH /residences/{id}/rooms/{roomId}` with `{ isActive: true }`.
   Future<Result<void>> reactivateRoom(String residenceId, String roomId);
 
+  /// `PATCH /residences/{id}/rooms/{roomId}` with the room fields the web edit form sends.
+  Future<Result<void>> updateRoom(
+    String residenceId,
+    String roomId, {
+    required String name,
+    required int capacity,
+    String? floor,
+    String? wing,
+    String? roomType,
+  });
+
   /// `DELETE /residences/{id}/rooms/{roomId}` (takes the room out of use).
   Future<Result<void>> archiveRoom(String residenceId, String roomId);
 

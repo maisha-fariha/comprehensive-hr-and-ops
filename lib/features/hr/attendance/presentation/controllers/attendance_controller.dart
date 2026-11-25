@@ -3,10 +3,12 @@ import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/attendance_week.dart';
 import '../../domain/entities/manual_entry_options.dart';
+import '../../domain/entities/time_off_request.dart';
 import '../../domain/repositories/attendance_repository.dart';
 
 /// Web `/dashboard/attendance`: week, residence and status filters, KPI
@@ -40,11 +42,21 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
       <ManualEntryResidenceOption>[].obs;
   final Rxn<OpenAttendance> myOpenAttendance = Rxn<OpenAttendance>();
   final RxnString busyId = RxnString();
+  final RxBool breakBusy = false.obs;
+
+  /// Web Attendance | Time-Off Requests segment.
+  final Rx<AttendanceMainTab> mainTab = AttendanceMainTab.records.obs;
+  final Rx<TimeOffStatusTab> timeOffTab = TimeOffStatusTab.pending.obs;
+  final RxList<TimeOffRequest> timeOffRequests = <TimeOffRequest>[].obs;
+  final RxBool timeOffLoading = false.obs;
+  final RxnString timeOffError = RxnString();
 
   int _requestSerial = 0;
 
   bool get canManage => _session.can('attendance:manage');
   bool get canWrite => _session.can('attendance:write');
+
+  AttendanceRepository get repository => _repository;
 
   bool get appliesWeek =>
       status.value != AttendanceStatusFilter.pendingApproval ||
@@ -59,11 +71,142 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
 
   @override
   Future<void> refresh() async {
+    // Profile refresh is owned by AppRefreshIndicator — avoid double /mobile/me.
+    await _loadResidences();
+    if (mainTab.value == AttendanceMainTab.timeOff) {
+      await loadTimeOffRequests();
+      return;
+    }
     await Future.wait([
       loadRecords(),
       loadSummary(),
       if (canWrite) loadMyOpenAttendance(),
     ]);
+  }
+
+  void setMainTab(AttendanceMainTab tab) {
+    if (mainTab.value == tab) return;
+    mainTab.value = tab;
+    if (tab == AttendanceMainTab.timeOff) {
+      loadTimeOffRequests();
+    } else {
+      refresh();
+    }
+  }
+
+  void setTimeOffTab(TimeOffStatusTab tab) {
+    if (timeOffTab.value == tab) return;
+    timeOffTab.value = tab;
+    loadTimeOffRequests();
+  }
+
+  Future<void> loadTimeOffRequests() async {
+    timeOffLoading.value = true;
+    timeOffError.value = null;
+    final status = switch (timeOffTab.value) {
+      TimeOffStatusTab.pending => 'pending',
+      TimeOffStatusTab.approved => 'approved',
+      TimeOffStatusTab.rejected => 'rejected',
+      TimeOffStatusTab.all => null,
+    };
+    // Web lists every request for the status tab. A week filter hid pending
+    // leave from earlier weeks, so Approve and Reject never appeared.
+    final result = await _repository.getTimeOffRequests(
+      status: status,
+      residenceId: residenceId.value,
+      mine: !canManage,
+    );
+    result.when(
+      success: (rows) {
+        timeOffRequests.assignAll(rows);
+        timeOffError.value = null;
+      },
+      failure: (error) {
+        timeOffError.value = error.message;
+        timeOffRequests.clear();
+      },
+    );
+    timeOffLoading.value = false;
+  }
+
+  Future<bool> submitTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? staffId,
+    String? reason,
+  }) async {
+    final result = await _repository.createTimeOffRequest(
+      type: type,
+      startDate: startDate,
+      endDate: endDate,
+      staffId: staffId,
+      reason: reason,
+    );
+    var ok = false;
+    result.when(
+      success: (_) {
+        ok = true;
+        AppSnackbar.show('Time off', 'Request submitted.');
+      },
+      failure: (error) => AppSnackbar.show('Time off', error.message),
+    );
+    if (ok) await loadTimeOffRequests();
+    return ok;
+  }
+
+  /// True when this pending row is the signed-in staff member's own request
+  /// (web shows Withdraw instead of Approve / Reject).
+  bool isOwnTimeOff(TimeOffRequest request) {
+    final mine = _session.staffId?.trim();
+    if (mine == null || mine.isEmpty) return false;
+    return request.staffId == mine;
+  }
+
+  /// Web `PATCH …/review` — toast success or the API validation message
+  /// (e.g. when leave overlaps an existing shift assignment).
+  Future<bool> reviewTimeOffRequest({
+    required TimeOffRequest request,
+    required TimeOffStatus status,
+  }) async {
+    if (!canManage || isOwnTimeOff(request)) return false;
+    final result = await _repository.reviewTimeOffRequest(
+      id: request.id,
+      status: status,
+    );
+    var ok = false;
+    result.when(
+      success: (_) {
+        ok = true;
+        AppSnackbar.show(
+          'Time off',
+          status == TimeOffStatus.approved
+              ? 'Time off approved'
+              : 'Time off rejected',
+        );
+      },
+      failure: (error) => AppSnackbar.show('Time off', error.message),
+    );
+    if (ok) await loadTimeOffRequests();
+    return ok;
+  }
+
+  /// Web `POST …/cancel` ("Withdraw") for the signed-in staff member's own pending leave.
+  Future<bool> cancelTimeOffRequest(TimeOffRequest request) async {
+    if (!isOwnTimeOff(request) || request.status != TimeOffStatus.pending) {
+      return false;
+    }
+    final result = await _repository.cancelTimeOffRequest(request.id);
+    var ok = false;
+    result.when(
+      success: (_) {
+        ok = true;
+        AppSnackbar.show('Time off', 'Request withdrawn.');
+      },
+      failure: (error) => AppSnackbar.show('Time off', error.message),
+    );
+    if (ok) await loadTimeOffRequests();
+    return ok;
   }
 
   Future<void> loadRecords() async {
@@ -81,7 +224,16 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
     if (serial != _requestSerial) return;
     result.when(
       success: setSuccess,
-      failure: (error) => setError(error.message),
+      failure: (error) {
+        final msg = error.message.toLowerCase();
+        if (error is PermissionError ||
+            msg.contains('missing permission') ||
+            msg.contains('access denied') ||
+            msg.contains('not allowed')) {
+          _session.noteForbiddenPath('/attendance');
+        }
+        setError(error.message);
+      },
     );
     setLoading(false);
   }
@@ -107,11 +259,56 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
     );
   }
 
+  /// Web header Start break / End break for the signed-in user's open punch.
+  Future<void> toggleBreak() async {
+    final open = myOpenAttendance.value;
+    if (!canWrite || open == null || breakBusy.value) return;
+    breakBusy.value = true;
+    try {
+      final result = open.isOnBreak
+          ? await _repository.endBreak(residenceId: open.residenceId)
+          : await _repository.startBreak(residenceId: open.residenceId);
+      var ok = false;
+      result.when(
+        success: (_) {
+          ok = true;
+          AppSnackbar.show(
+            'Attendance',
+            open.isOnBreak ? 'Break ended.' : 'Break started.',
+          );
+        },
+        failure: (error) => AppSnackbar.show('Attendance', error.message),
+      );
+      if (ok) {
+        await Future.wait([
+          loadMyOpenAttendance(),
+          loadRecords(),
+          loadSummary(),
+        ]);
+      }
+    } finally {
+      breakBusy.value = false;
+    }
+  }
+
   Future<void> _loadResidences() async {
     final result = await _repository.getResidences();
+    final loaded = <ManualEntryResidenceOption>[];
     result.when(
-      success: residences.assignAll,
+      success: loaded.addAll,
       failure: (_) {},
+    );
+    // Without residences:read the list is empty — still offer the session
+    // home so filters / clock-in match the web.
+    residences.assignAll(
+      mergeResidencePickerOptions<ManualEntryResidenceOption>(
+        loaded: loaded,
+        idOf: (r) => r.id,
+        nameOf: (r) => r.name,
+        create: (id, name) => ManualEntryResidenceOption(id: id, name: name),
+        sessionId: _session.residenceId,
+        sessionName: _session.residenceName,
+      ),
     );
   }
 
@@ -168,6 +365,10 @@ class AttendanceController extends BaseController<AttendanceRecordPage> {
 
   void _reload() {
     page.value = 1;
+    if (mainTab.value == AttendanceMainTab.timeOff) {
+      loadTimeOffRequests();
+      return;
+    }
     loadRecords();
     loadSummary();
   }

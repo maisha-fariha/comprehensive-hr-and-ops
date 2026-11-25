@@ -11,3 +11,15 @@ class ShiftResidenceOption {
     required this.name,
   });
 }
+
+/// A resident from `GET /clients?residenceId=` for the one-to-one field.
+@immutable
+class ShiftClientOption {
+  final String id;
+  final String name;
+
+  const ShiftClientOption({
+    required this.id,
+    required this.name,
+  });
+}

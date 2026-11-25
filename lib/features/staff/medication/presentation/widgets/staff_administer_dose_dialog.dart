@@ -192,9 +192,7 @@ class _StaffAdministerDoseDialogState extends State<StaffAdministerDoseDialog> {
       }
       return null;
     }
-    if (_step == 1 && _isAdministered && !_safetyOk) {
-      return 'Confirm pre-administration and all five rights checks.';
-    }
+    // Safety / five-rights toggles are optional — do not block Next/submit.
     return null;
   }
 

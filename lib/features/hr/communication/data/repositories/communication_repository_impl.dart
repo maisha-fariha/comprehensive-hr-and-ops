@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
@@ -21,12 +22,22 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
         _session = session;
 
   @override
-  Future<Result<List<HrConversation>>> getConversations() async {
-    final result = await _api.get(ApiEndpoints.conversations);
+  Future<Result<List<HrConversation>>> getConversations({
+    bool monitor = false,
+    bool archived = false,
+  }) async {
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.conversations,
+      query: {
+        if (monitor) 'monitor': true,
+        if (archived) 'archived': true,
+      },
+    );
     return result.when(
-      success: (body) async => Result.success(
+      success: (rows) async => Result.success(
         CommunicationMapper.conversationsFrom(
-          body,
+          {'data': rows},
           currentUserId: _session.userId,
         ),
       ),
@@ -35,9 +46,15 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
   }
 
   @override
-  Future<Result<List<HrMessageContact>>> getContacts() async {
+  Future<Result<List<HrMessageContact>>> getContacts({
+    String? clientId,
+  }) async {
+    final id = clientId?.trim();
     final result = await _api.get(
       ApiEndpoints.conversationContacts,
+      query: {
+        if (id != null && id.isNotEmpty) 'clientId': id,
+      },
       silent: true,
     );
     return result.when(
@@ -364,5 +381,117 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
       ),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  @override
+  Future<Result<AnnouncementFeed>> getAnnouncements({
+    String view = 'feed',
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.announcements,
+      query: {'view': view},
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final map = JsonCodec.unwrapMap(body);
+        final rows = JsonCodec.unwrapList(map.isEmpty ? body : map['items'] ?? body);
+        return Result.success(
+          AnnouncementFeed(
+            items: rows.whereType<Map>().map(_announcement).toList(),
+            unreadCount: JsonCodec.integerOr(map['unreadCount'], 0),
+          ),
+        );
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> markAnnouncementRead(String id) async {
+    final result = await _api.post(
+      ApiEndpoints.announcementRead(id),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<CommunicationLogEntry>>> getCommunicationLogs() async {
+    final result = await _api.get(
+      ApiEndpoints.communicationLogs,
+      query: const {'page': 1, 'limit': 20},
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final rows = JsonCodec.unwrapList(body);
+        return Result.success(rows.whereType<Map>().map(_log).toList());
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  HrAnnouncement _announcement(Map raw) {
+    final json = JsonCodec.asMap(raw);
+    final author = JsonCodec.mapAt(json, 'author') ?? const {};
+    final audience = JsonCodec.mapAt(json, 'audience') ?? const {};
+    final type = JsonCodec.string(audience['type']);
+    String audienceLabel = 'All staff';
+    if (type == 'residences') {
+      final ids = JsonCodec.unwrapList(audience['residenceIds']);
+      if (ids.isNotEmpty) audienceLabel = ids.map((id) => '$id').join(', ');
+    } else if (type == 'roles') {
+      final roles = JsonCodec.unwrapList(audience['roles']);
+      audienceLabel = roles
+          .map((role) => '$role'.replaceAll('_', ' '))
+          .where((role) => role.isNotEmpty)
+          .join(', ');
+      if (audienceLabel.isEmpty) audienceLabel = 'All staff';
+    }
+    final created = JsonCodec.dateTime(json['createdAt']);
+    final createdLabel = created == null
+        ? ''
+        : _stamp(created.toLocal());
+    return HrAnnouncement(
+      id: JsonCodec.stringOr(json['id'], ''),
+      title: JsonCodec.stringOr(json['title'], 'Announcement'),
+      body: JsonCodec.stringOr(json['body'], ''),
+      authorName: JsonCodec.stringOr(author['name'], 'Management'),
+      audienceLabel: audienceLabel,
+      createdLabel: createdLabel,
+      important: JsonCodec.string(json['priority']) == 'important',
+      read: json['read'] == true,
+    );
+  }
+
+  CommunicationLogEntry _log(Map raw) {
+    final json = JsonCodec.asMap(raw);
+    final type = JsonCodec.stringOr(json['type'], '');
+    final when = JsonCodec.dateTime(json['occurredAt']);
+    return CommunicationLogEntry(
+      id: JsonCodec.stringOr(json['id'], type),
+      whenLabel: when == null ? '—' : _stamp(when.toLocal()),
+      sender: JsonCodec.stringOr(json['sender'], 'System'),
+      recipient: JsonCodec.stringOr(json['recipient'], '—'),
+      typeLabel: switch (type) {
+        'handover' => 'Shift handover',
+        'daily_update' => 'Daily update',
+        '' => '—',
+        _ => type
+            .replaceAll('_', ' ')
+            .replaceFirstMapped(RegExp(r'^.'), (m) => m.group(0)!.toUpperCase()),
+      },
+      preview: JsonCodec.stringOr(json['contentPreview'], ''),
+      conversationId: JsonCodec.string(json['conversationId']),
+    );
+  }
+
+  String _stamp(DateTime value) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(value.day)}/${two(value.month)}/${value.year} ${two(value.hour)}:${two(value.minute)}';
   }
 }

@@ -130,6 +130,7 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
     String? to,
     String? residenceId,
     String? clientId,
+    String? investigatorId,
     int page = 1,
     int limit = 20,
   }) async =>
@@ -216,6 +217,12 @@ class _FakeIncidentsRepo implements StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   }) async =>
       Result.success(null);
 

@@ -8,6 +8,7 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../data/mappers/attendance_mapper.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
@@ -309,13 +310,13 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
   }
 
   String _formatDateTime(DateTime dt) {
-    final local = dt.toLocal();
+    final local = TenantClock.wallOf(dt);
     final mm = local.month.toString().padLeft(2, '0');
     final dd = local.day.toString().padLeft(2, '0');
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    final minute = local.minute.toString().padLeft(2, '0');
-    final period = local.hour >= 12 ? 'PM' : 'AM';
-    return '$mm/$dd/${local.year} $hour:$minute $period';
+    final time = TenantClock.formatTime(dt)
+        .replaceAll(' am', ' AM')
+        .replaceAll(' pm', ' PM');
+    return '$mm/$dd/${local.year} $time';
   }
 
   String _orDash(String value) => value.isEmpty ? '—' : value;
@@ -350,16 +351,17 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
     );
   }
 
+  void _onStaffSearchFocus() {
+    // Web shows the staff directory as soon as the field is focused.
+    if (_selectedStaff != null) return;
+    if (_staffResults.isNotEmpty || _isLoadingStaff) return;
+    _searchStaff(_staffSearchController.text.trim());
+  }
+
   void _onStaffSearchChanged(String query) {
     _staffSearchDebounce?.cancel();
     final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      setState(() {
-        _staffResults.clear();
-        _isLoadingStaff = false;
-      });
-      return;
-    }
+    // Empty query still loads the directory (same as New Task staff picker).
     _staffSearchDebounce = Timer(const Duration(milliseconds: 350), () {
       _searchStaff(trimmed);
     });
@@ -871,6 +873,7 @@ class _ManualAttendanceEntryPageState extends State<ManualAttendanceEntryPage> {
           onResidenceTap: _pickResidence,
           staffSearchController: _staffSearchController,
           onStaffSearchChanged: _onStaffSearchChanged,
+          onStaffSearchFocus: _onStaffSearchFocus,
           staffResults: List.unmodifiable(_staffResults),
           isLoadingStaff: _isLoadingStaff,
           selectedStaff: _selectedStaff,

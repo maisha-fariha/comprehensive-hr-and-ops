@@ -6,20 +6,28 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../communication/presentation/pages/communication_page.dart';
 import '../../../daily_logs/presentation/pages/daily_logs_page.dart';
+import '../../../documents/presentation/pages/hr_documents_page.dart';
 import '../../../emergency/domain/repositories/emergency_repository.dart';
 import '../../../emergency/presentation/widgets/raise_emergency_sheet.dart';
 import '../../../hr_shell.dart';
+import '../../../incidents/presentation/pages/hr_incident_details_page.dart';
+import '../../../incidents/presentation/pages/incidents_list_page.dart';
 import '../../../presentation/open_manager_portal_search.dart';
+import '../../../presentation/widgets/hr_company_brand.dart';
 import '../../../presentation/widgets/manager_page_search_sheet.dart';
+import '../../../attendance/domain/repositories/attendance_repository.dart';
+import '../../../attendance/presentation/pages/attendance_clock_page.dart';
 import '../../../profile_settings/presentation/pages/hr_profile_settings_page.dart';
 import '../../../profile_settings/presentation/widgets/hr_initials_avatar.dart';
 import '../../../scheduling/presentation/controllers/scheduling_controller.dart';
 import '../../../scheduling/presentation/pages/create_shift_page.dart';
+import '../../../../staff/dashboard/presentation/widgets/today_shift_card.dart';
 import '../../domain/entities/attention_alert.dart';
 import '../../domain/entities/dashboard_enums.dart';
 import '../../domain/entities/dashboard_overview.dart';
@@ -27,6 +35,7 @@ import '../../domain/entities/overview_stat.dart';
 import '../../domain/entities/quick_action.dart';
 import '../controllers/dashboard_controller.dart';
 import '../widgets/quick_action_button.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Manager/HR Dashboard - "Home" tab of the HR portal.
 ///
@@ -84,7 +93,7 @@ class ManagerDashboardPage extends StatelessWidget {
           AppDimens.searchBarOverlap,
         );
 
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           color: AppColors.secondaryTeal,
           onRefresh: controller.refresh,
           child: SingleChildScrollView(
@@ -135,15 +144,35 @@ class ManagerDashboardPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (overview.attentionAlerts.isNotEmpty) ...[
-                        _NeedsAttentionSection(alerts: overview.attentionAlerts),
+                      // Same personal shift card as Staff Home — managers who
+                      // clock in need to see On Shift / times here too.
+                      GestureDetector(
+                        onTap: () => _openTodayShiftClock(context, controller),
+                        child: TodayShiftCard(shift: overview.todayShift),
+                      ),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 16),
+                      ),
+                      if (_visibleNeedsAttention(overview.attentionAlerts)
+                          case final alerts when alerts.isNotEmpty) ...[
+                        _NeedsAttentionSection(alerts: alerts),
                         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                       ],
                       _TodaysOverviewSection(
                         stats: overview.overviewStats.take(4).toList(),
                         lastUpdatedLabel: overview.lastUpdatedLabel,
+                        onStatTap: (stat) {
+                          if (stat.id == 'open-incidents') {
+                            openPermittedPage(
+                              title: 'Incident Reports',
+                              anyOf: const ['incidents:read'],
+                              builder: () => const IncidentsListPage(),
+                            );
+                          }
+                        },
                       ),
-                      if (overview.quickActions.isNotEmpty) ...[
+                      if (_permittedQuickActions(overview.quickActions)
+                          case final actions when actions.isNotEmpty) ...[
                         SizedBox(
                           height: ResponsiveHelper.getResponsiveHeight(
                             context,
@@ -151,7 +180,7 @@ class ManagerDashboardPage extends StatelessWidget {
                           ),
                         ),
                         _QuickActionsSection(
-                          actions: overview.quickActions,
+                          actions: actions,
                           onActionTap: _onQuickActionTap,
                         ),
                       ],
@@ -164,6 +193,45 @@ class ManagerDashboardPage extends StatelessWidget {
         );
       }),
     );
+  }
+
+  /// Hide Needs Attention when the role cannot act on its rows (incidents /
+  /// documents). Matches web: no permission → section omitted, no re-login wait.
+  List<AttentionAlert> _visibleNeedsAttention(List<AttentionAlert> alerts) {
+    final session = Get.isRegistered<UserSession>()
+        ? Get.find<UserSession>()
+        : null;
+    if (session == null) return alerts;
+    final canIncidents = session.can('incidents:read');
+    final canDocuments =
+        session.can('documents:read') || session.canAccessDocuments;
+    if (!canIncidents && !canDocuments) return const [];
+    return [
+      for (final alert in alerts)
+        if (_NeedsAttentionSection._isIncidentAlert(alert)
+            ? canIncidents
+            : _NeedsAttentionSection._isDocumentAlert(alert)
+                ? canDocuments
+                : canIncidents || canDocuments)
+          alert,
+    ];
+  }
+
+  List<QuickAction> _permittedQuickActions(List<QuickAction> actions) {
+    final session = Get.isRegistered<UserSession>()
+        ? Get.find<UserSession>()
+        : null;
+    if (session == null) return actions;
+    return [
+      for (final action in actions)
+        if (switch (action.type) {
+          QuickActionType.createShift || QuickActionType.approve =>
+            session.can('scheduling:write'),
+          QuickActionType.logNote => session.can('daily-logs:write'),
+          QuickActionType.message => session.can('messaging:write'),
+        })
+          action,
+    ];
   }
 
   void _onQuickActionTap(QuickAction action) {
@@ -187,6 +255,24 @@ class ManagerDashboardPage extends StatelessWidget {
     } catch (_) {
       // Scheduling screen may not be loaded yet.
     }
+  }
+
+  Future<void> _openTodayShiftClock(
+    BuildContext context,
+    DashboardController controller,
+  ) async {
+    final session =
+        Get.isRegistered<UserSession>() ? Get.find<UserSession>() : null;
+    if (session == null || !session.can('attendance:write')) return;
+    if (!GetIt.instance.isRegistered<AttendanceRepository>()) return;
+
+    final repo = GetIt.instance<AttendanceRepository>();
+    final open = await repo.getMyOpenAttendance();
+    final done = await openAttendanceClock(
+      clockOut: open.isSuccess && open.value != null,
+      openAttendance: open.value,
+    );
+    if (done == true) await controller.refresh();
   }
 }
 
@@ -355,46 +441,10 @@ class _OrganizationSwitcher extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: ResponsiveHelper.getResponsiveSize(context, 28),
-            height: ResponsiveHelper.getResponsiveSize(context, 28),
-            decoration: BoxDecoration(
-              color: AppColors.activeBackground,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 8),
-              ),
-            ),
-            alignment: Alignment.center,
-            child: const AppSvgIcon(
-              AppAssets.homeSmall,
-              size: 17,
-              color: AppColors.secondaryTeal,
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          Flexible(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w600,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 15),
-                color: AppColors.surfaceWhite,
-              ),
-            ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 6)),
-          const AppSvgIcon(
-            AppAssets.chevronDown,
-            size: 17,
-            color: AppColors.whiteOpacity70,
-          ),
-        ],
+      child: HrCompanyBrand(
+        name: name,
+        lightOnDark: true,
+        maxNameWidth: 140,
       ),
     );
   }
@@ -616,6 +666,69 @@ class _NeedsAttentionSection extends StatelessWidget {
 
   const _NeedsAttentionSection({required this.alerts});
 
+  void _openViewAll() {
+    // Web Needs Attention "View all" for open incidents opens the Incidents
+    // module (not Alerts), even when other alert types are also present.
+    if (alerts.any(_isIncidentAlert)) {
+      openPermittedPage(
+        title: 'Incident Reports',
+        anyOf: const ['incidents:read'],
+        builder: () => const IncidentsListPage(),
+      );
+      return;
+    }
+    if (alerts.any(_isDocumentAlert)) {
+      Get.to(() => const HrDocumentsPage());
+      return;
+    }
+    Get.offAll(() => const HrShell(initialIndex: 3));
+  }
+
+  void _openAlert(AttentionAlert alert) {
+    if (_isIncidentAlert(alert)) {
+      final id = alert.metaString('incidentId') ??
+          alert.metaString('entityId') ??
+          (alert.id.trim().isEmpty ? null : alert.id.trim());
+      if (id != null) {
+        openPermittedPage(
+          title: 'Incident Reports',
+          anyOf: const ['incidents:read'],
+          builder: () {
+            final canWrite = Get.isRegistered<UserSession>() &&
+                Get.find<UserSession>().can('incidents:write');
+            return HrIncidentDetailsPage(incidentId: id, canWrite: canWrite);
+          },
+        );
+        return;
+      }
+      openPermittedPage(
+        title: 'Incident Reports',
+        anyOf: const ['incidents:read'],
+        builder: () => const IncidentsListPage(),
+      );
+      return;
+    }
+    if (_isDocumentAlert(alert)) {
+      Get.to(() => const HrDocumentsPage());
+      return;
+    }
+    _openViewAll();
+  }
+
+  static bool _isIncidentAlert(AttentionAlert alert) {
+    final type = (alert.type ?? '').toLowerCase();
+    if (type.contains('incident')) return true;
+    if (alert.metaString('incidentId') != null) return true;
+    final title = alert.title.toLowerCase();
+    return title.contains('incident');
+  }
+
+  static bool _isDocumentAlert(AttentionAlert alert) {
+    final type = (alert.type ?? '').toLowerCase();
+    if (type.contains('document')) return true;
+    return alert.metaString('documentId') != null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -698,14 +811,18 @@ class _NeedsAttentionSection extends StatelessWidget {
                   ),
                 ),
               ),
-              Spacer(),
-              Text(
-                'View all',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                  color: AppColors.secondaryTeal,
+              const Spacer(),
+              GestureDetector(
+                onTap: _openViewAll,
+                behavior: HitTestBehavior.opaque,
+                child: Text(
+                  'View all',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    color: AppColors.secondaryTeal,
+                  ),
                 ),
               ),
             ],
@@ -714,6 +831,7 @@ class _NeedsAttentionSection extends StatelessWidget {
             _AttentionAlertTile(
               alert: alerts[i],
               showDivider: i != alerts.length - 1,
+              onTap: () => _openAlert(alerts[i]),
             ),
         ],
       ),
@@ -724,10 +842,12 @@ class _NeedsAttentionSection extends StatelessWidget {
 class _AttentionAlertTile extends StatelessWidget {
   final AttentionAlert alert;
   final bool showDivider;
+  final VoidCallback? onTap;
 
   const _AttentionAlertTile({
     required this.alert,
     required this.showDivider,
+    this.onTap,
   });
 
   @override
@@ -742,81 +862,89 @@ class _AttentionAlertTile extends StatelessWidget {
     final iconAsset = isCritical ? AppAssets.alertTriangle : AppAssets.clock;
     final iconBox = ResponsiveHelper.getResponsiveSize(context, 38);
 
-    return Container(
-      decoration: showDivider
-          ? const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: AppColors.dividerLight),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: showDivider
+            ? const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: AppColors.dividerLight),
+                ),
+              )
+            : null,
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          top: 16,
+          bottom: 14,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: iconBox,
+              height: iconBox,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(
+                  ResponsiveHelper.getResponsiveRadius(context, 11),
+                ),
               ),
-            )
-          : null,
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        top: 16,
-        bottom: 14,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: iconBox,
-            height: iconBox,
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(
-                ResponsiveHelper.getResponsiveRadius(context, 11),
+              alignment: Alignment.center,
+              child: AppSvgIcon(iconAsset, size: 18, color: iconColor),
+            ),
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    alert.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 13.5),
+                      color: AppColors.textPrimary,
+                      height: 1.25,
+                    ),
+                  ),
+                  SizedBox(
+                    height: ResponsiveHelper.getResponsiveHeight(context, 2),
+                  ),
+                  Text(
+                    alert.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w400,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 12),
+                      color: AppColors.textMuted,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
               ),
             ),
-            alignment: Alignment.center,
-            child: AppSvgIcon(iconAsset, size: 18, color: iconColor),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 11)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  alert.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                    color: AppColors.textPrimary,
-                    height: 1.25,
-                  ),
-                ),
-                SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
-                Text(
-                  alert.subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w400,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
-                    color: AppColors.textMuted,
-                    height: 1.25,
-                  ),
-                ),
-              ],
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+            _StatusPill(
+              label: badgeLabel,
+              background: badgeBg,
+              foreground: iconColor,
             ),
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
-          _StatusPill(
-            label: badgeLabel,
-            background: badgeBg,
-            foreground: iconColor,
-          ),
-          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-          const AppSvgIcon(
-            AppAssets.chevronRight,
-            size: 18,
-            color: AppColors.iconChevron,
-          ),
-        ],
+            SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+            const AppSvgIcon(
+              AppAssets.chevronRight,
+              size: 18,
+              color: AppColors.iconChevron,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -881,10 +1009,12 @@ class _QuickActionsSection extends StatelessWidget {
 class _TodaysOverviewSection extends StatelessWidget {
   final List<OverviewStat> stats;
   final String lastUpdatedLabel;
+  final ValueChanged<OverviewStat>? onStatTap;
 
   const _TodaysOverviewSection({
     required this.stats,
     required this.lastUpdatedLabel,
+    this.onStatTap,
   });
 
   @override
@@ -938,7 +1068,10 @@ class _TodaysOverviewSection extends StatelessWidget {
                   SizedBox(
                     width: cardWidth,
                     height: cardHeight,
-                    child: _OverviewStatCard(stat: stat),
+                    child: _OverviewStatCard(
+                      stat: stat,
+                      onTap: onStatTap == null ? null : () => onStatTap!(stat),
+                    ),
                   ),
               ],
             );
@@ -1020,15 +1153,23 @@ _StatVisual _visualForTag(StatTag tag) {
 
 class _OverviewStatCard extends StatelessWidget {
   final OverviewStat stat;
+  final VoidCallback? onTap;
 
-  const _OverviewStatCard({required this.stat});
+  const _OverviewStatCard({required this.stat, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final visual = _visualForTag(stat.tag);
     final iconBox = ResponsiveHelper.getResponsiveSize(context, 40);
 
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, AppDimens.radiusCard),
+        ),
+        child: Container(
       padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -1118,6 +1259,8 @@ class _OverviewStatCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+        ),
       ),
     );
   }

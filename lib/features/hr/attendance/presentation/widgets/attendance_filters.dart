@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/widgets/searchable_option_list.dart';
 import '../../domain/entities/attendance_week.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
@@ -157,26 +158,14 @@ Future<PickedOption<T>?> showAttendanceOptionSheet<T>(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(sheetContext).size.height * 0.7,
         ),
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Text(
-                title,
-                style: _outfit(sheetContext, 16, weight: FontWeight.w700),
-              ),
-            ),
-            for (final option in options)
-              ListTile(
-                title: Text(labelOf(option), style: _outfit(sheetContext, 14)),
-                trailing: option == selected
-                    ? const Icon(Icons.check_rounded, color: AppColors.secondaryTeal)
-                    : null,
-                onTap: () => Navigator.of(sheetContext).pop(PickedOption(option)),
-              ),
-            const SizedBox(height: 8),
-          ],
+        child: SearchableOptionList<T>(
+          title: title,
+          options: options,
+          labelOf: labelOf,
+          isSelected: selected == null ? null : (option) => option == selected,
+          searchHint: 'Search $title',
+          onSelected: (option) =>
+              Navigator.of(sheetContext).pop(PickedOption(option)),
         ),
       ),
     ),

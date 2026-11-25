@@ -13,17 +13,21 @@ import '../../../../../core/widgets/app_svg_icon.dart';
 /// arrow has no matching asset, so Material `Icons.arrow_forward_rounded`
 /// stays as-is.
 class WizardBottomBar extends StatelessWidget {
-  final bool isLastStep;
-  final bool isEditMode;
+  final String progressLabel;
+  final String primaryLabel;
+  final bool primaryIsSubmit;
+  final VoidCallback? onCancel;
   final VoidCallback? onSaveDraft;
   final VoidCallback? onPrimary;
 
   const WizardBottomBar({
     super.key,
-    required this.isLastStep,
+    required this.progressLabel,
+    required this.primaryLabel,
+    required this.primaryIsSubmit,
+    required this.onCancel,
     required this.onSaveDraft,
     required this.onPrimary,
-    this.isEditMode = false,
   });
 
   @override
@@ -36,31 +40,85 @@ class WizardBottomBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 12, bottom: 12),
-          child: Row(
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 16,
+            top: 10,
+            bottom: 10,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _BottomButton(
-                  label: isEditMode ? 'Save Changes' : 'Save Draft',
-                  svgAsset: 'assets/icons/incidents/save.svg',
-                  background: AppColors.filterButtonBackground,
-                  foreground: AppColors.textBody,
-                  onTap: onSaveDraft,
+              Text(
+                progressLabel,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: AppColors.textMuted,
                 ),
               ),
-              SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
-              Expanded(
-                child: _BottomButton(
-                  label: isLastStep
-                      ? (isEditMode ? 'Update Incident' : 'Submit Incident')
-                      : 'Continue',
-                  svgAsset: isLastStep ? 'assets/icons/incidents/submit.svg' : null,
-                  icon: isLastStep ? null : Icons.arrow_forward_rounded,
-                  iconTrailing: !isLastStep,
-                  background: AppColors.primaryNavy,
-                  foreground: Colors.white,
-                  onTap: onPrimary,
-                ),
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final gap = ResponsiveHelper.getResponsiveWidth(context, 8);
+                  final cancel = _BottomButton(
+                    label: 'Cancel',
+                    icon: Icons.close_rounded,
+                    background: AppColors.surfaceWhite,
+                    foreground: AppColors.textBody,
+                    outlined: true,
+                    onTap: onCancel,
+                  );
+                  final draft = _BottomButton(
+                    label: 'Save Draft',
+                    svgAsset: 'assets/icons/incidents/save.svg',
+                    background: AppColors.filterButtonBackground,
+                    foreground: AppColors.textBody,
+                    onTap: onSaveDraft,
+                  );
+                  final primary = _BottomButton(
+                    label: primaryLabel,
+                    svgAsset: primaryIsSubmit
+                        ? 'assets/icons/incidents/submit.svg'
+                        : null,
+                    icon: primaryIsSubmit ? null : Icons.arrow_forward_rounded,
+                    iconTrailing: !primaryIsSubmit,
+                    background: AppColors.primaryNavy,
+                    foreground: Colors.white,
+                    onTap: onPrimary,
+                  );
+                  // "Next: Evidence & Submission" does not fit beside
+                  // Cancel and Save Draft on a phone, so the primary
+                  // action takes the full width and keeps its label.
+                  final stackPrimary = constraints.maxWidth < 520;
+                  if (stackPrimary) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: cancel),
+                            SizedBox(width: gap),
+                            Expanded(child: draft),
+                          ],
+                        ),
+                        SizedBox(height: gap),
+                        primary,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: cancel),
+                      SizedBox(width: gap),
+                      Expanded(child: draft),
+                      SizedBox(width: gap),
+                      Expanded(flex: 2, child: primary),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -77,6 +135,7 @@ class _BottomButton extends StatelessWidget {
   final bool iconTrailing;
   final Color background;
   final Color foreground;
+  final bool outlined;
   final VoidCallback? onTap;
 
   const _BottomButton({
@@ -87,6 +146,7 @@ class _BottomButton extends StatelessWidget {
     this.icon,
     this.svgAsset,
     this.iconTrailing = false,
+    this.outlined = false,
   }) : assert(icon != null || svgAsset != null);
 
   @override
@@ -105,8 +165,8 @@ class _BottomButton extends StatelessWidget {
       Flexible(
         child: Text(
           label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          softWrap: true,
           style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w700,
@@ -119,8 +179,13 @@ class _BottomButton extends StatelessWidget {
 
     return Material(
       color: onTap == null ? background.withValues(alpha: 0.55) : background,
-      borderRadius: BorderRadius.circular(
-        ResponsiveHelper.getResponsiveRadius(context, 13),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 13),
+        ),
+        side: outlined
+            ? const BorderSide(color: AppColors.cardBorder)
+            : BorderSide.none,
       ),
       child: InkWell(
         onTap: onTap,
@@ -128,7 +193,11 @@ class _BottomButton extends StatelessWidget {
           ResponsiveHelper.getResponsiveRadius(context, 13),
         ),
         child: Padding(
-          padding: ResponsiveHelper.getResponsivePadding(context, vertical: 14),
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 12,
+            vertical: 14,
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: iconTrailing ? children.reversed.toList() : children,

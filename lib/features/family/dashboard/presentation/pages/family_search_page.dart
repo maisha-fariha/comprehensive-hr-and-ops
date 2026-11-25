@@ -4,8 +4,8 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../documents/presentation/pages/family_documents_page.dart';
-import '../../../family_shell.dart';
 import '../../../messages/presentation/pages/family_conversation_page.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../domain/entities/family_search_hit.dart';
 import '../controllers/family_search_controller.dart';
 
@@ -38,9 +38,9 @@ class _FamilySearchPageState extends State<FamilySearchPage> {
   void _openHit(FamilySearchHit hit) {
     switch (hit.type) {
       case FamilySearchHitType.dailyLog:
-        Get.offAll(() => const FamilyShell(initialIndex: 1));
+        familyGoToTab(1, context: context);
       case FamilySearchHitType.appointment:
-        Get.offAll(() => const FamilyShell(initialIndex: 2));
+        familyGoToTab(2, context: context);
       case FamilySearchHitType.message:
         Get.to(() => FamilyConversationPage(conversationId: hit.id));
       case FamilySearchHitType.document:

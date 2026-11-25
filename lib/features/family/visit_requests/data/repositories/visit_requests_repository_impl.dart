@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../domain/entities/family_visit_requests_overview.dart';
 import '../../domain/entities/visit_request_detail.dart';
@@ -14,13 +15,13 @@ class VisitRequestsRepositoryImpl implements VisitRequestsRepository {
 
   @override
   Future<Result<FamilyVisitRequestsOverview>> getOverview() async {
-    final result = await _api.get(
-      ApiEndpoints.familyAppointments,
-      query: const {'page': 1, 'limit': 50},
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.familyAppointments,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(FamilyVisitRequestsMapper.overviewFrom(body)),
+      success: (rows) async =>
+          Result.success(FamilyVisitRequestsMapper.overviewFrom({'data': rows})),
       failure: (error) async => Result.failure(error),
     );
   }

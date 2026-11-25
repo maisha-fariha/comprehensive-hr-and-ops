@@ -28,7 +28,10 @@ abstract class AuthRepository {
     required String code,
   });
 
-  Future<Result<void>> refreshTokens({bool silent = false});
+  /// Exchanges the refresh token. No-ops while the access token has more
+  /// than 60 seconds left, unless [force] is true (a request just returned
+  /// 401). Concurrent callers share one in-flight exchange.
+  Future<Result<void>> refreshTokens({bool silent = false, bool force = false});
 
   Future<Result<void>> logout();
 

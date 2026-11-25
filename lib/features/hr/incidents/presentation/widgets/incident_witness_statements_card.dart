@@ -3,6 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/incident_witness_statement.dart';
 import '../../domain/repositories/incidents_repository.dart';
 
@@ -296,10 +297,11 @@ class _StatementTile extends StatelessWidget {
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
-    final hour = at.hour % 12 == 0 ? 12 : at.hour % 12;
-    final minute = at.minute.toString().padLeft(2, '0');
-    return '${at.day} ${months[at.month - 1]} ${at.year}, '
-        '$hour:$minute ${at.hour < 12 ? 'AM' : 'PM'}';
+    final wall = TenantClock.wallOf(at);
+    final time = TenantClock.formatTime(at)
+        .replaceAll(' am', ' AM')
+        .replaceAll(' pm', ' PM');
+    return '${wall.day} ${months[wall.month - 1]} ${wall.year}, $time';
   }
 
   @override

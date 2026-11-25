@@ -31,4 +31,8 @@ abstract final class ClientsEndpoints {
   static String reportExport(String id) => '$reportExports/$id';
   static String reportExportDownload(String id) =>
       '$reportExports/$id/download';
+
+  /// Web "Export Progress Report" on Client Details.
+  /// `GET /reports/client-progress?clientId=&from=&to=&format=pdf`
+  static const String clientProgressReport = '/reports/client-progress';
 }

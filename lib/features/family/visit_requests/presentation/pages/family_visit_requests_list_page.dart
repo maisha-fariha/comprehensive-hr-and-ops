@@ -4,9 +4,10 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../appointments/presentation/pages/create_appointment_page.dart';
 import '../../../appointments/presentation/widgets/family_primary_button.dart';
-import '../../../family_shell.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../../domain/entities/family_visit_requests_enums.dart';
 import '../../domain/entities/family_visit_requests_overview.dart';
@@ -15,6 +16,7 @@ import '../widgets/family_visit_requests_header.dart';
 import '../widgets/family_visit_requests_tab_bar.dart';
 import '../widgets/my_visit_request_card.dart';
 import 'visit_request_details_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Family Visit Requests — own `family_visit` appointments with status tabs
 /// (All / Pending / Approved / Rejected / Cancelled / Completed).
@@ -69,12 +71,10 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
       return;
     }
     // Fallback: Visit Requests lives under More.
-    Get.offAll(() => const FamilyShell(initialIndex: _moreTabIndex));
+    familyGoToTab(_moreTabIndex, context: context);
   }
 
-  void _onBottomNavTap(int index) {
-    Get.offAll(() => FamilyShell(initialIndex: index));
-  }
+  void _onBottomNavTap(int index) => familyGoToTab(index, context: context);
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +114,8 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
                 ),
               ),
               Expanded(child: _buildBody(overview, selectedTab)),
+              if (!Get.isRegistered<UserSession>() ||
+                  Get.find<UserSession>().can('family:write'))
               ColoredBox(
                 color: AppColors.surfaceWhite,
                 child: Padding(
@@ -156,7 +158,7 @@ class _FamilyVisitRequestsListPageState extends State<FamilyVisitRequestsListPag
     }
 
     final requests = overview.requestsFor(selectedTab);
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: AppColors.secondaryTeal,
       onRefresh: _controller.refresh,
       child: requests.isEmpty

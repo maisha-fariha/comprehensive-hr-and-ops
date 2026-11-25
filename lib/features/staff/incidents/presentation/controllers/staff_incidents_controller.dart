@@ -28,10 +28,13 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
   final Rxn<DateTime> toDate = Rxn<DateTime>();
   final RxnString residenceFilterId = RxnString();
   final RxnString clientFilterId = RxnString();
+  final RxnString investigatorFilterId = RxnString();
   final RxList<StaffIncidentResidenceOption> residences =
       <StaffIncidentResidenceOption>[].obs;
   final RxList<StaffIncidentClientOption> clients =
       <StaffIncidentClientOption>[].obs;
+  final RxList<StaffIncidentStaffOption> investigators =
+      <StaffIncidentStaffOption>[].obs;
   final Rx<StaffIncidentsSummary> summary = StaffIncidentsSummary.empty.obs;
   final RxInt myIncidentsCount = 0.obs;
   final RxInt allIncidentsCount = 0.obs;
@@ -106,6 +109,14 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
     loadIncidents();
   }
 
+  void setInvestigatorFilter(String? investigatorId) {
+    investigatorFilterId.value =
+        (investigatorId == null || investigatorId.isEmpty)
+            ? null
+            : investigatorId;
+    loadIncidents();
+  }
+
   void clearFilters() {
     severityFilter.value = null;
     statusFilter.value = null;
@@ -113,6 +124,7 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
     toDate.value = null;
     residenceFilterId.value = null;
     clientFilterId.value = null;
+    investigatorFilterId.value = null;
     loadClients();
     loadIncidents();
   }
@@ -124,7 +136,11 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
   }
 
   Future<void> loadFilterOptions() async {
-    await Future.wait([loadResidences(), loadClients()]);
+    await Future.wait([
+      loadResidences(),
+      loadClients(),
+      loadInvestigators(),
+    ]);
   }
 
   Future<void> loadResidences() async {
@@ -142,6 +158,14 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
     );
     result.when(
       success: (list) => clients.assignAll(list),
+      failure: (_) {},
+    );
+  }
+
+  Future<void> loadInvestigators() async {
+    final result = await repository.getStaffOptions();
+    result.when(
+      success: (list) => investigators.assignAll(list),
       failure: (_) {},
     );
   }
@@ -174,6 +198,7 @@ class StaffIncidentsController extends BaseController<List<StaffIncident>> {
               .toIso8601String(),
       residenceId: residenceFilterId.value,
       clientId: clientFilterId.value,
+      investigatorId: investigatorFilterId.value,
       limit: 50,
     );
     result.when(

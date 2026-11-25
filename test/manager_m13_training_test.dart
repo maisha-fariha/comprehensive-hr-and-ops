@@ -247,6 +247,7 @@ class _FakeTrainingRepo implements HrTrainingRepository {
   @override
   Future<Result<TrainingPage<TrainingAssignment>>> assignments({
     String? courseId,
+    String? staffId,
     int? page,
     required int limit,
   }) async {
@@ -332,10 +333,14 @@ class _FakeTrainingRepo implements HrTrainingRepository {
 
   @override
   Future<Result<TrainingPage<TrainingCertificate>>> certificates({
-    required String courseId,
+    String? courseId,
+    String? staffId,
     required int page,
     required int limit,
   }) async {
+    if (courseId == null) {
+      return Result.success(const TrainingPage(items: [], total: 0));
+    }
     final rows = _key(courseId) == 'c1'
         ? [
             TrainingCertificate(
@@ -693,6 +698,7 @@ void main() {
 
     testWidgets('training:read alone hides every write action', (tester) async {
       await _pumpList(tester, denied: {'training:manage'});
+      await _tapKey(tester, 'training-mode-library');
 
       expect(find.byKey(const ValueKey('training-new-course')), findsNothing);
       expect(find.byKey(ValueKey('training-archive-${_medication.id}')), findsNothing);

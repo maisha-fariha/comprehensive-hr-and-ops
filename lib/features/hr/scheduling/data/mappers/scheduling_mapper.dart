@@ -1,5 +1,6 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/board_overview.dart';
 import '../../domain/entities/board_shift.dart';
 import '../../domain/entities/calendar_day.dart';
@@ -11,22 +12,40 @@ import '../../domain/entities/open_position.dart';
 import '../../domain/entities/requests_overview.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
+import '../../domain/entities/shift_bid.dart';
 import '../../domain/entities/shift_request.dart';
 import '../../domain/entities/shift_residence_option.dart';
+import '../../domain/entities/shift_staff_conflict.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/staff_avatar.dart';
 
 abstract final class SchedulingMapper {
+  static DateTime? _wall(DateTime? instant) =>
+      instant == null ? null : TenantClock.wallOf(instant);
+
+  /// Timeline chip: `(time, period)` in the organisation zone.
+  static (String, String) _timelineClock(DateTime? instant) {
+    if (instant == null) return ('--', '');
+    final wall = TenantClock.wallOf(instant);
+    final minute = wall.minute.toString().padLeft(2, '0');
+    if (TenantClock.timeFormat == '24h') {
+      final hour = wall.hour.toString().padLeft(2, '0');
+      return ('$hour:$minute', '');
+    }
+    final hour12 = wall.hour % 12 == 0 ? 12 : wall.hour % 12;
+    return ('$hour12:$minute', wall.hour >= 12 ? 'PM' : 'AM');
+  }
+
   /// Parse `GET /shifts/{id}` into the Edit Shift form, field-for-field
   /// with the web `shiftToFormValues`.
   static CreateShiftDraft draftFromShift(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
-    final startsAt = JsonCodec.dateTime(json['startsAt'])?.toLocal();
-    final endsAt = JsonCodec.dateTime(json['endsAt'])?.toLocal();
+    final startsAt = _wall(JsonCodec.dateTime(json['startsAt']));
+    final endsAt = _wall(JsonCodec.dateTime(json['endsAt']));
     final bidding = JsonCodec.mapAt(json, 'biddingConfig');
     final closesAt = bidding == null
         ? null
-        : JsonCodec.dateTime(bidding['biddingClosesAt'])?.toLocal();
+        : _wall(JsonCodec.dateTime(bidding['biddingClosesAt']));
     final requiredCount = JsonCodec.integer(json['requiredStaffCount']);
     final maxBids = bidding == null ? null : JsonCodec.integer(bidding['maxBids']);
     final reminder = JsonCodec.integer(json['reminderMinutesBefore']);
@@ -35,6 +54,7 @@ abstract final class SchedulingMapper {
       residenceId: JsonCodec.string(json['residenceId']),
       shiftDate: startsAt,
     )
+      ..loadedStatus = JsonCodec.string(json['status'])
       ..shiftType = JsonCodec.string(json['shiftType']) ?? 'custom'
       ..startMinutes =
           startsAt == null ? null : startsAt.hour * 60 + startsAt.minute
@@ -44,6 +64,8 @@ abstract final class SchedulingMapper {
           requiredCount == null || requiredCount == 0 ? '' : '$requiredCount'
       ..title = JsonCodec.string(json['title']) ?? ''
       ..notes = JsonCodec.string(json['notes']) ?? ''
+      ..oneToOneClientId = JsonCodec.string(json['oneToOneClientId'])
+      ..oneToOneClientName = JsonCodec.string(json['oneToOneClientName'])
       ..isOpenShift = json['status'] == 'open' || bidding != null
       ..noteToBidders =
           (bidding == null ? null : JsonCodec.string(bidding['noteToBidders'])) ??
@@ -61,10 +83,20 @@ abstract final class SchedulingMapper {
     final award = bidding == null ? null : JsonCodec.string(bidding['awardMethod']);
     if (award != null) draft.awardMethod = award;
 
-    for (final person in JsonCodec.listAt(json, 'staff')) {
+    for (final bid in _pendingBids(json)) {
+      draft.pendingBids.add(
+        PendingShiftBid(
+          bidId: bid.bidId,
+          staffId: bid.staffId,
+          staffName: bid.staffName,
+          note: bid.note,
+        ),
+      );
+    }
+    for (final person in _assignedPeople(json)) {
       if (person is! Map) continue;
       final staff = JsonCodec.asMap(person);
-      final id = JsonCodec.string(staff['id']);
+      final id = JsonCodec.string(staff['id'] ?? staff['staffId']);
       if (id == null) continue;
       draft.assignedStaff.add(
         AssignedShiftStaff(
@@ -73,7 +105,35 @@ abstract final class SchedulingMapper {
         ),
       );
     }
+    draft.loadedStaffIds = [
+      for (final staff in draft.assignedStaff) staff.staffId,
+    ];
     return draft;
+  }
+
+  /// Parse `GET /clients` into the one-to-one picker. Names are
+  /// `firstName` + `lastName` when `fullName` is empty.
+  static List<ShiftClientOption> clientsFrom(dynamic body) {
+    final options = <ShiftClientOption>[];
+    for (final row in JsonCodec.unwrapList(body).whereType<Map>()) {
+      final id = JsonCodec.string(row['id']);
+      if (id == null) continue;
+      final full = JsonCodec.string(row['fullName']) ??
+          JsonCodec.string(row['name']);
+      final joined = [row['firstName'], row['lastName']]
+          .whereType<String>()
+          .map((part) => part.trim())
+          .where((part) => part.isNotEmpty)
+          .join(' ');
+      final name = (full != null && full.trim().isNotEmpty)
+          ? full.trim()
+          : joined;
+      options.add(ShiftClientOption(
+        id: id,
+        name: name.isEmpty ? 'Unnamed' : name,
+      ));
+    }
+    return options;
   }
 
   /// Parse `GET /staff` into Create Shift assign-staff options.
@@ -121,6 +181,14 @@ abstract final class SchedulingMapper {
             json['staffCategoryId'],
       );
       final residences = json['residences'];
+      final residenceIds = <String>[];
+      if (residences is List) {
+        for (final raw in residences) {
+          if (raw is! Map) continue;
+          final rid = JsonCodec.string(JsonCodec.asMap(raw)['id']);
+          if (rid != null && rid.isNotEmpty) residenceIds.add(rid);
+        }
+      }
       final firstResidence = residences is List && residences.isNotEmpty
           ? residences.first
           : null;
@@ -134,6 +202,14 @@ abstract final class SchedulingMapper {
             json['city'] ??
             json['site'],
       )?.trim();
+      final singleResidenceId = JsonCodec.string(
+        residence['id'] ?? json['residenceId'],
+      );
+      if (singleResidenceId != null &&
+          singleResidenceId.isNotEmpty &&
+          !residenceIds.contains(singleResidenceId)) {
+        residenceIds.add(singleResidenceId);
+      }
       final detail = [
         if (role != null && role.isNotEmpty) role,
         if (location != null && location.isNotEmpty) location,
@@ -151,10 +227,151 @@ abstract final class SchedulingMapper {
           role: role,
           categoryId: categoryId,
           residenceLabel: location,
+          residenceIds: residenceIds,
         ),
       );
     }
     return options;
+  }
+
+  /// Parse `GET /shifts?from&to` rows for the "Has Shift" picker badge.
+  static List<ShiftWindowRow> shiftWindowRowsFrom(dynamic body) {
+    final source = JsonCodec.unwrapList(body);
+    final rows = <ShiftWindowRow>[];
+    for (final item in source) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id']);
+      final startsAt = JsonCodec.dateTime(json['startsAt']);
+      final endsAt = JsonCodec.dateTime(json['endsAt']);
+      if (id == null || startsAt == null || endsAt == null) continue;
+      final staffIds = <String>[];
+      final staff = json['staff'];
+      if (staff is List) {
+        for (final entry in staff) {
+          if (entry is! Map) continue;
+          final sid = JsonCodec.string(
+            JsonCodec.asMap(entry)['id'] ?? JsonCodec.asMap(entry)['staffId'],
+          );
+          if (sid != null && sid.isNotEmpty) staffIds.add(sid);
+        }
+      }
+      final assignments = json['assignments'];
+      if (assignments is List) {
+        for (final entry in assignments) {
+          if (entry is! Map) continue;
+          final map = JsonCodec.asMap(entry);
+          final sid = JsonCodec.string(
+            map['staffId'] ??
+                JsonCodec.mapAt(map, 'staff')?['id'] ??
+                map['id'],
+          );
+          if (sid != null && sid.isNotEmpty && !staffIds.contains(sid)) {
+            staffIds.add(sid);
+          }
+        }
+      }
+      rows.add(
+        ShiftWindowRow(
+          id: id,
+          startsAt: TenantClock.wallOf(startsAt),
+          endsAt: TenantClock.wallOf(endsAt),
+          status: JsonCodec.string(json['status']) ?? '',
+          staffIds: staffIds,
+        ),
+      );
+    }
+    return rows;
+  }
+
+  /// Parse `POST /shifts/conflicts` into roster + leave + rest banners.
+  static ShiftConflictsResult shiftConflictsFrom(dynamic body) {
+    final json = JsonCodec.unwrapMap(body);
+    final conflicts = <ShiftScheduleConflict>[];
+    final leave = <ShiftLeaveConflict>[];
+    final rest = <ShiftRestConflict>[];
+    final conflictSource = json['conflicts'];
+    if (conflictSource is List) {
+      for (final item in conflictSource) {
+        if (item is! Map) continue;
+        final row = JsonCodec.asMap(item);
+        final staffId = JsonCodec.string(row['staffId']);
+        final staffName = JsonCodec.string(row['staffName']) ?? 'Staff';
+        final shiftId = JsonCodec.string(row['shiftId']) ?? '';
+        final label = JsonCodec.string(row['label']) ?? '';
+        if (staffId == null || staffId.isEmpty) continue;
+        conflicts.add(
+          ShiftScheduleConflict(
+            staffId: staffId,
+            staffName: staffName,
+            shiftId: shiftId,
+            label: label,
+            residenceName: JsonCodec.string(row['residenceName']),
+            startsAt: _wall(JsonCodec.dateTime(row['startsAt'])),
+            endsAt: _wall(JsonCodec.dateTime(row['endsAt'])),
+          ),
+        );
+      }
+    }
+    final leaveSource = json['leave'];
+    if (leaveSource is List) {
+      for (final item in leaveSource) {
+        if (item is! Map) continue;
+        final row = JsonCodec.asMap(item);
+        final staffId = JsonCodec.string(row['staffId']);
+        final staffName = JsonCodec.string(row['staffName']) ?? 'Staff';
+        final label = JsonCodec.string(row['label']) ?? '';
+        if (staffId == null || staffId.isEmpty) continue;
+        leave.add(
+          ShiftLeaveConflict(
+            staffId: staffId,
+            staffName: staffName,
+            label: label,
+            type: JsonCodec.string(row['type']),
+          ),
+        );
+      }
+    }
+    final restSource = json['rest'];
+    if (restSource is List) {
+      for (final item in restSource) {
+        if (item is! Map) continue;
+        final row = JsonCodec.asMap(item);
+        final staffId = JsonCodec.string(row['staffId']);
+        final staffName = JsonCodec.string(row['staffName']) ?? 'Staff';
+        final label = JsonCodec.string(row['label']) ?? '';
+        if (staffId == null || staffId.isEmpty) continue;
+        final hours = row['restHours'];
+        final restHours = hours is num
+            ? hours
+            : num.tryParse('$hours') ?? 0;
+        rest.add(
+          ShiftRestConflict(
+            staffId: staffId,
+            staffName: staffName,
+            label: label,
+            restHours: restHours,
+          ),
+        );
+      }
+    }
+    final minimumRaw = json['minimumRestHours'];
+    final minimumRestHours = minimumRaw is int
+        ? minimumRaw
+        : (minimumRaw is num
+            ? minimumRaw.toInt()
+            : int.tryParse('$minimumRaw'));
+    final hasConflict = JsonCodec.boolean(json['hasConflict']) == true ||
+        conflicts.isNotEmpty ||
+        leave.isNotEmpty ||
+        rest.isNotEmpty;
+    return ShiftConflictsResult(
+      hasConflict: hasConflict,
+      conflicts: conflicts,
+      leave: leave,
+      rest: rest,
+      minimumRestHours: minimumRestHours,
+    );
   }
 
   /// Parse `GET /residences` into Create Shift dropdown options.
@@ -195,9 +412,10 @@ abstract final class SchedulingMapper {
     required dynamic declinedSwapsBody,
     DateTime? weekOf,
     DateTime? selectedDay,
+    dynamic coverageBody,
   }) {
     final weekStart = IsoDateRange.startOfWeek(weekOf);
-    final today = DateTime.now();
+    final today = TenantClock.now();
     final todayDate = DateTime(today.year, today.month, today.day);
     const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     final weekShiftsRaw = _shifts(weekBody);
@@ -216,7 +434,7 @@ abstract final class SchedulingMapper {
       final day = weekStart.add(Duration(days: index));
       final dayDate = DateTime(day.year, day.month, day.day);
       final hasShift = weekShiftsRaw.any((shift) {
-        final start = _startOf(shift);
+        final start = _wall(_startOf(shift));
         return start != null && _isSameDay(start, dayDate);
       });
       return CalendarDay(
@@ -243,6 +461,14 @@ abstract final class SchedulingMapper {
         CalendarShift(
           id: dayShifts[i].id,
           occursOn: dayShifts[i].occursOn,
+          startsAt: dayShifts[i].startsAt,
+          endsAt: dayShifts[i].endsAt,
+          staffIds: dayShifts[i].staffIds,
+          staffNames: dayShifts[i].staffNames,
+          requiredStaffCount: dayShifts[i].requiredStaffCount,
+          title: dayShifts[i].title,
+          apiStatus: dayShifts[i].apiStatus,
+          residenceName: dayShifts[i].residenceName,
           startTime: dayShifts[i].startTime,
           startPeriod: dayShifts[i].startPeriod,
           name: dayShifts[i].name,
@@ -257,7 +483,13 @@ abstract final class SchedulingMapper {
         ),
     ];
 
+    final openShiftCards = [
+      for (final raw in openShifts) _calendarShift(raw, showDivider: false),
+    ];
     return SchedulingOverview(
+      weekCoverage: _weekCoverage(
+        coverageBody == null ? weekShiftsRaw : _shifts(coverageBody),
+      ),
       calendar: CalendarSchedule(
         monthLabel: IsoDateRange.formatMonthYear(selected),
         days: days,
@@ -279,7 +511,68 @@ abstract final class SchedulingMapper {
         declinedRequests: _requests(declinedSwapsBody, RequestStatus.declined),
         openShiftRequests: openShifts.map(_openPosition).toList(),
       ),
+      openShifts: openShiftCards,
+      staffRosteredHours: _staffRosteredHours(weekShiftsRaw),
     );
+  }
+
+  static List<StaffRosteredHours> _staffRosteredHours(
+    List<Map<String, dynamic>> rows,
+  ) {
+    final totals = <String, ({
+      String name,
+      double hours,
+      int shifts,
+      List<StaffRosteredShiftLine> lines,
+    })>{};
+    for (final json in rows) {
+      final start = _startOf(json);
+      final end = _endOf(json);
+      if (start == null || end == null) continue;
+      final minutes = end.difference(start).inMinutes;
+      if (minutes <= 0) continue;
+      // Web rostered hours subtract breakMinutes from the window.
+      final breakMins = JsonCodec.integer(json['breakMinutes']) ?? 0;
+      final hours = ((minutes - breakMins).clamp(0, minutes)) / 60.0;
+      if (hours <= 0) continue;
+      final residenceName = JsonCodec.string(json['residenceName']) ??
+          JsonCodec.string(JsonCodec.mapAt(json, 'residence')?['name']);
+      final wallStart = _wall(start) ?? start;
+      final wallEnd = _wall(end) ?? end;
+      final line = StaffRosteredShiftLine(
+        startsAt: wallStart,
+        endsAt: wallEnd,
+        hours: hours,
+        residenceName: residenceName,
+      );
+      for (final person in _assignedPeople(json)) {
+        if (person is! Map) continue;
+        final map = JsonCodec.asMap(person);
+        final id = JsonCodec.string(map['id'] ?? map['staffId']);
+        if (id == null || id.isEmpty) continue;
+        final name = _fullName(person);
+        final prev = totals[id];
+        totals[id] = (
+          name: name.isNotEmpty ? name : (prev?.name ?? 'Staff'),
+          hours: (prev?.hours ?? 0) + hours,
+          shifts: (prev?.shifts ?? 0) + 1,
+          lines: [...?prev?.lines, line],
+        );
+      }
+    }
+    final rowsOut = [
+      for (final entry in totals.entries)
+        StaffRosteredHours(
+          staffId: entry.key,
+          name: entry.value.name,
+          hours: entry.value.hours,
+          shiftCount: entry.value.shifts,
+          shifts: [
+            ...entry.value.lines,
+          ]..sort((a, b) => a.startsAt.compareTo(b.startsAt)),
+        ),
+    ]..sort((a, b) => b.hours.compareTo(a.hours));
+    return rowsOut;
   }
 
   /// Rebuilds only the calendar strip/timeline for a newly selected day using
@@ -306,6 +599,14 @@ abstract final class SchedulingMapper {
         CalendarShift(
           id: dayShifts[i].id,
           occursOn: dayShifts[i].occursOn,
+          startsAt: dayShifts[i].startsAt,
+          endsAt: dayShifts[i].endsAt,
+          staffIds: dayShifts[i].staffIds,
+          staffNames: dayShifts[i].staffNames,
+          requiredStaffCount: dayShifts[i].requiredStaffCount,
+          title: dayShifts[i].title,
+          apiStatus: dayShifts[i].apiStatus,
+          residenceName: dayShifts[i].residenceName,
           startTime: dayShifts[i].startTime,
           startPeriod: dayShifts[i].startPeriod,
           name: dayShifts[i].name,
@@ -359,44 +660,70 @@ abstract final class SchedulingMapper {
         .toList();
   }
 
+  /// Raw API instant (usually UTC). Display via [_wall] / [IsoDateRange].
   static DateTime? _startOf(Map<String, dynamic> json) {
     return JsonCodec.dateTime(
       json['startAt'] ?? json['startsAt'] ?? json['startTime'] ?? json['from'],
-    )?.toLocal();
+    );
   }
 
   static DateTime? _endOf(Map<String, dynamic> json) {
     return JsonCodec.dateTime(
       json['endAt'] ?? json['endsAt'] ?? json['endTime'] ?? json['to'],
-    )?.toLocal();
+    );
   }
 
   static CalendarShift _calendarShift(
     Map<String, dynamic> json, {
     required bool showDivider,
   }) {
-    final start = _startOf(json);
-    final end = _endOf(json);
+    final startUtc = _startOf(json);
+    final endUtc = _endOf(json);
+    final start = _wall(startUtc);
+    final end = _wall(endUtc);
     final filled = _filled(json);
     final total = _total(json, filled);
     final open = (total - filled).clamp(0, total);
-    final hour = start?.hour ?? 0;
-    final minute = (start?.minute ?? 0).toString().padLeft(2, '0');
-    final hour12 = hour % 12 == 0 ? 12 : hour % 12;
-    final period = hour >= 12 ? 'PM' : 'AM';
+    final timeParts = _timelineClock(startUtc);
     final avatars = _avatars(json);
     return CalendarShift(
       id: JsonCodec.stringOr(json['id'], 'shift'),
       occursOn: start == null
           ? null
           : DateTime(start.year, start.month, start.day),
-      startTime: start == null ? '--' : '$hour12:$minute',
-      startPeriod: period,
+      startsAt: start,
+      endsAt: end,
+      staffIds: [
+        for (final person in _assignedPeople(json))
+          if (person is Map)
+            ?JsonCodec.string(
+              JsonCodec.asMap(person)['id'] ??
+                  JsonCodec.asMap(person)['staffId'],
+            ),
+      ],
+      staffNames: [
+        for (final person in _assignedPeople(json))
+          if (_fullName(person).isNotEmpty) _fullName(person),
+      ],
+      requiredStaffCount: json.containsKey('requiredStaffCount')
+          ? JsonCodec.integer(json['requiredStaffCount'])
+          : null,
+      title: JsonCodec.string(json['title']),
+      apiStatus: JsonCodec.stringOr(json['status'], ''),
+      residenceId: JsonCodec.string(
+        json['residenceId'] ?? JsonCodec.mapAt(json, 'residence')?['id'],
+      ),
+      residenceName: JsonCodec.string(
+        json['residenceName'] ??
+            JsonCodec.mapAt(json, 'residence')?['name'],
+      ),
+      startTime: timeParts.$1,
+      startPeriod: timeParts.$2,
       name: JsonCodec.stringOr(
         json['name'] ?? json['title'] ?? json['role'] ?? json['period'],
         _periodName(start),
       ),
-      timeRange: IsoDateRange.rangeLabel(start, end),
+      timeRange: IsoDateRange.rangeLabel(startUtc, endUtc),
       filled: filled,
       total: total,
       status: _coverageStatus(filled, total),
@@ -405,13 +732,15 @@ abstract final class SchedulingMapper {
       openPositionsLabel: open == 0
           ? null
           : '$open open${_roleSuffix(json)}',
+      pendingBids: _pendingBids(json),
       showTimelineDivider: showDivider,
     );
   }
 
   static BoardShift _boardShift(Map<String, dynamic> json) {
-    final start = _startOf(json);
-    final end = _endOf(json);
+    final startUtc = _startOf(json);
+    final endUtc = _endOf(json);
+    final start = _wall(startUtc);
     final filled = _filled(json);
     final total = _total(json, filled);
     final open = (total - filled).clamp(0, total);
@@ -423,16 +752,21 @@ abstract final class SchedulingMapper {
         json['name'] ?? json['title'] ?? json['period'],
         _periodName(start),
       ),
-      timeRange: IsoDateRange.rangeLabel(start, end),
+      timeRange: IsoDateRange.rangeLabel(startUtc, endUtc),
       filled: filled,
       total: total,
       status: status,
       statusLabel:
           status == CoverageStatus.almostFull ? 'Almost Full' : 'Needs Attention',
+      apiStatus: JsonCodec.stringOr(json['status'], ''),
       avatars: avatars.take(3).toList(),
       extraStaffCount: (avatars.length - 3).clamp(0, 99),
       roleChips: _roles(json),
       neededLabel: open == 0 ? 'Covered' : '$open needed',
+      residenceName: JsonCodec.string(
+        json['residenceName'] ??
+            JsonCodec.mapAt(json, 'residence')?['name'],
+      ),
     );
   }
 
@@ -476,8 +810,12 @@ abstract final class SchedulingMapper {
   }
 
   static List<ShiftRequest> _requests(dynamic body, RequestStatus status) {
-    return JsonCodec.unwrapList(body).whereType<Map>().map((item) {
+    final seen = <String>{};
+    final out = <ShiftRequest>[];
+    for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
       final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id']);
+      if (id != null && !seen.add(id)) continue;
       final requester = json['requester'] ??
           json['fromStaff'] ??
           json['staff'] ??
@@ -487,21 +825,25 @@ abstract final class SchedulingMapper {
       final giving = json['fromShift'] ?? json['givingShift'] ?? json['currentShift'];
       final receiving =
           json['toShift'] ?? json['receivingShift'] ?? json['requestedShift'];
+      final target = json['target'] ?? json['targetStaff'] ?? json['toStaff'];
       final apiStatus = JsonCodec.string(json['status'])?.toLowerCase() ?? '';
-      return ShiftRequest(
-        id: JsonCodec.stringOr(json['id'], name),
-        staffName: name,
-        staffInitials: IsoDateRange.initials(name),
-        status: status,
-        timingLabel: created == null
-            ? JsonCodec.stringOr(json['status'], '')
-            : IsoDateRange.timeAgo(created),
-        givingLabel: _swapShiftLabel(giving),
-        receivingLabel: _swapShiftLabel(receiving),
-        canManagerDecide:
-            status == RequestStatus.pending && apiStatus == 'awaiting_manager',
+      out.add(
+        ShiftRequest(
+          id: id ?? name,
+          staffName: name,
+          staffInitials: IsoDateRange.initials(name),
+          status: status,
+          timingLabel: created == null
+              ? JsonCodec.stringOr(json['status'], '')
+              : IsoDateRange.timeAgo(created),
+          givingLabel: _swapShiftLabel(giving),
+          receivingLabel: _swapReceivingLabel(receiving, target),
+          canManagerDecide:
+              status == RequestStatus.pending && apiStatus == 'awaiting_manager',
+        ),
       );
-    }).toList();
+    }
+    return out;
   }
 
   static String _swapShiftLabel(dynamic value) {
@@ -515,6 +857,16 @@ abstract final class SchedulingMapper {
       return name ?? 'Shift';
     }
     return IsoDateRange.stringOr(value, 'Shift');
+  }
+
+  /// One-way handovers often have no `toShift` — show the target peer instead
+  /// of a bare "Shift" placeholder.
+  static String _swapReceivingLabel(dynamic receiving, dynamic target) {
+    if (receiving is Map) return _swapShiftLabel(receiving);
+    final peer = IsoDateRange.personName(target);
+    if (peer.isNotEmpty && peer != 'Unknown') return 'Handover to $peer';
+    if (receiving != null) return IsoDateRange.stringOr(receiving, 'Shift');
+    return 'Awaiting peer response';
   }
 
   static int _filled(Map<String, dynamic> json) {
@@ -574,11 +926,131 @@ abstract final class SchedulingMapper {
             map['employee'] ??
             map['assignee'] ??
             item;
-      }).toList();
+      }).where(_isRosteredPerson).toList();
     }
     final staff = JsonCodec.listAt(json, 'staff');
-    if (staff.isNotEmpty) return staff;
-    return JsonCodec.listAt(json, 'assignees');
+    if (staff.isNotEmpty) {
+      return staff.where(_isRosteredPerson).toList();
+    }
+    return JsonCodec.listAt(json, 'assignees').where(_isRosteredPerson).toList();
+  }
+
+  /// Assigned/active people only — pending bids are listed separately.
+  static bool _isRosteredPerson(dynamic person) {
+    if (person is! Map) return true;
+    final status =
+        (JsonCodec.string(JsonCodec.asMap(person)['status']) ?? '').toLowerCase();
+    return status != 'bid_pending' &&
+        status != 'pending' &&
+        status != 'declined' &&
+        status != 'rejected';
+  }
+
+  /// Open-shift bids the manager can accept (`staff` or `bids` rows).
+  static List<ShiftBid> _pendingBids(Map<String, dynamic> json) {
+    final seen = <String>{};
+    final out = <ShiftBid>[];
+
+    void add(Map raw) {
+      final map = JsonCodec.asMap(raw);
+      final status = (JsonCodec.string(map['status']) ?? '').toLowerCase();
+      // `bids[]` rows are pending even when status is omitted.
+      final pending = status.isEmpty ||
+          status == 'bid_pending' ||
+          status == 'pending' ||
+          status == 'bidding';
+      if (!pending) return;
+      final bidId = JsonCodec.string(
+        map['assignmentId'] ?? map['bidId'] ?? map['id'],
+      );
+      if (bidId == null || !seen.add(bidId)) return;
+      final staffMap = JsonCodec.asMap(map['staff']);
+      final staffId = JsonCodec.string(
+            map['staffId'] ?? staffMap['id'] ?? map['id'],
+          ) ??
+          bidId;
+      final nestedName = _fullName(staffMap);
+      final name = JsonCodec.string(map['name']) ??
+          (nestedName.isNotEmpty ? nestedName : null) ??
+          'Staff member';
+      out.add(
+        ShiftBid(
+          bidId: bidId,
+          staffId: staffId,
+          staffName: name,
+          note: JsonCodec.string(map['note'] ?? staffMap['note']) ?? '',
+        ),
+      );
+    }
+
+    for (final row in JsonCodec.listAt(json, 'staff').whereType<Map>()) {
+      final status =
+          (JsonCodec.string(JsonCodec.asMap(row)['status']) ?? '').toLowerCase();
+      if (status == 'bid_pending' || status == 'pending' || status == 'bidding') {
+        add(row);
+      }
+    }
+    for (final row in JsonCodec.listAt(json, 'bids').whereType<Map>()) {
+      add(row);
+    }
+    return out;
+  }
+
+  static String _fullName(dynamic person) {
+    if (person is Map) {
+      final full = IsoDateRange.personName(person);
+      return full == 'Unknown' ? '' : full;
+    }
+    final raw = IsoDateRange.stringOr(person, '');
+    return raw == 'Unknown' ? '' : raw;
+  }
+
+  static WeekShiftCoverage _weekCoverage(List<Map<String, dynamic>> rows) {
+    if (rows.isEmpty) return WeekShiftCoverage.empty;
+    final unstaffed = rows.where((row) {
+      final assigned = JsonCodec.integer(row['assignedCount']);
+      if (assigned != null) return assigned <= 0;
+      return _assignedPeople(row).isEmpty;
+    }).toList();
+    final openRows = rows
+        .where((row) => JsonCodec.stringOr(row['status'], '') == 'open')
+        .toList();
+    final percent =
+        ((rows.length - unstaffed.length) / rows.length * 100).round();
+    var unstaffedDescription = 'Every shift this week has someone assigned';
+    if (unstaffed.isNotEmpty) {
+      final counts = <String, int>{};
+      for (final row in unstaffed) {
+        final name = JsonCodec.string(
+              row['residenceName'] ??
+                  JsonCodec.mapAt(row, 'residence')?['name'],
+            ) ??
+            'Unknown home';
+        counts[name] = (counts[name] ?? 0) + 1;
+      }
+      final top = counts.entries.reduce(
+        (best, next) => next.value > best.value ? next : best,
+      );
+      unstaffedDescription = 'Most in ${top.key} — ${top.value} of them';
+    }
+    final bids = openRows.fold<int>(0, (sum, row) {
+      return sum + JsonCodec.listAt(row, 'bids').length;
+    });
+    final openDescription = openRows.isEmpty
+        ? 'No shifts are open for staff to bid on'
+        : bids == 0
+            ? 'No bids yet'
+            : '$bids bid${bids == 1 ? '' : 's'} received';
+    return WeekShiftCoverage(
+      unstaffed: unstaffed.length,
+      unstaffedDescription: unstaffedDescription,
+      coveredValue: '$percent%',
+      coveredDescription:
+          'Shifts this week with at least one person working them',
+      coveredCaption: 'of shifts',
+      openShifts: openRows.length,
+      openDescription: openDescription,
+    );
   }
 
   static String _firstName(dynamic person) {

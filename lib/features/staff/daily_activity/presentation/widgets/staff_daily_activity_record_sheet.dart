@@ -335,7 +335,7 @@ class _StaffDailyActivityRecordSheetState
                   _PersonSearchField(
                     controller: _clientSearch,
                     hint: 'Search select resident...',
-                    helper: 'Type to search select resident',
+                    helper: 'Tap to browse or type to filter',
                     options: _filtered(widget.clients, _clientSearch.text),
                     selectedId: _clientId,
                     onSelected: (option) {
@@ -442,7 +442,7 @@ class _StaffDailyActivityRecordSheetState
                   _PersonSearchField(
                     controller: _staffSearch,
                     hint: 'Search recorded by...',
-                    helper: 'Type to search recorded by',
+                    helper: 'Tap to browse or type to filter',
                     options: _filtered(widget.staff, _staffSearch.text),
                     selectedId: _recordedByStaffId,
                     onSelected: (option) {
@@ -690,7 +690,7 @@ class _Label extends StatelessWidget {
   }
 }
 
-class _PersonSearchField extends StatelessWidget {
+class _PersonSearchField extends StatefulWidget {
   final TextEditingController controller;
   final String hint;
   final String helper;
@@ -712,7 +712,18 @@ class _PersonSearchField extends StatelessWidget {
   });
 
   @override
+  State<_PersonSearchField> createState() => _PersonSearchFieldState();
+}
+
+class _PersonSearchFieldState extends State<_PersonSearchField> {
+  bool _open = false;
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final selectedId = widget.selectedId;
+    final options = widget.options;
+    final showList = selectedId == null && _open;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -720,26 +731,30 @@ class _PersonSearchField extends StatelessWidget {
           controller: controller,
           style: _fieldTextStyle,
           decoration: _fieldDecoration(
-            hint: hint,
+            hint: widget.hint,
             prefixIcon: const Icon(
               Icons.search_rounded,
               size: 20,
               color: AppColors.textMuted,
             ),
           ),
-          onChanged: onChanged,
-          validator: validator,
+          onTap: () => setState(() => _open = true),
+          onChanged: (value) {
+            setState(() => _open = true);
+            widget.onChanged?.call(value);
+          },
+          validator: widget.validator,
         ),
         const SizedBox(height: 4),
         Text(
-          helper,
+          widget.helper,
           style: const TextStyle(
             fontFamily: 'Outfit',
             fontSize: 12,
             color: AppColors.textMuted,
           ),
         ),
-        if (controller.text.trim().isNotEmpty && selectedId == null) ...[
+        if (showList) ...[
           const SizedBox(height: 8),
           Container(
             constraints: const BoxConstraints(maxHeight: 160),
@@ -781,7 +796,10 @@ class _PersonSearchField extends StatelessWidget {
                                   color: AppColors.textMuted,
                                 ),
                               ),
-                        onTap: () => onSelected(option),
+                        onTap: () {
+                          setState(() => _open = false);
+                          widget.onSelected(option);
+                        },
                       );
                     },
                   ),

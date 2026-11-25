@@ -6,11 +6,13 @@ import '../../domain/entities/communication_enums.dart';
 
 class CommunicationSegmentTabs extends StatelessWidget {
   final CommunicationTab selected;
+  final List<CommunicationTab> tabs;
   final ValueChanged<CommunicationTab> onSelected;
 
   const CommunicationSegmentTabs({
     super.key,
     required this.selected,
+    required this.tabs,
     required this.onSelected,
   });
 
@@ -22,31 +24,26 @@ class CommunicationSegmentTabs extends StatelessWidget {
         horizontal: 16,
         bottom: 8,
       ),
-      child: Container(
-        padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEEF1F5),
-          borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Container(
+          padding: ResponsiveHelper.getResponsivePadding(context, all: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEEF1F5),
+            borderRadius: BorderRadius.circular(
+              ResponsiveHelper.getResponsiveRadius(context, 12),
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _Segment(
-                label: 'Messages',
-                selected: selected == CommunicationTab.messages,
-                onTap: () => onSelected(CommunicationTab.messages),
-              ),
-            ),
-            Expanded(
-              child: _Segment(
-                label: 'Communication Log',
-                selected: selected == CommunicationTab.communicationLog,
-                onTap: () => onSelected(CommunicationTab.communicationLog),
-              ),
-            ),
-          ],
+          child: Row(
+            children: [
+              for (final tab in tabs)
+                _Segment(
+                  label: tab.label,
+                  selected: selected == tab,
+                  onTap: () => onSelected(tab),
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -71,6 +71,8 @@ class _FakeAttendanceRepo extends Fake implements StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   }) async {
     calls.add('check-out:$residenceId');
     return Result.success(null);
@@ -219,6 +221,64 @@ void main() {
 
     String clockTrailing(StaffDashboardOverview o) =>
         o.quickActions.firstWhere((a) => a.id == 'clock-in-out').trailing;
+
+    test('a shift happening now is On Shift and still a clock-in', () {
+      final now = DateTime.utc(2026, 10, 15, 5, 18);
+      final overview = StaffHomeMapper.compose(
+        session: Get.find<UserSession>(),
+        now: now,
+        body: {
+          'success': true,
+          'data': {
+            'attendance': {
+              'id': '93068bc1-0a73-4bca-ab54-62ec74580f4b',
+              'checkInAt': null,
+              'onShift': true,
+              'onBreak': false,
+              'residence': {'id': 'elm', 'name': 'Elm House'},
+            },
+            'shift': {
+              'id': 'c9180a2c-ed4c-4ab9-a6c1-5dc48f0699b6',
+              'startsAt': now.subtract(const Duration(hours: 4)).toIso8601String(),
+              'endsAt': now.add(const Duration(hours: 4)).toIso8601String(),
+            },
+            'tiles': const {},
+          },
+        },
+      );
+
+      expect(overview.todayShift.onShift, isTrue);
+      expect(overview.todayShift.clockedIn, isFalse);
+      expect(overview.todayShift.statusLabel, 'On Shift');
+      expect(overview.overviewStats.first.value, 'On Shift');
+      expect(clockTrailing(overview), 'On Shift');
+    });
+
+    test('an open punch overrides a home row that never clocked in', () {
+      final home = <String, dynamic>{
+        'attendance': {
+          'id': 'missed',
+          'checkInAt': null,
+          'onShift': true,
+          'residence': {'id': 'elm', 'name': 'Elm House'},
+        },
+        'shift': {'id': 's1'},
+        'tiles': const {},
+      };
+      StaffHomeMapper.applyOpenPunch(home, {
+        'checkInAt': '2026-10-15T05:18:31.422Z',
+        'checkOutAt': null,
+        'onBreak': false,
+        'residenceId': 'mala',
+        'residence': {'id': 'mala', 'name': 'Mala Box'},
+      });
+      final overview = StaffHomeMapper.compose(
+        session: Get.find<UserSession>(),
+        body: {'data': home},
+      );
+      expect(overview.todayShift.clockedIn, isTrue);
+      expect(overview.todayShift.statusLabel, 'On Shift');
+    });
 
     test('a missed record never clocked into is Off Shift (live shape)', () {
       final overview = compose({

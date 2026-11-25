@@ -23,6 +23,8 @@ class CalendarTabView extends StatelessWidget {
 
   /// Opens a shift for editing (web `onOpenShift`); `null` when read-only.
   final ValueChanged<CalendarShift>? onShiftTap;
+  final List<Widget> leading;
+  final List<Widget> trailing;
 
   const CalendarTabView({
     super.key,
@@ -31,6 +33,8 @@ class CalendarTabView extends StatelessWidget {
     this.onNextWeek,
     this.onDaySelected,
     this.onShiftTap,
+    this.leading = const [],
+    this.trailing = const [],
   });
 
   @override
@@ -48,6 +52,7 @@ class CalendarTabView extends StatelessWidget {
           bottom: ResponsiveHelper.getResponsiveHeight(context, 24),
         ),
         children: [
+          ...leading,
           ColoredBox(
             color: AppColors.surfaceWhite,
             child: Container(
@@ -110,6 +115,7 @@ class CalendarTabView extends StatelessWidget {
               ],
             ),
           ),
+          ...trailing,
         ],
       ),
     );
@@ -632,6 +638,33 @@ class _ShiftCard extends StatelessWidget {
                   ),
                 ),
               ),
+              // Web calendar card: orange "DRAFT" beside the staffing ratio.
+              if (shift.isDraft) ...[
+                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
+                Container(
+                  padding: ResponsiveHelper.getResponsivePadding(
+                    context,
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.urgentBackgroundSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'DRAFT',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize:
+                          ResponsiveHelper.getResponsiveFontSize(context, 11),
+                      color: AppColors.urgentAmber,
+                      height: 1,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ],
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
               Container(
                 padding: ResponsiveHelper.getResponsivePadding(
@@ -668,6 +701,20 @@ class _ShiftCard extends StatelessWidget {
               color: AppColors.textMuted,
             ),
           ),
+          if ((shift.residenceName ?? '').trim().isNotEmpty) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 2)),
+            Text(
+              shift.residenceName!.trim(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
           SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),

@@ -7,11 +7,13 @@ import '../../domain/entities/staff_training.dart';
 class StaffTrainingCourseCards extends StatelessWidget {
   final List<StaffTrainingCourse> courses;
   final ValueChanged<StaffTrainingCourse> onView;
+  final ValueChanged<StaffTrainingCourse>? onTakeQuiz;
 
   const StaffTrainingCourseCards({
     super.key,
     required this.courses,
     required this.onView,
+    this.onTakeQuiz,
   });
 
   @override
@@ -43,7 +45,13 @@ class StaffTrainingCourseCards extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         for (final course in courses.take(6)) ...[
-          _CourseCard(course: course, onView: () => onView(course)),
+          _CourseCard(
+            course: course,
+            onView: () => onView(course),
+            onTakeQuiz: onTakeQuiz == null || course.quizLabel != 'Yes'
+                ? null
+                : () => onTakeQuiz!(course),
+          ),
           const SizedBox(height: 10),
         ],
       ],
@@ -54,8 +62,13 @@ class StaffTrainingCourseCards extends StatelessWidget {
 class _CourseCard extends StatelessWidget {
   final StaffTrainingCourse course;
   final VoidCallback onView;
+  final VoidCallback? onTakeQuiz;
 
-  const _CourseCard({required this.course, required this.onView});
+  const _CourseCard({
+    required this.course,
+    required this.onView,
+    required this.onTakeQuiz,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -112,14 +125,37 @@ class _CourseCard extends StatelessWidget {
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: onView,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryNavy,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              child: const Text('View'),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
+              children: [
+                if (onTakeQuiz != null)
+                  FilledButton(
+                    onPressed: onTakeQuiz,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.secondaryTeal,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: const Text('Take Quiz Now'),
+                  ),
+                FilledButton(
+                  onPressed: onView,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryNavy,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                  ),
+                  child: const Text('View'),
+                ),
+              ],
             ),
           ),
         ],

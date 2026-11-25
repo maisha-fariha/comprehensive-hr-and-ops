@@ -2,6 +2,7 @@ import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/staff_dashboard_enums.dart';
 import '../../domain/entities/staff_dashboard_overview.dart';
 import '../../domain/entities/staff_overview_stat.dart';
@@ -9,16 +10,103 @@ import '../../domain/entities/staff_quick_action.dart';
 import '../../domain/entities/today_shift_summary.dart';
 
 abstract final class StaffHomeMapper {
+  /// `/mobile/home` can keep a missed row (`checkInAt: null`) while the
+  /// attendance list already has an open punch. The web clock button follows
+  /// that punch, so Home must too.
+  static void applyOpenPunch(Map<String, dynamic> home, Map<String, dynamic>? open) {
+    if (open == null) return;
+    final checkIn = JsonCodec.dateTime(open['checkInAt'] ?? open['clockInAt']);
+    if (checkIn == null) return;
+    final checkOut = JsonCodec.dateTime(open['checkOutAt'] ?? open['clockOutAt']);
+    if (checkOut != null) return;
+    final attendance = Map<String, dynamic>.from(
+      JsonCodec.mapAt(home, 'attendance') ?? const {},
+    );
+    attendance['checkInAt'] = open['checkInAt'] ?? open['clockInAt'];
+    attendance['checkOutAt'] = null;
+    attendance['onShift'] = true;
+    attendance['onBreak'] = open['onBreak'] ?? false;
+    final residenceId = JsonCodec.string(open['residenceId']);
+    if (residenceId != null) attendance['residenceId'] = residenceId;
+    final residence = open['residence'];
+    if (residence != null) attendance['residence'] = residence;
+    home['attendance'] = attendance;
+
+    // Keep Today's Shift id/times when /mobile/home omitted `shift` (or the
+    // roster window later clears it) while the open punch still names one.
+    final shift = Map<String, dynamic>.from(
+      JsonCodec.mapAt(home, 'shift') ?? const {},
+    );
+    final nested = JsonCodec.mapAt(open, 'shift') ?? const {};
+    final shiftId = JsonCodec.string(
+      open['shiftId'] ?? nested['id'] ?? shift['id'] ?? shift['shiftId'],
+    );
+    if (shiftId != null && shiftId.isNotEmpty) {
+      shift.putIfAbsent('id', () => shiftId);
+      shift.putIfAbsent('shiftId', () => shiftId);
+    }
+    final start = open['shiftStartsAt'] ??
+        open['startsAt'] ??
+        nested['startsAt'] ??
+        nested['startAt'] ??
+        nested['startTime'];
+    final end = open['shiftEndsAt'] ??
+        open['endsAt'] ??
+        nested['endsAt'] ??
+        nested['endAt'] ??
+        nested['endTime'];
+    if (start != null) {
+      shift.putIfAbsent('startsAt', () => start);
+      shift.putIfAbsent('startAt', () => start);
+    }
+    if (end != null) {
+      shift.putIfAbsent('endsAt', () => end);
+      shift.putIfAbsent('endAt', () => end);
+    }
+    final openResidenceId = JsonCodec.string(
+      open['residenceId'] ?? nested['residenceId'],
+    );
+    if (openResidenceId != null) {
+      shift.putIfAbsent('residenceId', () => openResidenceId);
+    }
+    final openResidenceName = JsonCodec.string(
+      nested['residenceName'] ??
+          JsonCodec.mapAt(open, 'residence')?['name'],
+    );
+    if (openResidenceName != null) {
+      shift.putIfAbsent('residenceName', () => openResidenceName);
+    }
+    // Drop stale placeholder copy from a cached /mobile/home payload.
+    _stripShiftPlaceholders(shift);
+    if (shift.isNotEmpty) home['shift'] = shift;
+  }
+
+  static void _stripShiftPlaceholders(Map<String, dynamic> shift) {
+    for (final key in ['timeRange', 'label', 'timeLabel']) {
+      final value = JsonCodec.string(shift[key])?.trim().toLowerCase() ?? '';
+      if (value.isEmpty ||
+          value == 'no shift today' ||
+          value == 'no shift' ||
+          value == 'off shift') {
+        shift.remove(key);
+      }
+    }
+  }
+
   static StaffDashboardOverview compose({
     required UserSession session,
     required dynamic body,
     int? unreadNotificationCount,
+    DateTime? now,
   }) {
     final json = JsonCodec.unwrapMap(body);
     final tiles = JsonCodec.mapAt(json, 'tiles') ?? {};
     final attendance = JsonCodec.mapAt(json, 'attendance') ?? {};
-    final shift = JsonCodec.mapAt(json, 'shift') ?? {};
-    final now = DateTime.now();
+    final shift = Map<String, dynamic>.from(
+      JsonCodec.mapAt(json, 'shift') ?? const {},
+    );
+    _stripShiftPlaceholders(shift);
+    final clock = now ?? TenantClock.now();
     final firstName = session.displayName.split(' ').first;
 
     session.applyPermissions(
@@ -37,58 +125,81 @@ abstract final class StaffHomeMapper {
     );
 
     // `/mobile/home` also reports `onShift: true` for a missed record that was
-    // never clocked into; check-out then 404s. Like the web, only a punch with
-    // `checkInAt` and no `checkOutAt` is open.
-    final neverClockedIn = attendance.containsKey('checkInAt') &&
-        JsonCodec.dateTime(attendance['checkInAt']) == null;
+    // never clocked into; check-out then 404s. Clock out only for a real
+    // open punch. A shift whose hours cover now is still "On Shift" so the
+    // person can clock in.
+    final checkIn = JsonCodec.dateTime(attendance['checkInAt']);
+    final neverClockedIn =
+        attendance.containsKey('checkInAt') && checkIn == null;
     final clockedOut = JsonCodec.dateTime(attendance['checkOutAt']) != null;
-    final onShift = (JsonCodec.boolean(attendance['onShift']) ?? false) &&
-        !neverClockedIn &&
-        !clockedOut;
+    final reportedOnShift = JsonCodec.boolean(attendance['onShift']) ?? false;
+    final clockedIn = (checkIn != null && !clockedOut) ||
+        (reportedOnShift && !neverClockedIn && !clockedOut);
+    final clockOpen =
+        JsonCodec.boolean(shift['clockOpen']) ?? _coversNow(shift, clock);
+    final inShift = clockedIn || clockOpen;
     final onBreak =
-        onShift && (JsonCodec.boolean(attendance['onBreak']) ?? false);
+        clockedIn && (JsonCodec.boolean(attendance['onBreak']) ?? false);
     final clients = _tileInt(tiles, 'clients');
     final tasksDue = _tileInt(tiles, 'tasksDue');
     final medsDue = _tileInt(tiles, 'medicationsDue');
-    final alerts = _tileInt(tiles, 'alerts') ?? 0;
+    // Web Staff Home does not surface tiles.alerts (often unscoped/wrong).
+    final alerts = 0;
 
     return StaffDashboardOverview(
       organizationName: session.organizationName ??
+          JsonCodec.string(json['organizationName']) ??
+          JsonCodec.string(json['tenantName']) ??
           session.residenceName ??
           JsonCodec.string(shift['residenceName']) ??
-          'Residence',
-      dateLabel: IsoDateRange.formatDisplayDate(now),
-      greetingLine: '${IsoDateRange.greetingPrefix(now)}, $firstName 👋',
+          'Organisation',
+      dateLabel: IsoDateRange.formatDisplayDate(clock),
+      greetingLine: '${IsoDateRange.greetingPrefix(clock)}, $firstName 👋',
       greetingSubtitle: "Here's what's happening on your shift.",
       unreadNotificationCount: unreadNotificationCount ??
           JsonCodec.integerOr(json['unreadCount'], 0),
       todayShift: TodayShiftSummary(
         statusLabel: onBreak
             ? 'On Break'
-            : onShift
+            : inShift
                 ? 'On Shift'
                 : 'Off Shift',
-        dateLabel: IsoDateRange.formatMonthDay(now),
-        timeRange: _shiftRange(shift),
-        onShift: onShift,
+        dateLabel: IsoDateRange.formatMonthDay(clock),
+        timeRange: _shiftRange(
+          shift,
+          onShift: inShift,
+          clockedIn: clockedIn,
+          checkInAt: checkIn,
+        ),
+        onShift: inShift,
+        clockedIn: clockedIn,
         onBreak: onBreak,
         shiftId: JsonCodec.string(shift['id'] ?? shift['shiftId']),
         residenceId: session.residenceId,
+        clockOpen: clockOpen || clockedIn,
+        startsAt: JsonCodec.dateTime(
+          shift['startAt'] ?? shift['startsAt'] ?? shift['startTime'] ?? shift['from'],
+        ),
+        endsAt: JsonCodec.dateTime(
+          shift['endAt'] ?? shift['endsAt'] ?? shift['endTime'] ?? shift['to'],
+        ),
       ),
       overviewStats: _stats(
-        onShift: onShift,
+        onShift: inShift,
         onBreak: onBreak,
         tiles: tiles,
       ),
       alertCount: alerts,
       alertLabel: 'Alerts',
       quickActions: _quickActions(
-        onShift: onShift,
+        onShift: inShift,
         clients: clients,
         tasksDue: tasksDue,
         medsDue: medsDue,
-        canAccessClients: session.canAccessClients,
+        canClock: session.can('attendance:write'),
+        canDailyLogs: session.can('daily-logs'),
         canAccessMar: session.canAccessMar,
+        canTasks: session.can('tasks'),
       ),
     );
   }
@@ -98,18 +209,21 @@ abstract final class StaffHomeMapper {
     required int? clients,
     required int? tasksDue,
     required int? medsDue,
-    required bool canAccessClients,
+    required bool canClock,
+    required bool canDailyLogs,
     required bool canAccessMar,
+    required bool canTasks,
   }) {
     return [
-      StaffQuickAction(
-        id: 'clock-in-out',
-        asset: AppAssets.clock,
-        label: 'Clock In / Out',
-        subtitle: 'Tap to manage your shift',
-        trailing: onShift ? 'On Shift' : 'Off Shift',
-      ),
-      if (canAccessClients)
+      if (canClock)
+        StaffQuickAction(
+          id: 'clock-in-out',
+          asset: AppAssets.clock,
+          label: 'Clock In / Out',
+          subtitle: 'Tap to manage your shift',
+          trailing: onShift ? 'On Shift' : 'Off Shift',
+        ),
+      if (canDailyLogs)
         StaffQuickAction(
           id: 'daily-logs',
           asset: 'assets/icons/team_reports/team_doc.svg',
@@ -125,13 +239,14 @@ abstract final class StaffHomeMapper {
           subtitle: 'Administer & record meds',
           trailing: medsDue == null ? '' : '$medsDue Due',
         ),
-      StaffQuickAction(
-        id: 'my-tasks',
-        asset: 'assets/icons/staff_core/tasks_due.svg',
-        label: 'My Tasks',
-        subtitle: 'View assigned tasks',
-        trailing: tasksDue == null ? '' : '$tasksDue Due',
-      ),
+      if (canTasks)
+        StaffQuickAction(
+          id: 'my-tasks',
+          asset: 'assets/icons/staff_core/tasks_due.svg',
+          label: 'My Tasks',
+          subtitle: 'View assigned tasks',
+          trailing: tasksDue == null ? '' : '$tasksDue Due',
+        ),
     ];
   }
 
@@ -140,8 +255,25 @@ abstract final class StaffHomeMapper {
     return JsonCodec.integerOr(tiles[key], 0);
   }
 
-  static String _shiftRange(Map<String, dynamic> shift) {
-    if (shift.isEmpty) return 'No shift today';
+  /// True when [now] falls inside the scheduled shift, compared as instants.
+  static bool _coversNow(Map<String, dynamic> shift, DateTime now) {
+    final start = JsonCodec.dateTime(
+      shift['startAt'] ?? shift['startsAt'] ?? shift['startTime'] ?? shift['from'],
+    );
+    final end = JsonCodec.dateTime(
+      shift['endAt'] ?? shift['endsAt'] ?? shift['endTime'] ?? shift['to'],
+    );
+    if (start == null || end == null) return false;
+    final instant = now.toUtc();
+    return !instant.isBefore(start.toUtc()) && !instant.isAfter(end.toUtc());
+  }
+
+  static String _shiftRange(
+    Map<String, dynamic> shift, {
+    bool onShift = false,
+    bool clockedIn = false,
+    DateTime? checkInAt,
+  }) {
     final start = JsonCodec.dateTime(
       shift['startAt'] ?? shift['startsAt'] ?? shift['startTime'] ?? shift['from'],
     );
@@ -150,7 +282,25 @@ abstract final class StaffHomeMapper {
     );
     final labeled = IsoDateRange.rangeLabel(start, end);
     if (labeled.isNotEmpty) return labeled;
-    return JsonCodec.stringOr(shift['timeRange'] ?? shift['label'], 'No shift today');
+    final named = (JsonCodec.string(
+              shift['timeRange'] ?? shift['label'] ?? shift['timeLabel'],
+            ) ??
+            '')
+        .trim();
+    final lower = named.toLowerCase();
+    final placeholder = named.isEmpty ||
+        lower == 'no shift today' ||
+        lower == 'no shift' ||
+        lower == 'off shift';
+    if (!placeholder) return named;
+    // On Shift / open punch without roster hours — never show "No shift today".
+    if (onShift || clockedIn) {
+      if (checkInAt != null) {
+        return 'In since ${IsoDateRange.timeLabel(checkInAt)}';
+      }
+      return 'On shift';
+    }
+    return 'No shift today';
   }
 
   static List<StaffOverviewStat> _stats({

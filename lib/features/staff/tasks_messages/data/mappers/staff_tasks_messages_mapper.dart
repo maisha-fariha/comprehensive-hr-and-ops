@@ -11,6 +11,7 @@ import '../../domain/entities/staff_task_detail.dart';
 import '../../domain/entities/task_stats.dart';
 import '../../domain/entities/tasks_messages_enums.dart';
 import '../../domain/entities/tasks_messages_overview.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffTasksMessagesMapper {
   static TasksMessagesOverview overview({
@@ -42,6 +43,71 @@ abstract final class StaffTasksMessagesMapper {
     ).whereType<Map>().map((item) => taskFrom(JsonCodec.asMap(item))).toList();
   }
 
+  /// Keeps rows assigned to the signed-in carer (defense if API ignores scope).
+  ///
+  /// Relies on `assignee=me` when the list payload omits assignees. When
+  /// assignees *are* present and none match the current staff/user, the row
+  /// is dropped so other people's tasks never appear.
+  static List<StaffTask> tasksAssignedTo(
+    List<dynamic> rows, {
+    String? staffId,
+    String? userId,
+  }) {
+    final sid = staffId?.trim() ?? '';
+    final uid = userId?.trim() ?? '';
+    final hasIdentity = sid.isNotEmpty || uid.isNotEmpty;
+    final kept = <StaffTask>[];
+    for (final raw in rows) {
+      if (raw is! Map) continue;
+      final json = JsonCodec.asMap(raw);
+      if (hasIdentity &&
+          _hasAssigneeIds(json) &&
+          !_taskAssignedTo(json, staffId: sid, userId: uid)) {
+        continue;
+      }
+      kept.add(taskFrom(json));
+    }
+    return kept;
+  }
+
+  static bool _hasAssigneeIds(Map<String, dynamic> json) =>
+      _assigneeIdsOf(json).isNotEmpty;
+
+  static Set<String> _assigneeIdsOf(Map<String, dynamic> json) {
+    final assigneeIds = <String>{};
+    void addId(String? value) {
+      final v = value?.trim() ?? '';
+      if (v.isNotEmpty) assigneeIds.add(v);
+    }
+
+    for (final raw in JsonCodec.unwrapList(json['assignees'])) {
+      if (raw is! Map) continue;
+      final map = JsonCodec.asMap(raw);
+      final staff = JsonCodec.mapAt(map, 'staff') ?? map;
+      addId(JsonCodec.string(staff['id']));
+      addId(JsonCodec.string(staff['staffId']));
+      addId(JsonCodec.string(staff['userId']));
+      addId(JsonCodec.string(map['staffId']));
+      addId(JsonCodec.string(map['userId']));
+      addId(JsonCodec.string(map['id']));
+    }
+    addId(JsonCodec.string(json['assignedStaffId']));
+    addId(JsonCodec.string(json['staffId']));
+    addId(JsonCodec.string(json['assigneeId']));
+    return assigneeIds;
+  }
+
+  static bool _taskAssignedTo(
+    Map<String, dynamic> json, {
+    required String staffId,
+    required String userId,
+  }) {
+    final assigneeIds = _assigneeIdsOf(json);
+    if (staffId.isNotEmpty && assigneeIds.contains(staffId)) return true;
+    if (userId.isNotEmpty && assigneeIds.contains(userId)) return true;
+    return false;
+  }
+
   /// Chip counts from the loaded list so they always match visible rows.
   static TaskStats statsFromTasks(List<StaffTask> tasks) {
     var overdue = 0;
@@ -54,7 +120,8 @@ abstract final class StaffTasksMessagesMapper {
         case TaskStatus.pending:
           pending++;
         case TaskStatus.done:
-          done++;
+          // Web: awaiting manager review is not “Done” yet.
+          if (!task.awaitingReview) done++;
       }
     }
     return TaskStats(
@@ -122,8 +189,8 @@ abstract final class StaffTasksMessagesMapper {
       );
       final dueText = due == null
           ? JsonCodec.stringOr(json['dueLabel'], '')
-          : 'due ${_ddMmYyyy(due.toLocal())} '
-                '${IsoDateRange.timeLabel(due.toLocal())}';
+          : 'due ${_ddMmYyyy(TenantClock.wallOf(due))} '
+                '${IsoDateRange.timeLabel(due)}';
       return RecurringCheckInstance(
         id: JsonCodec.stringOr(json['id'] ?? json['instanceId'], name),
         scheduleId: JsonCodec.stringOr(json['scheduleId'], ''),
@@ -139,6 +206,7 @@ abstract final class StaffTasksMessagesMapper {
         residenceName: residenceName,
         title: name,
         statusRaw: JsonCodec.stringOr(json['status'], ''),
+        dueAt: due,
         dueLabel: dueText,
         location: residenceName,
         assignedStaffName: JsonCodec.stringOr(json['assignedStaffName'], ''),
@@ -193,8 +261,8 @@ abstract final class StaffTasksMessagesMapper {
       );
       final whenLabel = checkedAt == null
           ? ''
-          : '${_ddMmYyyy(checkedAt.toLocal())} '
-                '${IsoDateRange.timeLabel(checkedAt.toLocal())}';
+          : '${_ddMmYyyy(TenantClock.wallOf(checkedAt))} '
+                '${IsoDateRange.timeLabel(checkedAt)}';
       return RecurringCheckInstance(
         id: JsonCodec.stringOr(json['id'], name),
         scheduleId: JsonCodec.stringOr(json['scheduleId'], ''),
@@ -275,19 +343,22 @@ abstract final class StaffTasksMessagesMapper {
     final due = JsonCodec.dateTime(
       json['dueAt'] ?? json['dueDate'] ?? json['due'],
     );
+    final statusRaw = (json['status'] ?? '').toString().toLowerCase().trim();
+    final awaiting = _awaitingReview(json, statusRaw);
     return StaffTask(
       id: JsonCodec.stringOr(json['id'], json['title'] ?? 'task'),
       title: JsonCodec.stringOr(json['title'] ?? json['name'], 'Task'),
       dueTimeLabel: due == null
           ? JsonCodec.stringOr(json['dueLabel'], '')
-          : IsoDateRange.timeLabel(due.toLocal()),
+          : IsoDateRange.timeLabel(due),
       location: JsonCodec.stringOr(
         json['residenceName'] ??
             JsonCodec.mapAt(json, 'residence')?['name'] ??
             json['location'],
         '',
       ),
-      status: _taskStatus(json['status'], due),
+      status: _taskStatus(statusRaw, due),
+      awaitingReview: awaiting,
     );
   }
 
@@ -299,26 +370,117 @@ abstract final class StaffTasksMessagesMapper {
     final due = JsonCodec.dateTime(
       json['dueAt'] ?? json['dueDate'] ?? json['due'],
     );
+    final client = JsonCodec.mapAt(json, 'client');
+    final clientName = JsonCodec.stringOr(
+      json['clientName'] ??
+          (client == null ? null : IsoDateRange.personName(client)),
+      '',
+    );
     return StaffTaskDetail(
       id: JsonCodec.stringOr(json['id'], 'task'),
       title: JsonCodec.stringOr(json['title'] ?? json['name'], 'Task'),
       description: JsonCodec.stringOr(
-        json['description'] ?? json['body'] ?? json['notes'],
+        json['description'] ?? json['body'],
         '',
       ),
       statusRaw: JsonCodec.stringOr(json['status'], ''),
       dueLabel: due == null
           ? JsonCodec.stringOr(json['dueLabel'], '')
-          : IsoDateRange.timeLabel(due.toLocal()),
+          : _webDateTime(due),
+      dueAt: due,
       location: JsonCodec.stringOr(
         json['residenceName'] ??
             JsonCodec.mapAt(json, 'residence')?['name'] ??
             json['location'],
         '',
       ),
+      clientName: clientName == '—' ? '' : clientName,
+      assigneeName: _assigneeNames(json),
+      priorityRaw: JsonCodec.stringOr(json['priority'], ''),
+      taskTypeRaw: JsonCodec.stringOr(
+        json['taskType'] ?? json['type'] ?? json['category'],
+        '',
+      ),
       notes: notesFrom(notesBody),
+      checklist: _checklist(json['checklist']),
+      documents: _documents(json['evidence']),
       requiresSignOff: JsonCodec.boolean(json['requiresSignOff']) ?? false,
+      requiresReview: JsonCodec.boolean(json['requiresReview']) ?? false,
+      reviewedBy: JsonCodec.string(json['reviewedBy']),
+      reviewedByName: JsonCodec.string(json['reviewedByName']),
+      reviewedByIp: JsonCodec.string(json['reviewedByIp']),
+      reviewedAt: JsonCodec.dateTime(json['reviewedAt']),
+      reviewNotes: JsonCodec.stringOr(json['reviewNotes'], ''),
+      signedOffBy: JsonCodec.string(json['signedOffBy']),
+      signedOffName: JsonCodec.string(json['signedOffName']),
+      signedOffAt: JsonCodec.dateTime(json['signedOffAt']),
+      signedOffIp: JsonCodec.string(json['signedOffIp']),
     );
+  }
+
+  /// Settings → General date + time (organisation zone, every role).
+  static String _webDateTime(DateTime value) =>
+      TenantClock.formatDateTime(value);
+
+  static String _assigneeNames(Map<String, dynamic> json) {
+    final names = <String>[];
+    for (final raw in JsonCodec.unwrapList(json['assignees'])) {
+      if (raw is! Map) continue;
+      final map = JsonCodec.asMap(raw);
+      final staff = JsonCodec.mapAt(map, 'staff') ?? map;
+      final name = IsoDateRange.personName(staff);
+      if (name.isNotEmpty && name != 'Unknown') names.add(name);
+    }
+    return names.join(', ');
+  }
+
+  static List<StaffTaskCheckItem> _checklist(dynamic raw) {
+    return [
+      for (final item in JsonCodec.unwrapList(raw))
+        if (item is Map)
+          () {
+            final map = JsonCodec.asMap(item);
+            return StaffTaskCheckItem(
+              id: JsonCodec.string(map['id']),
+              label: JsonCodec.stringOr(
+                map['label'] ?? map['title'] ?? map['text'] ?? map['name'],
+                'Item',
+              ),
+              done: map['done'] == true ||
+                  map['completed'] == true ||
+                  map['checked'] == true,
+              required: map['required'] == true,
+              // Web shows recorded values next to the step (e.g. temperature).
+              value: JsonCodec.stringOr(
+                map['value'] ??
+                    map['response'] ??
+                    map['answer'] ??
+                    map['recordedValue'] ??
+                    map['notes'],
+                '',
+              ),
+            );
+          }(),
+    ];
+  }
+
+  static List<StaffTaskDocument> _documents(dynamic raw) {
+    return [
+      for (final item in JsonCodec.unwrapList(raw))
+        if (item is Map)
+          StaffTaskDocument(
+            label: JsonCodec.stringOr(
+              JsonCodec.asMap(item)['label'] ??
+                  JsonCodec.asMap(item)['name'] ??
+                  JsonCodec.asMap(item)['fileName'] ??
+                  JsonCodec.asMap(item)['url'],
+              'File',
+            ),
+            url: JsonCodec.string(
+              JsonCodec.asMap(item)['url'] ?? JsonCodec.asMap(item)['fileUrl'],
+            ),
+          ),
+    ];
   }
 
   static List<StaffTaskNote> notesFrom(dynamic body) {
@@ -334,7 +496,7 @@ abstract final class StaffTasksMessagesMapper {
         authorName: IsoDateRange.personName(
           json['author'] ?? json['createdBy'] ?? json['staff'] ?? json['user'],
         ),
-        timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+        timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       );
     }).toList();
   }
@@ -406,7 +568,7 @@ abstract final class StaffTasksMessagesMapper {
       id: JsonCodec.stringOr(json['id'], name),
       name: name,
       initials: IsoDateRange.initials(name),
-      timeLabel: lastAt == null ? '' : IsoDateRange.timeLabel(lastAt.toLocal()),
+      timeLabel: lastAt == null ? '' : IsoDateRange.timeLabel(lastAt),
       previewText: JsonCodec.stringOr(
         lastMessage?['body'] ??
             lastMessage?['text'] ??
@@ -538,7 +700,7 @@ abstract final class StaffTasksMessagesMapper {
           direction: outgoing
               ? MessageDirection.outgoing
               : MessageDirection.incoming,
-          timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+          timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
           // Per-message Seen/Delivered is not available — only lastReadAt.
           receiptStatus: null,
           senderInitials: outgoing
@@ -581,13 +743,46 @@ abstract final class StaffTasksMessagesMapper {
   }
 
   static TaskStatus _taskStatus(dynamic raw, DateTime? due) {
-    final status = (raw ?? '').toString().toLowerCase();
-    if (status.contains('complete') || status == 'done') return TaskStatus.done;
-    if (status.contains('overdue')) return TaskStatus.overdue;
-    if (due != null && due.isBefore(DateTime.now()) && status != 'completed') {
+    final status = (raw ?? '').toString().toLowerCase().trim();
+    if (status.contains('complete') ||
+        status == 'done' ||
+        status == 'closed' ||
+        status == 'approved' ||
+        status == 'pending_review' ||
+        status == 'awaiting_review' ||
+        status == 'in_review' ||
+        status == 'review') {
+      return TaskStatus.done;
+    }
+    if (status.contains('overdue') || status == 'late') {
+      return TaskStatus.overdue;
+    }
+    // Web: still "pending" / "open" in the API becomes Overdue after dueAt.
+    if (due != null && due.toUtc().isBefore(TenantClock.now().toUtc())) {
       return TaskStatus.overdue;
     }
     return TaskStatus.pending;
+  }
+
+  /// Web list: finished + review required + no `reviewedAt` → Awaiting review.
+  static bool _awaitingReview(Map<String, dynamic> json, String statusRaw) {
+    final reviewed = json['reviewedAt'];
+    final notReviewed = reviewed == null ||
+        (reviewed is String && reviewed.trim().isEmpty);
+    if (!notReviewed) return false;
+    if (statusRaw == 'pending_review' ||
+        statusRaw == 'awaiting_review' ||
+        statusRaw == 'in_review' ||
+        statusRaw == 'review') {
+      return true;
+    }
+    final finished = statusRaw == 'completed' ||
+        statusRaw == 'done' ||
+        statusRaw == 'complete' ||
+        statusRaw.contains('complete');
+    final requires = json['requiresReview'] == true ||
+        JsonCodec.boolean(json['requiresReview']) == true;
+    return finished && requires;
   }
 
   static MessagePriority _priority(dynamic raw) {
@@ -612,8 +807,9 @@ abstract final class StaffTasksMessagesMapper {
         tasks.where((t) => t.status == TaskStatus.overdue).toList(),
       TaskFilter.dueToday =>
         tasks.where((t) => t.status == TaskStatus.pending).toList(),
-      TaskFilter.done =>
-        tasks.where((t) => t.status == TaskStatus.done).toList(),
+      TaskFilter.done => tasks
+          .where((t) => t.status == TaskStatus.done && !t.awaitingReview)
+          .toList(),
     };
   }
 

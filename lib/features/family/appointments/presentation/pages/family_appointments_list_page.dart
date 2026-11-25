@@ -4,7 +4,8 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../family_shell.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../visit_requests/presentation/pages/visit_request_details_page.dart';
 import '../../domain/entities/family_appointment.dart';
 import '../../domain/entities/family_appointments_enums.dart';
@@ -15,6 +16,7 @@ import '../widgets/family_appointments_tab_bar.dart';
 import '../widgets/family_primary_button.dart';
 import 'create_appointment_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Family Visits & Appointments list - web `/family/appointments`:
 /// "Upcoming Visits" / "Past Visits" tabs over `GET /family/appointments`.
@@ -181,8 +183,8 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
                           navigator.pop();
                           return;
                         }
-                        // Embedded as a FamilyShell tab — return to Home.
-                        Get.offAll(() => const FamilyShell(initialIndex: 0));
+                        // Embedded as a FamilyShell tab — return to Overview.
+                        familyGoToTab(0, context: context);
                       },
                     ),
                     Padding(
@@ -206,7 +208,7 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
                 ),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.refresh,
                   child: items.isEmpty
@@ -236,6 +238,8 @@ class _FamilyAppointmentsListPageState extends State<FamilyAppointmentsListPage>
                         ),
                 ),
               ),
+              if (!Get.isRegistered<UserSession>() ||
+                  Get.find<UserSession>().can('family:write'))
               ColoredBox(
                 color: AppColors.surfaceWhite,
                 child: Padding(

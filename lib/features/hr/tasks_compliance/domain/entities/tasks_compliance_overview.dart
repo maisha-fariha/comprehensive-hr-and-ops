@@ -7,6 +7,7 @@ import 'compliance_summary.dart';
 import 'corrective_action.dart';
 import 'corrective_stat.dart';
 import 'expiring_certificate.dart';
+import 'task_analytics.dart';
 import 'task_item.dart';
 import 'task_stat.dart';
 
@@ -17,7 +18,12 @@ class TasksComplianceOverview {
   final String headerSubtitle;
 
   final List<TaskStat> taskStats;
+  final TaskAnalytics taskAnalytics;
+
+  /// Pending open tasks — web “All Tasks” badge (`N pending`).
   final int tasksDueCount;
+  final int reviewQueueCount;
+  final int recurringCount;
   final List<TaskItem> taskItems;
   final List<TaskItem> reviewQueueItems;
   final List<TaskItem> recurringItems;
@@ -41,7 +47,10 @@ class TasksComplianceOverview {
   const TasksComplianceOverview({
     required this.headerSubtitle,
     required this.taskStats,
+    required this.taskAnalytics,
     required this.tasksDueCount,
+    this.reviewQueueCount = 0,
+    this.recurringCount = 0,
     required this.taskItems,
     this.reviewQueueItems = const [],
     this.recurringItems = const [],

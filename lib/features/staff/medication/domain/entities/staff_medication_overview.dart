@@ -60,8 +60,11 @@ class StaffMedicationOverview {
         overdueCount = overdueCount ?? 0,
         unscheduledCount = unscheduledCount ?? 0;
 
-  /// Missed + overdue for the metric strip / side cards.
-  int get missedOrOverdueCount => missedCount + overdueCount;
+  /// Web "Missed / Overdue" KPI uses `summary.missed` only.
+  ///
+  /// Overdue rows are already included in that summary (and in [missedDoses]).
+  /// Adding [overdueCount] on top double-counts vs the web console.
+  int get missedOrOverdueCount => missedCount;
 
   StaffMedicationOverview copyWith({
     List<DueDose>? dueNowDoses,

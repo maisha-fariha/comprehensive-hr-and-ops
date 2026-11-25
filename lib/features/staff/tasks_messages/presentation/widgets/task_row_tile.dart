@@ -49,8 +49,16 @@ class TaskRowTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _statusStyles[task.status]!;
-    final isDone = task.status == TaskStatus.done;
+    final awaiting = task.awaitingReview;
+    final style = awaiting
+        ? const _StatusStyle(
+            color: Color(0xFF0284C7),
+            background: Color(0xFFE0F2FE),
+            label: 'Awaiting review',
+          )
+        : _statusStyles[task.status]!;
+    // Web: awaiting review is finished work, not closed — no strikethrough.
+    final isDone = task.status == TaskStatus.done && !awaiting;
     final isOverdue = task.status == TaskStatus.overdue;
 
     return Material(
@@ -70,7 +78,9 @@ class TaskRowTile extends StatelessWidget {
                 padding: EdgeInsets.only(
                   top: ResponsiveHelper.getResponsiveHeight(context, 2),
                 ),
-                child: _TaskStatusIndicator(status: task.status),
+                child: _TaskStatusIndicator(
+                  status: awaiting ? TaskStatus.pending : task.status,
+                ),
               ),
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
               Expanded(

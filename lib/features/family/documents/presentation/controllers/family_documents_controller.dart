@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:open_filex/open_filex.dart';
 
 import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/storage/media_store_download.dart';
 import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_documents_overview.dart';
@@ -18,7 +19,12 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
     loadOverview();
   }
 
-  final RxBool isOpening = false.obs;
+  /// Id of the document currently downloading / opening, if any.
+  final RxnString openingDocumentId = RxnString();
+
+  bool get isOpening => openingDocumentId.value != null;
+
+  bool isOpeningDocument(String id) => openingDocumentId.value == id;
 
   FamilyDocumentsOverview? get overview => state.value.data;
 
@@ -35,11 +41,32 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
   @override
   Future<void> refresh() => loadOverview();
 
+  Future<bool> signDocument(FamilyDocument document) async {
+    final result = await repository.signDocument(document.id);
+    var signed = false;
+    await result.when(
+      success: (_) async {
+        signed = true;
+        AppSnackbar.show(
+          'Thank you — your signature has been recorded',
+          '',
+          force: true,
+        );
+        await loadOverview();
+      },
+      failure: (error) async => AppErrorDialog.showResultError(
+        error,
+        fallbackTitle: 'Could not sign document',
+      ),
+    );
+    return signed;
+  }
+
   /// Opens a document via `GET /files/.../link` (or fallbacks), then launches
   /// the system viewer.
   Future<void> openDocument(FamilyDocument document) async {
-    if (isOpening.value) return;
-    isOpening.value = true;
+    if (openingDocumentId.value != null) return;
+    openingDocumentId.value = document.id;
     try {
       final result = await repository.openDocument(document);
       await result.when(
@@ -93,7 +120,7 @@ class FamilyDocumentsController extends BaseController<FamilyDocumentsOverview> 
         ),
       );
     } finally {
-      isOpening.value = false;
+      openingDocumentId.value = null;
     }
   }
 }

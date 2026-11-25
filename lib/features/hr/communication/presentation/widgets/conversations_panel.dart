@@ -17,6 +17,8 @@ class ConversationsPanel extends StatelessWidget {
   final ValueChanged<String> onConversationTap;
   final VoidCallback? onComposeTap;
   final VoidCallback? onMarkAllRead;
+  final bool showingArchived;
+  final VoidCallback? onToggleArchived;
 
   const ConversationsPanel({
     super.key,
@@ -31,6 +33,8 @@ class ConversationsPanel extends StatelessWidget {
     required this.onConversationTap,
     this.onComposeTap,
     this.onMarkAllRead,
+    this.showingArchived = false,
+    this.onToggleArchived,
   });
 
   @override
@@ -61,7 +65,7 @@ class ConversationsPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Conversations',
+                        showingArchived ? 'Archived' : 'Conversations',
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w700,
@@ -76,7 +80,9 @@ class ConversationsPanel extends StatelessWidget {
                         height: ResponsiveHelper.getResponsiveHeight(context, 2),
                       ),
                       Text(
-                        '$activeCount active · $unreadCount unread',
+                        showingArchived
+                            ? '${conversations.length} archived'
+                            : '$activeCount active · $unreadCount unread',
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontWeight: FontWeight.w400,
@@ -90,12 +96,27 @@ class ConversationsPanel extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onToggleArchived != null)
+                  IconButton(
+                    onPressed: onToggleArchived,
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(
+                      Icons.inventory_2_outlined,
+                      semanticLabel: showingArchived
+                          ? 'Show conversations'
+                          : 'Show archived',
+                      size: ResponsiveHelper.getResponsiveSize(context, 20),
+                      color: showingArchived
+                          ? AppColors.secondaryTeal
+                          : AppColors.textMuted,
+                    ),
+                  ),
                 IconButton(
                   onPressed: onComposeTap,
                   visualDensity: VisualDensity.compact,
-                  tooltip: 'New conversation',
                   icon: Icon(
                     Icons.edit_square,
+                    semanticLabel: 'New conversation',
                     size: ResponsiveHelper.getResponsiveSize(context, 20),
                     color: AppColors.textMuted,
                   ),
@@ -104,9 +125,9 @@ class ConversationsPanel extends StatelessWidget {
                   IconButton(
                     onPressed: onMarkAllRead,
                     visualDensity: VisualDensity.compact,
-                    tooltip: 'Mark all read',
                     icon: Icon(
                       Icons.done_all_rounded,
+                      semanticLabel: 'Mark all read',
                       size: ResponsiveHelper.getResponsiveSize(context, 20),
                       color: AppColors.textMuted,
                     ),

@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/constants/app_colors.dart';
 import '../../../staff_core_constants.dart';
 
 /// Nested cool-grey "Time Worked" timer block.
 class TimeWorkedCard extends StatelessWidget {
   final String elapsedTimeLabel;
 
+  /// Web Worked secondary line while still in, e.g. "7m break".
+  final String breakLabel;
+
   static const Color _primary = Color(0xFF1A2B3C);
   static const Color _secondary = Color(0xFF6A7C8A);
   static const Color _units = Color(0xFF94A3B8);
   static const Color _surface = Color(0xFFF1F5F9);
 
-  const TimeWorkedCard({super.key, required this.elapsedTimeLabel});
+  const TimeWorkedCard({
+    super.key,
+    required this.elapsedTimeLabel,
+    this.breakLabel = '',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +75,18 @@ class TimeWorkedCard extends StatelessWidget {
               letterSpacing: 1.6,
             ),
           ),
+          if (breakLabel.isNotEmpty) ...[
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+            Text(
+              breakLabel,
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                color: AppColors.infoBlue,
+              ),
+            ),
+          ],
         ],
       ),
     );

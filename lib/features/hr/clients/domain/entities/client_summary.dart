@@ -25,6 +25,18 @@ class ClientSummary {
   final DateTime? admissionDate;
   final String? gender;
   final String? fundingSource;
+
+  /// Agency billed for placement when funding is not Private Pay.
+  final String? fundingVendorName;
+
+  /// Agency vendor / account id for this home.
+  final String? fundingVendorId;
+
+  /// Placement charge amount (`rateAmount`); earned night-by-night in P&L.
+  final double? rateAmount;
+
+  /// API enum: `daily` | `weekly` | `monthly`.
+  final String? rateFrequency;
   final Map<String, bool> portalVisibility;
   final List<String> allergies;
   final List<String> conditions;
@@ -32,6 +44,9 @@ class ClientSummary {
   final List<String> currentMedications;
   final String doctorName;
   final String pharmacyName;
+
+  /// Provincial / insurance health card number (`medicalInfo.healthCardNumber`).
+  final String healthCardNumber;
   final String behavioralTriggers;
   final String safetyPlanNotes;
   final List<String> carePlanGoals;
@@ -60,6 +75,10 @@ class ClientSummary {
     this.admissionDate,
     this.gender,
     this.fundingSource,
+    this.fundingVendorName,
+    this.fundingVendorId,
+    this.rateAmount,
+    this.rateFrequency,
     this.portalVisibility = const {},
     this.allergies = const [],
     this.conditions = const [],
@@ -67,6 +86,7 @@ class ClientSummary {
     this.currentMedications = const [],
     this.doctorName = '',
     this.pharmacyName = '',
+    this.healthCardNumber = '',
     this.behavioralTriggers = '',
     this.safetyPlanNotes = '',
     this.carePlanGoals = const [],

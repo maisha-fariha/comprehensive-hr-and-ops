@@ -15,12 +15,14 @@ class RequestsTabView extends StatelessWidget {
   final RequestsOverview data;
   final void Function(ShiftRequest request)? onApprove;
   final void Function(ShiftRequest request)? onDecline;
+  final ValueChanged<String>? onOpenShift;
 
   const RequestsTabView({
     super.key,
     required this.data,
     this.onApprove,
     this.onDecline,
+    this.onOpenShift,
   });
 
   @override
@@ -118,7 +120,12 @@ class RequestsTabView extends StatelessWidget {
             for (var i = 0; i < data.openShiftRequests.length; i++) ...[
               if (i > 0)
                 SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-              _OpenShiftRequestCard(item: data.openShiftRequests[i]),
+              _OpenShiftRequestCard(
+                item: data.openShiftRequests[i],
+                onOpen: onOpenShift == null
+                    ? null
+                    : () => onOpenShift!(data.openShiftRequests[i].id),
+              ),
             ],
           ],
         ],
@@ -187,8 +194,9 @@ class _RequestsSectionHeader extends StatelessWidget {
 
 class _OpenShiftRequestCard extends StatelessWidget {
   final OpenPosition item;
+  final VoidCallback? onOpen;
 
-  const _OpenShiftRequestCard({required this.item});
+  const _OpenShiftRequestCard({required this.item, this.onOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -205,18 +213,23 @@ class _OpenShiftRequestCard extends StatelessWidget {
         ? 'assets/icons/dashboard/moon.svg'
         : 'assets/icons/dashboard/clock.svg';
 
-    return Container(
-      width: double.infinity,
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 14,
-        vertical: 13,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
+    return Material(
+      color: AppColors.surfaceWhite,
+      borderRadius: BorderRadius.circular(radius),
+      child: InkWell(
+        onTap: onOpen,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
+        child: Ink(
+          width: double.infinity,
+          padding: ResponsiveHelper.getResponsivePadding(
+            context,
+            horizontal: 14,
+            vertical: 13,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
       child: Row(
         children: [
           Container(
@@ -293,6 +306,8 @@ class _OpenShiftRequestCard extends StatelessWidget {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 @immutable
 class StaffTrainingSummary {
@@ -18,12 +19,43 @@ class StaffTrainingSummary {
 }
 
 @immutable
+class StaffTrainingMaterial {
+  final String id;
+  final String name;
+  final String fileUrl;
+  final String? fileType;
+
+  const StaffTrainingMaterial({
+    required this.id,
+    required this.name,
+    required this.fileUrl,
+    this.fileType,
+  });
+
+  /// PDF stays PDF. Video and every other attachment is shown as a file.
+  String get badge {
+    final hint = '$name $fileUrl'.toLowerCase();
+    if (hint.contains('.pdf')) return 'PDF';
+    if (hint.contains('.doc')) return 'DOC';
+    if (hint.contains('.ppt')) return 'PPT';
+    if (hint.contains('.png') ||
+        hint.contains('.jpg') ||
+        hint.contains('.jpeg') ||
+        hint.contains('.webp')) {
+      return 'Image';
+    }
+    return 'File';
+  }
+}
+
+@immutable
 class StaffTrainingCourse {
   final String id;
   final String title;
   final String description;
   final String? materialUrl;
   final String? materialType;
+  final List<StaffTrainingMaterial> materials;
   final bool isActive;
   final String? category;
   final int? validityMonths;
@@ -40,6 +72,7 @@ class StaffTrainingCourse {
     this.description = '',
     this.materialUrl,
     this.materialType,
+    this.materials = const [],
     this.isActive = true,
     this.category,
     this.validityMonths,
@@ -67,9 +100,10 @@ class StaffTrainingCourse {
   }
 
   String get materialLabel {
-    final type = materialType?.trim();
-    if (type != null && type.isNotEmpty) return type;
-    if (materialUrl != null && materialUrl!.isNotEmpty) return 'Link';
+    if (materials.isNotEmpty) return materials.first.badge;
+    final hint = (materialUrl ?? '').toLowerCase();
+    if (hint.contains('.pdf')) return 'PDF';
+    if (hint.isNotEmpty) return 'File';
     return '—';
   }
 
@@ -84,7 +118,7 @@ class StaffTrainingCourse {
   String get createdLabel {
     final at = createdAt;
     if (at == null) return '—';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -152,6 +186,11 @@ class StaffTrainingAssignment {
   final DateTime? completedAt;
   final DateTime? startedAt;
   final String? courseTitle;
+  final String courseDescription;
+  final String? courseCategory;
+  final int? passingScore;
+  final int? validityMonths;
+  final bool certificateRequired;
 
   const StaffTrainingAssignment({
     required this.id,
@@ -164,6 +203,11 @@ class StaffTrainingAssignment {
     this.completedAt,
     this.startedAt,
     this.courseTitle,
+    this.courseDescription = '',
+    this.courseCategory,
+    this.passingScore,
+    this.validityMonths,
+    this.certificateRequired = false,
   });
 
   String get statusNormalized => status.trim().toLowerCase().replaceAll(' ', '_');
@@ -186,7 +230,7 @@ class StaffTrainingAssignment {
     if (statusNormalized == 'overdue') return true;
     final due = dueAt;
     if (due == null) return false;
-    return due.toLocal().isBefore(DateTime.now());
+    return TenantClock.wallOf(due).isBefore(DateTime.now());
   }
 
   String get statusLabel {
@@ -212,7 +256,7 @@ class StaffTrainingAssignment {
   String get dueLabel {
     final due = dueAt;
     if (due == null) return '';
-    final local = due.toLocal();
+    final local = TenantClock.wallOf(due);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -221,7 +265,7 @@ class StaffTrainingAssignment {
   String get completedLabel {
     final at = completedAt;
     if (at == null) return '';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -235,6 +279,9 @@ class StaffTrainingCertificate {
   final String courseName;
   final String staffName;
   final String status;
+  final String certificateNumber;
+  final String expiryStatus;
+  final String fileUrl;
   final DateTime? issuedAt;
   final DateTime? expiresAt;
 
@@ -244,14 +291,32 @@ class StaffTrainingCertificate {
     this.courseName = '',
     this.staffName = '',
     this.status = '',
+    this.certificateNumber = '',
+    this.expiryStatus = '',
+    this.fileUrl = '',
     this.issuedAt,
     this.expiresAt,
   });
 
+  /// Web status column: Valid, Expiring Soon, Expired.
+  String get statusLabel {
+    final raw = (expiryStatus.isNotEmpty ? expiryStatus : status).trim();
+    if (raw.isEmpty) return '—';
+    return raw
+        .replaceAll('_', ' ')
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .map(
+          (part) =>
+              '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
+
   String get issuedLabel {
     final at = issuedAt;
     if (at == null) return '—';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';
@@ -260,7 +325,7 @@ class StaffTrainingCertificate {
   String get expiresLabel {
     final at = expiresAt;
     if (at == null) return 'No expiry';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';

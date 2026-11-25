@@ -7,6 +7,9 @@ import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/offline/offline_outbox.dart';
 import '../../../../../core/offline/outbox_context.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/medication/domain/entities/mar_medication_stock.dart';
+import '../../../../hr/medication/domain/entities/mar_options.dart';
+import '../../../../hr/medication/domain/entities/mar_round.dart';
 import '../../domain/entities/administered_dose.dart';
 import '../../domain/entities/due_dose.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
@@ -14,6 +17,7 @@ import '../../domain/entities/staff_med_options.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/entities/staff_medication_overview.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
+import '../../../../hr/medication/presentation/widgets/medication_common.dart';
 import '../widgets/staff_add_medicine_sheet.dart';
 import '../widgets/staff_record_administration_dialog.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
@@ -28,8 +32,16 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   final RxList<StaffClientMedicationItem> prnItems =
       <StaffClientMedicationItem>[].obs;
   final RxList<AdministeredDose> givenItems = <AdministeredDose>[].obs;
+
+  /// Web Given tab badge (`meta.total`), not today's Administered KPI.
+  final RxInt givenTotal = 0.obs;
   final RxList<StaffMedClientOption> chartClients =
       <StaffMedClientOption>[].obs;
+
+  /// Web Resident chart tab selection + `GET /mar/residents/:id/chart`.
+  final RxString chartClientId = ''.obs;
+  final Rxn<MarResidentChart> residentChart = Rxn<MarResidentChart>();
+  final RxBool chartLoading = false.obs;
 
   /// `GET /residences` — the web "All residences" options.
   final RxList<StaffMedResidenceOption> residences =
@@ -39,6 +51,16 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   final RxList<StaffClientMedicationItem> medications =
       <StaffClientMedicationItem>[].obs;
   final RxBool loadingExtras = false.obs;
+
+  /// Stock tab (web `medication-stock`).
+  final RxList<StaffClientMedicationItem> stockScheduled =
+      <StaffClientMedicationItem>[].obs;
+  final RxList<StaffClientMedicationItem> stockPrns =
+      <StaffClientMedicationItem>[].obs;
+  final RxList<MarMedicationStock> stocks = <MarMedicationStock>[].obs;
+  final RxBool stockLoading = false.obs;
+  final RxnString stockError = RxnString();
+  final RxString stockResidenceFilter = ''.obs;
   int _loadSerial = 0;
 
   static const String notInList =
@@ -93,7 +115,8 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   /// Web tab badges count the filtered rows.
   int get marTabCount => filteredScheduledDoses.length;
   int get prnTabCount => filteredPrnItems.length;
-  int get givenTabCount => givenItems.length;
+  int get givenTabCount =>
+      givenTotal.value > 0 ? givenTotal.value : givenItems.length;
 
   /// Web Edit on a registry row (`mar:write`).
   bool get canEditMedicines => _session.can('mar:write');
@@ -105,12 +128,21 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       filterMedication.value.isNotEmpty ||
       filterState.value.isNotEmpty;
 
-  /// Web MAR tab rows: every occurrence on today's round.
+  /// Web MAR tab rows: today's **scheduled** round only.
+  ///
+  /// Off-round chartings (`scheduled === false`, including PRN given as
+  /// "outside a round") stay on the Given KPI / Given tab — they must not
+  /// inflate the MAR badge the way they did when every registry row counted.
   List<DueDose> get allScheduledDoses {
     final current = overview;
     if (current == null) return const [];
-    if (current.registryDoses.isNotEmpty) return current.registryDoses;
-    return [...current.dueNowDoses, ...current.laterTodayDoses];
+    final rows = current.registryDoses.isNotEmpty
+        ? current.registryDoses
+        : [...current.dueNowDoses, ...current.laterTodayDoses];
+    return [
+      for (final d in rows)
+        if (d.scheduled && !d.isPrn) d,
+    ];
   }
 
   List<({String value, String label})> get residenceFilterOptions {
@@ -267,13 +299,22 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   /// Reloads every list a medicine or dose can appear in — the round, the
   /// PRN register, the prescriptions, the Given history and the pickers —
   /// the way the web invalidates every `mar` query after a save.
-  Future<void> loadOverview() async {
+  ///
+  /// Latest-wins: a post-create refresh must not join a stale in-flight load
+  /// that started before the POST (common on slower devices/networks).
+  Future<void> loadOverview() {
     final serial = ++_loadSerial;
+    return _loadOverviewBody(serial);
+  }
+
+  Future<void> _loadOverviewBody(int serial) async {
     final residence = filterResidenceId.value.isEmpty
         ? null
         : filterResidenceId.value;
-    setLoading(true);
-    loadingExtras.value = true;
+    if (serial == _loadSerial) {
+      setLoading(true);
+      loadingExtras.value = true;
+    }
     final result = await repository.getOverview(residenceId: residence);
     if (serial != _loadSerial) return;
     result.when(
@@ -292,12 +333,54 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       repository.getResidences(),
     ).wait;
     if (serial != _loadSerial) return;
-    prnItems.assignAll(prnResult.value ?? const []);
-    givenItems.assignAll(givenResult.value ?? const []);
-    medications.assignAll(medsResult.value ?? const []);
-    chartClients.assignAll(clientsResult.value ?? const []);
+    // Keep prior lists when a silent extras call fails — wiping to [] made
+    // newly added medicines disappear on flaky devices.
+    if (prnResult.value case final prns?) prnItems.assignAll(prns);
+    if (givenResult.value case final given?) {
+      givenItems.assignAll(given.items);
+      givenTotal.value = given.total;
+    }
+    if (medsResult.value case final meds?) medications.assignAll(meds);
+    if (clientsResult.value case final clients?) {
+      chartClients.assignAll(clients);
+    }
     if (homesResult.value case final homes?) residences.assignAll(homes);
     loadingExtras.value = false;
+    if (selectedTab.value == StaffMedicationTab.residentChart &&
+        chartClientId.value.isEmpty &&
+        chartClients.isNotEmpty) {
+      await loadResidentChart(chartClients.first.id);
+    }
+  }
+
+  /// After add/edit: show the right tab, clear filters that would hide the
+  /// new row, and force a fresh overview (does not relax MAR count rules).
+  Future<void> refreshAfterMedicineSave(StaffAddMedicineResult saved) async {
+    filterSearch.value = '';
+    searchController.clear();
+    filterClientId.value = '';
+    filterMedication.value = '';
+    filterState.value = '';
+    final home = saved.residenceId.trim();
+    if (home.isNotEmpty &&
+        filterResidenceId.value.isNotEmpty &&
+        filterResidenceId.value != home) {
+      filterResidenceId.value = home;
+    }
+    selectTab(
+      saved.isPrn ? StaffMedicationTab.prn : StaffMedicationTab.mar,
+    );
+    await loadOverview();
+    final name = saved.name.trim().toLowerCase();
+    if (name.isEmpty) return;
+    final visible = saved.isPrn
+        ? prnItems.any((p) => p.name.trim().toLowerCase() == name)
+        : allScheduledDoses
+            .any((d) => d.medicationName.trim().toLowerCase() == name);
+    if (visible) return;
+    // Some tenants' round/register lag briefly after POST — one retry only.
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    await loadOverview();
   }
 
   /// Web Edit on a MAR row: the prescription behind it, from `/medications`.
@@ -328,10 +411,291 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       return;
     }
     final saved = await StaffAddMedicineSheet.show(context, editing: item);
-    if (saved == true) await loadOverview();
+    if (saved != null) await refreshAfterMedicineSave(saved);
   }
 
-  void selectTab(StaffMedicationTab tab) => selectedTab.value = tab;
+  StaffClientMedicationItem? medicationForDose(DueDose dose) {
+    for (final m in dose.isPrn ? prnItems : medications) {
+      if (m.id == dose.medicationId) return m;
+    }
+    return null;
+  }
+
+  /// Web Delete on a MAR registry row.
+  Future<void> deleteDose(BuildContext context, DueDose dose) async {
+    final match = medicationForDose(dose);
+    if (match == null) {
+      AppSnackbar.show(notInList, '');
+      return;
+    }
+    await deleteMedication(context, match);
+  }
+
+  /// Web Discontinue on a MAR registry row.
+  Future<void> discontinueDose(BuildContext context, DueDose dose) async {
+    final match = medicationForDose(dose);
+    if (match == null) {
+      AppSnackbar.show(notInList, '');
+      return;
+    }
+    await discontinueMedication(context, match);
+  }
+
+  Future<void> deleteMedication(
+    BuildContext context,
+    StaffClientMedicationItem item,
+  ) async {
+    if (!canEditMedicines) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot delete prescription',
+        message: 'Deleting medicines needs mar:write permission.',
+      );
+      return;
+    }
+    final ok = await showMarConfirm(
+      context,
+      title: 'Delete this prescription?',
+      description:
+          'It leaves the register. The prescription and the rounds already signed for are kept rather than destroyed, so it can be restored.',
+      confirmLabel: 'Delete',
+    );
+    if (!ok) return;
+    final result = item.isPrn
+        ? await repository.deletePrnMedication(item.id)
+        : await repository.deleteMedication(item.id);
+    result.when(
+      success: (_) async {
+        AppSnackbar.show('Prescription deleted', '');
+        await loadOverview();
+      },
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not delete prescription',
+        );
+      },
+    );
+  }
+
+  Future<void> discontinueMedication(
+    BuildContext context,
+    StaffClientMedicationItem item,
+  ) async {
+    if (!canEditMedicines) {
+      AppErrorDialog.showPageError(
+        title: 'Cannot discontinue',
+        message: 'Discontinuing medicines needs mar:write permission.',
+      );
+      return;
+    }
+    final ok = await showMarConfirm(
+      context,
+      title: 'Stop giving ${item.name}?',
+      description:
+          'It stops appearing here and cannot be charted again. The record and every dose already given are kept, though this list only shows medicines still in use.',
+      confirmLabel: 'Discontinue',
+    );
+    if (!ok) return;
+    final result = item.isPrn
+        ? await repository.discontinuePrnMedication(item.id)
+        : await repository.discontinueMedication(item.id);
+    result.when(
+      success: (_) async {
+        AppSnackbar.show('Discontinued — it stays on file', '');
+        await loadOverview();
+      },
+      failure: (error) {
+        AppErrorDialog.showResultError(
+          error,
+          fallbackTitle: 'Could not discontinue',
+        );
+      },
+    );
+  }
+
+  void selectTab(StaffMedicationTab tab) {
+    selectedTab.value = tab;
+    if (tab == StaffMedicationTab.stock) loadStock();
+    if (tab == StaffMedicationTab.residentChart &&
+        chartClientId.value.isEmpty &&
+        chartClients.isNotEmpty) {
+      loadResidentChart(chartClients.first.id);
+    }
+  }
+
+  Future<void> loadResidentChart(String clientId) async {
+    chartClientId.value = clientId;
+    if (clientId.isEmpty) {
+      residentChart.value = null;
+      return;
+    }
+    chartLoading.value = true;
+    final result = await repository.residentChart(clientId);
+    if (chartClientId.value != clientId) return;
+    result.when(
+      success: (chart) => residentChart.value = chart,
+      failure: (_) => residentChart.value = null,
+    );
+    chartLoading.value = false;
+  }
+
+  void setStockResidence(String residenceId) {
+    stockResidenceFilter.value = residenceId;
+    loadStock();
+  }
+
+  Future<void> loadStock() async {
+    stockLoading.value = true;
+    stockError.value = null;
+    final residenceId =
+        stockResidenceFilter.value.isEmpty ? null : stockResidenceFilter.value;
+    final (scheduled, prnList, stockList) = await (
+      repository.listMedications(
+        residenceId: residenceId,
+        type: 'scheduled',
+      ),
+      repository.listPrnMedications(residenceId: residenceId),
+      repository.listMedicationStock(residenceId: residenceId),
+    ).wait;
+    String? error;
+    scheduled.when(
+      success: stockScheduled.assignAll,
+      failure: (e) => error ??= e.message,
+    );
+    prnList.when(
+      success: stockPrns.assignAll,
+      failure: (e) => error ??= e.message,
+    );
+    stockList.when(
+      success: stocks.assignAll,
+      failure: (e) => error ??= e.message,
+    );
+    stockError.value = error;
+    stockLoading.value = false;
+  }
+
+  List<MarOption> get stockResidenceOptions => [
+        for (final r in residences) MarOption(id: r.id, label: r.name),
+      ];
+
+  List<MarStockRow> get stockRows {
+    final filter = stockResidenceFilter.value;
+    final counts = stocks.toList();
+
+    MarMedicationStock? matchStock({
+      String? medicationId,
+      String? prnMedicationId,
+      required String residenceId,
+    }) {
+      for (final row in counts) {
+        if (filter.isNotEmpty && row.residenceId != residenceId) continue;
+        if (medicationId != null &&
+            medicationId.isNotEmpty &&
+            row.medicationId == medicationId) {
+          return row;
+        }
+        if (prnMedicationId != null &&
+            prnMedicationId.isNotEmpty &&
+            row.prnMedicationId == prnMedicationId) {
+          return row;
+        }
+      }
+      return null;
+    }
+
+    String displayName(StaffClientMedicationItem m) {
+      final dose = m.dose.trim();
+      if (dose.isEmpty || dose == '—') return m.name;
+      return '${m.name} — $dose';
+    }
+
+    String residentOf(StaffClientMedicationItem m) {
+      if (m.clientId.isEmpty) return 'House stock';
+      if (m.clientName.trim().isNotEmpty) return m.clientName;
+      return 'Resident';
+    }
+
+    String homeOf(StaffClientMedicationItem m) {
+      if (m.residenceName.trim().isNotEmpty) return m.residenceName;
+      for (final r in residences) {
+        if (r.id == m.residenceId) return r.name;
+      }
+      return '—';
+    }
+
+    final rows = <MarStockRow>[
+      for (final m in stockScheduled.where((m) => m.isActive))
+        MarStockRow(
+          key: 'med:${m.id}',
+          medicationId: m.id,
+          residenceId: m.residenceId,
+          residenceName: homeOf(m),
+          name: displayName(m),
+          kind: 'Scheduled',
+          resident: residentOf(m),
+          unitsPerDose: m.stockUnitsPerDose,
+          stock: matchStock(
+            medicationId: m.id,
+            residenceId: m.residenceId,
+          ),
+        ),
+      for (final p in stockPrns.where((p) => p.isActive))
+        MarStockRow(
+          key: 'prn:${p.id}',
+          prnMedicationId: p.id,
+          residenceId: p.residenceId,
+          residenceName: homeOf(p),
+          name: displayName(p),
+          kind: 'PRN',
+          resident: residentOf(p),
+          unitsPerDose: p.stockUnitsPerDose,
+          stock: matchStock(
+            prnMedicationId: p.id,
+            residenceId: p.residenceId,
+          ),
+        ),
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return rows;
+  }
+
+  int get stockLowCount =>
+      stockRows.where((r) => r.stock?.needsRefill == true).length;
+
+  Future<bool> countStock(MarStockCountDraft draft) async {
+    final result = await repository.setMedicationStock(draft);
+    return result.when(
+      success: (saved) {
+        final idx = stocks.indexWhere((s) => s.id == saved.id);
+        if (idx >= 0) {
+          stocks[idx] = saved;
+        } else {
+          stocks.add(saved);
+        }
+        stocks.refresh();
+        final name = stockRows
+            .where(
+              (r) =>
+                  (draft.medicationId != null &&
+                      r.medicationId == draft.medicationId) ||
+                  (draft.prnMedicationId != null &&
+                      r.prnMedicationId == draft.prnMedicationId),
+            )
+            .map((r) => r.name)
+            .firstOrNull;
+        AppSnackbar.show(
+          saved.needsRefill
+              ? 'Stock saved — ${name ?? 'Medicine'} is at or below its refill level'
+              : 'Stock saved',
+          '',
+        );
+        return true;
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not save stock count', error.message);
+        return false;
+      },
+    );
+  }
 
   Future<void> givePrn(StaffClientMedicationItem item) async {
     final session = _session;
@@ -361,8 +725,11 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       );
       return;
     }
-    final created = await StaffAddMedicineSheet.show(context);
-    if (created == true) await loadOverview();
+    final created = await StaffAddMedicineSheet.show(
+      context,
+      initialPrn: selectedTab.value == StaffMedicationTab.prn,
+    );
+    if (created != null) await refreshAfterMedicineSave(created);
   }
 
   Future<void> startRecordAdministration(BuildContext context) async {
@@ -430,6 +797,8 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
       residenceName: item.residenceName,
       medicationId: item.id,
       isPrn: item.isPrn,
+      // PRN chartings are off-round — never reuse as a scheduled MAR slot.
+      scheduled: !item.isPrn,
     );
     final dialogContext = Get.overlayContext ?? Get.context;
     if (dialogContext == null) return;
@@ -643,6 +1012,8 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
         clinicalNotes: clinicalNotes,
         doseReason: doseReason,
         isPrn: dose.isPrn,
+        scheduledFor: dose.dueAt,
+        scheduled: dose.scheduled,
         safetyChecks: safetyChecks,
         vitals: vitals,
       ),
@@ -720,7 +1091,10 @@ class StaffMedicationController extends BaseController<StaffMedicationOverview> 
   }
 
   @override
-  Future<void> refresh() => loadOverview();
+  Future<void> refresh() async {
+    await loadOverview();
+    if (selectedTab.value == StaffMedicationTab.stock) await loadStock();
+  }
 }
 
 class _NotGivenOutcome {

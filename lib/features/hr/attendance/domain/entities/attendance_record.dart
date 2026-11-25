@@ -182,9 +182,20 @@ class OpenAttendance {
   final String residenceId;
   final String? residenceName;
 
+  /// Shift the punch is tied to (needed after the rota window ends).
+  final String? shiftId;
+
+  /// When the current unpaid break started. Null when not on break.
+  /// Web uses this (not a separate onBreak flag) for Start/End break.
+  final DateTime? breakStartedAt;
+
   const OpenAttendance({
     required this.id,
     required this.residenceId,
     this.residenceName,
+    this.shiftId,
+    this.breakStartedAt,
   });
+
+  bool get isOnBreak => breakStartedAt != null;
 }

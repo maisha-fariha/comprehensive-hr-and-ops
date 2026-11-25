@@ -249,6 +249,9 @@ class _FakeIncidentsRepo implements IncidentsRepository {
   Future<Result<List<IncidentStaffOption>>> getStaff() async => Result.success(const []);
 
   @override
+  Future<Result<bool>> isAiDraftingEnabled() async => Result.success(false);
+
+  @override
   Future<Result<List<IncidentClientOption>>> searchClients(String search) async {
     searches.add(search);
     final q = search.trim().toLowerCase();
@@ -769,7 +772,6 @@ void main() {
       final api = _FakeApi();
       final repo = IncidentsRepositoryImpl(
         api: api,
-        session: _Session(),
         tokens: _NoTokens(),
         tenant: _NoTenant(),
       );
@@ -786,7 +788,7 @@ void main() {
 
     testWidgets('tapping Client / Resident lists every client; typing filters; the choice '
         'shows as Selected and X clears it', (tester) async {
-      final (c, repo) = await _openWizardStep(tester, (c) => Step1DetailsForm(controller: c));
+      final (c, repo) = await _openWizardStep(tester, (c) => Step2PeopleForm(controller: c));
       expect(find.text('Type to search client'), findsOneWidget);
 
       await _tap(tester, _field(c.clientController));

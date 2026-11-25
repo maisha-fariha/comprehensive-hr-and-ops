@@ -3,6 +3,17 @@ import 'package:flutter/foundation.dart';
 import 'communication_enums.dart';
 
 @immutable
+class HrConversationParticipant {
+  final String userId;
+  final String name;
+
+  const HrConversationParticipant({
+    required this.userId,
+    required this.name,
+  });
+}
+
+@immutable
 class HrConversation {
   final String id;
   final String title;
@@ -15,6 +26,8 @@ class HrConversation {
   final bool isActive;
   final bool isGroup;
   final bool isMonitored;
+  final bool isArchived;
+  final List<HrConversationParticipant> participants;
 
   const HrConversation({
     required this.id,
@@ -28,6 +41,8 @@ class HrConversation {
     this.isActive = true,
     this.isGroup = true,
     this.isMonitored = false,
+    this.isArchived = false,
+    this.participants = const [],
   });
 
   HrConversation copyWith({
@@ -48,6 +63,8 @@ class HrConversation {
       isActive: isActive ?? this.isActive,
       isGroup: isGroup,
       isMonitored: isMonitored,
+      isArchived: isArchived,
+      participants: participants,
     );
   }
 }

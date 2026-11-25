@@ -15,7 +15,9 @@ import '../widgets/hr_document_types_sheet.dart';
 import '../widgets/hr_documents_common.dart';
 import '../widgets/hr_documents_kpi_grid.dart';
 import '../widgets/hr_documents_registry.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Documents" — mirrors web `/dashboard/documents`.
 class HrDocumentsPage extends StatefulWidget {
@@ -57,7 +59,7 @@ class _HrDocumentsPageState extends State<HrDocumentsPage> {
         context,
         (sheetContext) => HrDocumentDetailSheet(
           row: row,
-          canWrite: _c.canWrite,
+          controller: _c,
           onDownload: () => _c.download(row.fileUrl!, row.name),
           onEdit: () {
             Navigator.of(sheetContext).pop();
@@ -160,13 +162,21 @@ class _HrDocumentsPageState extends State<HrDocumentsPage> {
                         style: handoverText(context, 18, weight: FontWeight.w700),
                       ),
                     ),
+                    Obx(() {
+                      if (!_c.canWrite) return const SizedBox.shrink();
+                      return HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('documents-upload'),
+                        label: 'Upload',
+                        onTap: _upload,
+                      );
+                    }),
                   ],
                 ),
               ),
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshAll,
               child: Obx(() {
@@ -227,21 +237,13 @@ class _HrDocumentsPageState extends State<HrDocumentsPage> {
             icon: Icons.download_rounded,
             onPressed: _c.exportReport,
           ),
-        if (_c.canWrite) ...[
+        if (_c.canWrite)
           HandoverButton(
             key: const ValueKey('documents-types'),
             label: 'Document types',
             icon: Icons.sell_outlined,
             onPressed: _types,
           ),
-          HandoverButton(
-            key: const ValueKey('documents-upload'),
-            label: 'Upload Document',
-            icon: Icons.add_rounded,
-            filled: true,
-            onPressed: _upload,
-          ),
-        ],
       ],
     );
   }

@@ -5,6 +5,9 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/roles/bottom_nav_promotions.dart';
+import '../../../../core/roles/permission_gate.dart';
+import '../../../../core/roles/user_session.dart';
 import '../../../../core/widgets/app_svg_icon.dart';
 import '../../incidents/presentation/controllers/incidents_controller.dart';
 
@@ -23,10 +26,23 @@ class HrBottomNavItemData {
 /// Live open-incident count for the Alerts tab badge (null hides the badge).
 int? hrAlertsBadgeCount() {
   try {
+    if (Get.isRegistered<UserSession>()) {
+      final session = Get.find<UserSession>();
+      // Inventory Manager and other roles without incidents access must
+      // not boot the incidents board. That GET is 403 and the client
+      // shows "Access denied" as soon as the shell opens.
+      // Wait for permissions — otherwise we boot Incidents and 403.
+      if (!session.permissionsReady || !session.can('incidents:read')) {
+        return null;
+      }
+    }
+    // Badge uses summary only — do not boot the full incidents board here.
     if (!Get.isRegistered<IncidentsController>()) {
       Get.put(GetIt.instance<IncidentsController>(), permanent: true);
     }
-    final count = Get.find<IncidentsController>().board?.open.activeCount ?? 0;
+    final controller = Get.find<IncidentsController>();
+    controller.ensureBadge();
+    final count = controller.badgeOpenCount.value ?? 0;
     return count > 0 ? count : null;
   } catch (_) {
     return null;
@@ -69,7 +85,52 @@ class HrBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = _items;
+    return Obx(() {
+      final session = Get.isRegistered<UserSession>()
+          ? Get.find<UserSession>()
+          : null;
+      session?.permissionEpoch;
+      final primary = <({HrBottomNavItemData data, VoidCallback onTap, bool active})>[];
+      for (var index = 0; index < _items.length; index++) {
+        final isMore = index == _items.length - 1;
+        if (session != null && !managerTabAllowed(session, index)) continue;
+        // Insert More last after promotions.
+        if (isMore) continue;
+        primary.add((
+          data: _items[index],
+          onTap: () => onTap(index),
+          active: index == currentIndex,
+        ));
+      }
+
+      // Fill sparse bars from More-menu destinations (keep room for More).
+      if (session != null) {
+        final room = BottomNavPromotions.hrTargetSlots - primary.length - 1;
+        if (room > 0) {
+          for (final promo in BottomNavPromotions.hrCandidates(session).take(room)) {
+            primary.add((
+              data: HrBottomNavItemData(asset: promo.asset, label: promo.label),
+              onTap: promo.open,
+              active: false,
+            ));
+          }
+        }
+      }
+
+      primary.add((
+        data: _items.last,
+        onTap: () => onTap(_items.length - 1),
+        active: currentIndex == _items.length - 1,
+      ));
+
+      return _bar(context, primary);
+    });
+  }
+
+  Widget _bar(
+    BuildContext context,
+    List<({HrBottomNavItemData data, VoidCallback onTap, bool active})> slots,
+  ) {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -90,21 +151,20 @@ class HrBottomNavBar extends StatelessWidget {
         child: Padding(
           padding: ResponsiveHelper.getResponsivePadding(
             context,
-            horizontal: 18,
+            horizontal: 12,
             top: 10,
           ),
           child: Row(
-            children: List.generate(items.length, (index) {
-              final item = items[index];
-              final isActive = index == currentIndex;
-              return Expanded(
-                child: _HrBottomNavItem(
-                  data: item,
-                  isActive: isActive,
-                  onTap: () => onTap(index),
+            children: [
+              for (final slot in slots)
+                Expanded(
+                  child: _HrBottomNavItem(
+                    data: slot.data,
+                    isActive: slot.active,
+                    onTap: slot.onTap,
+                  ),
                 ),
-              );
-            }),
+            ],
           ),
         ),
       ),

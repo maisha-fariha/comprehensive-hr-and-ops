@@ -23,6 +23,7 @@ class StaffClientMedicationItem {
   final DateTime? startsAt;
   final DateTime? endsAt;
   final int? stockUnitsPerDose;
+  final num? costPerDose;
   final int? minIntervalMinutes;
   final bool isControlled;
   final String? requiresCheckScheduleId;
@@ -47,6 +48,7 @@ class StaffClientMedicationItem {
     this.startsAt,
     this.endsAt,
     this.stockUnitsPerDose,
+    this.costPerDose,
     this.minIntervalMinutes,
     this.isControlled = false,
     this.requiresCheckScheduleId,
@@ -55,6 +57,7 @@ class StaffClientMedicationItem {
   });
 
   StaffClientMedicationItem copyWith({
+    String? clientId,
     String? clientName,
     String? residenceName,
   }) {
@@ -65,7 +68,7 @@ class StaffClientMedicationItem {
       scheduleLabel: scheduleLabel,
       instructions: instructions,
       isPrn: isPrn,
-      clientId: clientId,
+      clientId: clientId ?? this.clientId,
       clientName: clientName ?? this.clientName,
       residenceId: residenceId,
       residenceName: residenceName ?? this.residenceName,
@@ -76,6 +79,7 @@ class StaffClientMedicationItem {
       startsAt: startsAt,
       endsAt: endsAt,
       stockUnitsPerDose: stockUnitsPerDose,
+      costPerDose: costPerDose,
       minIntervalMinutes: minIntervalMinutes,
       isControlled: isControlled,
       requiresCheckScheduleId: requiresCheckScheduleId,
@@ -94,4 +98,24 @@ class StaffClientMedicationItem {
 
   @override
   int get hashCode => Object.hash(id, isPrn);
+
+  /// Record Administration medicine picker: only this resident's active PRNs.
+  /// Scheduled prescriptions and other residents' / house-stock PRNs are
+  /// excluded — even when `/prn-medications?clientId=` over-returns them.
+  static List<StaffClientMedicationItem> scopedForRecordAdministration({
+    required String clientId,
+    required String? residenceId,
+    required Iterable<StaffClientMedicationItem> prescribed,
+    required Iterable<StaffClientMedicationItem> prns,
+  }) {
+    final seen = <String>{};
+    final out = <StaffClientMedicationItem>[];
+    for (final m in prns) {
+      if (!m.isActive || !m.isPrn) continue;
+      if (m.clientId != clientId) continue;
+      if (!seen.add(m.id)) continue;
+      out.add(m);
+    }
+    return out;
+  }
 }

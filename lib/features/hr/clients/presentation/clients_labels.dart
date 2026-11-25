@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/time/tenant_clock.dart';
 
 /// Web copy, option lists and formatting for the client directory.
 abstract final class ClientsLabels {
@@ -15,12 +16,28 @@ abstract final class ClientsLabels {
     'Children Services',
     'Other',
   ];
+
+  /// API `rateFrequency` enum with web "Charged" labels.
+  static const rateFrequencies = <(String, String)>[
+    ('daily', 'Per day'),
+    ('weekly', 'Per week'),
+    ('monthly', 'Per month'),
+  ];
+
+  static String rateFrequencyLabel(String? value) {
+    final v = (value ?? '').trim().toLowerCase();
+    for (final (id, label) in rateFrequencies) {
+      if (id == v) return label;
+    }
+    return value?.trim().isEmpty ?? true ? '' : value!.trim();
+  }
   static const relationships = [
     'Parent',
     'Child',
     'Spouse',
     'Sibling',
     'Legal Guardian',
+    'Case Worker',
     'Other',
   ];
 
@@ -46,12 +63,16 @@ abstract final class ClientsLabels {
     return text[0].toUpperCase() + text.substring(1);
   }
 
-  /// Calendar date as the web shows it (`DD/MM/YYYY`), without a timezone
-  /// shift for UTC-midnight dates.
+  /// Calendar date using Settings → General date format, without a timezone
+  /// shift (DOB / admission stay on the stored calendar day).
   static String date(DateTime? value) {
     if (value == null) return '—';
     String two(int v) => v.toString().padLeft(2, '0');
-    return '${two(value.day)}/${two(value.month)}/${value.year}';
+    return switch (TenantClock.dateFormat) {
+      'MM/DD/YYYY' => '${two(value.month)}/${two(value.day)}/${value.year}',
+      'YYYY-MM-DD' => '${value.year}-${two(value.month)}-${two(value.day)}',
+      _ => '${two(value.day)}/${two(value.month)}/${value.year}',
+    };
   }
 
   /// `YYYY-MM-DD`, the web's date-input value.

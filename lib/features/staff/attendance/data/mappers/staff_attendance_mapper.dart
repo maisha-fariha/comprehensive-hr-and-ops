@@ -1,8 +1,10 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../hr/attendance/data/mappers/attendance_mapper.dart';
 import '../../domain/entities/staff_attendance_history_item.dart';
 import '../../domain/entities/staff_attendance_metrics.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffAttendanceMapper {
   static StaffAttendanceOverview compose({
@@ -19,49 +21,49 @@ abstract final class StaffAttendanceMapper {
     final open =
         _findOpenRecord(todayRecords) ?? _findOpenRecord(historyRecords);
 
-    final shifts = JsonCodec.unwrapList(shiftsBody);
     final now = DateTime.now();
-    Map<String, dynamic> shift = const {};
-    var hasRosteredShiftNow = false;
-    for (final raw in shifts) {
-      if (raw is! Map) continue;
-      final candidate = JsonCodec.asMap(raw);
-      final start = JsonCodec.dateTime(
-        candidate['startAt'] ??
-            candidate['startsAt'] ??
-            candidate['startTime'],
-      );
-      final end = JsonCodec.dateTime(
-        candidate['endAt'] ?? candidate['endsAt'] ?? candidate['endTime'],
-      );
-      if (start != null && end != null) {
-        if (!now.isBefore(start) && !now.isAfter(end)) {
-          shift = candidate;
-          hasRosteredShiftNow = true;
-          break;
-        }
-        if (shift.isEmpty && end.isAfter(now)) {
-          shift = candidate;
-        }
-      } else if (shift.isEmpty) {
-        shift = candidate;
-      }
-    }
-    if (shift.isEmpty && shifts.isNotEmpty && shifts.first is Map) {
-      shift = JsonCodec.asMap(shifts.first as Map);
-    }
-
-    final residence = JsonCodec.unwrapMap(residenceBody);
+    // Web clock-in: the shift is current from 15 minutes before it starts
+    // until it ends. Otherwise the next shift in the window is shown.
+    final window = AttendanceMapper.shiftWindowFrom(shiftsBody, now);
 
     final checkIn = JsonCodec.dateTime(
       open?['checkInAt'] ?? open?['clockInAt'] ?? open?['checkIn'],
     );
     // Only a live clock-in (check-in without check-out) counts as on-shift.
     final onShift = checkIn != null;
+    final openShiftId = JsonCodec.string(
+      open?['shiftId'] ?? JsonCodec.mapAt(open ?? {}, 'shift')?['id'],
+    );
+
+    // While punched in, bind the open punch's shift — not the next upcoming
+    // window. Late / overtime clock-outs and handover need that shiftId.
+    Map<String, dynamic> shift = const {};
+    final preferId = onShift ? openShiftId : null;
+    final targetId = (preferId != null && preferId.isNotEmpty)
+        ? preferId
+        : window?.shiftId;
+    if (targetId != null) {
+      for (final raw in JsonCodec.unwrapList(shiftsBody)) {
+        if (raw is! Map) continue;
+        final candidate = JsonCodec.asMap(raw);
+        if (JsonCodec.string(candidate['id']) == targetId) {
+          shift = candidate;
+          break;
+        }
+      }
+    }
+    if (shift.isEmpty && open != null) {
+      final nested = JsonCodec.mapAt(open, 'shift');
+      if (nested != null) shift = Map<String, dynamic>.from(nested);
+    }
+    final hasRosteredShiftNow = window?.isCurrent ?? false;
+
+    final residence = JsonCodec.unwrapMap(residenceBody);
     final onBreak =
         JsonCodec.boolean(open?['onBreak']) ??
         (JsonCodec.dateTime(open?['breakStartedAt']) != null);
     final breakStartedAt = JsonCodec.dateTime(open?['breakStartedAt']);
+    final breakMinutes = JsonCodec.integerOr(open?['breakMinutes'], 0);
 
     final checkInMeta = JsonCodec.mapAt(open ?? const {}, 'checkIn') ?? {};
     final geofenceStatus = JsonCodec.string(
@@ -120,12 +122,19 @@ abstract final class StaffAttendanceMapper {
     );
 
     final geofenceMap = JsonCodec.mapAt(residence, 'geofence') ?? {};
+    // Top-level geofenceRadiusMeters wins (same as residences / staff extras).
     final radiusMeters = JsonCodec.number(
-      geofenceMap['radiusMeters'] ??
+      residence['geofenceRadiusMeters'] ??
+          geofenceMap['radiusMeters'] ??
           geofenceMap['radius'] ??
-          residence['geofenceRadiusMeters'] ??
           residence['radiusMeters'],
     );
+    final geofenceLat = JsonCodec.number(residence['latitude'])?.toDouble();
+    final geofenceLng = JsonCodec.number(residence['longitude'])?.toDouble();
+    // Top-level `geofenceEnabled` is source of truth (radius alone ≠ ON).
+    final geofenceEnabled = JsonCodec.boolean(residence['geofenceEnabled']) ??
+        JsonCodec.boolean(geofenceMap['enabled']) ??
+        false;
     final address = JsonCodec.stringOr(
       residence['address'] ??
           geofenceMap['address'] ??
@@ -143,10 +152,28 @@ abstract final class StaffAttendanceMapper {
     final accuracyLabel = accuracyMeters == null
         ? null
         : 'Accuracy ${_metersToFeet(accuracyMeters).round()} ft';
-    final geofenceStatusLabel = [
-      within ? 'Within Geofence' : 'Outside Geofence',
-      if (accuracyLabel != null) accuracyLabel,
-    ].join(' · ');
+    // Before clock-in there is no punch geofenceStatus — leave "checking"
+    // until the controller applies the live device fix when GPS is enabled.
+    final bool resolvedWithin;
+    final String geofenceStatusLabel;
+    if (onShift) {
+      resolvedWithin = within;
+      geofenceStatusLabel = [
+        within ? 'Within Geofence' : 'Outside Geofence',
+        if (accuracyLabel != null) accuracyLabel,
+      ].join(' · ');
+    } else if (geofenceEnabled &&
+        geofenceLat != null &&
+        geofenceLng != null &&
+        (radiusMeters ?? 0) > 0) {
+      resolvedWithin = false;
+      geofenceStatusLabel = 'Checking location…';
+    } else {
+      resolvedWithin = true;
+      geofenceStatusLabel = geofenceEnabled
+          ? 'GPS tracking on'
+          : 'GPS tracking off';
+    }
 
     final historySource = historyRecords.isNotEmpty
         ? historyRecords
@@ -156,7 +183,7 @@ abstract final class StaffAttendanceMapper {
       isOnShift: onShift,
       shiftStartedLabel: checkIn == null
           ? 'Not clocked in'
-          : 'Started at ${IsoDateRange.timeLabel(checkIn.toLocal())}',
+          : 'Started at ${IsoDateRange.timeLabel(checkIn)}',
       shiftLocationName: locationName,
       shiftTimeRange: IsoDateRange.rangeLabel(start, end).isEmpty
           ? JsonCodec.stringOr(shift['timeRange'], 'No shift assigned')
@@ -164,29 +191,42 @@ abstract final class StaffAttendanceMapper {
       elapsedTimeLabel: checkIn == null
           ? '00:00:00'
           : IsoDateRange.elapsedHms(checkIn),
-      checkInAt: checkIn?.toLocal(),
-      isWithinGeofence: within,
+      checkInAt: (checkIn == null ? null : TenantClock.wallOf(checkIn)),
+      isWithinGeofence: resolvedWithin,
       geofenceStatusLabel: geofenceStatusLabel,
       geofenceAddress: geofenceAddress,
+      geofenceEnabled: geofenceEnabled,
+      geofenceLatitude: geofenceLat,
+      geofenceLongitude: geofenceLng,
+      geofenceRadiusMeters: radiusMeters?.toDouble(),
       isSelfieVerified: selfieUrl != null && selfieUrl.isNotEmpty,
       selfieVerifiedLabel: selfieUrl == null || selfieUrl.isEmpty
           ? 'Selfie not captured'
           : checkIn == null
           ? 'Verified'
-          : 'Verified · ${IsoDateRange.timeLabel(checkIn.toLocal())}',
+          : 'Verified · ${IsoDateRange.timeLabel(checkIn)}',
       selfieUrl: selfieUrl,
       isOnBreak: onBreak,
-      breakStatusLabel: onBreak
-          ? (breakStartedAt == null
-                ? 'On break'
-                : 'On break · since ${IsoDateRange.timeLabel(breakStartedAt.toLocal())}')
-          : 'Not on break',
-      shiftId: JsonCodec.string(
-        shift['id'] ??
-            open?['shiftId'] ??
-            JsonCodec.mapAt(open ?? {}, 'shift')?['id'],
+      breakStartedAt: onBreak && breakStartedAt != null
+          ? TenantClock.wallOf(breakStartedAt)
+          : null,
+      breakMinutes: breakMinutes,
+      breakStatusLabel: _breakStatusLabel(
+        onBreak: onBreak,
+        breakStartedAt: breakStartedAt == null
+            ? null
+            : TenantClock.wallOf(breakStartedAt),
+        breakMinutes: breakMinutes,
       ),
+      shiftId: JsonCodec.string(
+            openShiftId ??
+                shift['id'] ??
+                open?['shiftId'] ??
+                JsonCodec.mapAt(open ?? {}, 'shift')?['id'],
+          ),
       residenceId: residenceId,
+      shiftEndsAt: end,
+      shiftStartsAt: start,
       hasRosteredShiftNow: hasRosteredShiftNow,
       metrics: metricsFrom(summaryBody, historySource),
       history: [
@@ -286,11 +326,13 @@ abstract final class StaffAttendanceMapper {
     final shiftStart = JsonCodec.dateTime(
       shift['startsAt'] ?? shift['startAt'] ?? shift['startTime'],
     );
+    final occurredRaw =
+        checkIn ?? shiftStart ?? JsonCodec.dateTime(json['createdAt']);
     final occurredAt =
-        (checkIn ?? shiftStart ?? JsonCodec.dateTime(json['createdAt']))
-            ?.toLocal();
+        occurredRaw == null ? null : TenantClock.wallOf(occurredRaw);
 
     final minutes = JsonCodec.integer(json['workedMinutes']);
+    final breakMinutes = JsonCodec.integerOr(json['breakMinutes'], 0);
     final fromMinutes = IsoDateRange.workedMinutesLabel(minutes);
     final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
     final residence = JsonCodec.mapAt(json, 'residence') ?? const {};
@@ -312,9 +354,25 @@ abstract final class StaffAttendanceMapper {
       hasPhoto ? 'Photo on file' : 'No photo',
     ];
 
+    final isOpen = checkIn != null && checkOut == null && status != 'missed';
+    // Web In/Out: "3:22 PM – Still in" while open.
     final timeRange = checkIn == null && checkOut == null
         ? (status == 'missed' ? 'No clock-in' : '')
-        : IsoDateRange.rangeLabel(checkIn, checkOut);
+        : (isOpen
+              ? '${IsoDateRange.timeLabel(checkIn)} – Still in'
+              : IsoDateRange.rangeLabel(checkIn, checkOut));
+
+    // Web Worked: "—" while still in (no workedMinutes yet); break is a
+    // separate secondary line under Worked.
+    final worked = fromMinutes.isNotEmpty
+        ? fromMinutes
+        : (isOpen
+              ? '—'
+              : (checkIn == null || checkOut == null
+                    ? '—'
+                    : IsoDateRange.workedMinutesLabel(
+                        checkOut.difference(checkIn).inMinutes,
+                      )));
 
     return StaffAttendanceHistoryItem(
       id: JsonCodec.stringOr(json['id'], checkIn?.toIso8601String() ?? 'row'),
@@ -322,15 +380,10 @@ abstract final class StaffAttendanceMapper {
           ? JsonCodec.stringOr(json['date'], '—')
           : IsoDateRange.formatShortDate(occurredAt),
       timeRange: timeRange,
-      durationLabel: fromMinutes.isNotEmpty
-          ? fromMinutes
-          : (checkIn == null || checkOut == null
-                ? (checkOut == null && checkIn != null ? 'In progress' : '—')
-                : IsoDateRange.workedMinutesLabel(
-                    checkOut.difference(checkIn).inMinutes,
-                  )),
+      durationLabel: worked,
+      breakLabel: breakMinutes > 0 ? '${breakMinutes}m break' : '',
       occurredAt: occurredAt,
-      isOpen: checkIn != null && checkOut == null && status != 'missed',
+      isOpen: isOpen,
       status: status,
       statusLabel: _statusLabel(status, isManual: JsonCodec.boolean(json['isManual']) ?? false),
       residenceId: residenceId,
@@ -360,6 +413,23 @@ abstract final class StaffAttendanceMapper {
         if (status.isEmpty) return isManual ? 'Manual entry' : '—';
         return status.replaceAll('_', ' ');
     }
+  }
+
+  /// Live elapsed while on break; completed total matches web Worked "Xm break".
+  static String _breakStatusLabel({
+    required bool onBreak,
+    required DateTime? breakStartedAt,
+    required int breakMinutes,
+  }) {
+    if (onBreak) {
+      final elapsed = breakStartedAt == null
+          ? 'On break'
+          : 'On break · ${IsoDateRange.elapsedHms(breakStartedAt)}';
+      if (breakMinutes > 0) return '$elapsed · ${breakMinutes}m earlier';
+      return elapsed;
+    }
+    if (breakMinutes > 0) return '${breakMinutes}m break today';
+    return 'Not on break';
   }
 
   const StaffAttendanceMapper._();

@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../hr/training/presentation/widgets/training_course_widgets.dart';
 import '../../../extras/presentation/pages/staff_training_quiz_page.dart';
 import '../../domain/entities/staff_training.dart';
 import '../controllers/staff_training_course_controller.dart';
 import '../widgets/staff_training_metrics_strip.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Course detail — web `/dashboard/training/[id]` parity.
 class StaffTrainingCoursePage extends StatefulWidget {
@@ -57,15 +58,8 @@ class _StaffTrainingCoursePageState extends State<StaffTrainingCoursePage> {
     super.dispose();
   }
 
-  Future<void> _copyMaterialUrl(String url) async {
-    await Clipboard.setData(ClipboardData(text: url));
-    Get.snackbar(
-      'Link copied',
-      url,
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 2),
-    );
-  }
+  Future<void> _openMaterial(String url, {String? fileName}) =>
+      openTrainingMaterial(url, fileName: fileName);
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +113,7 @@ class _StaffTrainingCoursePageState extends State<StaffTrainingCoursePage> {
                 title: 'Back to Training',
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.reload,
                   child: ListView(
@@ -221,10 +215,8 @@ class _StaffTrainingCoursePageState extends State<StaffTrainingCoursePage> {
                             courseTitle: course.title,
                           ),
                         ),
-                        onCopyMaterial: course.materialUrl == null ||
-                                course.materialUrl!.trim().isEmpty
-                            ? null
-                            : () => _copyMaterialUrl(course.materialUrl!),
+                        onCopyMaterial: (url, name) =>
+                            _openMaterial(url, fileName: name),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -326,7 +318,7 @@ class _TabBody extends StatelessWidget {
   final List<StaffTrainingCertificate> certificates;
   final List<StaffTrainingAssignment> completions;
   final VoidCallback onOpenQuiz;
-  final VoidCallback? onCopyMaterial;
+  final void Function(String url, String name)? onCopyMaterial;
 
   const _TabBody({
     required this.tab,
@@ -341,7 +333,11 @@ class _TabBody extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (tab) {
       case 1:
-        return _ContentTab(course: course, onCopyMaterial: onCopyMaterial);
+        return _ContentTab(
+          course: course,
+          onCopyMaterial: onCopyMaterial,
+          onOpenQuiz: onOpenQuiz,
+        );
       case 2:
         return _QuizTab(course: course, onOpenQuiz: onOpenQuiz);
       case 3:
@@ -360,15 +356,16 @@ class _TabBody extends StatelessWidget {
         return _CertificatesTab(certificates: certificates);
       case 0:
       default:
-        return _OverviewTab(course: course);
+        return _OverviewTab(course: course, onOpenQuiz: onOpenQuiz);
     }
   }
 }
 
 class _OverviewTab extends StatelessWidget {
   final StaffTrainingCourse course;
+  final VoidCallback onOpenQuiz;
 
-  const _OverviewTab({required this.course});
+  const _OverviewTab({required this.course, required this.onOpenQuiz});
 
   @override
   Widget build(BuildContext context) {
@@ -396,6 +393,8 @@ class _OverviewTab extends StatelessWidget {
               height: 1.4,
             ),
           ),
+          const SizedBox(height: 16),
+          _TakeQuizCard(onOpenQuiz: onOpenQuiz),
           const SizedBox(height: 16),
           _InfoGrid(
             rows: [
@@ -437,19 +436,24 @@ class _OverviewTab extends StatelessWidget {
 
 class _ContentTab extends StatelessWidget {
   final StaffTrainingCourse course;
-  final VoidCallback? onCopyMaterial;
+  final void Function(String url, String name)? onCopyMaterial;
+  final VoidCallback onOpenQuiz;
 
-  const _ContentTab({required this.course, required this.onCopyMaterial});
+  const _ContentTab({
+    required this.course,
+    required this.onCopyMaterial,
+    required this.onOpenQuiz,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final url = course.materialUrl?.trim();
+    final files = course.materials;
     return _Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Content',
+            'Course Content',
             style: TextStyle(
               fontFamily: 'Outfit',
               fontWeight: FontWeight.w700,
@@ -457,10 +461,18 @@ class _ContentTab extends StatelessWidget {
               color: AppColors.textHeading,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'The material staff work through. A course carries one — a file kept here, or a link to where it already lives.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12),
+              color: AppColors.textMuted,
+              height: 1.35,
+            ),
+          ),
           const SizedBox(height: 12),
-          _InfoRow(label: 'Material type', value: course.materialLabel),
-          const SizedBox(height: 10),
-          if (url == null || url.isEmpty)
+          if (files.isEmpty)
             const Text(
               'No training material linked to this course.',
               style: TextStyle(
@@ -469,25 +481,173 @@ class _ContentTab extends StatelessWidget {
                 fontSize: 13,
               ),
             )
-          else ...[
-            Text(
-              url,
-              style: TextStyle(
+          else
+            for (final file in files) ...[
+              _MaterialRow(
+                title: file.name,
+                url: file.fileUrl,
+                typeLabel: file.badge,
+                onOpen: onCopyMaterial == null
+                    ? null
+                    : () => onCopyMaterial!(file.fileUrl, file.name),
+              ),
+              const SizedBox(height: 8),
+            ],
+          const SizedBox(height: 16),
+          _TakeQuizCard(onOpenQuiz: onOpenQuiz),
+        ],
+      ),
+    );
+  }
+}
+
+class _TakeQuizCard extends StatelessWidget {
+  final VoidCallback onOpenQuiz;
+
+  const _TakeQuizCard({required this.onOpenQuiz});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.scaffoldBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Ready to take the examination?',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Test your understanding of this material to complete the course and earn your certificate.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12.5,
+              color: AppColors.textMuted,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              key: const ValueKey('training-take-quiz'),
+              onPressed: onOpenQuiz,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.secondaryTeal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              child: const Text('Take Quiz Now'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MaterialRow extends StatelessWidget {
+  final String title;
+  final String url;
+  final String typeLabel;
+  final VoidCallback? onOpen;
+
+  const _MaterialRow({
+    required this.title,
+    required this.url,
+    required this.typeLabel,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.quickActionCreateShiftBg,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.description_outlined,
+              size: 18,
+              color: AppColors.secondaryTeal,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.textHeading,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: onOpen,
+                  child: Text(
+                    url,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11.5,
+                      color: AppColors.secondaryTeal,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.quickActionCreateShiftBg,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              typeLabel,
+              style: const TextStyle(
                 fontFamily: 'Outfit',
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
                 color: AppColors.secondaryTeal,
               ),
             ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: onCopyMaterial,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryNavy,
-              ),
-              icon: const Icon(Icons.link_rounded, size: 18),
-              label: const Text('Copy material link'),
-            ),
-          ],
+          ),
+          IconButton(
+            tooltip: 'Open',
+            onPressed: onOpen,
+            icon: const Icon(Icons.download_rounded, color: AppColors.secondaryTeal),
+          ),
         ],
       ),
     );

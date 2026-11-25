@@ -5,6 +5,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/config/app_env.dart';
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
@@ -44,17 +45,19 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     String? to,
     String? residenceId,
     String? clientId,
+    String? investigatorId,
     int page = 1,
     int limit = 20,
   }) async {
+    // List screen has no page UI — walk every page (page/limit kept for API
+    // compatibility but ignored so a single limit:50 no longer truncates).
     final resolvedResidence = (residenceId != null && residenceId.isNotEmpty)
         ? residenceId
         : null;
-    final result = await _api.get(
-      ApiEndpoints.incidents,
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.incidents,
       query: {
-        'page': page,
-        'limit': limit,
         if (resolvedResidence != null) 'residenceId': resolvedResidence,
         if (mine) 'reporter': 'me',
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
@@ -63,11 +66,15 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
         if (from != null && from.isNotEmpty) 'from': from,
         if (to != null && to.isNotEmpty) 'to': to,
         if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
+        if (investigatorId != null && investigatorId.isNotEmpty)
+          'investigatorId': investigatorId,
       },
+      pageSize: limit > 0 ? limit : ApiPageFetcher.defaultPageSize,
+      silent: true,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(StaffIncidentsMapper.listFrom(body)),
+      success: (rows) async =>
+          Result.success(StaffIncidentsMapper.listFrom({'data': rows})),
       failure: (error) async => Result.failure(error),
     );
   }
@@ -76,6 +83,7 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   Future<Result<StaffIncidentsSummary>> getSummary() async {
     final result = await _api.get(
       ApiEndpoints.incidentsSummary,
+      silent: true,
     );
     return result.when(
       success: (body) async =>
@@ -87,8 +95,8 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   @override
   Future<Result<IncidentDetail>> getIncidentDetail(String incidentId) async {
     final results = await Future.wait([
-      _api.get(ApiEndpoints.incidentById(incidentId)),
-      _api.get(ApiEndpoints.incidentActivity(incidentId)),
+      _api.get(ApiEndpoints.incidentById(incidentId), silent: true),
+      _api.get(ApiEndpoints.incidentActivity(incidentId), silent: true),
     ]);
     if (results[0].isFailure) {
       return Result.failure(
@@ -109,6 +117,8 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     final result = await _api.post(
       ApiEndpoints.incidentAcknowledge(incidentId),
       data: {},
+      silent: true,
+      allowQueue: false,
     );
     return result.when(
       success: (_) async => Result.success(null),
@@ -365,7 +375,10 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
 
   @override
   Future<Result<List<StaffIncidentCategoryOption>>> getCategories() async {
-    final result = await _api.get(ApiEndpoints.incidentCategories);
+    final result = await _api.get(
+      ApiEndpoints.incidentCategories,
+      silent: true,
+    );
     return result.when(
       success: (body) async =>
           Result.success(StaffIncidentsMapper.categoriesFrom(body)),
@@ -375,7 +388,10 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
 
   @override
   Future<Result<List<StaffCirTemplateOption>>> getCirTemplates() async {
-    final result = await _api.get(ApiEndpoints.incidentCirTemplates);
+    final result = await _api.get(
+      ApiEndpoints.incidentCirTemplates,
+      silent: true,
+    );
     return result.when(
       success: (body) async =>
           Result.success(StaffIncidentsMapper.cirTemplatesFrom(body)),
@@ -443,6 +459,8 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
         else if (assignedToMe)
           'assignedToMe': true,
       },
+      // Filter dropdown only — missing clients:read must not block Incident Reports.
+      silent: true,
     );
     return result.when(
       success: (body) async =>
@@ -455,41 +473,51 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
   Future<Result<List<StaffIncidentStaffOption>>> getStaffOptions({
     String? residenceId,
   }) async {
+    // Web incident form uses GET /staff/directory, unfiltered, and shows
+    // category name (for example "Personal Support Worker").
+    final directory = await _api.get(ApiEndpoints.staffDirectory, silent: true);
+    if (directory.isSuccess) {
+      final rows = _staffDirectoryOptions(directory.value);
+      if (rows.isNotEmpty) return Result.success(rows);
+    }
+    // GET /staff is staff:read. Caregivers without it were getting 403.
+    if (!_session.can('staff:read')) {
+      return directory.when(
+        success: (_) async => Result.success(const []),
+        failure: (error) async => Result.failure(error),
+      );
+    }
     final result = await _api.get(
       ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': 100,
-        if (residenceId != null &&
-            residenceId.isNotEmpty &&
-            residenceId != 'all')
-          'residenceId': residenceId,
-      },
+      query: const {'page': 1, 'limit': 100},
       silent: true,
     );
     return result.when(
-      success: (body) async {
-        final rows = JsonCodec.unwrapList(body).whereType<Map>().map((item) {
-          final json = JsonCodec.asMap(item);
-          final first = JsonCodec.stringOr(json['firstName'], '');
-          final last = JsonCodec.stringOr(json['lastName'], '');
-          final name = '$first $last'.trim();
-          final category = JsonCodec.mapAt(json, 'category');
-          return StaffIncidentStaffOption(
-            id: JsonCodec.stringOr(json['id'], ''),
-            name: name.isEmpty
-                ? JsonCodec.stringOr(json['email'], 'Staff')
-                : name,
-            subtitle: JsonCodec.stringOr(
-              category?['name'] ?? json['employmentType'] ?? json['email'],
-              '',
-            ),
-          );
-        }).where((item) => item.id.isNotEmpty).toList();
-        return Result.success(rows);
-      },
-      failure: (error) async => Result.failure(error),
+      success: (body) async => Result.success(_staffDirectoryOptions(body)),
+      failure: (error) async => Result.failure(
+        directory.isFailure ? (directory.error ?? error) : error,
+      ),
     );
+  }
+
+  List<StaffIncidentStaffOption> _staffDirectoryOptions(dynamic body) {
+    return JsonCodec.unwrapList(body).whereType<Map>().map((item) {
+      final json = JsonCodec.asMap(item);
+      final user = JsonCodec.mapAt(json, 'user') ?? json;
+      final first = JsonCodec.stringOr(user['firstName'] ?? json['firstName'], '');
+      final last = JsonCodec.stringOr(user['lastName'] ?? json['lastName'], '');
+      final name = '$first $last'.trim().isNotEmpty
+          ? '$first $last'.trim()
+          : JsonCodec.stringOr(user['name'] ?? json['name'], '');
+      final category = JsonCodec.mapAt(json, 'category') ??
+          JsonCodec.mapAt(json, 'staffCategory') ??
+          JsonCodec.mapAt(user, 'category');
+      return StaffIncidentStaffOption(
+        id: JsonCodec.stringOr(json['id'] ?? user['id'], ''),
+        name: name.isEmpty ? 'Staff' : name,
+        subtitle: JsonCodec.stringOr(category?['name'], 'Staff'),
+      );
+    }).where((item) => item.id.isNotEmpty && item.name != 'Staff').toList();
   }
 
   @override
@@ -587,6 +615,12 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
     bool? supervisorNotified,
     bool? familyNotified,
     bool? carePlanReviewed,
+    String? immediateAction,
+    bool? emergencyServicesContacted,
+    String? externalAgencyType,
+    String? externalAgencyReference,
+    String? externalAgencyResponder,
+    String? reportedByStaffId,
   }) async {
     final data = <String, dynamic>{
       'residenceId': residenceId,
@@ -605,6 +639,20 @@ class StaffIncidentsRepositoryImpl implements StaffIncidentsRepository {
       if (supervisorNotified != null) 'supervisorNotified': supervisorNotified,
       if (familyNotified != null) 'familyNotified': familyNotified,
       if (carePlanReviewed != null) 'carePlanReviewed': carePlanReviewed,
+      if (immediateAction != null && immediateAction.trim().isNotEmpty)
+        'immediateAction': immediateAction.trim(),
+      if (emergencyServicesContacted != null)
+        'emergencyServicesContacted': emergencyServicesContacted,
+      if (externalAgencyType != null && externalAgencyType.isNotEmpty)
+        'externalAgencyType': externalAgencyType,
+      if (externalAgencyReference != null &&
+          externalAgencyReference.trim().isNotEmpty)
+        'externalAgencyReference': externalAgencyReference.trim(),
+      if (externalAgencyResponder != null &&
+          externalAgencyResponder.trim().isNotEmpty)
+        'externalAgencyResponder': externalAgencyResponder.trim(),
+      if (reportedByStaffId != null && reportedByStaffId.isNotEmpty)
+        'reportedByStaffId': reportedByStaffId,
     };
 
     final result = await _api.patch(

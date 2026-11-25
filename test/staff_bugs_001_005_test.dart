@@ -365,6 +365,18 @@ class _FakeScheduleRepo implements StaffScheduleRepository {
       ]);
 
   @override
+  Future<Result<List<StaffShiftStaffOption>>> listColleagues({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<StaffColleagueShift>>> listColleagueShifts(
+    String staffId,
+  ) async =>
+      Result.success(const []);
+
+  @override
   Future<Result<List<StaffShiftStaffOption>>> searchStaff({
     String? search,
     String? residenceId,
@@ -493,7 +505,7 @@ void main() {
 
       expect(avatarTapped, isTrue);
       expect(find.byType(StaffProfileSettingsPage), findsOneWidget);
-      expect(find.text('Profile & Settings'), findsOneWidget);
+      expect(find.text('My Profile'), findsOneWidget);
       expect(find.text('Sam Jones'), findsOneWidget);
       expect(find.text('sam@example.com'), findsOneWidget);
 

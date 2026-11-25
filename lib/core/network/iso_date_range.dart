@@ -1,27 +1,38 @@
+import '../time/tenant_clock.dart';
+
 /// ISO date helpers for list queries (`from`/`to` and `YYYY-MM-DD`).
+///
+/// "Today"/week anchors use [TenantClock] (Settings → General timezone).
+/// Time labels convert UTC instants via [TenantClock.wallOf]. Calendar-date
+/// formatters print the DateTime's fields as-is (pass a wall/calendar value).
 abstract final class IsoDateRange {
+  static DateTime get _now => TenantClock.now();
+
   static DateTime get _startOfLocalDay {
-    final now = DateTime.now();
+    final now = _now;
     return DateTime(now.year, now.month, now.day);
   }
 
-  /// Local midnight for "today" (public for attendance range queries).
+  /// Midnight for a calendar day in the organisation zone.
   static DateTime startOfLocalDay([DateTime? date]) {
-    final d = date ?? DateTime.now();
+    final d = date ?? _now;
     return DateTime(d.year, d.month, d.day);
   }
 
   static String get todayDate {
-    final now = DateTime.now();
+    final now = _now;
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
     return '${now.year}-$month-$day';
   }
 
-  static String get todayStartIso => _startOfLocalDay.toUtc().toIso8601String();
+  static String get todayStartIso =>
+      TenantClock.at(_startOfLocalDay, 0).toUtc().toIso8601String();
 
-  static String get todayEndIso =>
-      _startOfLocalDay.add(const Duration(days: 1)).toUtc().toIso8601String();
+  static String get todayEndIso => TenantClock.at(
+        _startOfLocalDay.add(const Duration(days: 1)),
+        0,
+      ).toUtc().toIso8601String();
 
   static String formatDisplayDate(DateTime date) {
     const weekdays = [
@@ -59,8 +70,10 @@ abstract final class IsoDateRange {
 
   static String get nowIso => DateTime.now().toUtc().toIso8601String();
 
-  static String daysAgoStartIso(int days) =>
-      _startOfLocalDay.subtract(Duration(days: days)).toUtc().toIso8601String();
+  static String daysAgoStartIso(int days) => TenantClock.at(
+        _startOfLocalDay.subtract(Duration(days: days)),
+        0,
+      ).toUtc().toIso8601String();
 
   static String workedMinutesLabel(int? minutes) {
     if (minutes == null || minutes < 0) return '';
@@ -70,7 +83,7 @@ abstract final class IsoDateRange {
   }
 
   static DateTime startOfWeek([DateTime? date]) {
-    final d = date ?? DateTime.now();
+    final d = date ?? _now;
     final day = DateTime(d.year, d.month, d.day);
     return day.subtract(Duration(days: day.weekday - 1));
   }
@@ -78,9 +91,11 @@ abstract final class IsoDateRange {
   static DateTime endOfWeek([DateTime? date]) =>
       startOfWeek(date).add(const Duration(days: 7));
 
-  static String get weekStartIso => startOfWeek().toUtc().toIso8601String();
+  static String get weekStartIso =>
+      TenantClock.at(startOfWeek(), 0).toUtc().toIso8601String();
 
-  static String get weekEndIso => endOfWeek().toUtc().toIso8601String();
+  static String get weekEndIso =>
+      TenantClock.at(endOfWeek(), 0).toUtc().toIso8601String();
 
   static String formatWeekRange(DateTime start, DateTime endInclusive) {
     const months = [
@@ -168,13 +183,13 @@ abstract final class IsoDateRange {
   }
 
   static String timeAgo(DateTime date) {
-    final delta = DateTime.now().difference(date.toLocal());
+    final delta = DateTime.now().toUtc().difference(date.toUtc());
     if (delta.inMinutes < 1) return 'Just now';
     if (delta.inMinutes < 60) return '${delta.inMinutes}m ago';
     if (delta.inHours < 24) return '${delta.inHours}h ago';
     if (delta.inDays == 1) return 'Yesterday';
     if (delta.inDays < 7) return '${delta.inDays}d ago';
-    return formatShortDate(date.toLocal());
+    return formatShortDate(TenantClock.wallOf(date));
   }
 
   static String formatMonthDay(DateTime date) {
@@ -196,25 +211,24 @@ abstract final class IsoDateRange {
   }
 
   static String dateTimeLabel(DateTime date) {
-    final local = date.toLocal();
-    return '${formatMonthDay(local)} • ${timeLabel(local)}';
+    final wall = TenantClock.wallOf(date);
+    return '${formatMonthDay(wall)} • ${timeLabel(date)}';
   }
 
+  /// Time of day in the organisation zone (Settings → General).
   static String timeLabel(DateTime date) {
-    final hour = date.hour;
-    final minute = date.minute.toString().padLeft(2, '0');
-    final suffix = hour >= 12 ? 'PM' : 'AM';
-    final hour12 = hour % 12 == 0 ? 12 : hour % 12;
-    return '$hour12:$minute $suffix';
+    final formatted = TenantClock.formatTime(date);
+    if (formatted == '—') return '';
+    return formatted.replaceAll(' am', ' AM').replaceAll(' pm', ' PM');
   }
 
   static String rangeLabel(DateTime? start, DateTime? end) {
     if (start == null && end == null) return '';
     if (start != null && end != null) {
-      return '${timeLabel(start.toLocal())} – ${timeLabel(end.toLocal())}';
+      return '${timeLabel(start)} – ${timeLabel(end)}';
     }
-    if (start != null) return timeLabel(start.toLocal());
-    return timeLabel(end!.toLocal());
+    if (start != null) return timeLabel(start);
+    return timeLabel(end!);
   }
 
   static String elapsedHms(DateTime from) {

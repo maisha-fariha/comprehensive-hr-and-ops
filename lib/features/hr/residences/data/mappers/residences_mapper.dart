@@ -61,6 +61,7 @@ abstract final class ResidencesMapper {
       latitude: JsonCodec.number(json['latitude'])?.toDouble(),
       longitude: JsonCodec.number(json['longitude'])?.toDouble(),
       gpsRadiusMeters: _gpsRadius(json),
+      gpsTrackingEnabled: _gpsEnabled(json),
       emergencyPhone: JsonCodec.string(json['emergencyPhone']),
       addressLine1: JsonCodec.string(json['addressLine1']),
       city: JsonCodec.string(json['city']),
@@ -300,12 +301,28 @@ abstract final class ResidencesMapper {
     return parts.isEmpty ? null : parts.join(', ');
   }
 
+  /// Web form uses top-level `geofenceRadiusMeters`; nested `geofence.radiusMeters`
+  /// is a secondary shape (and can disagree with the top-level value).
   static int? _gpsRadius(Map<String, dynamic> json) {
+    final geofence = JsonCodec.mapAt(json, 'geofence') ?? const <String, dynamic>{};
+    return JsonCodec.integer(
+      json['geofenceRadiusMeters'] ??
+          geofence['radiusMeters'] ??
+          geofence['radius'] ??
+          json['gpsRadiusMeters'] ??
+          json['radiusMeters'],
+    );
+  }
+
+  /// Web/API: top-level `geofenceEnabled` (radius alone does not mean ON).
+  static bool _gpsEnabled(Map<String, dynamic> json) {
+    final top = JsonCodec.boolean(json['geofenceEnabled']);
+    if (top != null) return top;
     final geofence = json['geofence'];
     if (geofence is Map) {
-      return JsonCodec.integer(JsonCodec.asMap(geofence)['radiusMeters']);
+      return JsonCodec.boolean(JsonCodec.asMap(geofence)['enabled']) ?? false;
     }
-    return null;
+    return false;
   }
 
   static ResidencePerson? _person(dynamic value) {

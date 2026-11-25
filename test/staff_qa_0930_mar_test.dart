@@ -1,6 +1,8 @@
 import 'package:comprehensive_hr_and_ops/core/constants/app_colors.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_role.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_medication_stock.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_round.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/data/mappers/staff_medication_mapper.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/domain/entities/administered_dose.dart';
 import 'package:comprehensive_hr_and_ops/features/staff/medication/domain/entities/due_dose.dart';
@@ -63,6 +65,7 @@ Map<String, dynamic> _medicationJson({
   String name = 'Napa',
   String dose = '500',
   String? route = 'oral',
+  int stockUnitsPerDose = 1,
   List<String> times = const ['03:30'],
 }) =>
     {
@@ -72,6 +75,7 @@ Map<String, dynamic> _medicationJson({
       'name': name,
       'dose': dose,
       'route': route,
+      'stockUnitsPerDose': stockUnitsPerDose,
       'startsAt': '2026-09-30T00:00:00.000Z',
       'endsAt': '2026-10-01T00:00:00.000Z',
       'scheduleFrequency': 'daily',
@@ -135,9 +139,32 @@ class _FakeRepo implements StaffMedicationRepository {
   Future<Result<List<StaffClientMedicationItem>>> listMedications({
     String? residenceId,
     String? clientId,
+    String? type,
   }) async =>
       Result.success(
         StaffMedicationMapper.clientMedicationsFrom(medicationRows, isPrn: false),
+      );
+
+  @override
+  Future<Result<List<MarMedicationStock>>> listMedicationStock({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  ) async =>
+      Result.success(
+        MarMedicationStock(
+          id: 'stock-1',
+          residenceId: draft.residenceId,
+          medicationId: draft.medicationId,
+          prnMedicationId: draft.prnMedicationId,
+          quantity: draft.quantity,
+          unit: draft.unit,
+          refillThreshold: draft.refillThreshold,
+        ),
       );
 
   @override
@@ -149,24 +176,26 @@ class _FakeRepo implements StaffMedicationRepository {
       );
 
   @override
-  Future<Result<List<AdministeredDose>>> listAdministrations({
+  Future<Result<MarAdministrationsList>> listAdministrations({
     String? residenceId,
     int page = 1,
     int limit = 50,
-  }) async =>
-      Result.success(
-        StaffMedicationMapper.administrationsFrom([
-          {
-            'id': 'adm-1',
-            'medication': {'id': _napaId, 'name': 'Napa', 'dose': '500'},
-            'client': {'id': _clientId, 'name': 'Client One'},
-            'residenceId': _residenceId,
-            'administeredByStaff': {'id': _staffId, 'name': 'Abir Hasan'},
-            'administeredAt': '2026-09-30T09:31:00.000Z',
-            'status': 'administered',
-          },
-        ]),
-      );
+  }) async {
+    final items = StaffMedicationMapper.administrationsFrom([
+      {
+        'id': 'adm-1',
+        'medication': {'id': _napaId, 'name': 'Napa', 'dose': '500'},
+        'client': {'id': _clientId, 'name': 'Client One'},
+        'residenceId': _residenceId,
+        'administeredByStaff': {'id': _staffId, 'name': 'Abir Hasan'},
+        'administeredAt': '2026-09-30T09:31:00.000Z',
+        'status': 'administered',
+      },
+    ]);
+    return Result.success(
+      MarAdministrationsList(items: items, total: items.length),
+    );
+  }
 
   @override
   Future<Result<List<StaffClientMedicationItem>>> getClientMedications(
@@ -183,7 +212,36 @@ class _FakeRepo implements StaffMedicationRepository {
   Future<Result<List<StaffClientMedicationItem>>> getClientPrnMedications(
     String clientId,
   ) async =>
-      Result.success(const []);
+      Result.success(
+        StaffMedicationMapper.clientMedicationsFrom([
+          {
+            'id': 'prn-own',
+            'clientId': clientId,
+            'residenceId': _residenceId,
+            'name': 'Own PRN',
+            'dose': '1',
+            'isActive': true,
+          },
+          // Over-broad API payload: another resident's PRN must not appear
+          // in this resident's Record Administration medicine dropdown.
+          {
+            'id': 'prn-other',
+            'clientId': 'other-client',
+            'residenceId': _residenceId,
+            'name': 'Other Resident PRN',
+            'dose': '10ml',
+            'isActive': true,
+          },
+          {
+            'id': 'prn-other-house',
+            'clientId': null,
+            'residenceId': 'other-residence',
+            'name': 'Other House PRN',
+            'dose': '5ml',
+            'isActive': true,
+          },
+        ], isPrn: true),
+      );
 
   @override
   Future<Result<List<StaffMedResidenceOption>>> getResidences() async =>
@@ -284,6 +342,26 @@ class _FakeRepo implements StaffMedicationRepository {
       Result.success(null);
 
   @override
+  Future<Result<void>> deleteMedication(String id) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> discontinueMedication(String id) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> deletePrnMedication(String id) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> discontinuePrnMedication(String id) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<MarResidentChart>> residentChart(String clientId) async =>
+      Result.success(const MarResidentChart());
+
+  @override
   Future<Result<void>> recordAdministration({
     required String clientId,
     required String residenceId,
@@ -294,6 +372,8 @@ class _FakeRepo implements StaffMedicationRepository {
     String? doseReason,
     String? witnessStaffId,
     bool isPrn = false,
+    DateTime? scheduledFor,
+    bool scheduled = true,
     Map<String, bool>? safetyChecks,
     Map<String, String>? vitals,
   }) async =>
@@ -407,16 +487,14 @@ void main() {
     (tester) async {
       final controller = await pumpPage(tester);
 
-      expect(controller.marTabCount, 2);
-      expect(find.text('2 scheduled today'), findsOneWidget);
+      // Web MAR tab counts scheduled round rows only — off-round / PRN
+      // chartings do not inflate this badge.
+      expect(controller.marTabCount, 1);
+      expect(find.text('1 scheduled today'), findsOneWidget);
       expect(find.byKey(const ValueKey('staff-mar-state-occ-1')), findsOneWidget);
       expect(find.text('OVERDUE'), findsOneWidget);
-      expect(find.text('GIVEN'), findsOneWidget);
-      expect(find.text('Unscheduled'), findsOneWidget);
-      expect(
-        find.textContaining('by Abir Hasan', findRichText: true),
-        findsOneWidget,
-      );
+      expect(find.text('GIVEN'), findsNothing);
+      expect(find.text('Unscheduled'), findsNothing);
 
       // Residence: options from the user's residences.
       await tester.tap(find.byKey(const ValueKey('staff-mar-filter-residence')));
@@ -427,7 +505,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.filterResidenceId.value, _residenceId);
       expect(repo.overviewResidenceIds.last, _residenceId);
-      expect(controller.marTabCount, 2);
+      expect(controller.marTabCount, 1);
 
       // Resident: options from the loaded rows.
       await tester.tap(find.byKey(const ValueKey('staff-mar-filter-resident')));
@@ -464,14 +542,15 @@ void main() {
       }
       await tester.tap(_inSheet('Given'));
       await tester.pumpAndSettle();
-      expect(controller.filteredScheduledDoses.single.id, 'occ-2');
-      expect(find.text('1 scheduled today'), findsOneWidget);
+      // Off-round given doses are not MAR rows (web parity).
+      expect(controller.filteredScheduledDoses, isEmpty);
+      expect(find.text('0 scheduled today'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('staff-mar-filter-clear')));
       await tester.pumpAndSettle();
       expect(controller.hasActiveFilters, isFalse);
       expect(repo.overviewResidenceIds.last, isNull);
-      expect(find.text('2 scheduled today'), findsOneWidget);
+      expect(find.text('1 scheduled today'), findsOneWidget);
     },
   );
 
@@ -479,7 +558,9 @@ void main() {
     'S09: editing a prescription shows the updated row in the same list',
     (tester) async {
       await pumpPage(tester);
-      expect(find.text('Napa 500'), findsNWidgets(2));
+      // Registry cards show name + dosage as separate fields (web row parity).
+      expect(find.text('Napa'), findsWidgets);
+      expect(find.text('500'), findsWidgets);
 
       await tester.tap(find.byKey(const ValueKey('staff-mar-edit-occ-1')));
       await tester.pumpAndSettle();
@@ -487,21 +568,21 @@ void main() {
       expect(find.widgetWithText(TextField, 'Napa'), findsOneWidget);
 
       await tester.enterText(find.widgetWithText(TextField, '500'), '650');
-      await tester.enterText(find.widgetWithText(TextField, 'oral'), '');
       await tester.tap(find.byKey(const Key('staff-mar-add-medicine-save')));
       await tester.pumpAndSettle();
 
       final (id, input) = repo.updatedMedications.single;
       expect(id, _napaId);
       expect(input.dose, '650');
-      expect(input.route, isNull);
+      expect(input.route, 'oral');
       expect(input.scheduleTimes, ['03:30']);
       expect(input.residenceId, _residenceId);
       expect(input.clientId, _clientId);
 
       expect(find.text('Correct a medicine'), findsNothing);
-      expect(find.text('Napa 650'), findsNWidgets(2));
-      expect(find.text('Napa 500'), findsNothing);
+      expect(find.text('Napa'), findsWidgets);
+      expect(find.text('650'), findsWidgets);
+      expect(find.text('500'), findsNothing);
       await _settleSnackbars(tester);
     },
   );
@@ -530,6 +611,11 @@ void main() {
         'Calpol',
       );
       await tester.enterText(find.widgetWithText(TextField, '1 tablet'), '5ml');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Oral, topical, inhaled...'),
+        'oral',
+      );
+      await tester.enterText(find.widgetWithText(TextField, 'e.g. 1'), '1');
       await tester.tap(find.byKey(const Key('staff-mar-add-medicine-save')));
       await tester.pumpAndSettle();
 
@@ -537,13 +623,14 @@ void main() {
       expect(created.name, 'Calpol');
       expect(created.residenceId, _residenceId);
       expect(created.clientId, _clientId);
-      expect(created.route, isNull);
+      expect(created.route, 'oral');
       expect(created.scheduleTimes, ['08:00']);
 
       expect(find.text('Add a medicine'), findsNothing);
-      expect(controller.marTabCount, 3);
-      expect(find.text('Calpol 5ml'), findsOneWidget);
-      expect(find.text('3 scheduled today'), findsOneWidget);
+      expect(controller.marTabCount, 2);
+      expect(find.text('Calpol'), findsWidgets);
+      expect(find.text('5ml'), findsWidgets);
+      expect(find.text('2 scheduled today'), findsOneWidget);
       await _settleSnackbars(tester);
     },
   );
@@ -565,11 +652,21 @@ void main() {
       find.widgetWithText(TextField, 'Paracetamol 500mg'),
       'Ibuprofen',
     );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Oral, topical, inhaled...'),
+      'oral',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'e.g. 1'), '1');
+    // Web PRN shortest-gap presets (required).
+    await tester.ensureVisible(find.text('4 hrs'));
+    await tester.tap(find.text('4 hrs'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('staff-mar-add-medicine-save')));
     await tester.pumpAndSettle();
 
     expect(repo.createdPrns.single.name, 'Ibuprofen');
-    expect(repo.createdPrns.single.route, isNull);
+    expect(repo.createdPrns.single.route, 'oral');
+    expect(repo.createdPrns.single.minIntervalMinutes, 240);
     expect(controller.prnTabCount, 1);
 
     controller.selectTab(StaffMedicationTab.prn);
@@ -606,7 +703,12 @@ void main() {
                   onPressed: () => StaffRecordAdministrationDialog.show(
                     context,
                     clients: const [
-                      StaffMedClientOption(id: _clientId, name: 'Client One'),
+                      StaffMedClientOption(
+                        id: _clientId,
+                        name: 'Client One',
+                        residenceId: _residenceId,
+                        residenceName: 'Cozzy Cottege',
+                      ),
                     ],
                     preselectedDose: dose,
                   ),
@@ -621,14 +723,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+      // Preselected scheduled dose stays visible until a PRN is chosen.
       expect(find.text('Napa · 500'), findsOneWidget);
 
       await tester.tap(find.text('Napa · 500'));
       await tester.pumpAndSettle();
-      expect(find.text('Ooo · 45'), findsWidgets);
-      await tester.tap(find.text('Ooo · 45').last);
+      // Dropdown is PRN-only for this resident — scheduled chart meds stay out.
+      expect(find.text('Ooo · 45'), findsNothing);
+      expect(find.textContaining('Own PRN'), findsWidgets);
+      expect(find.textContaining('Other Resident PRN'), findsNothing);
+      expect(find.textContaining('Other House PRN'), findsNothing);
+      await tester.tap(find.textContaining('Own PRN').last);
       await tester.pumpAndSettle();
-      expect(find.text('Ooo · 45'), findsOneWidget);
+      expect(find.textContaining('Own PRN'), findsOneWidget);
       expect(find.text('Napa · 500'), findsNothing);
 
       await tester.tap(find.text('Client One').first);

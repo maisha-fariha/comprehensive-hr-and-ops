@@ -2,6 +2,9 @@
 /// screen.
 enum SchedulingTab { calendar, board, requests }
 
+/// Web calendar range: Week, Month, or the unscoped All shifts list.
+enum ScheduleSpan { week, month, list }
+
 /// Coverage/staffing health for a shift, drives the color of its ratio
 /// badge, progress bar and status label everywhere it appears (Calendar
 /// shift cards, Board coverage tiles and coverage-board cards).

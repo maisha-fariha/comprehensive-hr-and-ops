@@ -35,6 +35,7 @@ abstract class HrTrainingRepository {
   /// `GET /training/assignments` (`meta.summary` carries the KPI counts).
   Future<Result<TrainingPage<TrainingAssignment>>> assignments({
     String? courseId,
+    String? staffId,
     int? page,
     required int limit,
   });
@@ -70,9 +71,10 @@ abstract class HrTrainingRepository {
     required List<Map<String, dynamic>> answers,
   });
 
-  /// `GET /training/certificates?courseId&page&limit`.
+  /// `GET /training/certificates?courseId&staffId&page&limit`.
   Future<Result<TrainingPage<TrainingCertificate>>> certificates({
-    required String courseId,
+    String? courseId,
+    String? staffId,
     required int page,
     required int limit,
   });

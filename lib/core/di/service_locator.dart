@@ -1,8 +1,14 @@
+import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get_it/get_it.dart';
 
+import '../network/app_api_client.dart';
 import '../../features/auth/di/auth_di.dart';
+import '../../features/common/direct_deposit/data/direct_deposit_repository.dart';
 import '../../features/common/inbox/di/portal_inbox_di.dart';
 import '../../features/hr/admissions/di/admissions_di.dart';
+import '../../features/hr/ai/di/ai_assist_di.dart';
+import '../../features/hr/ai_alerts/di/ai_alerts_di.dart';
 import '../../features/hr/appointments/di/hr_appointments_di.dart';
 import '../../features/hr/attendance/di/attendance_di.dart';
 import '../../features/hr/clients/di/clients_di.dart';
@@ -12,6 +18,8 @@ import '../../features/hr/daily_logs/di/daily_logs_di.dart';
 import '../../features/hr/dashboard/di/dashboard_di.dart';
 import '../../features/hr/documents/di/hr_documents_di.dart';
 import '../../features/hr/emergency/di/emergency_di.dart';
+import '../../features/hr/compliance/di/compliance_di.dart';
+import '../../features/hr/finance/di/finance_di.dart';
 import '../../features/hr/handovers/di/handovers_di.dart';
 import '../../features/hr/inventory/di/inventory_di.dart';
 import '../../features/hr/training/di/hr_training_di.dart';
@@ -52,6 +60,12 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupAuthDependencies();
   await setupPortalInboxDependencies();
 
+  DIHelper.registerRepository<DirectDepositRepository>(
+    factory: () => DirectDepositRepository(api: GetIt.instance<AppApiClient>()),
+  );
+
+  await setupHrAiAssistDependencies();
+  await setupHrAiAlertsDependencies();
   await setupHrDashboardDependencies();
   await setupHrSchedulingDependencies();
   await setupHrAttendanceDependencies();
@@ -73,6 +87,8 @@ Future<void> setupAppDependencies({required ApiConfig apiConfig}) async {
   await setupHrDocumentsDependencies();
   await setupHrAppointmentsDependencies();
   await setupHrTrainingDependencies();
+  await setupHrFinanceDependencies();
+  await setupHrComplianceDependencies();
 
   await setupStaffDashboardDependencies();
   await setupStaffExtrasDependencies();

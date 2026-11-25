@@ -7,6 +7,10 @@ class InventorySupplier {
   final String? contactName;
   final String? email;
   final String? phone;
+  final String? address;
+  /// Printed on purchase orders so the supplier can match them.
+  final String? accountRef;
+  final String? notes;
   final bool isActive;
   final DateTime? deletedAt;
 
@@ -18,11 +22,18 @@ class InventorySupplier {
     this.contactName,
     this.email,
     this.phone,
+    this.address,
+    this.accountRef,
+    this.notes,
     this.isActive = true,
     this.deletedAt,
   });
 
   bool get isDeleted => deletedAt != null;
+
+  bool get hasContact =>
+      (email != null && email!.trim().isNotEmpty) ||
+      (phone != null && phone!.trim().isNotEmpty);
 }
 
 /// The stock item a purchase-order line restocks.
@@ -71,9 +82,16 @@ class PurchaseOrder {
   final String? residenceName;
   final String? supplierId;
   final String? supplierName;
+  final String? supplierEmail;
+  final String? supplierPhone;
   final String? notes;
   final String? expectedAt;
+  final DateTime? createdAt;
   final String? rejectionReason;
+  /// When the order was emailed / marked placed (`sentAt` / `sentVia` / `sentTo`).
+  final DateTime? sentAt;
+  final String? sentVia;
+  final String? sentTo;
   final List<PurchaseOrderLine> items;
 
   const PurchaseOrder({
@@ -84,9 +102,15 @@ class PurchaseOrder {
     this.residenceName,
     this.supplierId,
     this.supplierName,
+    this.supplierEmail,
+    this.supplierPhone,
     this.notes,
     this.expectedAt,
+    this.createdAt,
     this.rejectionReason,
+    this.sentAt,
+    this.sentVia,
+    this.sentTo,
     this.items = const [],
   });
 
@@ -98,9 +122,11 @@ class PurchaseOrder {
     'receive': ['submitted', 'partially_received'],
     'cancel': ['draft', 'submitted', 'pending_approval', 'partially_received'],
     'edit': ['draft'],
+    'send': ['submitted', 'partially_received'],
   };
 
-  bool allows(String action) => transitions[action]?.contains(status) ?? false;
+  bool allows(String action) =>
+      transitions[action]?.contains(status.trim().toLowerCase()) ?? false;
 
   /// Submitting needs a supplier.
   bool get canSubmit => allows('submit') && supplierId != null;
@@ -119,4 +145,27 @@ class PurchaseOrder {
 
   String get displayReference =>
       reference ?? '#${id.length > 8 ? id.substring(0, 8) : id}';
+
+  /// Web status caption under Submitted, e.g. "Emailed to a@b.com".
+  String? get sentCaption {
+    final via = (sentVia ?? '').toLowerCase();
+    if (via == 'email') {
+      final to = (sentTo ?? supplierEmail)?.trim();
+      if (to != null && to.isNotEmpty) return 'Emailed to $to';
+      return 'Emailed to supplier';
+    }
+    if (via == 'manual' || via == 'phone') {
+      return 'Placed by phone / website.';
+    }
+    return null;
+  }
+
+  /// Web fulfillment strip when nothing has been emailed / marked placed.
+  String get sendStatusLabel {
+    final caption = sentCaption;
+    if (caption != null) return caption;
+    return 'Not yet sent to supplier';
+  }
+
+  bool get canResend => allows('send') && (sentVia == 'email' || sentAt != null);
 }

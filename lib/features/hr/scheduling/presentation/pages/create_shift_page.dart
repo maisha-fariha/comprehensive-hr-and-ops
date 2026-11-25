@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_shift_draft.dart';
 import '../../domain/entities/shift_break_duration_option.dart';
 import '../../domain/entities/shift_residence_option.dart';
+import '../../domain/entities/shift_staff_conflict.dart';
 import '../../domain/entities/shift_staff_option.dart';
 import '../../domain/entities/shift_type_option.dart';
 import '../../domain/repositories/scheduling_repository.dart';
@@ -17,6 +23,22 @@ import '../widgets/create_shift/create_shift_open_shift_form.dart';
 import '../widgets/create_shift/create_shift_recurring_form.dart';
 import '../widgets/create_shift/create_shift_staff_assignment_form.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
+
+/// Visual order of Create Shift fields that can fail validation.
+const _createShiftErrorKeys = <String, Key>{
+  CreateShiftField.residenceId: ValueKey('create-shift-residence'),
+  CreateShiftField.shiftType: ValueKey('create-shift-type'),
+  CreateShiftField.shiftDate: ValueKey('create-shift-date'),
+  CreateShiftField.startTime: ValueKey('create-shift-start'),
+  CreateShiftField.endTime: ValueKey('create-shift-end'),
+  CreateShiftField.assignedStaff: ValueKey('create-shift-add-staff'),
+  CreateShiftField.biddingDeadline: ValueKey('create-shift-bid-deadline'),
+  CreateShiftField.endDate: ValueKey('create-shift-end-date'),
+  CreateShiftField.occurrenceCount: ValueKey('create-shift-occurrences'),
+  CreateShiftField.restOverrideReason:
+      ValueKey('shift-rest-override-reason'),
+};
 
 /// "Add New Shift" wizard — same steps, fields, validation and
 /// `POST /shifts` body as the web scheduling dialog.
@@ -57,20 +79,27 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
   late final TextEditingController _noteToBiddersController;
   late final TextEditingController _occurrenceController;
   late final TextEditingController _messageController;
+  late final TextEditingController _restOverrideReasonController;
   final ScrollController _scrollController = ScrollController();
 
   CreateShiftStep _step = CreateShiftStep.shiftInformation;
   Map<String, String> _errors = const {};
   String? _submitError;
-  bool _isSubmitting = false;
+  /// Which footer action is in flight (Bug Report 002 — only that button spins).
+  String? _busyAction;
+  Future<void>? _clockReady;
 
   final List<ShiftResidenceOption> _residences = [];
   bool _isLoadingResidences = false;
+  List<ShiftClientOption> _clients = [];
 
   final List<ShiftStaffOption> _staffOptions = [];
   bool _isLoadingStaff = false;
   String? _staffError;
-  String? _expandedStaffId;
+
+  ShiftConflictsResult _conflicts = const ShiftConflictsResult();
+  Set<String> _staffWithOverlappingShifts = {};
+  int _conflictSerial = 0;
 
   @override
   void initState() {
@@ -92,10 +121,29 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         TextEditingController(text: _draft.occurrenceCount);
     _messageController =
         TextEditingController(text: _draft.notificationMessage);
+    _restOverrideReasonController =
+        TextEditingController(text: _draft.restOverrideReason);
     _initialSnapshot = _draft.snapshot();
-    if (_isEdit) _loadShift();
+    _clockReady = _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await _loadDefaultBreak();
+    if (!mounted) return;
+    if (_isEdit) await _loadShift();
+    if (!mounted) return;
     _loadResidences();
     _loadStaff();
+    _loadClients();
+  }
+
+  Future<void> _loadDefaultBreak() async {
+    final result = await _repository.getDefaultBreakMinutes();
+    if (!mounted || _isEdit) return;
+    result.when(
+      success: (minutes) => _update(() => _draft.breakMinutes = minutes),
+      failure: (_) {},
+    );
   }
 
   Future<void> _loadShift() async {
@@ -156,6 +204,7 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     _noteToBiddersController.dispose();
     _occurrenceController.dispose();
     _messageController.dispose();
+    _restOverrideReasonController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -167,27 +216,54 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     setState(() => _isLoadingResidences = true);
     final result = await _repository.getResidences();
     if (!mounted) return;
+    final loaded = <ShiftResidenceOption>[];
+    String? loadError;
     result.when(
-      success: (data) => setState(() {
-        _isLoadingResidences = false;
-        _residences
-          ..clear()
-          ..addAll(data);
-      }),
-      failure: (error) {
-        setState(() => _isLoadingResidences = false);
-        AppSnackbar.show('Could not load residences', error.message);
-      },
+      success: loaded.addAll,
+      failure: (error) => loadError = error.message,
     );
+    UserSession? session;
+    try {
+      session = Get.find<UserSession>();
+    } catch (_) {}
+    final merged = mergeResidencePickerOptions<ShiftResidenceOption>(
+      loaded: loaded,
+      idOf: (r) => r.id,
+      nameOf: (r) => r.name,
+      create: (id, name) => ShiftResidenceOption(id: id, name: name),
+      sessionId: session?.residenceId,
+      sessionName: session?.residenceName,
+    );
+    setState(() {
+      _isLoadingResidences = false;
+      _residences
+        ..clear()
+        ..addAll(merged);
+    });
+    if (loadError != null && merged.isEmpty) {
+      AppSnackbar.show('Could not load residences', loadError!);
+    }
   }
 
   Future<void> _loadStaff() async {
     if (_isLoadingStaff) return;
+    final residenceId =
+        _draft.residenceId.isEmpty ? null : _draft.residenceId;
+    // Web only offers staff for the selected residence.
+    if (residenceId == null) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingStaff = false;
+        _staffError = null;
+        _staffOptions.clear();
+      });
+      return;
+    }
     setState(() {
       _isLoadingStaff = true;
       _staffError = null;
     });
-    final result = await _repository.getStaffOptions();
+    final result = await _repository.getStaffOptions(residenceId: residenceId);
     if (!mounted) return;
     result.when(
       success: (data) => setState(() {
@@ -195,6 +271,9 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         _staffOptions
           ..clear()
           ..addAll(data);
+        final allowed = {for (final o in data) o.id};
+        _draft.assignedStaff
+            .removeWhere((s) => allowed.isNotEmpty && !allowed.contains(s.staffId));
         _labelAssignedStaff();
       }),
       failure: (error) => setState(() {
@@ -217,6 +296,188 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
         };
       }
     });
+    _refreshStaffConflicts();
+  }
+
+  static String _dayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  bool get _staffingBlocked =>
+      !_draft.isOpenShift &&
+      (_conflicts.conflicts.isNotEmpty || _conflicts.leave.isNotEmpty);
+
+  static const _staffingBlockedToast =
+      'Someone on this shift is already rostered then, or on leave — change who is on it first.';
+
+  /// Web `useShiftConflicts` plus the overlapping-shift "Has Shift" badge.
+  /// The badge query is every residence; conflict banners stay on this home.
+  Future<void> _refreshStaffConflicts() async {
+    final serial = ++_conflictSerial;
+    final window = _draft.shiftWindow;
+    final staffIds = [
+      for (final staff in _draft.assignedStaff) staff.staffId,
+    ]..sort();
+
+    if (window == null) {
+      if (!mounted || serial != _conflictSerial) return;
+      setState(() {
+        _conflicts = const ShiftConflictsResult();
+        _staffWithOverlappingShifts = {};
+      });
+      return;
+    }
+
+    final from = _dayKey(window.$1.subtract(const Duration(days: 1)));
+    final to = _dayKey(window.$2.add(const Duration(days: 1)));
+    final excludeId = widget.editShiftId;
+    final residenceId = _draft.residenceId.isEmpty ? null : _draft.residenceId;
+
+    // Web `useShifts` for the badge sends from/to/limit only, so a shift at
+    // another residence still marks "(Has Shift)". Conflicts stay scoped
+    // to the residence on this form.
+    final shiftsFuture = _repository.listShiftsInRange(
+      from: from,
+      to: to,
+    );
+    final conflictsFuture = staffIds.isEmpty
+        ? Future<Result<ShiftConflictsResult>>.value(
+            Result.success(const ShiftConflictsResult()),
+          )
+        : _repository.checkStaffConflicts(
+            staffIds: staffIds,
+            startsAtIso: window.$1.toUtc().toIso8601String(),
+            endsAtIso: window.$2.toUtc().toIso8601String(),
+            residenceId: residenceId,
+            excludeShiftId: excludeId,
+          );
+
+    final shiftsResult = await shiftsFuture;
+    final conflictsResult = await conflictsFuture;
+    if (!mounted || serial != _conflictSerial) return;
+
+    final hasShift = <String>{};
+    shiftsResult.when(
+      success: (rows) {
+        for (final row in rows) {
+          if (excludeId != null && row.id == excludeId) continue;
+          if (row.status == 'cancelled') continue;
+          if (!row.startsAt.isBefore(window.$2)) continue;
+          if (!row.endsAt.isAfter(window.$1)) continue;
+          hasShift.addAll(row.staffIds);
+        }
+      },
+      failure: (_) {},
+    );
+
+    var nextConflicts = const ShiftConflictsResult();
+    conflictsResult.when(
+      success: (value) => nextConflicts = value,
+      failure: (_) {},
+    );
+
+    setState(() {
+      _staffWithOverlappingShifts = hasShift;
+      _conflicts = nextConflicts;
+      if (nextConflicts.rest.isEmpty &&
+          _draft.restOverrideReason.isNotEmpty) {
+        _draft.restOverrideReason = '';
+        _restOverrideReasonController.clear();
+        _errors = {
+          for (final entry in _errors.entries)
+            if (entry.key != CreateShiftField.restOverrideReason)
+              entry.key: entry.value,
+        };
+      }
+    });
+  }
+
+  bool _validateRestOverrideReason() {
+    if (_draft.isOpenShift || _conflicts.rest.isEmpty) {
+      if (_errors.containsKey(CreateShiftField.restOverrideReason)) {
+        setState(() {
+          _errors = {
+            for (final entry in _errors.entries)
+              if (entry.key != CreateShiftField.restOverrideReason)
+                entry.key: entry.value,
+          };
+        });
+      }
+      return true;
+    }
+    final message = CreateShiftRestOverride.validationError(
+      _draft.restOverrideReason,
+      submitted: true,
+    );
+    if (message == null) {
+      if (_errors.containsKey(CreateShiftField.restOverrideReason)) {
+        setState(() {
+          _errors = {
+            for (final entry in _errors.entries)
+              if (entry.key != CreateShiftField.restOverrideReason)
+                entry.key: entry.value,
+          };
+        });
+      }
+      return true;
+    }
+    setState(() {
+      _errors = {
+        ..._errors,
+        CreateShiftField.restOverrideReason: message,
+      };
+    });
+    return false;
+  }
+
+  void _onRestOverrideReasonChanged(String value) {
+    _update(() {
+      _draft.restOverrideReason = value;
+      final message = CreateShiftRestOverride.validationError(
+        value,
+        submitted: _errors.containsKey(CreateShiftField.restOverrideReason),
+      );
+      if (message == null) {
+        _errors = {
+          for (final entry in _errors.entries)
+            if (entry.key != CreateShiftField.restOverrideReason)
+              entry.key: entry.value,
+        };
+      } else if (_errors.containsKey(CreateShiftField.restOverrideReason) ||
+          value.trim().isNotEmpty) {
+        // Live web-parity hint once they type, or after a failed submit.
+        _errors = {
+          ..._errors,
+          CreateShiftField.restOverrideReason: message,
+        };
+      }
+    });
+  }
+
+  /// Map cryptic Zod min-length failures back onto the reason field.
+  bool _applyRestOverrideApiError(String message) {
+    if (_conflicts.rest.isEmpty) return false;
+    final localMessage = CreateShiftRestOverride.validationError(
+      _draft.restOverrideReason,
+      submitted: true,
+    );
+    final fromApi =
+        CreateShiftRestOverride.matchesApiMinLengthMessage(message);
+    if (!fromApi && localMessage == null) return false;
+    final fieldMessage = localMessage ??
+        'At least 10 characters required for the reason to roster anyway.';
+    setState(() {
+      _busyAction = null;
+      _submitError = null;
+      _errors = {
+        ..._errors,
+        CreateShiftField.restOverrideReason: fieldMessage,
+      };
+    });
+    _goTo(CreateShiftStep.staffAssignment);
+    _scrollToFirstShiftError({
+      CreateShiftField.restOverrideReason: fieldMessage,
+    });
+    return true;
   }
 
   void _onTextChanged(String _) {
@@ -232,95 +493,324 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     });
   }
 
+  /// Surface start/end overlap as soon as both times are set (web-parity UX).
+  void _surfaceTimeOverlapError() {
+    final current = _draft.validate();
+    setState(() {
+      final next = Map<String, String>.from(_errors);
+      next.remove(CreateShiftField.startTime);
+      next.remove(CreateShiftField.endTime);
+      if (current.containsKey(CreateShiftField.endTime)) {
+        next[CreateShiftField.endTime] = current[CreateShiftField.endTime]!;
+      }
+      if (current.containsKey(CreateShiftField.startTime)) {
+        next[CreateShiftField.startTime] = current[CreateShiftField.startTime]!;
+      }
+      _errors = next;
+    });
+  }
+
+  void _refreshBiddingError() {
+    final message = _draft.validate()[CreateShiftField.biddingDeadline];
+    setState(() {
+      final next = Map<String, String>.from(_errors);
+      if (message == null) {
+        next.remove(CreateShiftField.biddingDeadline);
+      } else {
+        next[CreateShiftField.biddingDeadline] = message;
+      }
+      _errors = next;
+    });
+  }
+
   void _goTo(CreateShiftStep step) {
+    if (step == CreateShiftStep.openShift) {
+      step = CreateShiftStep.staffAssignment;
+    }
     FocusScope.of(context).unfocus();
     setState(() => _step = step);
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
+  }
+
+  void _scrollToFirstShiftError(Map<String, String> errors) {
+    if (errors.isEmpty) return;
+    scrollToFirstFormError(
+      context,
+      errors: errors,
+      fieldKeys: _createShiftErrorKeys,
+    );
   }
 
   void _next() {
     final stepErrors = _draft.validateStep(_step);
     if (stepErrors.isNotEmpty) {
       setState(() => _errors = {..._errors, ...stepErrors});
+      _scrollToFirstShiftError(stepErrors);
       return;
     }
-    final index = _step.index;
-    if (index < CreateShiftStep.values.length - 1) {
-      _goTo(CreateShiftStep.values[index + 1]);
+    if (_step == CreateShiftStep.staffAssignment &&
+        !_validateRestOverrideReason()) {
+      return;
     }
+    if (_step == CreateShiftStep.staffAssignment && _staffingBlocked) {
+      AppSnackbar.show('Staff assignment', _staffingBlockedToast);
+      return;
+    }
+    // Web combines Assign Staff + Open Shift on one step; skip the legacy
+    // dedicated Open Shift page when staffing method was already chosen.
+    var index = _step.index + 1;
+    if (index == CreateShiftStep.openShift.index) {
+      index += 1;
+    }
+    if (index < CreateShiftStep.values.length) {
+      _goTo(CreateShiftStep.values[index]);
+    }
+  }
+
+  void _goToGuarded(CreateShiftStep step) {
+    // Web blocks leaving Staff Assignment while conflicts/leave are present.
+    final leavingStaff =
+        _step == CreateShiftStep.staffAssignment &&
+        step != CreateShiftStep.staffAssignment;
+    if (leavingStaff && !_validateRestOverrideReason()) {
+      return;
+    }
+    if (leavingStaff && _staffingBlocked) {
+      AppSnackbar.show('Staff assignment', _staffingBlockedToast);
+      return;
+    }
+    _goTo(step);
   }
 
   void _back() {
-    final index = _step.index;
-    if (index > 0) _goTo(CreateShiftStep.values[index - 1]);
+    var index = _step.index - 1;
+    if (index == CreateShiftStep.openShift.index) {
+      index -= 1;
+    }
+    if (index >= 0) _goTo(CreateShiftStep.values[index]);
   }
 
-  Future<void> _submit() async {
-    if (_isSubmitting) return;
+  Future<void> _submit({bool asDraft = false}) async {
+    if (_busyAction != null) return;
+    await _clockReady;
+    if (!mounted || _busyAction != null) return;
     final errors = _draft.validate();
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
       _goTo(CreateShiftDraft.stepOf(errors.keys.first));
+      _scrollToFirstShiftError(errors);
+      return;
+    }
+    if (!asDraft && !_validateRestOverrideReason()) {
+      _goTo(CreateShiftStep.staffAssignment);
+      final reasonError = _errors[CreateShiftField.restOverrideReason];
+      if (reasonError != null) {
+        _scrollToFirstShiftError({
+          CreateShiftField.restOverrideReason: reasonError,
+        });
+      }
+      return;
+    }
+    if (!asDraft && _staffingBlocked) {
+      AppSnackbar.show('Staff assignment', _staffingBlockedToast);
+      _goTo(CreateShiftStep.staffAssignment);
       return;
     }
 
     FocusScope.of(context).unfocus();
     setState(() {
-      _isSubmitting = true;
+      _busyAction = asDraft
+          ? CreateShiftBusyAction.draft
+          : CreateShiftBusyAction.submit;
       _submitError = null;
     });
     if (_isEdit) {
       await _saveEdit();
       return;
     }
-    final result = await _repository.createShift(_draft.toCreateBody());
+    final result = await _repository.createShift(
+      _draft.toCreateBody(asDraft: asDraft),
+    );
     if (!mounted) return;
     result.when(
       success: (count) {
         Navigator.of(context).pop(true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           AppSnackbar.show(
-            count == 1 ? 'Shift created' : '$count shifts created',
+            asDraft
+                ? (count == 1 ? 'Draft saved' : '$count drafts saved')
+                : (count == 1 ? 'Shift created' : '$count shifts created'),
             '',
           );
         });
       },
       failure: (error) {
+        if (_applyRestOverrideApiError(error.message)) return;
         setState(() {
-          _isSubmitting = false;
+          _busyAction = null;
           _submitError = error.message;
         });
+        if (_isStaffingConflictCode(error.code)) {
+          _goTo(CreateShiftStep.staffAssignment);
+        }
         if (_scrollController.hasClients) _scrollController.jumpTo(0);
       },
     );
   }
 
-  Future<void> _saveEdit() async {
+  Future<void> _deleteShift() async {
+    final id = widget.editShiftId;
+    if (id == null || _busyAction != null) return;
+    final confirmed = await showAppPopup<bool>(
+      context: context,
+      builder: (dialogContext) => AppSheetDialog(
+        backgroundColor: AppColors.surfaceWhite,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete this shift?',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: AppColors.textHeading,
+          ),
+        ),
+        content: const Text(
+          'This permanently removes the shift and any bids on it. This cannot be undone.',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 14,
+            color: AppColors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text(
+              'Keep shift',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                color: AppColors.textHeading,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                color: AppColors.criticalRed,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _busyAction = CreateShiftBusyAction.delete;
+      _submitError = null;
+    });
+    final result = await _repository.deleteShift(id);
+    if (!mounted) return;
+    result.when(
+      success: (_) {
+        Navigator.of(context).pop(true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          AppSnackbar.show('Shift deleted', '');
+        });
+      },
+      failure: (error) {
+        setState(() {
+          _busyAction = null;
+          _submitError = error.message;
+        });
+      },
+    );
+  }
+
+  bool _isStaffingConflictCode(String? code) =>
+      code == 'SHIFT_OVERLAP' ||
+      code == 'STAFF_ON_LEAVE' ||
+      code == 'INSUFFICIENT_REST';
+
+  Future<void> _saveEdit({bool publishDraft = false}) async {
+    final staffIds = [for (final staff in _draft.assignedStaff) staff.staffId];
+    final staffUnchanged = staffIds.length == _draft.loadedStaffIds.length &&
+        staffIds.toSet().containsAll(_draft.loadedStaffIds);
+    // Publishing a draft notifies via PATCH; skip assignment PUT when staff
+    // list is unchanged so assignees are not notified twice.
+    final skipAssignments = publishDraft
+        ? staffUnchanged
+        : staffUnchanged &&
+            (_draft.restOverrideReason.trim().isEmpty);
     final result = await _repository.updateShift(
       shiftId: widget.editShiftId!,
-      payload: _draft.toUpdateBody(),
-      staffIds: [for (final staff in _draft.assignedStaff) staff.staffId],
+      payload: _draft.toUpdateBody(publishDraft: publishDraft),
+      staffIds: staffIds,
+      restOverrideReason: _draft.restOverrideReason,
+      updateAssignments: !skipAssignments,
     );
     if (!mounted) return;
     result.when(
       success: (_) {
         Navigator.of(context).pop(true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          AppSnackbar.show('Shift updated', '');
+          AppSnackbar.show(
+            publishDraft ? 'Shift published' : 'Shift updated',
+            '',
+          );
         });
       },
       failure: (error) {
+        if (_applyRestOverrideApiError(error.message)) return;
         setState(() {
-          _isSubmitting = false;
+          _busyAction = null;
           _submitError = error.message;
         });
+        if (_isStaffingConflictCode(error.code)) {
+          _goTo(CreateShiftStep.staffAssignment);
+        }
         if (_scrollController.hasClients) _scrollController.jumpTo(0);
       },
     );
   }
 
+  Future<void> _publishDraft() async {
+    if (_busyAction != null) return;
+    await _clockReady;
+    if (!mounted || _busyAction != null) return;
+    final errors = _draft.validate();
+    if (errors.isNotEmpty) {
+      setState(() => _errors = errors);
+      _goTo(CreateShiftDraft.stepOf(errors.keys.first));
+      _scrollToFirstShiftError(errors);
+      return;
+    }
+    if (!_validateRestOverrideReason()) {
+      _goTo(CreateShiftStep.staffAssignment);
+      return;
+    }
+    if (_staffingBlocked) {
+      AppSnackbar.show('Staff assignment', _staffingBlockedToast);
+      _goTo(CreateShiftStep.staffAssignment);
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _busyAction = CreateShiftBusyAction.publish;
+      _submitError = null;
+    });
+    await _saveEdit(publishDraft: true);
+  }
+
   Future<void> _requestClose() async {
-    if (_isSubmitting) return;
+    if (_busyAction != null) return;
     if (!_isDirty) {
       Navigator.of(context).pop();
       return;
@@ -384,57 +874,89 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     required List<ShiftFormChoice<T>> options,
     required T? selected,
     required bool hasSelection,
+    bool searchable = false,
   }) {
-    return showAppBottomSheet<T>(
+    final query = TextEditingController();
+    final sheet = showAppBottomSheet<T>(
       context: context,
       backgroundColor: AppColors.surfaceWhite,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
-          ),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final needle = query.text.trim().toLowerCase();
+          final visible = !searchable || needle.isEmpty
+              ? options
+              : [
+                  for (final option in options)
+                    if (option.label.toLowerCase().contains(needle)) option,
+                ];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+            ),
+            child: SafeArea(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                    ),
+                    if (searchable)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                        child: TextField(
+                          controller: query,
+                          onChanged: (_) => setSheetState(() {}),
+                          decoration: const InputDecoration(
+                            hintText: 'Search…',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    for (final option in visible)
+                      ListTile(
+                        title: Text(
+                          option.label,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textHeading,
+                          ),
+                        ),
+                        trailing: hasSelection && option.value == selected
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: AppColors.secondaryTeal,
+                              )
+                            : null,
+                        onTap: () =>
+                            Navigator.of(sheetContext).pop(option.value),
+                      ),
+                  ],
                 ),
               ),
-              for (final option in options)
-                ListTile(
-                  title: Text(
-                    option.label,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textHeading,
-                    ),
-                  ),
-                  trailing: hasSelection && option.value == selected
-                      ? const Icon(
-                          Icons.check_rounded,
-                          color: AppColors.secondaryTeal,
-                        )
-                      : null,
-                  onTap: () => Navigator.of(sheetContext).pop(option.value),
-                ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
+    return sheet.whenComplete(query.dispose);
   }
 
   Future<void> _pickResidence() async {
@@ -453,7 +975,67 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
       selected: _draft.residenceId,
       hasSelection: _draft.residenceId.isNotEmpty,
     );
-    if (id != null) _update(() => _draft.residenceId = id);
+    if (id == null || id == _draft.residenceId) return;
+    _update(() {
+      _draft.residenceId = id;
+      _draft.oneToOneClientId = null;
+      _draft.oneToOneClientName = null;
+      _draft.assignedStaff.clear();
+    });
+    _loadClients();
+    _loadStaff();
+  }
+
+  Future<void> _loadClients() async {
+    final residenceId = _draft.residenceId;
+    if (residenceId.isEmpty) {
+      if (_clients.isNotEmpty && mounted) setState(() => _clients = []);
+      return;
+    }
+    final result = await _repository.getClients(residenceId);
+    if (!mounted || _draft.residenceId != residenceId) return;
+    result.when(
+      success: (rows) => setState(() {
+        _clients = rows;
+        final selected = _draft.oneToOneClientId;
+        if (selected == null) return;
+        ShiftClientOption? match;
+        for (final row in rows) {
+          if (row.id == selected) match = row;
+        }
+        if (match == null) {
+          _draft.oneToOneClientId = null;
+          _draft.oneToOneClientName = null;
+        } else {
+          _draft.oneToOneClientName = match.name;
+        }
+      }),
+      failure: (_) => setState(() => _clients = []),
+    );
+  }
+
+  Future<void> _pickOneToOne() async {
+    if (_draft.residenceId.isEmpty) return;
+    final id = await _pickOption<String>(
+      title: 'One-to-one with',
+      searchable: true,
+      options: [
+        const ShiftFormChoice('', 'Not one-to-one'),
+        for (final client in _clients)
+          ShiftFormChoice(client.id, client.name),
+      ],
+      selected: _draft.oneToOneClientId ?? '',
+      hasSelection: true,
+    );
+    if (id == null) return;
+    String? name;
+    for (final client in _clients) {
+      if (client.id == id) name = client.name;
+    }
+    _update(() {
+      _draft.oneToOneClientId = id.isEmpty ? null : id;
+      _draft.oneToOneClientName = id.isEmpty ? null : name;
+    });
   }
 
   Future<void> _pickShiftType() async {
@@ -523,11 +1105,13 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
 
   Future<void> _openStaffPicker() async {
     if (_staffOptions.isEmpty && !_isLoadingStaff) await _loadStaff();
+    await _refreshStaffConflicts();
     if (!mounted) return;
     await showCreateShiftStaffPicker(
       context: context,
       options: _staffOptions,
       selectedIds: {for (final staff in _draft.assignedStaff) staff.staffId},
+      hasShiftIds: _staffWithOverlappingShifts,
       errorMessage: _staffError,
       onRetry: _loadStaff,
       onToggle: _toggleStaff,
@@ -540,18 +1124,51 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           _draft.assignedStaff.indexWhere((s) => s.staffId == option.id);
       if (index >= 0) {
         _draft.assignedStaff.removeAt(index);
-        if (_expandedStaffId == option.id) _expandedStaffId = null;
       } else {
         _draft.assignedStaff.add(AssignedShiftStaff.fromOption(option));
-        _expandedStaffId = option.id;
       }
     });
+  }
+
+  Future<void> _acceptPendingBid(PendingShiftBid bid) async {
+    final shiftId = widget.editShiftId;
+    if (shiftId == null) return;
+    final result = await _repository.acceptShiftBid(
+      shiftId: shiftId,
+      bidId: bid.bidId,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid accepted', 'Staff is now assigned to this shift.');
+        await _loadShift();
+      },
+      failure: (error) async =>
+          AppSnackbar.show('Could not accept bid', error.message),
+    );
+  }
+
+  Future<void> _rejectPendingBid(PendingShiftBid bid) async {
+    final shiftId = widget.editShiftId;
+    if (shiftId == null) return;
+    final result = await _repository.rejectShiftBid(
+      shiftId: shiftId,
+      bidId: bid.bidId,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid rejected', '');
+        await _loadShift();
+      },
+      failure: (error) async =>
+          AppSnackbar.show('Could not reject bid', error.message),
+    );
   }
 
   void _removeStaff(String staffId) {
     _update(() {
       _draft.assignedStaff.removeWhere((s) => s.staffId == staffId);
-      if (_expandedStaffId == staffId) _expandedStaffId = null;
     });
   }
 
@@ -565,12 +1182,18 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
     return '${_months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
-  /// "07:00 AM" — the 12-hour form the web's time inputs show.
+  /// Settings → General time format (same for every role).
+  ///
+  /// Create-shift chips keep zero-padded hours (`07:00 AM` / `07:00`) to match
+  /// the web inputs; the 12h vs 24h choice still comes from tenant settings.
   static String? formatShiftTime(int? minutes) {
     if (minutes == null) return null;
     final hour = minutes ~/ 60;
-    final h12 = hour % 12 == 0 ? 12 : hour % 12;
     final m = (minutes % 60).toString().padLeft(2, '0');
+    if (TenantClock.is24Hour) {
+      return '${hour.toString().padLeft(2, '0')}:$m';
+    }
+    final h12 = hour % 12 == 0 ? 12 : hour % 12;
     return '${h12.toString().padLeft(2, '0')}:$m ${hour < 12 ? 'AM' : 'PM'}';
   }
 
@@ -604,8 +1227,10 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           child: Column(
             children: [
               CreateShiftHeader(
-                title: _isEdit ? 'Edit Shift' : 'Add New Shift',
-                onClose: _isSubmitting ? null : _requestClose,
+                title: _isEdit
+                    ? (_draft.isLoadedDraft ? 'Edit Draft Shift' : 'Edit Shift')
+                    : 'Add New Shift',
+                onClose: _busyAction != null ? null : _requestClose,
               ),
               if (_isLoadingShift || _shiftError != null)
                 Expanded(child: _shiftLoadState())
@@ -613,12 +1238,21 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                 CreateShiftStepTabs(
                   selected: _step,
                   completed: completed,
-                  onSelected: _isSubmitting ? null : _goTo,
+                  onSelected: _busyAction != null ? null : _goToGuarded,
                 ),
                 CreateShiftCompletionBar(
-                  currentStep: _draft.completedSteps,
-                  totalSteps: CreateShiftStep.values.length,
-                  percent: _draft.completionPercent.toDouble(),
+                  currentStep: CreateShiftStepX.visibleSteps
+                      .where(_draft.isStepComplete)
+                      .length,
+                  totalSteps: CreateShiftStepX.visibleSteps.length,
+                  percent: (() {
+                    final total = CreateShiftStepX.visibleSteps.length;
+                    if (total == 0) return 0.0;
+                    final done = CreateShiftStepX.visibleSteps
+                        .where(_draft.isStepComplete)
+                        .length;
+                    return (done / total * 100).roundToDouble();
+                  })(),
                 ),
                 Expanded(
                   child: SingleChildScrollView(
@@ -635,12 +1269,17 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
                 CreateShiftFooter(
                   isFirstStep: isFirst,
                   isLastStep: isLast,
-                  isSubmitting: _isSubmitting,
+                  busyAction: _busyAction,
                   plannedOccurrences: _draft.plannedOccurrences(),
                   onCancel: _requestClose,
                   onBack: _back,
                   onNext: _next,
-                  onSubmit: _submit,
+                  onSubmit: () => _submit(),
+                  onSaveDraft: _isEdit ? null : () => _submit(asDraft: true),
+                  onPublish: _isEdit && _draft.isLoadedDraft
+                      ? _publishDraft
+                      : null,
+                  onDelete: _isEdit ? _deleteShift : null,
                   isEdit: _isEdit,
                 ),
               ],
@@ -700,12 +1339,18 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
           startTimeValue: _formatTime(_draft.startMinutes),
           onStartTimeTap: () async {
             final time = await _pickTime(_draft.startMinutes);
-            if (time != null) _update(() => _draft.startMinutes = time);
+            if (time != null) {
+              _update(() => _draft.startMinutes = time);
+              _surfaceTimeOverlapError();
+            }
           },
           endTimeValue: _formatTime(_draft.endMinutes),
           onEndTimeTap: () async {
             final time = await _pickTime(_draft.endMinutes);
-            if (time != null) _update(() => _draft.endMinutes = time);
+            if (time != null) {
+              _update(() => _draft.endMinutes = time);
+              _surfaceTimeOverlapError();
+            }
           },
           breakDurationValue: CreateShiftChoices.labelOf(
             [
@@ -715,68 +1360,92 @@ class _CreateShiftPageState extends State<CreateShiftPage> {
             _draft.breakMinutes,
           ),
           onBreakDurationTap: _pickBreak,
+          oneToOneValue: _draft.oneToOneClientName ?? 'Not one-to-one',
+          oneToOneEnabled: _draft.residenceId.isNotEmpty,
+          onOneToOneTap: _pickOneToOne,
           onTextChanged: _onTextChanged,
           errors: _errors,
         );
       case CreateShiftStep.staffAssignment:
         return CreateShiftStaffAssignmentForm(
           assignedStaff: _draft.assignedStaff,
-          expandedStaffId: _expandedStaffId,
           isLoadingStaff: _isLoadingStaff,
+          isOpenShift: _draft.isOpenShift,
+          scheduleConflicts: _conflicts.conflicts,
+          leaveConflicts: _conflicts.leave,
+          restConflicts: _conflicts.rest,
+          minimumRestHours: _conflicts.minimumRestHours,
+          restOverrideReasonController: _restOverrideReasonController,
+          restOverrideReasonError:
+              _errors[CreateShiftField.restOverrideReason],
+          onRestOverrideReasonChanged: _onRestOverrideReasonChanged,
+          residenceName: _residenceLabel,
+          pendingBids: _draft.pendingBids,
+          onAcceptBid: _isEdit ? _acceptPendingBid : null,
+          onRejectBid: _isEdit ? _rejectPendingBid : null,
+          onOpenShiftChanged: (value) => _update(() {
+            // Keep assigned staff while toggling methods so switching back
+            // to "Assign Specific Staff" restores the previous picks.
+            _draft.isOpenShift = value;
+          }),
+          openShiftFields: CreateShiftOpenShiftForm(
+            embedded: true,
+            isOpenShift: true,
+            onChanged: (_) {},
+            requiredStaffCountController: _requiredStaffCountController,
+            maxBidsController: _maxBidsController,
+            noteToBiddersController: _noteToBiddersController,
+            deadlineDateValue: _formatDate(_draft.biddingDeadlineDate),
+            deadlineError: _errors[CreateShiftField.biddingDeadline],
+            onDeadlineDateTap: () async {
+              final date = await _pickDate(_draft.biddingDeadlineDate);
+              if (date != null) {
+                _update(() => _draft.biddingDeadlineDate = date);
+                _refreshBiddingError();
+              }
+            },
+            deadlineTimeValue: _formatTime(_draft.biddingDeadlineMinutes),
+            onDeadlineTimeTap: () async {
+              final time = await _pickTime(_draft.biddingDeadlineMinutes);
+              if (time != null) {
+                _update(() => _draft.biddingDeadlineMinutes = time);
+                _refreshBiddingError();
+              }
+            },
+            priorityValue: CreateShiftChoices.labelOf(
+              CreateShiftChoices.priorities,
+              _draft.priority,
+            ),
+            onPriorityTap: () async {
+              final value = await _pickOption<String>(
+                title: 'Priority',
+                options: CreateShiftChoices.priorities,
+                selected: _draft.priority,
+                hasSelection: true,
+              );
+              if (value != null) _update(() => _draft.priority = value);
+            },
+            awardMethodValue: CreateShiftChoices.labelOf(
+              CreateShiftChoices.awardMethods,
+              _draft.awardMethod,
+            ),
+            onAwardMethodTap: () async {
+              final value = await _pickOption<String>(
+                title: 'Award Method',
+                options: CreateShiftChoices.awardMethods,
+                selected: _draft.awardMethod,
+                hasSelection: true,
+              );
+              if (value != null) _update(() => _draft.awardMethod = value);
+            },
+            onTextChanged: _onTextChanged,
+          ),
           onAddStaff: _openStaffPicker,
           onRemoveStaff: _removeStaff,
-          onToggleExpand: (id) => setState(
-            () => _expandedStaffId = _expandedStaffId == id ? null : id,
-          ),
-          onChanged: () => setState(() {}),
         );
       case CreateShiftStep.openShift:
-        return CreateShiftOpenShiftForm(
-          isOpenShift: _draft.isOpenShift,
-          onChanged: (value) => _update(() => _draft.isOpenShift = value),
-          requiredStaffCountController: _requiredStaffCountController,
-          maxBidsController: _maxBidsController,
-          noteToBiddersController: _noteToBiddersController,
-          deadlineDateValue: _formatDate(_draft.biddingDeadlineDate),
-          onDeadlineDateTap: () async {
-            final date = await _pickDate(_draft.biddingDeadlineDate);
-            if (date != null) _update(() => _draft.biddingDeadlineDate = date);
-          },
-          deadlineTimeValue: _formatTime(_draft.biddingDeadlineMinutes),
-          onDeadlineTimeTap: () async {
-            final time = await _pickTime(_draft.biddingDeadlineMinutes);
-            if (time != null) {
-              _update(() => _draft.biddingDeadlineMinutes = time);
-            }
-          },
-          priorityValue: CreateShiftChoices.labelOf(
-            CreateShiftChoices.priorities,
-            _draft.priority,
-          ),
-          onPriorityTap: () async {
-            final value = await _pickOption<String>(
-              title: 'Priority',
-              options: CreateShiftChoices.priorities,
-              selected: _draft.priority,
-              hasSelection: true,
-            );
-            if (value != null) _update(() => _draft.priority = value);
-          },
-          awardMethodValue: CreateShiftChoices.labelOf(
-            CreateShiftChoices.awardMethods,
-            _draft.awardMethod,
-          ),
-          onAwardMethodTap: () async {
-            final value = await _pickOption<String>(
-              title: 'Award Method',
-              options: CreateShiftChoices.awardMethods,
-              selected: _draft.awardMethod,
-              hasSelection: true,
-            );
-            if (value != null) _update(() => _draft.awardMethod = value);
-          },
-          onTextChanged: _onTextChanged,
-        );
+        // Legacy step — navigation skips this; kept for enum/progress parity.
+        return const SizedBox.shrink();
       case CreateShiftStep.recurring:
         return CreateShiftRecurringForm(
           isRecurring: _draft.isRecurring,

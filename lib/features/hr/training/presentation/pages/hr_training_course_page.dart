@@ -5,6 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../staff/extras/presentation/pages/staff_training_quiz_page.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/training_course_view.dart';
 import '../../domain/entities/training_form.dart';
@@ -14,7 +15,9 @@ import '../training_labels.dart';
 import '../widgets/training_action_tabs.dart';
 import '../widgets/training_common.dart';
 import '../widgets/training_course_tabs.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'hr_training_form_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager course detail — mirrors web `/dashboard/training/[trainingId]`.
 class HrTrainingCoursePage extends StatefulWidget {
@@ -69,6 +72,41 @@ class _HrTrainingCoursePageState extends State<HrTrainingCoursePage> {
     );
   }
 
+  List<Widget> _headerActions(BuildContext context) {
+    if (!_c.canManage) return const [];
+    final tab = _c.tab.value;
+    if (tab == 'assignments') {
+      return [
+        HrHeaderPrimaryAction(
+          actionKey: const ValueKey('training-assign-staff'),
+          label: 'Assign',
+          icon: Icons.person_add_alt_1_outlined,
+          onTap: () => showTrainingSheet<void>(
+            context,
+            builder: (_) => TrainingAssignSheet(controller: _c),
+          ),
+        ),
+      ];
+    }
+    if (tab == 'sittings') {
+      final quiz = _c.quiz.value;
+      final canSit = quiz?.questions.isNotEmpty ?? false;
+      if (!canSit) return const [];
+      return [
+        HrHeaderPrimaryAction(
+          actionKey: const ValueKey('training-record-sitting'),
+          label: 'Sitting',
+          icon: Icons.fact_check_outlined,
+          onTap: () => showTrainingSheet<void>(
+            context,
+            builder: (_) => TrainingRecordSittingSheet(controller: _c),
+          ),
+        ),
+      ];
+    }
+    return const [];
+  }
+
   @override
   Widget build(BuildContext context) {
     final pad = ResponsiveHelper.getResponsiveWidth(context, 16);
@@ -76,9 +114,14 @@ class _HrTrainingCoursePageState extends State<HrTrainingCoursePage> {
       backgroundColor: AppColors.scaffoldBackground,
       body: Column(
         children: [
-          const TrainingHeader(title: 'Back to Training'),
+          Obx(
+            () => TrainingHeader(
+              title: 'Back to Training',
+              actions: _headerActions(context),
+            ),
+          ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshAll,
               child: Obx(() {
@@ -270,12 +313,29 @@ class _HrTrainingCoursePageState extends State<HrTrainingCoursePage> {
     );
   }
 
+  bool _canTakeQuiz(TrainingCourseView view) {
+    if (view.quizEnabled) return true;
+    final quiz = _c.quiz.value;
+    if (quiz == null) return false;
+    return quiz.questions.isNotEmpty || quiz.passingScore != null;
+  }
+
+  void _openQuiz(TrainingCourseView view) {
+    Get.to(
+      () => StaffTrainingQuizPage(
+        courseId: view.course.id,
+        courseTitle: view.title,
+      ),
+    );
+  }
+
   Widget _tabBody(TrainingCourseView view) {
     return switch (_c.tab.value) {
       'content' => TrainingContentTab(
           view: view,
           canWrite: _c.canManage,
           onEdit: () => _edit(view),
+          onTakeQuiz: _canTakeQuiz(view) ? () => _openQuiz(view) : null,
         ),
       'quiz' => TrainingQuizTab(controller: _c),
       'assignments' => TrainingAssignmentsTab(controller: _c),

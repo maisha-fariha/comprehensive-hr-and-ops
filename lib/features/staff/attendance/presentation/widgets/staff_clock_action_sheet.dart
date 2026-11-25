@@ -1,29 +1,91 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:gems_core/gems_core.dart';
 import 'package:gems_responsive/gems_responsive.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
-import '../../../../../core/errors/app_error_dialog.dart';
+import '../../../../../core/errors/app_error_mapper.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/handovers/presentation/open_shift_handover.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
+import '../../../../hr/attendance/presentation/attendance_formatters.dart';
+import '../../../../hr/attendance/presentation/pages/attendance_clock_page.dart'
+    show earlyDepartureReasons;
+import '../../../../hr/attendance/presentation/widgets/clock_location_verification.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
+/// A device fix sent with clock in / clock out when the web would send one.
+class StaffClockFix {
+  final double latitude;
+  final double longitude;
+  final double accuracyMeters;
+
+  const StaffClockFix({
+    required this.latitude,
+    required this.longitude,
+    required this.accuracyMeters,
+  });
+}
+
+/// Best-effort position. Throws a short message when it cannot be read.
+/// Photo and location stay optional: a failure still allows submit.
+Future<StaffClockFix> staffClockDeviceLocation() async {
+  try {
+    return await _readStaffClockFix();
+  } catch (error) {
+    if (error is String) rethrow;
+    throw 'Location unavailable';
+  }
+}
+
+Future<StaffClockFix> _readStaffClockFix() async {
+  if (!await Geolocator.isLocationServiceEnabled()) {
+    throw 'Location services are turned off';
+  }
+  var permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+  }
+  if (permission == LocationPermission.denied ||
+      permission == LocationPermission.deniedForever) {
+    throw 'Location permission was not given';
+  }
+  final position = await Geolocator.getCurrentPosition(
+    locationSettings: const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      timeLimit: Duration(seconds: 8),
+    ),
+  );
+  return StaffClockFix(
+    latitude: position.latitude,
+    longitude: position.longitude,
+    accuracyMeters: position.accuracy,
+  );
+}
+
 /// Web-parity Clock in / Clock out sheet.
 ///
 /// Residence is required. Photo is optional (uploaded to
-/// `POST /uploads?category=attendance`). Location is recorded when provided;
-/// without a geo package the record notes position was not provided — same as
-/// web when the browser denies geolocation.
+/// `POST /uploads?category=attendance`). Location is captured when the device
+/// allows it and omitted when it does not — same as the web.
 class StaffClockActionSheet extends StatefulWidget {
   final bool isCheckIn;
   final String? initialResidenceId;
   final String? shiftId;
+  final DateTime? shiftEndsAt;
   final bool showNotRosteredWarning;
+
+  /// Set when a shift is rostered but clock-in has not opened yet.
+  final DateTime? nextShiftStartsAt;
   final List<ManualEntryResidenceOption> residences;
+  final Future<StaffClockFix> Function()? locate;
 
   const StaffClockActionSheet({
     super.key,
@@ -31,7 +93,10 @@ class StaffClockActionSheet extends StatefulWidget {
     required this.residences,
     this.initialResidenceId,
     this.shiftId,
+    this.shiftEndsAt,
     this.showNotRosteredWarning = false,
+    this.nextShiftStartsAt,
+    this.locate,
   });
 
   static Future<bool?> show(
@@ -40,7 +105,10 @@ class StaffClockActionSheet extends StatefulWidget {
     required List<ManualEntryResidenceOption> residences,
     String? initialResidenceId,
     String? shiftId,
+    DateTime? shiftEndsAt,
     bool showNotRosteredWarning = false,
+    DateTime? nextShiftStartsAt,
+    Future<StaffClockFix> Function()? locate,
   }) {
     return showAppBottomSheet<bool>(
       context: context,
@@ -55,7 +123,10 @@ class StaffClockActionSheet extends StatefulWidget {
         residences: residences,
         initialResidenceId: initialResidenceId,
         shiftId: shiftId,
+        shiftEndsAt: shiftEndsAt,
         showNotRosteredWarning: showNotRosteredWarning,
+        nextShiftStartsAt: nextShiftStartsAt,
+        locate: locate,
       ),
     );
   }
@@ -73,20 +144,188 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
   String? _selfieName;
   bool _submitting = false;
   String? _photoNote;
+  StaffClockFix? _location;
+  String? _locationError;
+  String? _submitError;
+  bool _writeHandover = false;
+  String? _handoverShiftId;
+  String? _earlyReason;
+  final _earlyNotes = TextEditingController();
+  Timer? _locationGiveUp;
+  Future<void> _locationTask = Future.value();
+  ResidenceClockGeofence? _geofence;
+  bool _geofenceLoading = false;
+  bool _capturingLocation = false;
+  bool? _withinGeofence;
+  bool _askLocation = false;
+  bool _photoEnabled = false;
+  int _geofenceEpoch = 0;
+
+  String _rosterWarning() {
+    final starts = widget.nextShiftStartsAt;
+    if (starts == null) {
+      return 'You are not rostered on a shift right now. Clocking in '
+          'follows the rota. If you worked hours nobody rostered, '
+          'ask a manager to add them.';
+    }
+    final opens = starts.subtract(const Duration(minutes: 15));
+    return 'Your next shift starts ${AttendanceFormat.date(starts)} at '
+        '${AttendanceFormat.time(starts)}. Clocking in opens at '
+        '${AttendanceFormat.time(opens)}.';
+  }
+
+  bool get _requiresGeofenceGate => _geofence?.requiresGate == true;
+
+  bool get _shouldCaptureLocation =>
+      _requiresGeofenceGate || _askLocation;
+
+  /// Web: Clock in is only enabled while a rostered shift is current
+  /// (`AttendanceClockPage._canSubmit`). Clock out is always allowed.
+  bool get _canSubmit =>
+      !widget.isCheckIn || !widget.showNotRosteredWarning;
+
+  /// Web disables Clock in while the residence geofence gate fails.
+  bool get _geofenceBlocksClockIn {
+    if (!widget.isCheckIn || !_requiresGeofenceGate) return false;
+    if (_geofenceLoading || _capturingLocation) return true;
+    final fix = _location;
+    if (fix == null) return true;
+    return !(_geofence?.isWithin(fix.latitude, fix.longitude) ?? false);
+  }
+
+  /// Where is required; empty residence keeps Clock in disabled.
+  bool get _residenceMissing =>
+      _residenceId == null || _residenceId!.trim().isEmpty;
+
+  bool get _submitDisabled =>
+      _submitting ||
+      !_canSubmit ||
+      _residenceMissing ||
+      _geofenceBlocksClockIn;
 
   @override
   void initState() {
     super.initState();
     final initial = widget.initialResidenceId;
-    if (initial != null &&
-        initial.isNotEmpty &&
-        widget.residences.any((r) => r.id == initial)) {
+    if (initial != null && initial.isNotEmpty) {
+      // Keep the rostered / session home even when GET /residences was empty
+      // (no `residences:read`) — the sheet list already merges that option.
       _residenceId = initial;
     } else if (widget.residences.length == 1) {
       _residenceId = widget.residences.first.id;
     }
     _photoNote =
         'Permission denied — clocking ${widget.isCheckIn ? 'in' : 'out'} without a photo is allowed.';
+    _loadVerificationPrefs();
+    _syncResidenceGeofence();
+  }
+
+  @override
+  void dispose() {
+    _locationGiveUp?.cancel();
+    _earlyNotes.dispose();
+    super.dispose();
+  }
+
+  /// Web shows the early-leave box only while the rostered shift is still
+  /// running. After it ends the reason is not kept.
+  bool get _leavingEarly {
+    final endsAt = widget.shiftEndsAt;
+    if (widget.isCheckIn || endsAt == null) return false;
+    return DateTime.now().isBefore(endsAt);
+  }
+
+  Future<void> _loadVerificationPrefs() async {
+    final prefs = await ClockVerificationPrefs.load();
+    if (!mounted) return;
+    setState(() {
+      _askLocation = prefs.askLocation;
+      _photoEnabled = prefs.askPhoto;
+    });
+  }
+
+  Future<void> _syncResidenceGeofence() async {
+    final residenceId = _residenceId;
+    final epoch = ++_geofenceEpoch;
+    _locationGiveUp?.cancel();
+    if (residenceId == null || residenceId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _geofence = ResidenceClockGeofence.unknown;
+        _geofenceLoading = false;
+        _withinGeofence = null;
+        _location = null;
+        _locationError = null;
+        _capturingLocation = false;
+      });
+      _locationTask = Future.value();
+      return;
+    }
+    setState(() {
+      _geofenceLoading = true;
+      _withinGeofence = null;
+      _location = null;
+      _locationError = null;
+    });
+    final fence = await loadResidenceClockGeofence(residenceId);
+    if (!mounted || epoch != _geofenceEpoch) return;
+    setState(() {
+      _geofence = fence;
+      _geofenceLoading = false;
+    });
+    _locationTask = _captureLocationIfNeeded();
+    await _locationTask;
+  }
+
+  Future<void> _captureLocationIfNeeded() async {
+    if (!_shouldCaptureLocation) {
+      if (!mounted) return;
+      setState(() {
+        _capturingLocation = false;
+        _location = null;
+        _locationError = null;
+        _withinGeofence = null;
+      });
+      return;
+    }
+    setState(() {
+      _capturingLocation = true;
+      _locationError = null;
+    });
+    final done = Completer<StaffClockFix?>();
+    _locationGiveUp = Timer(const Duration(seconds: 8), () {
+      if (!done.isCompleted) done.complete(null);
+    });
+    final locate = widget.locate ?? staffClockDeviceLocation;
+    locate().then((fix) {
+      if (!done.isCompleted) done.complete(fix);
+    }, onError: (Object error, StackTrace _) {
+      if (!done.isCompleted) done.completeError(error);
+    });
+    try {
+      final fix = await done.future;
+      if (!mounted) return;
+      final within = fix == null
+          ? (_requiresGeofenceGate ? false : null)
+          : _geofence?.isWithin(fix.latitude, fix.longitude);
+      setState(() {
+        _location = fix;
+        _locationError = fix == null ? 'Location unavailable' : null;
+        _withinGeofence = within;
+        _capturingLocation = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().trim();
+      setState(() {
+        _location = null;
+        _locationError = message.isEmpty ? 'Location unavailable' : message;
+        _withinGeofence = _requiresGeofenceGate ? false : null;
+        _capturingLocation = false;
+      });
+    } finally {
+      _locationGiveUp?.cancel();
+    }
   }
 
   Future<void> _pickPhoto() async {
@@ -107,62 +346,208 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
     });
   }
 
+  void _showSubmitError(String message, {bool writeHandover = false}) {
+    if (!mounted) return;
+    setState(() {
+      _submitting = false;
+      _submitError = message;
+      _writeHandover = writeHandover;
+    });
+  }
+
+  String? _handoverShiftFrom(AppError? error) =>
+      handoverShiftIdOf(error) ?? widget.shiftId;
+
+  String? _geofenceBlockReason(StaffClockFix? fix) {
+    if (!_requiresGeofenceGate) return null;
+    if (_capturingLocation) {
+      return 'Still checking your location — wait a moment, then try again.';
+    }
+    if (fix == null) {
+      return 'Location is required to clock in at this residence. Enable GPS '
+          'permission and try again.';
+    }
+    final within = _geofence?.isWithin(fix.latitude, fix.longitude) ?? false;
+    if (within) return null;
+    final distance =
+        _geofence?.distanceMetersFrom(fix.latitude, fix.longitude);
+    final feet = distance == null ? null : (distance * 3.28084).round();
+    final radius = _geofence?.radiusMeters?.round();
+    if (feet == null || radius == null) {
+      return 'You are outside the residence GPS area. Move closer to clock in.';
+    }
+    return 'You are outside the residence GPS area ($feet ft from center; '
+        'allowed $radius m). Move closer to clock in.';
+  }
+
   Future<void> _submit() async {
-    final residenceId = _residenceId;
+    if (!_canSubmit) {
+      _showSubmitError(_rosterWarning());
+      return;
+    }
+    // After HANDOVER_REQUIRED, do not re-POST clock-out until handover is done.
+    if (!widget.isCheckIn && _writeHandover) {
+      _openHandover();
+      return;
+    }
+    final residenceId = _residenceId?.trim();
     if (residenceId == null || residenceId.isEmpty) {
-      AppErrorDialog.showPageError(
-        title: widget.isCheckIn ? 'Choose a residence' : 'Residence required',
-        message: 'Where is required — pick the residence you are clocking at.',
+      _showSubmitError(
+        'Where is required — pick the residence you are clocking at.',
       );
       return;
     }
 
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+    await _locationTask;
+    if (!mounted) return;
+
+    final fix =
+        (_requiresGeofenceGate || _askLocation) ? _location : null;
+    if (widget.isCheckIn) {
+      final gate = _geofenceBlockReason(fix);
+      if (gate != null) {
+        _showSubmitError(gate);
+        return;
+      }
+    }
+
     String? selfieUrl;
-    if (_selfiePath != null && _selfiePath!.isNotEmpty) {
+    if (_photoEnabled &&
+        _selfiePath != null &&
+        _selfiePath!.isNotEmpty) {
       final upload = await _repo.uploadAttendanceSelfie(
         localPath: _selfiePath!,
         fileName: _selfieName ?? 'attendance-selfie.jpg',
       );
       if (upload.isFailure) {
-        setState(() => _submitting = false);
-        AppErrorDialog.showResultError(
+        final info = AppErrorMapper.from(
           upload.error,
           fallbackTitle: 'Could not upload photo',
         );
+        _showSubmitError('${info.title}. ${info.message}');
         return;
       }
       selfieUrl = upload.value;
     }
 
+    // Web only attaches shiftId while the rostered shift is current.
+    // A future shift id, or a current shift id paired with a different
+    // residence, is rejected by the API as "residenceId is invalid".
+    // Clock-out always sends the open punch's shiftId when known — without
+    // it, a GPS-off check-out can re-raise HANDOVER_REQUIRED after a
+    // completed handover.
+    final shiftHome = widget.initialResidenceId?.trim();
+    final shiftIdForBody = () {
+      if (!widget.isCheckIn) return widget.shiftId?.trim();
+      if (widget.showNotRosteredWarning) return null;
+      final shiftId = widget.shiftId?.trim();
+      if (shiftId == null || shiftId.isEmpty) return null;
+      if (shiftHome != null &&
+          shiftHome.isNotEmpty &&
+          shiftHome != residenceId) {
+        return null;
+      }
+      return shiftId;
+    }();
+
     final result = widget.isCheckIn
         ? await _repo.checkIn(
-            shiftId: widget.shiftId,
+            shiftId: shiftIdForBody,
             residenceId: residenceId,
+            latitude: fix?.latitude,
+            longitude: fix?.longitude,
+            accuracyMeters: fix?.accuracyMeters,
             selfieUrl: selfieUrl,
           )
         : await _repo.checkOut(
-            shiftId: widget.shiftId,
+            shiftId: shiftIdForBody,
             residenceId: residenceId,
+            latitude: fix?.latitude,
+            longitude: fix?.longitude,
+            accuracyMeters: fix?.accuracyMeters,
             selfieUrl: selfieUrl,
+            earlyDepartureReason: _leavingEarly ? _earlyReason : null,
+            earlyDepartureNotes:
+                _leavingEarly ? _earlyNotes.text.trim() : null,
           );
     if (!mounted) return;
-    setState(() => _submitting = false);
 
     if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle:
-            widget.isCheckIn ? 'Could not clock in' : 'Could not clock out',
+      final err = result.error;
+      final locationCode = _locationErrorCode(err);
+      if (!widget.isCheckIn && locationCode != null) {
+        _showSubmitError(
+          err?.message ??
+              'Location is required to finish clock-out. Turn GPS on and try again.',
+        );
+        return;
+      }
+      final handover = !widget.isCheckIn && handoverRequired(err);
+      if (handover) {
+        _handoverShiftId = _handoverShiftFrom(err);
+        _showSubmitError(
+          err?.message ??
+              'Write the handover for this shift before clocking out.',
+          writeHandover: true,
+        );
+        return;
+      }
+      // Show the server's error.message (SHIFT_REQUIRED, geofence, etc.).
+      _showSubmitError(
+        err?.message ??
+            (widget.isCheckIn
+                ? 'Could not clock in.'
+                : 'Could not clock out.'),
       );
       return;
     }
     Navigator.of(context).pop(true);
   }
 
+  /// LOCATION_* / geofence codes must never surface as "Write the handover".
+  String? _locationErrorCode(AppError? error) {
+    String? raw;
+    if (error is ApiError) {
+      final data = error.responseData;
+      final nested = data?['error'];
+      raw =
+          '${data?['code'] ?? data?['errorCode'] ?? (nested is Map ? nested['code'] : '') ?? ''}';
+    } else if (error is ValidationError) {
+      final codes = error.fieldErrors?['code'];
+      if (codes != null && codes.isNotEmpty) raw = codes.first;
+    }
+    raw ??= error?.code;
+    final code = (raw ?? '').trim().toUpperCase();
+    if (code.isEmpty || int.tryParse(code) != null) return null;
+    if (code.startsWith('LOCATION') ||
+        code.contains('GEOFENCE') ||
+        code == 'GPS_REQUIRED') {
+      return code;
+    }
+    return null;
+  }
+
+  /// Web "Write it" leaves clock-out and opens Shift Handovers for this shift.
+  void _openHandover() {
+    final shiftId = (_handoverShiftId ?? widget.shiftId)?.trim();
+    final residenceId = _residenceId?.trim();
+    final role = _session.role;
+    Navigator.of(context).pop(false);
+    openShiftHandover(
+      role: role,
+      shiftId: shiftId,
+      residenceId: residenceId,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = widget.isCheckIn ? 'Clock in' : 'Clock out';
+    final location = _location;
     final who = _session.displayName.trim().isEmpty
         ? 'You'
         : _session.displayName.trim();
@@ -241,8 +626,9 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'The photo and the location are recorded with the time. '
-                      'Neither is required — without them the record simply says so.',
+                      'The photo and your location are recorded with the time. '
+                      'The photo is optional; homes that set an on-site area '
+                      'need your location to let you in.',
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w400,
@@ -269,9 +655,7 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                           ),
                         ),
                         child: Text(
-                          'You are not rostered on a shift right now. Clocking in '
-                          'follows the rota. If you worked hours nobody rostered, '
-                          'ask a manager to add them.',
+                          _rosterWarning(),
                           style: TextStyle(
                             fontFamily: 'Outfit',
                             fontWeight: FontWeight.w500,
@@ -396,127 +780,161 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                           items: residenceItems,
                           onChanged: _submitting
                               ? null
-                              : (v) => setState(() => _residenceId = v),
+                              : (v) {
+                                  setState(() => _residenceId = v);
+                                  _syncResidenceGeofence();
+                                },
                         ),
                       ),
+                    ),
+                    if (_leavingEarly) ...[
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 14),
+                      ),
+                      _EarlyLeaveBox(
+                        endsAt: widget.shiftEndsAt!,
+                        reason: _earlyReason,
+                        notesController: _earlyNotes,
+                        onReason: _submitting
+                            ? null
+                            : (value) => setState(() => _earlyReason = value),
+                      ),
+                    ],
+                    SizedBox(
+                      height: ResponsiveHelper.getResponsiveHeight(context, 14),
+                    ),
+                    ClockLocationVerification(
+                      geofence: _geofence,
+                      loadingGeofence: _geofenceLoading,
+                      capturingLocation: _capturingLocation,
+                      latitude: location?.latitude,
+                      longitude: location?.longitude,
+                      accuracyMeters: location?.accuracyMeters.round(),
+                      locationError: _locationError,
+                      withinGeofence: _withinGeofence,
+                      onRetry: _submitting ? null : () {
+                        _locationTask = _captureLocationIfNeeded();
+                      },
                     ),
                     SizedBox(
                       height: ResponsiveHelper.getResponsiveHeight(context, 14),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.urgentBackgroundSoft,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    ClockPhotoVerification(
+                      enabledToggle: _photoEnabled,
+                      onToggle: _submitting
+                          ? null
+                          : (value) => setState(() {
+                                _photoEnabled = value;
+                                if (!value) {
+                                  _selfiePath = null;
+                                  _selfieName = null;
+                                }
+                              }),
+                      captureChild: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 18,
-                            color: AppColors.urgentAmber,
+                          InkWell(
+                            onTap: _submitting ? null : _pickPhoto,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.filterButtonBackground,
+                                borderRadius: BorderRadius.circular(12),
+                                border:
+                                    Border.all(color: AppColors.searchBorder),
+                              ),
+                              child: Text(
+                                _selfiePath == null
+                                    ? 'Take the photo'
+                                    : (_photoNote ?? 'Photo ready'),
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    12.5,
+                                  ),
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'No location',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontWeight: FontWeight.w600,
-                                    fontSize:
-                                        ResponsiveHelper.getResponsiveFontSize(
-                                      context,
-                                      13,
-                                    ),
-                                    color: AppColors.textHeading,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Position was not provided — the '
-                                  '${widget.isCheckIn ? 'clock-in' : 'clock-out'} '
-                                  'still goes through.',
-                                  style: TextStyle(
-                                    fontFamily: 'Outfit',
-                                    fontSize:
-                                        ResponsiveHelper.getResponsiveFontSize(
-                                      context,
-                                      11.5,
-                                    ),
-                                    color: AppColors.textSecondary,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ],
+                          SizedBox(
+                            height: ResponsiveHelper.getResponsiveHeight(
+                              context,
+                              4,
+                            ),
+                          ),
+                          Text(
+                            'Kept as evidence of who was here and when. '
+                            'Nothing compares the face to anything.',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize:
+                                  ResponsiveHelper.getResponsiveFontSize(
+                                context,
+                                11,
+                              ),
+                              color: AppColors.textMuted,
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 14),
-                    ),
-                    Text(
-                      'Photo',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(
-                          context,
-                          13,
-                        ),
-                        color: AppColors.textHeading,
-                      ),
-                    ),
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 6),
-                    ),
-                    InkWell(
-                      onTap: _submitting ? null : _pickPhoto,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.filterButtonBackground,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.searchBorder),
-                        ),
-                        child: Text(
-                          _photoNote ?? '',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(
-                              context,
-                              12.5,
-                            ),
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 4),
-                    ),
-                    Text(
-                      'Kept as evidence of who was here and when. Nothing compares the face to anything.',
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: ResponsiveHelper.getResponsiveFontSize(
-                          context,
-                          11,
-                        ),
-                        color: AppColors.textMuted,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
+            if (_submitError != null)
+              Padding(
+                padding: ResponsiveHelper.getResponsivePadding(
+                  context,
+                  horizontal: 16,
+                  top: 4,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _submitError!,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w500,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12.5,
+                        ),
+                        color: AppColors.criticalRed,
+                        height: 1.35,
+                      ),
+                    ),
+                    if (_writeHandover)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: _openHandover,
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primaryNavy,
+                            padding: const EdgeInsets.symmetric(horizontal: 0),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Write it',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             Padding(
               padding: ResponsiveHelper.getResponsivePadding(
                 context,
@@ -539,10 +957,15 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
                   ),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _submitting ? null : _submit,
+                      key: const Key('staff-clock-submit'),
+                      onPressed: _submitDisabled ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryNavy,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.primaryNavy.withValues(alpha: 0.35),
+                        disabledForegroundColor:
+                            Colors.white.withValues(alpha: 0.9),
                       ),
                       child: _submitting
                           ? const SizedBox(
@@ -564,6 +987,122 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Same early-leave block the web clock-out dialog shows while the shift
+/// is still running. The reason and notes are optional.
+class _EarlyLeaveBox extends StatelessWidget {
+  final DateTime endsAt;
+  final String? reason;
+  final TextEditingController notesController;
+  final ValueChanged<String?>? onReason;
+
+  const _EarlyLeaveBox({
+    required this.endsAt,
+    required this.reason,
+    required this.notesController,
+    required this.onReason,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.urgentAmber),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your shift runs until ${AttendanceFormat.time(endsAt)}',
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              color: AppColors.primaryNavy,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Only kept if you are actually finishing early.',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: 11.5,
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Why are you leaving early?',
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 12.5,
+              color: AppColors.textHeading,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceWhite,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.searchBorder),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                hint: const Text('Choose a reason (optional)'),
+                value: reason,
+                items: [
+                  for (final option in earlyDepartureReasons)
+                    DropdownMenuItem(value: option.$1, child: Text(option.$2)),
+                ],
+                onChanged: onReason,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: notesController,
+            enabled: onReason != null,
+            maxLines: 2,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 14,
+              color: AppColors.textHeading,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Anything worth recording',
+              hintStyle: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 14,
+                color: AppColors.textMuted,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.searchBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.searchBorder),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

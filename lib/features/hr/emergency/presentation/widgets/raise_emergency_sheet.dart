@@ -4,12 +4,17 @@ import 'package:get/get.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/emergency_alert.dart';
 import '../../domain/repositories/emergency_repository.dart';
+import '../controllers/emergency_controller.dart';
 import '../emergency_labels.dart';
+import '../pages/emergency_page.dart';
 import 'emergency_alert_motion.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 
 typedef EmergencyLocator = Future<({double latitude, double longitude})?> Function();
 
@@ -91,10 +96,30 @@ class _RaiseEmergencySheetState extends State<RaiseEmergencySheet> {
   Future<void> _loadResidences() async {
     final result = await widget.repository.residences();
     if (!mounted) return;
-    result.when(
-      success: (list) => setState(() => _residences = list),
-      failure: (_) {},
+    final loaded = <EmergencyOption>[];
+    result.when(success: loaded.addAll, failure: (_) {});
+    UserSession? session;
+    try {
+      session = Get.find<UserSession>();
+    } catch (_) {}
+    final merged = mergeResidencePickerOptions<EmergencyOption>(
+      loaded: loaded,
+      idOf: (r) => r.id,
+      nameOf: (r) => r.label,
+      create: (id, name) => EmergencyOption(id: id, label: name),
+      sessionId: session?.residenceId,
+      sessionName: session?.residenceName,
     );
+    setState(() {
+      _residences = merged;
+      if (_residenceId == null && merged.length == 1) {
+        _residenceId = merged.first.id;
+      } else if (_residenceId == null &&
+          session?.residenceId != null &&
+          merged.any((r) => r.id == session!.residenceId)) {
+        _residenceId = session!.residenceId;
+      }
+    });
   }
 
   /// A single home is chosen for you.
@@ -106,6 +131,13 @@ class _RaiseEmergencySheetState extends State<RaiseEmergencySheet> {
     final residenceId = _effectiveResidence;
     if (residenceId == null) {
       setState(() => _error = 'Choose where help is needed.');
+      scrollToFirstFormError(
+        context,
+        errors: const {'residenceId': 'Choose where help is needed.'},
+        fieldKeys: const {
+          'residenceId': ValueKey('raise-emergency-residence'),
+        },
+      );
       return;
     }
     setState(() => _raising = true);
@@ -185,6 +217,17 @@ class _RaiseEmergencySheetState extends State<RaiseEmergencySheet> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                ActiveEmergencyQueueBanner(
+                  onViewQueue: () {
+                    Navigator.of(context).pop(false);
+                    // Already on the board when raised from EmergencyPage.
+                    if (Get.isRegistered<EmergencyController>()) {
+                      Get.find<EmergencyController>().setStatus('active');
+                      return;
+                    }
+                    Get.to(() => const EmergencyPage());
+                  },
+                ),
                 if (_error != null) ...[
                   Container(
                     key: const ValueKey('raise-emergency-error'),

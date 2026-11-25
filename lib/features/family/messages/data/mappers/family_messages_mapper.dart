@@ -3,12 +3,15 @@ import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/entities/family_messages_enums.dart';
+import '../../domain/entities/message_attachment.dart';
 
 abstract final class FamilyMessagesMapper {
   static List<ConversationPreview> listFrom(dynamic body) {
     return JsonCodec.unwrapList(body)
         .whereType<Map>()
-        .map((item) => fromJson(JsonCodec.asMap(item)))
+        .map(JsonCodec.asMap)
+        .where((json) => JsonCodec.boolean(json['hidden']) != true)
+        .map(fromJson)
         .toList();
   }
 
@@ -32,12 +35,13 @@ abstract final class FamilyMessagesMapper {
       avatarType: ConversationAvatarType.team,
       initials: IsoDateRange.initials(name),
       accent: ConversationAccent.blue,
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       previewText: JsonCodec.stringOr(
         last['body'] ?? last['text'] ?? last['preview'],
         '',
       ),
       unreadCount: JsonCodec.integerOr(json['unreadCount'], 0),
+      left: JsonCodec.boolean(json['left']) ?? false,
     );
   }
 
@@ -96,10 +100,46 @@ abstract final class FamilyMessagesMapper {
       text: JsonCodec.stringOr(json['body'] ?? json['text'], ''),
       direction:
           mine ? FamilyMessageDirection.outgoing : FamilyMessageDirection.incoming,
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       senderName:
           mine ? 'You' : (senderName == 'Unknown' ? 'Care team' : senderName),
+      attachments: _attachmentsFrom(json['attachments']),
     );
+  }
+
+  static List<MessageAttachment> _attachmentsFrom(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <MessageAttachment>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final url = JsonCodec.string(
+        json['fileUrl'] ?? json['url'] ?? json['publicUrl'],
+      );
+      if (url == null || url.isEmpty) continue;
+      final name = JsonCodec.stringOr(
+        json['fileName'] ?? json['name'],
+        _fileNameFromUrl(url),
+      );
+      out.add(
+        MessageAttachment(
+          fileUrl: url,
+          fileType: JsonCodec.stringOr(
+            json['fileType'] ?? json['mimeType'] ?? json['contentType'],
+            'application/octet-stream',
+          ),
+          fileName: name,
+        ),
+      );
+    }
+    return out;
+  }
+
+  static String _fileNameFromUrl(String url) {
+    final path = url.split('?').first;
+    final slash = path.lastIndexOf('/');
+    if (slash < 0 || slash == path.length - 1) return 'Attachment';
+    return path.substring(slash + 1);
   }
 
   const FamilyMessagesMapper._();

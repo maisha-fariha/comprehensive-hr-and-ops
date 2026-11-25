@@ -16,6 +16,7 @@ import '../widgets/staff_appointments_registry.dart';
 import '../widgets/staff_appointments_tabs_bar.dart';
 import '../widgets/staff_create_appointment_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Family Appointments & Approvals — web `/dashboard/appointments`.
 class StaffAppointmentsPage extends StatefulWidget {
@@ -237,7 +238,7 @@ class _StaffAppointmentsPageState extends State<StaffAppointmentsPage> {
       key: const Key('staff-appointments-page'),
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: 4,
+        currentIndex: 5,
         onTap: (i) => Get.offAll(() => StaffShell(initialIndex: i)),
       ),
       body: SafeArea(
@@ -267,7 +268,7 @@ class _StaffAppointmentsPageState extends State<StaffAppointmentsPage> {
                   );
                 }
 
-                return RefreshIndicator(
+                return AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.reload,
                   child: ListView(

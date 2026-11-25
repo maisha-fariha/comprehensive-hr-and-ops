@@ -4,13 +4,15 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../controllers/family_messages_controller.dart';
 import '../widgets/conversation_row_tile.dart';
 import '../widgets/family_messages_header.dart';
 import '../widgets/family_messages_search_bar.dart';
+import '../widgets/message_care_team_sheet.dart';
 import '../widgets/new_message_fab.dart';
-import 'compose_message_page.dart';
 import 'family_conversation_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Family "Messages" screen: a search bar over a list of conversations
 /// with care team members and family/group chats.
@@ -44,8 +46,14 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
     }
   }
 
-  void _openComposeMessage() {
-    Get.to(() => const ComposeMessagePage());
+  Future<void> _openComposeMessage() async {
+    final conversationId = await showMessageCareTeamSheet(context);
+    if (!mounted) return;
+    if (conversationId == null) return;
+    _controller.refresh();
+    if (conversationId.isNotEmpty) {
+      Get.to(() => FamilyConversationPage(conversationId: conversationId));
+    }
   }
 
   @override
@@ -86,7 +94,19 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
                 color: AppColors.surfaceWhite,
                 child: Column(
                   children: [
-                    const FamilyMessagesHeader(title: 'Messages'),
+                    FamilyMessagesHeader(
+                      title: 'Messages',
+                      onBack: () {
+                        final navigator = Navigator.of(context);
+                        if (navigator.canPop()) {
+                          navigator.pop();
+                          return;
+                        }
+                        // This list is a FamilyShell tab, so there is no
+                        // route to pop. Return to Overview, like the other tabs.
+                        familyGoToTab(0, context: context);
+                      },
+                    ),
                     Padding(
                       padding: ResponsiveHelper.getResponsivePadding(
                         context,
@@ -102,7 +122,7 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
                 ),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.refresh,
                   child: conversations.isEmpty
@@ -127,6 +147,7 @@ class _FamilyMessagesListPageState extends State<FamilyMessagesListPage> {
                             onTap: () => Get.to(
                               () => FamilyConversationPage(
                                 conversationId: conversations[index].id,
+                                initiallyLeft: conversations[index].left,
                               ),
                             ),
                           ),

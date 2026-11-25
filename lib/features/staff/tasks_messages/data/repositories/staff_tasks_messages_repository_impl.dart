@@ -1,10 +1,12 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/tasks_compliance/data/mappers/tasks_compliance_mapper.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/message_contact.dart';
 import '../../domain/entities/message_thread.dart';
@@ -32,7 +34,6 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   Future<Result<TasksMessagesOverview>> getOverview() async {
     final results = await Future.wait([
       getMyTasks(),
-      getTaskStats(),
       _api.get(ApiEndpoints.conversations, silent: true),
       getMyRecurringChecks(),
     ]);
@@ -45,9 +46,8 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     }
 
     final tasks = tasksResult.value ?? const <StaffTask>[];
-    final statsResult = results[1];
-    final conversationsResult = results[2];
-    final recurringResult = results[3];
+    final conversationsResult = results[1];
+    final recurringResult = results[2];
 
     final conversations = conversationsResult.isSuccess
         ? JsonCodec.unwrapList(conversationsResult.value)
@@ -61,18 +61,14 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
               .toList()
         : const <ConversationPreview>[];
 
-    // Prefer counts from the loaded task list so chips always match rows.
-    // Fall back to /tasks/stats when the list is empty (e.g. offline cache miss).
+    // Chip counts from the assignee-scoped list only — matches visible rows.
     final listStats = StaffTasksMessagesMapper.statsFromTasks(tasks);
-    final apiStats = statsResult.isSuccess
-        ? (statsResult.value ?? const TaskStats())
-        : const TaskStats();
 
     return Result.success(
       TasksMessagesOverview(
         tasks: tasks,
         conversations: conversations,
-        stats: tasks.isNotEmpty ? listStats : apiStats,
+        stats: listStats,
         recurringChecks: recurringResult.isSuccess
             ? (recurringResult.value ?? const [])
             : const [],
@@ -82,13 +78,23 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
 
   @override
   Future<Result<List<StaffTask>>> getMyTasks() async {
-    final result = await _api.get(
-      ApiEndpoints.tasks,
-      query: {'page': 1, 'limit': 50, 'residenceId': ?_session.residenceId},
+    // Staff "My tasks" — web uses GET /tasks?assignee=me (not the unscoped
+    // HR Task Management list). Without this, new carers saw every open task.
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.tasks,
+      query: const {'assignee': 'me'},
+      silent: true,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(StaffTasksMessagesMapper.tasksFrom(body)),
+      success: (rows) async {
+        final mine = StaffTasksMessagesMapper.tasksAssignedTo(
+          rows,
+          staffId: _session.staffId,
+          userId: _session.userId,
+        );
+        return Result.success(mine);
+      },
       failure: (error) async => Result.failure(error),
     );
   }
@@ -97,7 +103,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   Future<Result<TaskStats>> getTaskStats() async {
     final result = await _api.get(
       ApiEndpoints.tasksStats,
-      query: {'residenceId': ?_session.residenceId},
+      query: const {'assignee': 'me'},
       silent: true,
     );
     return result.when(
@@ -128,12 +134,39 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
   }
 
   @override
-  Future<Result<void>> completeTask(String taskId, {bool signOff = false}) async {
+  Future<Result<void>> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+  }) async {
     final result = await _api.patch(
       ApiEndpoints.taskById(taskId),
-      data: signOff
-          ? const {'status': 'completed', 'signOff': true}
-          : const {'status': 'completed'},
+      data: {
+        'status': 'completed',
+        if (signOff) 'signOff': true,
+        if (checklist != null) 'checklist': checklist,
+      },
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> saveTaskProgress({
+    required String taskId,
+    required List<Map<String, dynamic>> checklist,
+  }) async {
+    final id = taskId.trim();
+    if (id.isEmpty) {
+      return Result.failure(const ValidationError(message: 'Missing task id.'));
+    }
+    final result = await _api.patch(
+      ApiEndpoints.taskById(id),
+      data: {'checklist': checklist},
+      silent: true,
+      allowQueue: false,
     );
     return result.when(
       success: (_) async => Result.success(null),
@@ -163,16 +196,18 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
         query: const {'page': 1, 'limit': 100},
         silent: true,
       ),
-      _api.get(
-        ApiEndpoints.staff,
-        query: {
-          if (residenceId != null && residenceId.isNotEmpty)
-            'residenceId': residenceId,
-          'page': 1,
-          'limit': 100,
-        },
-        silent: true,
-      ),
+      _session.can('staff:read')
+          ? _api.get(
+              ApiEndpoints.staff,
+              query: {
+                if (residenceId != null && residenceId.isNotEmpty)
+                  'residenceId': residenceId,
+                'page': 1,
+                'limit': 100,
+              },
+              silent: true,
+            )
+          : Future<Result<dynamic>>.value(Result.success(const [])),
     ]);
 
     final shiftsResult = results[0];
@@ -657,8 +692,9 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     String checkName = 'Welfare observation',
     String outcome = 'normal',
     String? scheduleId,
+    Map<String, Object>? result,
   }) async {
-    final result = await _api.post(
+    final posted = await _api.post(
       ApiEndpoints.recurringCheckEntries,
       data: {
         'clientId': clientId,
@@ -670,10 +706,12 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
         'outcome': outcome,
         if (scheduleId != null && scheduleId.trim().isNotEmpty)
           'scheduleId': scheduleId.trim(),
+        if (result != null && result.isNotEmpty) 'result': result,
       },
+      silent: true,
       allowQueue: false,
     );
-    return result.when(
+    return posted.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
     );
@@ -924,6 +962,7 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     }
     final email = _session.email.trim();
     if (email.isEmpty) return null;
+    if (!_session.can('staff:read')) return null;
 
     final result = await _api.get(
       ApiEndpoints.staff,
@@ -968,42 +1007,12 @@ class StaffTasksMessagesRepositoryImpl implements StaffTasksMessagesRepository {
     };
   }
 
+  /// Same label + newest-first order as HR Create Task / Assign shift menu.
   static List<TaskCreationOption> _shiftOptionsFrom(dynamic body) {
-    return JsonCodec.unwrapList(body)
-        .whereType<Map>()
-        .map((item) {
-          final json = JsonCodec.asMap(item);
-          final start = JsonCodec.dateTime(
-            json['startAt'] ??
-                json['startsAt'] ??
-                json['startTime'] ??
-                json['from'],
-          );
-          final end = JsonCodec.dateTime(
-            json['endAt'] ?? json['endsAt'] ?? json['endTime'] ?? json['to'],
-          );
-          final title = JsonCodec.stringOr(
-            json['title'] ??
-                json['name'] ??
-                json['shiftType'] ??
-                json['period'],
-            'Shift',
-          );
-          final time = IsoDateRange.rangeLabel(start, end);
-          final date = start == null
-              ? ''
-              : IsoDateRange.formatShortDate(start.toLocal());
-          return TaskCreationOption(
-            id: JsonCodec.stringOr(json['id'], title),
-            label: title,
-            subtitle: [
-              if (date.isNotEmpty) date,
-              if (time.isNotEmpty) time,
-            ].join(' · '),
-          );
-        })
-        .where((option) => option.id.isNotEmpty)
-        .toList();
+    return [
+      for (final shift in TasksComplianceMapper.shiftOptionsFrom(body))
+        TaskCreationOption(id: shift.id, label: shift.label),
+    ];
   }
 
   static List<TaskCreationOption> _staffOptionsFrom(dynamic body) {

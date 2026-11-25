@@ -3,6 +3,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/family_document.dart';
 import '../../domain/entities/family_document_enums.dart';
 import '../../domain/entities/family_documents_overview.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class FamilyDocumentsMapper {
   static FamilyDocumentsOverview fromBody(dynamic body) {
@@ -34,19 +35,14 @@ abstract final class FamilyDocumentsMapper {
                 json['fileName'] ?? upload['fileName'],
               ) ??
               _fileNameFromPath(fileUrl);
-          final category = JsonCodec.stringOr(
-            json['category'] ??
-                json['documentType'] ??
-                json['type'] ??
-                _categoryFromPath(fileUrl),
-            '',
-          );
+          final signature = JsonCodec.mapAt(json, 'signature') ?? const {};
+          final category = JsonCodec.string(json['category']) ?? '';
           return FamilyDocument(
             id: JsonCodec.stringOr(json['id'], name),
             title: name,
             dateLabel: at == null
                 ? JsonCodec.stringOr(json['dateLabel'], '')
-                : 'Updated ${IsoDateRange.formatMonthDay(at.toLocal())}',
+                : 'Updated ${IsoDateRange.formatMonthDay(TenantClock.wallOf(at))}',
             fileType: type.contains('jp') ||
                     type.contains('png') ||
                     type.contains('image') ||
@@ -65,6 +61,12 @@ abstract final class FamilyDocumentsMapper {
             fileName: fileName,
             tenantId: JsonCodec.string(json['tenantId'] ?? upload['tenantId']),
             category: category,
+            documentType: _documentTypeLabel(json['documentType']),
+            uploadedByMe: json['uploadedByMe'] == true,
+            updatedAt: at,
+            signatureRequired: signature['required'] == true,
+            signatureAcknowledgedAt: JsonCodec.dateTime(signature['acknowledgedAt']),
+            signatureDueAt: JsonCodec.dateTime(signature['dueAt']),
           );
         })
         .toList();
@@ -81,15 +83,12 @@ abstract final class FamilyDocumentsMapper {
     return parts.isEmpty ? null : parts.last;
   }
 
-  static String? _categoryFromPath(String? path) {
-    if (path == null || path.isEmpty) return null;
-    final uriPath = Uri.tryParse(path)?.path ?? path;
-    final parts = uriPath.split('/').where((part) => part.isNotEmpty).toList();
-    // /files/{category}/{fileName} or /files/{tenantId}/{category}/{fileName}
-    if (parts.length >= 3 && parts.first == 'files') {
-      return parts.length >= 4 ? parts[2] : parts[1];
+  /// Web may send a plain label or a nested `{ name }` type object.
+  static String? _documentTypeLabel(dynamic value) {
+    if (value is Map) {
+      return JsonCodec.string(value['name'] ?? value['label']);
     }
-    return null;
+    return JsonCodec.string(value);
   }
 
   const FamilyDocumentsMapper._();

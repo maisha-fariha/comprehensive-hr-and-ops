@@ -2,11 +2,13 @@ import 'package:comprehensive_hr_and_ops/core/constants/app_colors.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_role.dart';
 import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/common/inbox/domain/entities/portal_notification.dart';
+import 'package:comprehensive_hr_and_ops/features/common/inbox/domain/entities/portal_notifications_page.dart';
 import 'package:comprehensive_hr_and_ops/features/common/inbox/domain/entities/portal_search_hit.dart';
 import 'package:comprehensive_hr_and_ops/features/common/inbox/domain/repositories/portal_inbox_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/common/inbox/presentation/pages/portal_search_page.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/domain/entities/dashboard_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/domain/repositories/dashboard_repository.dart';
+import 'package:comprehensive_hr_and_ops/features/staff/dashboard/domain/entities/today_shift_summary.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/presentation/controllers/dashboard_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/dashboard/presentation/pages/manager_dashboard_page.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/residences/domain/entities/residence_summary.dart';
@@ -40,6 +42,11 @@ class _FakeDashboardRepo implements DashboardRepository {
           unreadNotificationCount: 0,
           unresolvedAlertCount: 0,
           avatarInitials: 'RA',
+          todayShift: TodayShiftSummary(
+            statusLabel: 'Off Shift',
+            dateLabel: 'September 28',
+            timeRange: 'No shift today',
+          ),
           attentionAlerts: [],
           overviewStats: [],
           scheduleShifts: [],
@@ -73,8 +80,21 @@ class _FakeInboxRepo implements PortalInboxRepository {
       Result.success(const []);
 
   @override
-  Future<Result<List<PortalNotification>>> getNotifications() async =>
-      Result.success(const []);
+  Future<Result<PortalNotificationsPageData>> getNotifications({
+    int page = 1,
+    int limit = 30,
+  }) async =>
+      Result.success(
+        const PortalNotificationsPageData(
+          items: [],
+          page: 1,
+          limit: 30,
+          total: 0,
+          totalPages: 1,
+          hasNext: false,
+          unreadTotal: 0,
+        ),
+      );
 
   @override
   Future<Result<void>> markNotificationRead(String id) async =>

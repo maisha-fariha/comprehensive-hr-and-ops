@@ -33,20 +33,37 @@ class HrAppointmentsToolbar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final t in HrAppointmentsLabels.tabs)
-                  _TabChip(
-                    key: ValueKey('appointments-tab-${t.id}'),
-                    label: t.label,
-                    count: counts[t.id],
-                    active: t.id == tab,
-                    onTap: () => onTab(t.id),
+          Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final t in HrAppointmentsLabels.appointmentTabs)
+                        _TabChip(
+                          key: ValueKey('appointments-tab-${t.id}'),
+                          label: t.label,
+                          count: counts[t.id],
+                          active: t.id == tab,
+                          onTap: () => onTab(t.id),
+                        ),
+                    ],
                   ),
-              ],
-            ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              _TabChip(
+                key: ValueKey(
+                  'appointments-tab-${HrAppointmentsLabels.outingTab.id}',
+                ),
+                label: HrAppointmentsLabels.outingTab.label,
+                count: counts[HrAppointmentsLabels.outingTab.id],
+                active: HrAppointmentsLabels.isOutingsTab(tab),
+                emphasized: true,
+                onTap: () => onTab(HrAppointmentsLabels.outingTab.id),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Row(
@@ -132,6 +149,7 @@ class _TabChip extends StatelessWidget {
   final String label;
   final int? count;
   final bool active;
+  final bool emphasized;
   final VoidCallback onTap;
 
   const _TabChip({
@@ -140,18 +158,31 @@ class _TabChip extends StatelessWidget {
     required this.count,
     required this.active,
     required this.onTap,
+    this.emphasized = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final Color background;
+    final Color foreground;
+    if (emphasized) {
+      background = active
+          ? AppColors.secondaryTeal
+          : AppColors.secondaryTeal.withValues(alpha: 0.12);
+      foreground = active ? AppColors.surfaceWhite : AppColors.secondaryTeal;
+    } else {
+      background = active ? AppColors.urgentBackground : Colors.transparent;
+      foreground = active ? AppColors.primaryNavy : AppColors.textSecondary;
+    }
+
     return Material(
-      color: active ? AppColors.urgentBackground : Colors.transparent,
+      color: background,
       borderRadius: BorderRadius.circular(9),
       child: InkWell(
         borderRadius: BorderRadius.circular(9),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -160,8 +191,8 @@ class _TabChip extends StatelessWidget {
                 style: handoverText(
                   context,
                   13,
-                  weight: FontWeight.w500,
-                  color: active ? AppColors.primaryNavy : AppColors.textSecondary,
+                  weight: FontWeight.w600,
+                  color: foreground,
                 ),
               ),
               if (count != null) ...[
@@ -170,7 +201,11 @@ class _TabChip extends StatelessWidget {
                   constraints: const BoxConstraints(minWidth: 18),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: active ? AppColors.secondaryTeal : AppColors.filterButtonBackground,
+                    color: emphasized && active
+                        ? Colors.white.withValues(alpha: 0.22)
+                        : active
+                            ? AppColors.secondaryTeal
+                            : AppColors.filterButtonBackground,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   alignment: Alignment.center,
@@ -180,7 +215,9 @@ class _TabChip extends StatelessWidget {
                       context,
                       11,
                       weight: FontWeight.w600,
-                      color: active ? AppColors.surfaceWhite : AppColors.textSecondary,
+                      color: (emphasized && active) || active
+                          ? AppColors.surfaceWhite
+                          : AppColors.textSecondary,
                     ),
                   ),
                 ),

@@ -8,6 +8,11 @@ abstract final class HrAppointmentsEndpoints {
   static String cancel(String id) => '/appointments/$id/cancel';
   static String reschedule(String id) => '/appointments/$id/reschedule';
 
+  /// Web "Outing requests" tab (`GET /outings`, `POST /outings/:id/decide`).
+  static const String outings = '/outings';
+  static String outingById(String id) => '/outings/$id';
+  static String outingDecide(String id) => '/outings/$id/decide';
+
   static const String residences = '/residences';
   static const String clients = '/clients';
   static const String dailyLogs = '/daily-logs';

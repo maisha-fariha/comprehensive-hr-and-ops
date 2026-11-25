@@ -4,10 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 import 'package:get_it/get_it.dart';
 
+import 'package:get/get.dart';
+
 import '../../../../../core/constants/app_assets.dart';
+import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../../core/roles/app_permissions.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 import '../../../incidents/presentation/widgets/wizard_form_fields.dart';
 import '../../domain/entities/create_task_request.dart';
 import '../../domain/entities/task_client_option.dart';
@@ -18,31 +25,55 @@ import '../../domain/repositories/tasks_compliance_repository.dart';
 import '../../../../../core/media/app_file_picker.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 
+/// Visual order of Create Task fields that can fail validation.
+const _createTaskErrorKeys = <String, Key>{
+  'residenceId': ValueKey('create-task-residence'),
+  'shiftId': ValueKey('create-task-shift'),
+  'assignedStaffIds': ValueKey('create-task-assigned-staff'),
+  'title': ValueKey('create-task-title'),
+  'weekdays': ValueKey('create-task-weekdays'),
+  'dayOfMonth': ValueKey('create-task-day-of-month'),
+  'endDate': ValueKey('create-task-end-date'),
+};
+
 /// Opens the "New Task" create form matched to the Tasks & Compliance
 /// reference screens.
 Future<void> showCreateTaskSheet(
   BuildContext context, {
   VoidCallback? onCreated,
+  String? editingTaskId,
+  Map<String, dynamic>? editing,
 }) {
   return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _CreateTaskSheet(onCreated: onCreated),
+    builder: (_) => _CreateTaskSheet(
+      onCreated: onCreated,
+      editingTaskId: editingTaskId,
+      editing: editing,
+    ),
   );
 }
 
 class _ChecklistDraft {
-  _ChecklistDraft({required this.label});
+  _ChecklistDraft({required this.label, this.done = false});
 
   final String label;
   bool mustBeDone = false;
+  bool done;
 }
 
 class _CreateTaskSheet extends StatefulWidget {
   final VoidCallback? onCreated;
+  final String? editingTaskId;
+  final Map<String, dynamic>? editing;
 
-  const _CreateTaskSheet({this.onCreated});
+  const _CreateTaskSheet({
+    this.onCreated,
+    this.editingTaskId,
+    this.editing,
+  });
 
   @override
   State<_CreateTaskSheet> createState() => _CreateTaskSheetState();
@@ -125,6 +156,10 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
   bool _recurring = false;
   final List<_ChecklistDraft> _checklist = [];
   final List<CreateTaskAttachment> _attachments = [];
+  List<Map<String, dynamic>> _existingEvidence = const [];
+  String? _pendingShiftId;
+
+  bool get _editing => widget.editingTaskId != null;
 
   Timer? _residentSearchDebounce;
   int _residentSearchRequestId = 0;
@@ -153,22 +188,39 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     setState(() => _loadingResidences = true);
     final result = await _repository.getResidences();
     if (!mounted) return;
+    final loaded = <TaskResidenceOption>[];
+    String? loadError;
     result.when(
-      success: (items) {
-        setState(() {
-          _residences = items;
-          _loadingResidences = false;
-          if (_residence == null && items.isNotEmpty) {
-            _residence = items.first;
-          }
-        });
-        _loadResidenceOptions();
-      },
-      failure: (error) {
-        setState(() => _loadingResidences = false);
-        AppSnackbar.show('Could not load residences', error.message);
-      },
+      success: loaded.addAll,
+      failure: (error) => loadError = error.message,
     );
+    UserSession? session;
+    try {
+      session = Get.find<UserSession>();
+    } catch (_) {}
+    final merged = mergeResidencePickerOptions<TaskResidenceOption>(
+      loaded: loaded,
+      idOf: (r) => r.id,
+      nameOf: (r) => r.name,
+      create: (id, name) => TaskResidenceOption(id: id, name: name),
+      sessionId: session?.residenceId,
+      sessionName: session?.residenceName,
+    );
+    setState(() {
+      _residences = merged;
+      _loadingResidences = false;
+      final editing = widget.editing;
+      if (editing != null) {
+        _applyEditing(editing);
+      } else if (_residence == null && merged.isNotEmpty) {
+        _residence = merged.first;
+      }
+    });
+    if (loadError != null && merged.isEmpty) {
+      AppSnackbar.show('Could not load residences', loadError!);
+    } else {
+      _loadResidenceOptions();
+    }
   }
 
   /// Rooms and shifts belong to the chosen residence.
@@ -189,8 +241,92 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     setState(() {
       _loadingShifts = false;
       rooms.when(success: (items) => _rooms = items, failure: (_) {});
-      shifts.when(success: (items) => _shifts = items, failure: (_) {});
+      shifts.when(success: (items) {
+        _shifts = items;
+        final pending = _pendingShiftId;
+        if (pending != null) {
+          final match = items.where((shift) => shift.id == pending);
+          if (match.isNotEmpty) _shift = match.first;
+          _pendingShiftId = null;
+        }
+      }, failure: (_) {});
     });
+  }
+
+  void _applyEditing(Map<String, dynamic> detail) {
+    String? text(dynamic value) {
+      final parsed = JsonCodec.string(value)?.trim();
+      return parsed == null || parsed.isEmpty ? null : parsed;
+    }
+
+    final residenceId = text(detail['residenceId'] ?? JsonCodec.mapAt(detail, 'residence')?['id']);
+    final match = _residences.where((item) => item.id == residenceId);
+    if (match.isNotEmpty) _residence = match.first;
+
+    _titleController.text = text(detail['title']) ?? '';
+    _descriptionController.text = text(detail['description']) ?? '';
+    final type = text(detail['taskType'] ?? detail['type']);
+    if (type != null && _taskTypes.any((option) => option.$1 == type)) {
+      _taskType = type;
+    }
+    final priority = text(detail['priority']);
+    if (priority != null && _priorities.any((option) => option.$1 == priority)) {
+      _priority = priority;
+    }
+    _requiresReview = detail['requiresReview'] == true;
+    _requiresSignOff = detail['requiresSignOff'] == true;
+    _roomArea = text(detail['roomArea']);
+    _dueAt = JsonCodec.dateTime(detail['dueAt'] ?? detail['dueDate'])?.toLocal();
+    if (_dueAt != null) _dueController.text = _formatDue(_dueAt!);
+    _pendingShiftId = text(detail['shiftId'] ?? JsonCodec.mapAt(detail, 'shift')?['id']);
+
+    final client = JsonCodec.mapAt(detail, 'client');
+    final clientId = text(detail['clientId'] ?? client?['id']);
+    final clientName = text(client?['name'] ?? client?['fullName']) ??
+        [
+          text(client?['firstName']),
+          text(client?['lastName']),
+        ].whereType<String>().join(' ').trim();
+    if (clientId != null && clientName.isNotEmpty) {
+      _selectedResident = TaskClientOption(id: clientId, name: clientName);
+      _residentController.text = clientName;
+    }
+
+    _selectedStaff
+      ..clear()
+      ..addAll([
+        for (final raw in JsonCodec.unwrapList(detail['assignees']))
+          if (raw is Map)
+            () {
+              final map = JsonCodec.asMap(raw);
+              final staff = JsonCodec.mapAt(map, 'staff') ?? map;
+              final id = text(staff['id'] ?? staff['staffId'] ?? map['staffId']);
+              final name = text(staff['name'] ?? staff['fullName']) ??
+                  [
+                    text(staff['firstName']),
+                    text(staff['lastName']),
+                  ].whereType<String>().join(' ').trim();
+              if (id == null || name.isEmpty) return null;
+              return TaskStaffOption(id: id, name: name);
+            }(),
+      ].whereType<TaskStaffOption>());
+
+    _checklist
+      ..clear()
+      ..addAll([
+        for (final raw in JsonCodec.unwrapList(detail['checklist']))
+          if (raw is Map)
+            _ChecklistDraft(
+              label: text(JsonCodec.asMap(raw)['label']) ?? 'Item',
+              done: JsonCodec.asMap(raw)['done'] == true ||
+                  JsonCodec.asMap(raw)['completed'] == true,
+            )..mustBeDone = JsonCodec.asMap(raw)['required'] == true,
+      ]);
+
+    _existingEvidence = [
+      for (final raw in JsonCodec.unwrapList(detail['evidence']))
+        if (raw is Map) JsonCodec.asMap(raw),
+    ];
   }
 
   void _selectResidence(TaskResidenceOption? residence) {
@@ -301,11 +437,17 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
   String _formatDue(DateTime value) {
     final day = value.day.toString().padLeft(2, '0');
     final month = value.month.toString().padLeft(2, '0');
-    final hour24 = value.hour;
-    final period = hour24 >= 12 ? 'PM' : 'AM';
-    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-    final minute = value.minute.toString().padLeft(2, '0');
-    return '$day/$month/${value.year}, ${hour12.toString().padLeft(2, '0')}:$minute $period';
+    final time = TenantClock.formatClock(hour: value.hour, minute: value.minute)
+        .replaceAll(' am', ' AM')
+        .replaceAll(' pm', ' PM');
+    return '$day/$month/${value.year}, $time';
+  }
+
+  void _onResidentFocus() {
+    // Web shows the resident list as soon as the search box is focused.
+    if (_showResidentSuggestions && _residentSuggestions.isNotEmpty) return;
+    setState(() => _showResidentSuggestions = true);
+    _searchResidents(_residentController.text.trim());
   }
 
   void _onResidentQueryChanged(String value) {
@@ -316,17 +458,6 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
 
     _residentSearchDebounce?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _residentSearchRequestId++;
-      setState(() {
-        _searchingResidents = false;
-        _residentSuggestions = const [];
-        _showResidentSuggestions = false;
-        _residentSearchError = '';
-      });
-      return;
-    }
-
     setState(() => _showResidentSuggestions = true);
     _residentSearchDebounce = Timer(
       const Duration(milliseconds: 320),
@@ -393,20 +524,16 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
     }
   }
 
+  void _onStaffFocus() {
+    // Web shows the staff list as soon as Add staff is focused.
+    if (_showStaffSuggestions && _staffSuggestions.isNotEmpty) return;
+    setState(() => _showStaffSuggestions = true);
+    _searchStaff(_staffController.text.trim());
+  }
+
   void _onStaffQueryChanged(String value) {
     _staffSearchDebounce?.cancel();
     final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      _staffSearchRequestId++;
-      setState(() {
-        _searchingStaff = false;
-        _staffSuggestions = const [];
-        _showStaffSuggestions = false;
-        _staffSearchError = '';
-      });
-      return;
-    }
-
     setState(() => _showStaffSuggestions = true);
     _staffSearchDebounce = Timer(
       const Duration(milliseconds: 320),
@@ -580,16 +707,107 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
         ),
       );
 
+  Future<void> _saveEdit({
+    required String title,
+    required String description,
+    required String notes,
+  }) async {
+    final taskId = widget.editingTaskId!;
+    final result = await _repository.updateTask(
+      taskId: taskId,
+      body: {
+        'residenceId': _residence!.id,
+        'title': title,
+        'taskType': _taskType,
+        'priority': _priority,
+        'requiresReview': _requiresReview,
+        'requiresSignOff': _requiresSignOff,
+        'assignedStaffIds': [for (final staff in _selectedStaff) staff.id],
+        'checklist': [
+          for (final step in _checklist)
+            {
+              'label': step.label,
+              'done': step.done,
+              'required': step.mustBeDone,
+            },
+        ],
+        if (description.isNotEmpty) 'description': description,
+        if (_roomArea != null && _roomArea!.isNotEmpty) 'roomArea': _roomArea,
+        if (_selectedResident != null) 'clientId': _selectedResident!.id,
+        if (_shift != null) 'shiftId': _shift!.id,
+        if (_dueAt != null) 'dueAt': _dueAt!.toUtc().toIso8601String(),
+      },
+    );
+    if (result.isSuccess) {
+      await _repository.replaceAssignees(
+        taskId: taskId,
+        staffIds: [for (final staff in _selectedStaff) staff.id],
+      );
+      if (notes.isNotEmpty) {
+        await _repository.addTaskNote(taskId: taskId, body: notes);
+      }
+      if (_attachments.isNotEmpty) {
+        final evidence = [..._existingEvidence];
+        for (final file in _attachments) {
+          final uploaded = await _repository.uploadTaskFile(
+            path: file.path,
+            name: file.name,
+          );
+          if (uploaded.isFailure) {
+            if (!mounted) return;
+            setState(() => _submitting = false);
+            AppSnackbar.show(
+              'Could not upload',
+              uploaded.error?.message ?? file.name,
+            );
+            return;
+          }
+          final url = uploaded.value;
+          if (url != null && url.isNotEmpty) {
+            evidence.add({'url': url, 'label': file.name});
+          }
+        }
+        await _repository.updateTask(
+          taskId: taskId,
+          body: {'evidence': evidence},
+        );
+      }
+    }
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    result.when(
+      success: (_) {
+        _close();
+        widget.onCreated?.call();
+        AppSnackbar.show('Task updated', '“$title” was saved.');
+      },
+      failure: (error) {
+        AppSnackbar.show('Could not update task', error.message);
+      },
+    );
+  }
+
   Future<void> _onCreate() async {
     if (_submitting) return;
     final errors = _validate();
     setState(() => _errors = errors);
-    if (errors.isNotEmpty) return;
+    if (errors.isNotEmpty) {
+      scrollToFirstFormError(
+        context,
+        errors: errors,
+        fieldKeys: _createTaskErrorKeys,
+      );
+      return;
+    }
 
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
     final notes = _notesController.text.trim();
     setState(() => _submitting = true);
+    if (_editing) {
+      await _saveEdit(title: title, description: description, notes: notes);
+      return;
+    }
     final result = await _repository.createTask(
       CreateTaskRequest(
         residenceId: _residence!.id,
@@ -671,7 +889,13 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                   bottom: 20,
                 ),
                 children: [
-                  _Header(onClose: _close),
+                  _Header(
+                    onClose: _close,
+                    title: _editing ? 'Edit task' : 'New Task',
+                    subtitle: _editing
+                        ? 'Update the assignment, checklist, notes, and attachments.'
+                        : 'Create and assign task, add checklist, notes, and attachments.',
+                  ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                   if (_loadingResidences)
                     const Padding(
@@ -693,6 +917,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                       residentSearchError: _residentSearchError,
                       residentSuggestions: _residentSuggestions,
                       selectedResidentId: _selectedResident?.id,
+                      onResidentFocus: _onResidentFocus,
                       onResidentQueryChanged: _onResidentQueryChanged,
                       onResidentSelected: _selectResident,
                       residenceError: _errors['residenceId'],
@@ -734,48 +959,67 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                     ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
                   const WizardFieldLabel('Assigned Staff'),
-                  TapRegion(
-                    groupId: 'create_task_staff_search',
-                    onTapOutside: (_) => _dismissStaffSuggestions(),
+                  KeyedSubtree(
+                    key: const ValueKey('create-task-assigned-staff'),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _AssignedStaffSearchField(
-                          controller: _staffController,
-                          selected: _selectedStaff,
-                          hint: 'Add staff',
-                          onChanged: _onStaffQueryChanged,
-                          onRemove: _removeStaff,
+                        TapRegion(
+                          groupId: 'create_task_staff_search',
+                          onTapOutside: (_) => _dismissStaffSuggestions(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _AssignedStaffSearchField(
+                                controller: _staffController,
+                                selected: _selectedStaff,
+                                hint: 'Add staff',
+                                onFocus: _onStaffFocus,
+                                onChanged: _onStaffQueryChanged,
+                                onRemove: _removeStaff,
+                              ),
+                              if (_showStaffSuggestions) ...[
+                                SizedBox(
+                                  height: ResponsiveHelper.getResponsiveHeight(
+                                    context,
+                                    8,
+                                  ),
+                                ),
+                                _StaffSuggestionsPanel(
+                                  searching: _searchingStaff,
+                                  error: _staffSearchError,
+                                  suggestions: _staffSuggestions,
+                                  onSelected: _addStaff,
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                        if (_showStaffSuggestions) ...[
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsiveHeight(
-                              context,
-                              8,
-                            ),
-                          ),
-                          _StaffSuggestionsPanel(
-                            searching: _searchingStaff,
-                            error: _staffSearchError,
-                            suggestions: _staffSuggestions,
-                            onSelected: _addStaff,
-                          ),
-                        ],
+                        SizedBox(
+                          height: ResponsiveHelper.getResponsiveHeight(context, 6),
+                        ),
+                        const _Hint(
+                          'A task can wait unassigned, but somebody has to pick it up',
+                        ),
+                        _FieldError(_errors['assignedStaffIds']),
                       ],
                     ),
                   ),
-                  SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 6)),
-                  const _Hint(
-                    'A task can wait unassigned, but somebody has to pick it up',
-                  ),
-                  _FieldError(_errors['assignedStaffIds']),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                   const WizardFieldLabel('Task Title', required: true),
-                  WizardTextField(
-                    controller: _titleController,
-                    hint: 'e.g. Fridge Temperature Check',
+                  KeyedSubtree(
+                    key: const ValueKey('create-task-title'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        WizardTextField(
+                          controller: _titleController,
+                          hint: 'e.g. Fridge Temperature Check',
+                        ),
+                        _FieldError(_errors['title']),
+                      ],
+                    ),
                   ),
-                  _FieldError(_errors['title']),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
                   const WizardFieldLabel('Description'),
                   WizardTextField(
@@ -839,20 +1083,22 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                   ],
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                   _ToggleBlock(
-                    title: 'Needs a review',
+                    key: const ValueKey('task-requires-sign-off'),
+                    title: 'Require Staff Sign-Off',
                     subtitle:
-                        'Somebody with review rights has to agree it was done before it counts',
-                    value: _requiresReview,
-                    onChanged: (value) => setState(() => _requiresReview = value),
+                        'Assigned staff must confirm with their signature when completing '
+                        'work. Records staff name, date, time, and IP.',
+                    value: _requiresSignOff,
+                    onChanged: (value) => setState(() => _requiresSignOff = value),
                     bordered: false,
                   ),
                   _ToggleBlock(
-                    key: const ValueKey('task-requires-sign-off'),
-                    title: 'Require sign-off to complete',
-                    subtitle: 'Whoever completes this task confirms it with their name '
-                        "before it counts as done. Optional — most tasks won't need this.",
-                    value: _requiresSignOff,
-                    onChanged: (value) => setState(() => _requiresSignOff = value),
+                    title: 'Require Manager Review & Sign-Off',
+                    subtitle:
+                        'A manager or supervisor must review the completed work and sign '
+                        'off before this task is marked complete.',
+                    value: _requiresReview,
+                    onChanged: (value) => setState(() => _requiresReview = value),
                     bordered: false,
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
@@ -873,19 +1119,20 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
                         setState(() => _attachments.removeAt(index)),
                   ),
                   SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
-                  _ToggleBlock(
-                    key: const ValueKey('create-task-recurring'),
-                    title: 'Recurring Task',
-                    subtitle:
-                        'Repeat this task on a schedule and share it between staff',
-                    value: _recurring,
-                    onChanged: (value) => setState(() {
-                      _recurring = value;
-                      _errors = const {};
-                    }),
-                    bordered: true,
-                    child: _recurring ? _buildRecurrence(context) : null,
-                  ),
+                  if (!_editing)
+                    _ToggleBlock(
+                      key: const ValueKey('create-task-recurring'),
+                      title: 'Recurring Task',
+                      subtitle:
+                          'Repeat this task on a schedule and share it between staff',
+                      value: _recurring,
+                      onChanged: (value) => setState(() {
+                        _recurring = value;
+                        _errors = const {};
+                      }),
+                      bordered: true,
+                      child: _recurring ? _buildRecurrence(context) : null,
+                    ),
                 ],
               ),
             ),
@@ -893,6 +1140,7 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
               onCancel: _close,
               onCreate: _onCreate,
               saving: _submitting,
+              submitLabel: _editing ? 'Save changes' : 'Create Task',
             ),
           ],
         ),
@@ -948,26 +1196,34 @@ class _CreateTaskSheetState extends State<_CreateTaskSheet> {
         ),
         if (_frequency == 'weekly') ...[
           gap,
-          const WizardFieldLabel('Days'),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final (day, label) in _weekdayOptions)
-                FilterChip(
-                  key: ValueKey('create-task-weekday-$day'),
-                  label: Text(label),
-                  selected: _weekdays.contains(day),
-                  selectedColor: AppColors.activeBackground,
-                  checkmarkColor: AppColors.secondaryTeal,
-                  onSelected: (on) => setState(() {
-                    on ? _weekdays.add(day) : _weekdays.remove(day);
-                    _errors = Map.of(_errors)..remove('weekdays');
-                  }),
+          KeyedSubtree(
+            key: const ValueKey('create-task-weekdays'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const WizardFieldLabel('Days'),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final (day, label) in _weekdayOptions)
+                      FilterChip(
+                        key: ValueKey('create-task-weekday-$day'),
+                        label: Text(label),
+                        selected: _weekdays.contains(day),
+                        selectedColor: AppColors.activeBackground,
+                        checkmarkColor: AppColors.secondaryTeal,
+                        onSelected: (on) => setState(() {
+                          on ? _weekdays.add(day) : _weekdays.remove(day);
+                          _errors = Map.of(_errors)..remove('weekdays');
+                        }),
+                      ),
+                  ],
                 ),
-            ],
+                _FieldError(_errors['weekdays']),
+              ],
+            ),
           ),
-          _FieldError(_errors['weekdays']),
         ],
         if (_frequency == 'monthly') ...[
           gap,
@@ -1089,8 +1345,14 @@ class _FieldError extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   final VoidCallback onClose;
+  final String title;
+  final String subtitle;
 
-  const _Header({required this.onClose});
+  const _Header({
+    required this.onClose,
+    this.title = 'New Task',
+    this.subtitle = 'Create and assign task, add checklist, notes, and attachments.',
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1120,7 +1382,7 @@ class _Header extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'New Task',
+                title,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w700,
@@ -1130,7 +1392,7 @@ class _Header extends StatelessWidget {
               ),
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
               Text(
-                'Create and assign task, add checklist, notes, and attachments.',
+                subtitle,
                 style: TextStyle(
                   fontFamily: 'Outfit',
                   fontWeight: FontWeight.w400,
@@ -1176,6 +1438,7 @@ class _ResidenceCard extends StatelessWidget {
   final String residentSearchError;
   final List<TaskClientOption> residentSuggestions;
   final String? selectedResidentId;
+  final VoidCallback onResidentFocus;
   final ValueChanged<String> onResidentQueryChanged;
   final ValueChanged<TaskClientOption> onResidentSelected;
   final VoidCallback onPickResidence;
@@ -1195,6 +1458,7 @@ class _ResidenceCard extends StatelessWidget {
     required this.residentSearchError,
     required this.residentSuggestions,
     required this.selectedResidentId,
+    required this.onResidentFocus,
     required this.onResidentQueryChanged,
     required this.onResidentSelected,
     required this.onPickResidence,
@@ -1263,6 +1527,7 @@ class _ResidenceCard extends StatelessWidget {
           WizardSearchField(
             controller: residentController,
             hint: 'Search resident (optional)...',
+            onTap: onResidentFocus,
             onChanged: onResidentQueryChanged,
           ),
           if (showResidentSuggestions) ...[
@@ -1289,6 +1554,7 @@ class _AssignedStaffSearchField extends StatelessWidget {
   final TextEditingController controller;
   final List<TaskStaffOption> selected;
   final String hint;
+  final VoidCallback onFocus;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onRemove;
 
@@ -1296,6 +1562,7 @@ class _AssignedStaffSearchField extends StatelessWidget {
     required this.controller,
     required this.selected,
     required this.hint,
+    required this.onFocus,
     required this.onChanged,
     required this.onRemove,
   });
@@ -1353,6 +1620,7 @@ class _AssignedStaffSearchField extends StatelessWidget {
                   ),
                   child: TextField(
                     controller: controller,
+                    onTap: onFocus,
                     onChanged: onChanged,
                     style: TextStyle(
                       fontFamily: 'Outfit',
@@ -1414,64 +1682,68 @@ class _StaffSuggestionsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      constraints: BoxConstraints(
-        maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    return Material(
+      color: AppColors.surfaceWhite,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+        side: const BorderSide(color: AppColors.searchBorder),
       ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 12),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
         ),
-        border: Border.all(color: AppColors.searchBorder),
-      ),
-      child: searching
-          ? const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.secondaryTeal),
-              ),
-            )
-          : error.isNotEmpty && suggestions.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    error,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize:
-                          ResponsiveHelper.getResponsiveFontSize(context, 13),
-                      color: AppColors.textSecondary,
-                    ),
+        child: searching
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.secondaryTeal,
                   ),
-                )
-              : suggestions.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No staff found.',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            13,
-                          ),
-                          color: AppColors.textSecondary,
+                ),
+              )
+            : error.isNotEmpty && suggestions.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      error,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          13,
                         ),
+                        color: AppColors.textSecondary,
                       ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemCount: suggestions.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final option = suggestions[index];
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            option.name,
+                    ),
+                  )
+                : suggestions.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'No staff found.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              13,
+                            ),
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final option = suggestions[index];
+                          return ListTile(
+                            dense: true,
+                            title: Text(
+                              option.name,
                             style: TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w600,
@@ -1498,8 +1770,9 @@ class _StaffSuggestionsPanel extends StatelessWidget {
                                 ),
                           onTap: () => onSelected(option),
                         );
-                      },
-                    ),
+                        },
+                      ),
+      ),
     );
   }
 }
@@ -1521,65 +1794,69 @@ class _ResidentSuggestionsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      constraints: BoxConstraints(
-        maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
+    final radius = ResponsiveHelper.getResponsiveRadius(context, 12);
+    return Material(
+      color: AppColors.surfaceWhite,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radius),
+        side: const BorderSide(color: AppColors.searchBorder),
       ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(
-          ResponsiveHelper.getResponsiveRadius(context, 12),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: ResponsiveHelper.getResponsiveHeight(context, 220),
         ),
-        border: Border.all(color: AppColors.searchBorder),
-      ),
-      child: searching
-          ? const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.secondaryTeal),
-              ),
-            )
-          : error.isNotEmpty && suggestions.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    error,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize:
-                          ResponsiveHelper.getResponsiveFontSize(context, 13),
-                      color: AppColors.textSecondary,
-                    ),
+        child: searching
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.secondaryTeal,
                   ),
-                )
-              : suggestions.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No residents found.',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(
-                            context,
-                            13,
-                          ),
-                          color: AppColors.textSecondary,
+                ),
+              )
+            : error.isNotEmpty && suggestions.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      error,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          13,
                         ),
+                        color: AppColors.textSecondary,
                       ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemCount: suggestions.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final option = suggestions[index];
-                        final selected = selectedId == option.id;
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            option.name,
+                    ),
+                  )
+                : suggestions.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'No residents found.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              13,
+                            ),
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final option = suggestions[index];
+                          final selected = selectedId == option.id;
+                          return ListTile(
+                            dense: true,
+                            title: Text(
+                              option.name,
                             style: TextStyle(
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w600,
@@ -1612,8 +1889,9 @@ class _ResidentSuggestionsPanel extends StatelessWidget {
                               : null,
                           onTap: () => onSelected(option),
                         );
-                      },
-                    ),
+                        },
+                      ),
+      ),
     );
   }
 }
@@ -1961,11 +2239,13 @@ class _Footer extends StatelessWidget {
   final VoidCallback onCancel;
   final VoidCallback onCreate;
   final bool saving;
+  final String submitLabel;
 
   const _Footer({
     required this.onCancel,
     required this.onCreate,
     this.saving = false,
+    this.submitLabel = 'Create Task',
   });
 
   @override
@@ -2032,7 +2312,7 @@ class _Footer extends StatelessWidget {
                       vertical: 12,
                     ),
                     child: Text(
-                      saving ? 'Saving…' : 'Create Task',
+                      saving ? 'Saving…' : submitLabel,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w700,

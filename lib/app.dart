@@ -20,13 +20,19 @@ class ComprehensiveHrAndOpsApp extends StatelessWidget {
       minTextAdapt: true,
       builder: (context, child) {
         return GetMaterialApp(
-          title: 'Comprehensive HR & Operations Platform',
+          title: 'Care House',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           initialRoute: Get.find<UserSession>().portalRoute,
           getPages: AppPages.routes,
           builder: (context, child) {
-            return OfflineAwareApp(child: child ?? const SizedBox.shrink());
+            // Colored headers still draw under the status bar and pad their
+            // own content. The bottom inset keeps every screen's content
+            // above the system navigation bar.
+            return SafeArea(
+              top: false,
+              child: OfflineAwareApp(child: child ?? const SizedBox.shrink()),
+            );
           },
         );
       },

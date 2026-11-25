@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/widgets/form_scroll_to_error.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/referral.dart';
 import '../admissions_labels.dart';
 import '../controllers/admissions_controller.dart';
 import 'admissions_common.dart';
 import 'intake_fields_form.dart';
+
+const _referralErrorKeys = <String, Key>{
+  'firstName': ValueKey('referral-first-name'),
+  'lastName': ValueKey('referral-last-name'),
+  'contactName': ValueKey('referral-contact-name'),
+  'contactPhone': ValueKey('referral-contact-phone'),
+  'contactEmail': ValueKey('referral-contact-email'),
+};
 
 /// Opens "New referral", or "Edit referral" when [referral] is given.
 Future<void> showReferralFormSheet(
@@ -140,7 +149,14 @@ class _ReferralFormSheetState extends State<ReferralFormSheet> {
       _error = null;
       _fieldErrors = _validate();
     });
-    if (_fieldErrors.isNotEmpty) return;
+    if (_fieldErrors.isNotEmpty) {
+      scrollToFirstFormError(
+        context,
+        errors: _fieldErrors,
+        fieldKeys: _referralErrorKeys,
+      );
+      return;
+    }
     setState(() => _saving = true);
     final priority = num.tryParse(_priority.text);
     final body = <String, dynamic>{

@@ -13,6 +13,9 @@ class ShiftStaffOption {
   /// First residence on the staff record (`residences[0].name`).
   final String? residenceLabel;
 
+  /// Residence ids from `residences[].id` — used to scope Create Shift staffing.
+  final List<String> residenceIds;
+
   const ShiftStaffOption({
     required this.id,
     required this.name,
@@ -21,5 +24,6 @@ class ShiftStaffOption {
     this.role,
     this.categoryId,
     this.residenceLabel,
+    this.residenceIds = const [],
   });
 }

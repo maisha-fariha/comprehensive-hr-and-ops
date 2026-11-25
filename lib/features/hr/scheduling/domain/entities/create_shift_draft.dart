@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../../../core/time/tenant_clock.dart';
 import 'shift_staff_option.dart';
 import 'shift_type_option.dart';
 
@@ -61,10 +62,14 @@ abstract final class CreateShiftChoices {
     ShiftFormChoice(28, 'Monthly'),
   ];
 
+  /// Web Notifications → Reminder options (`reminderMinutesBefore`).
   static const List<ShiftFormChoice<int?>> reminders = [
     ShiftFormChoice(null, 'No reminder'),
+    ShiftFormChoice(15, '15 minutes before'),
+    ShiftFormChoice(30, '30 minutes before'),
     ShiftFormChoice(60, '1 hour before'),
     ShiftFormChoice(120, '2 hours before'),
+    ShiftFormChoice(240, '4 hours before'),
     ShiftFormChoice(1440, '24 hours before'),
     ShiftFormChoice(2880, '48 hours before'),
   ];
@@ -95,8 +100,50 @@ abstract final class CreateShiftField {
   static const startTime = 'startTime';
   static const endTime = 'endTime';
   static const assignedStaff = 'assignedStaff';
+  static const biddingDeadline = 'biddingDeadlineDate';
   static const endDate = 'endDate';
   static const occurrenceCount = 'occurrenceCount';
+  static const restOverrideReason = 'restOverrideReason';
+}
+
+/// Web "Reason to roster anyway" rules (`restOverrideReason` min 10 / max 500).
+abstract final class CreateShiftRestOverride {
+  static const minLength = 10;
+  static const maxLength = 500;
+
+  /// Web copy: `At least 10 characters required (2 more needed).`
+  ///
+  /// [submitted] forces the message when the field is still empty (Next /
+  /// Create). While typing with some text, the same message updates live.
+  static String? validationError(String value, {bool submitted = false}) {
+    final length = value.trim().length;
+    if (length >= minLength) return null;
+    if (!submitted && value.isEmpty) return null;
+    final needed = minLength - length;
+    return 'At least 10 characters required ($needed more needed).';
+  }
+
+  /// Web counter: `8/500 chars • 2 words`.
+  static String counterLabel(String value) {
+    final chars = value.length.clamp(0, maxLength);
+    final words = _wordCount(value);
+    final wordLabel = words == 1 ? '1 word' : '$words words';
+    return '$chars/$maxLength chars • $wordLabel';
+  }
+
+  /// True when an API / Zod message is the rest-reason min-length rule.
+  static bool matchesApiMinLengthMessage(String message) {
+    final lower = message.toLowerCase();
+    return lower.contains('at least 10 character') ||
+        lower.contains('must contain at least 10 character') ||
+        (lower.contains('restoverridereason') && lower.contains('10'));
+  }
+
+  static int _wordCount(String value) {
+    final parts = value.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1 && parts.first.isEmpty) return 0;
+    return parts.length;
+  }
 }
 
 class ShiftChecklistItem {
@@ -108,6 +155,21 @@ class ShiftChecklistItem {
 }
 
 /// A staff member on the shift with their (UI-only) task details.
+/// A pending bid loaded with Edit Shift (not yet assigned).
+class PendingShiftBid {
+  final String bidId;
+  final String staffId;
+  final String staffName;
+  final String note;
+
+  const PendingShiftBid({
+    required this.bidId,
+    required this.staffId,
+    required this.staffName,
+    this.note = '',
+  });
+}
+
 class AssignedShiftStaff {
   final String staffId;
   final String staffName;
@@ -160,7 +222,10 @@ class CreateShiftDraft {
       CreateShiftField.startTime,
       CreateShiftField.endTime,
     ],
-    CreateShiftStep.staffAssignment: [CreateShiftField.assignedStaff],
+    CreateShiftStep.staffAssignment: [
+      CreateShiftField.assignedStaff,
+      CreateShiftField.biddingDeadline,
+    ],
     CreateShiftStep.openShift: [],
     CreateShiftStep.recurring: [],
     CreateShiftStep.notifications: [],
@@ -177,7 +242,14 @@ class CreateShiftDraft {
   String title = '';
   String notes = '';
 
+  /// `null` is "Not one-to-one". Sent as `oneToOneClientId`.
+  String? oneToOneClientId;
+  String? oneToOneClientName;
+
   final List<AssignedShiftStaff> assignedStaff = [];
+
+  /// Open-shift bids awaiting manager accept (`bid_pending`).
+  final List<PendingShiftBid> pendingBids = [];
 
   bool isOpenShift = false;
   String requiredStaffCount = '1';
@@ -200,6 +272,16 @@ class CreateShiftDraft {
   /// New shifts remind 2 hours before (web `reminderTiming: "120"`).
   int? reminderMinutes = 120;
   String notificationMessage = '';
+
+  /// Required when `POST /shifts/conflicts` returns `rest[]` (web audit field).
+  String restOverrideReason = '';
+
+  /// Loaded from `GET /shifts/{id}` — used to show Publish Shift for drafts.
+  String? loadedStatus;
+
+  /// Staff ids at load time — skip assignment PUT when unchanged (avoids
+  /// duplicate notify on publish/save).
+  List<String> loadedStaffIds = const [];
 
   CreateShiftDraft({String? residenceId, DateTime? shiftDate})
       : residenceId = residenceId ?? '',
@@ -239,6 +321,13 @@ class CreateShiftDraft {
       };
 
   bool isStepComplete(CreateShiftStep step) {
+    if (step == CreateShiftStep.openShift) {
+      // Merged into staffAssignment (Assign Staff | Open Shift toggle).
+      return true;
+    }
+    if (step == CreateShiftStep.staffAssignment) {
+      return isOpenShift || assignedStaff.isNotEmpty;
+    }
     final fields = stepFields[step]!;
     return fields.isNotEmpty && fields.every(_hasValue);
   }
@@ -267,6 +356,7 @@ class CreateShiftDraft {
     if (endMinutes == null) {
       errors[CreateShiftField.endTime] = 'End time is required';
     } else if (startMinutes != null && startMinutes == endMinutes) {
+      // Equal times are invalid; end before start is overnight (rolls +1 day).
       errors[CreateShiftField.endTime] =
           'A shift cannot end at the moment it starts';
     }
@@ -280,11 +370,40 @@ class CreateShiftDraft {
         _number(occurrenceCount) == 0) {
       errors[CreateShiftField.occurrenceCount] = 'Say how many shifts to create';
     }
+    if (isOpenShift && biddingDeadlineDate != null) {
+      final deadline = TenantClock.at(
+        biddingDeadlineDate!,
+        biddingDeadlineMinutes ?? (23 * 60 + 59),
+      );
+      if (deadline.isBefore(DateTime.now())) {
+        errors[CreateShiftField.biddingDeadline] =
+            'Bidding deadline cannot be in the past';
+      } else if (shiftDate != null && startMinutes != null) {
+        final start = TenantClock.at(shiftDate!, startMinutes!);
+        if (deadline.isAfter(start)) {
+          errors[CreateShiftField.biddingDeadline] =
+              'Bidding deadline cannot be after the shift begins';
+        }
+      }
+    }
     return errors;
   }
 
   /// Errors the "Next" button reports for [step].
   Map<String, String> validateStep(CreateShiftStep step) {
+    if (step == CreateShiftStep.staffAssignment) {
+      final bidding = validate()[CreateShiftField.biddingDeadline];
+      if (isOpenShift) {
+        if (bidding == null) return const {};
+        return {CreateShiftField.biddingDeadline: bidding};
+      }
+      if (assignedStaff.isEmpty) {
+        return {
+          CreateShiftField.assignedStaff: 'Assign at least one staff member',
+        };
+      }
+      return const {};
+    }
     final fields = stepFields[step]!;
     if (fields.isEmpty) return const {};
     final all = validate();
@@ -338,20 +457,29 @@ class CreateShiftDraft {
     return count;
   }
 
-  /// `POST /shifts` body, field-for-field with the web `toCreateBody`.
-  Map<String, dynamic> toCreateBody() {
-    final date = shiftDate!;
-    final startsAt = _at(date, startMinutes!);
-    var endsAt = _at(date, endMinutes!);
+  /// Local start/end of the draft shift window (web `shiftWindow`), or null
+  /// when date/times are incomplete.
+  (DateTime startsAt, DateTime endsAt)? get shiftWindow {
+    final date = shiftDate;
+    final start = startMinutes;
+    final end = endMinutes;
+    if (date == null || start == null || end == null) return null;
+    final startsAt = _at(date, start);
+    var endsAt = _at(date, end);
     if (!endsAt.isAfter(startsAt)) {
-      endsAt = DateTime(
-        endsAt.year,
-        endsAt.month,
-        endsAt.day + 1,
-        endsAt.hour,
-        endsAt.minute,
-      );
+      endsAt = endsAt.add(const Duration(days: 1));
     }
+    return (startsAt, endsAt);
+  }
+
+  /// `POST /shifts` body, field-for-field with the web `toCreateBody`.
+  ///
+  /// When [asDraft] is true, sends `status: draft` (web "Save as draft") so
+  /// the shift is stored without going live / open for bids.
+  Map<String, dynamic> toCreateBody({bool asDraft = false}) {
+    final window = shiftWindow!;
+    final startsAt = window.$1;
+    final endsAt = window.$2;
 
     Map<String, dynamic>? biddingConfig;
     if (isOpenShift) {
@@ -377,20 +505,26 @@ class CreateShiftDraft {
 
     return {
       'residenceId': residenceId,
+      'oneToOneClientId': oneToOneClientId,
       'startsAt': _iso(startsAt),
       'endsAt': _iso(endsAt),
+      // Web keeps any pre-assigned staff on open shifts (partially filled opens).
       'staffIds': [for (final staff in assignedStaff) staff.staffId],
       'shiftType': shiftType,
       'breakMinutes': breakMinutes,
-      if (isOpenShift)
+      'open': asDraft ? false : isOpenShift,
+      if (asDraft) 'status': 'draft',
+      if (!asDraft && isOpenShift)
         'requiredStaffCount': staffCount == 0 ? null : _jsonNumber(staffCount),
       'reminderMinutesBefore': reminderMinutes,
-      'notifyAssignedStaff': notifyAssignedStaff,
+      'notifyAssignedStaff': asDraft ? false : notifyAssignedStaff,
       if (message.isNotEmpty) 'notificationMessage': message,
       if (trimmedTitle.isNotEmpty) 'title': trimmedTitle,
       if (trimmedNotes.isNotEmpty) 'notes': trimmedNotes,
-      'biddingConfig': biddingConfig,
-      if (isRecurring)
+      if (restOverrideReason.trim().isNotEmpty)
+        'restOverrideReason': restOverrideReason.trim(),
+      if (!asDraft) 'biddingConfig': biddingConfig,
+      if (!asDraft && isRecurring)
         'recurrence': {
           'occurrences': plannedOccurrences(),
           'intervalDays': recurrenceFrequency == 0 ? 7 : recurrenceFrequency,
@@ -402,11 +536,24 @@ class CreateShiftDraft {
 
   /// `PATCH /shifts/{id}` body: the create body minus the fields the web
   /// strips on edit (assignments go through `PUT /shifts/{id}/assignments`).
-  Map<String, dynamic> toUpdateBody() => toCreateBody()
-    ..remove('staffIds')
-    ..remove('recurrence')
-    ..remove('tasks')
-    ..remove('notifyAssignedStaff');
+  Map<String, dynamic> toUpdateBody({bool publishDraft = false}) {
+    // Keep draft status on Save changes; only Publish Shift promotes it.
+    final body = toCreateBody(asDraft: !publishDraft && isLoadedDraft)
+      ..remove('staffIds')
+      ..remove('recurrence')
+      ..remove('tasks');
+    if (publishDraft) {
+      // Web "Publish Shift": draft → scheduled (same default as create) + notify.
+      body['status'] = 'scheduled';
+      body['notifyAssignedStaff'] = notifyAssignedStaff;
+    } else {
+      body.remove('notifyAssignedStaff');
+    }
+    return body;
+  }
+
+  bool get isLoadedDraft =>
+      (loadedStatus ?? '').toLowerCase() == 'draft';
 
   /// Every user-editable value; differs from the initial snapshot when the
   /// form has unsaved edits.
@@ -417,6 +564,7 @@ class CreateShiftDraft {
         'start': startMinutes,
         'end': endMinutes,
         'break': breakMinutes,
+        'oneToOneClientId': oneToOneClientId,
         'title': title,
         'notes': notes,
         'staff': [
@@ -448,12 +596,13 @@ class CreateShiftDraft {
         'notify': notifyAssignedStaff,
         'reminder': reminderMinutes,
         'message': notificationMessage,
+        'restOverrideReason': restOverrideReason,
       });
 
   static DateTime _at(DateTime date, int minutes) =>
-      DateTime(date.year, date.month, date.day, minutes ~/ 60, minutes % 60);
+      TenantClock.at(date, minutes);
 
-  static String _iso(DateTime local) => local.toUtc().toIso8601String();
+  static String _iso(DateTime instant) => instant.toUtc().toIso8601String();
 
   /// JS `Number(value)` with `NaN` folded to 0.
   static num _number(String value) {

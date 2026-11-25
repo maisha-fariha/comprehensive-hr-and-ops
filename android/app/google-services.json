@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "448707254030",
+    "project_id": "comprehensive-hr-ops",
+    "storage_bucket": "comprehensive-hr-ops.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:448707254030:android:0d3068368d94075671a95f",
+        "android_client_info": {
+          "package_name": "com.carehouse.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkEvCwVMahDaeMCG4dJJQ3qgzlPD5g3gE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

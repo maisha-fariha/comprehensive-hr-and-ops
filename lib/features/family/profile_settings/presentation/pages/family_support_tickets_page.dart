@@ -8,6 +8,7 @@ import '../controllers/family_profile_settings_controller.dart';
 import '../widgets/family_profile_settings_header.dart';
 import 'family_support_ticket_thread_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Lists the signed-in family's support tickets from GET /family/tickets.
 class FamilySupportTicketsPage extends StatefulWidget {
@@ -144,7 +145,7 @@ class _FamilySupportTicketsPageState extends State<FamilySupportTicketsPage> {
 
                 final tickets = _controller.supportTickets;
                 if (tickets.isEmpty) {
-                  return RefreshIndicator(
+                  return AppRefreshIndicator(
                     color: AppColors.secondaryTeal,
                     onRefresh: _controller.loadSupportTickets,
                     child: ListView(
@@ -169,7 +170,7 @@ class _FamilySupportTicketsPageState extends State<FamilySupportTicketsPage> {
                   );
                 }
 
-                return RefreshIndicator(
+                return AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.loadSupportTickets,
                   child: ListView.separated(

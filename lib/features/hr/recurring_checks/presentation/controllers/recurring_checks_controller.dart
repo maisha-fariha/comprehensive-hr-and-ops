@@ -34,6 +34,7 @@ class RecurringChecksController extends GetxController {
   final RxnString listError = RxnString();
 
   final RxnString residenceId = RxnString();
+  final RxnString clientId = RxnString();
   final Rx<DateTime> day = DateTime.now().obs;
   final RxnString status = RxnString();
   final RxBool mine = false.obs;
@@ -44,6 +45,9 @@ class RecurringChecksController extends GetxController {
   final RxList<CheckOption> residences = <CheckOption>[].obs;
   final RxList<CheckOption> staff = <CheckOption>[].obs;
   final RxList<CheckOption> allClients = <CheckOption>[].obs;
+
+  /// Residents for the Due/Checks filter (scoped when a residence is picked).
+  final RxList<CheckOption> filterClients = <CheckOption>[].obs;
   final RxnString busyId = RxnString();
 
   int _scheduleSerial = 0;
@@ -77,14 +81,36 @@ class RecurringChecksController extends GetxController {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _loadOptions() async {
+    final staffFuture = session.can('staff:read')
+        ? repository.staff()
+        : session.can('staff:directory')
+            ? repository.colleagues(null)
+            : Future.value(Result.success(const <CheckOption>[]));
     final results = await Future.wait([
       repository.residences(),
-      repository.staff(),
+      staffFuture,
       repository.clients(),
     ]);
     results[0].when(success: residences.assignAll, failure: (_) {});
     results[1].when(success: staff.assignAll, failure: (_) {});
-    results[2].when(success: allClients.assignAll, failure: (_) {});
+    results[2].when(
+      success: (items) {
+        allClients.assignAll(items);
+        filterClients.assignAll(items);
+      },
+      failure: (_) {},
+    );
+  }
+
+  Future<void> _reloadFilterClients() async {
+    final result = await repository.clients(residenceId: residenceId.value);
+    result.when(
+      success: (items) {
+        filterClients.assignAll(items);
+        allClients.assignAll(items);
+      },
+      failure: (_) {},
+    );
   }
 
   void setTab(RecurringChecksTab value) {
@@ -139,6 +165,7 @@ class RecurringChecksController extends GetxController {
       final result = await repository.entries(
         day: key,
         residenceId: residenceId.value,
+        clientId: clientId.value,
         outcome: status.value,
         mine: mine.value,
       );
@@ -157,6 +184,7 @@ class RecurringChecksController extends GetxController {
       final result = await repository.instances(
         day: key,
         residenceId: residenceId.value,
+        clientId: clientId.value,
         status: status.value,
         mine: mine.value,
       );
@@ -177,6 +205,13 @@ class RecurringChecksController extends GetxController {
 
   void setResidence(String? value) {
     residenceId.value = value;
+    clientId.value = null;
+    _reloadFilterClients();
+    loadList();
+  }
+
+  void setClient(String? value) {
+    clientId.value = value;
     loadList();
   }
 

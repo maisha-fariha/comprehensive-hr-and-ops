@@ -42,7 +42,6 @@ class _LoginPageState extends State<LoginPage> {
     _auth = Get.isRegistered<AuthController>()
         ? Get.find<AuthController>()
         : Get.put(GetIt.instance<AuthController>());
-    _workspaceController.text = _auth.savedWorkspaceCode;
   }
 
   @override
@@ -266,7 +265,7 @@ class _LoginHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Branding: logo + MediFlow / Care Platform
+                  // Branding: logo + Care House / Care Platform
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -300,7 +299,7 @@ class _LoginHeader extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'MediFlow',
+                              'Care House',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

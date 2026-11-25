@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../attendance/domain/repositories/staff_attendance_repository.dart';
+import '../../../attendance/presentation/controllers/staff_attendance_controller.dart';
 import '../../../attendance/presentation/widgets/staff_clock_action_sheet.dart';
 import '../../../../common/inbox/presentation/pages/portal_notifications_page.dart';
 import '../../../extras/presentation/widgets/staff_raise_emergency_dialog.dart';
@@ -17,12 +18,12 @@ import '../../../search/presentation/pages/staff_search_page.dart';
 import '../../../staff_shell.dart';
 import '../../../tasks_messages/presentation/pages/staff_tasks_messages_page.dart';
 import '../controllers/staff_dashboard_controller.dart';
-import '../widgets/staff_alerts_banner.dart';
 import '../widgets/staff_dashboard_header.dart';
 import '../widgets/staff_home_search_bar.dart';
 import '../widgets/staff_overview_section.dart';
 import '../widgets/staff_quick_actions_section.dart';
 import '../widgets/today_shift_card.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The Staff Dashboard — "Home" screen of the Staff (care-worker) portal.
 class StaffDashboardPage extends StatelessWidget {
@@ -81,7 +82,7 @@ class StaffDashboardPage extends StatelessWidget {
         );
         final afterShiftGap = overlap + ResponsiveHelper.getResponsiveHeight(context, 16);
 
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           color: AppColors.secondaryTeal,
           onRefresh: controller.refresh,
           child: SingleChildScrollView(
@@ -127,16 +128,13 @@ class StaffDashboardPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       StaffHomeSearchBar(onTap: StaffSearchPage.open),
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 8),
+                      ),
                       StaffOverviewSection(stats: overview.overviewStats),
-                      if (overview.alertCount > 0) ...[
-                        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
-                        StaffAlertsBanner(
-                          count: overview.alertCount,
-                          label: overview.alertLabel,
-                        ),
-                      ],
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(context, 18),
+                      ),
                       StaffQuickActionsSection(
                         actions: overview.quickActions,
                         clockBusy: controller.clockBusy.value,
@@ -146,7 +144,7 @@ class StaffDashboardPage extends StatelessWidget {
                               _openClockSheet(context, controller);
                             case 'daily-logs':
                               // Opens Daily Logs tab (My Clients / notes).
-                              Get.offAll(() => const StaffShell(initialIndex: 2));
+                              Get.offAll(() => const StaffShell(initialIndex: 3));
                             case 'medication-mar':
                               // Opens MAR → GET /mar/round
                               Get.to(() => const StaffMedicationPage());
@@ -175,6 +173,10 @@ class StaffDashboardPage extends StatelessWidget {
   ) async {
     final shift = controller.overview?.todayShift;
     if (shift == null || controller.clockBusy.value) return;
+    if (Get.isRegistered<UserSession>() &&
+        !Get.find<UserSession>().can('attendance:write')) {
+      return;
+    }
     if (!GetIt.instance.isRegistered<StaffAttendanceRepository>()) return;
     final attendance = GetIt.instance<StaffAttendanceRepository>();
     final residences = await attendance.getResidences();
@@ -186,16 +188,28 @@ class StaffDashboardPage extends StatelessWidget {
       );
       return;
     }
+    final isCheckIn = !shift.clockedIn;
+    final rosteredNow = shift.clockOpen;
     final saved = await StaffClockActionSheet.show(
       context,
-      isCheckIn: !shift.onShift,
+      isCheckIn: isCheckIn,
       residences: residences.value ?? const [],
       initialResidenceId: shift.residenceId,
-      shiftId: shift.shiftId,
-      showNotRosteredWarning:
-          !shift.onShift && (shift.shiftId == null || shift.shiftId!.isEmpty),
+      // Same as Attendance: only post shiftId while the clock window is open.
+      shiftId: (!isCheckIn || rosteredNow) ? shift.shiftId : null,
+      shiftEndsAt: shift.endsAt,
+      showNotRosteredWarning: isCheckIn && !rosteredNow,
+      nextShiftStartsAt:
+          shift.clockedIn || rosteredNow ? null : shift.startsAt,
     );
-    if (saved == true) await controller.refresh();
+    if (saved == true) {
+      await controller.refresh();
+      // Attendance is a permanent controller, so a clock from Home would
+      // otherwise leave its history and status on the previous punch.
+      if (Get.isRegistered<StaffAttendanceController>()) {
+        await Get.find<StaffAttendanceController>().loadOverview();
+      }
+    }
   }
 }
 

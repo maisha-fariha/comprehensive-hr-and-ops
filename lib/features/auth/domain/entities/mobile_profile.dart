@@ -6,10 +6,16 @@ class MobileProfile {
   final String email;
   final String displayName;
   final String? firstName;
+  final String? middleName;
   final String? lastName;
   final UserRole role;
   final String roleRaw;
   final List<String> permissions;
+
+  /// True when `/mobile/me` included a `permissions` field (even if empty).
+  /// Distinguishes "revoked all / omitted keys" from "payload forgot the list".
+  final bool permissionsPresent;
+
   final String? tenantName;
   final String? tenantSubdomain;
   final String? residenceId;
@@ -30,8 +36,10 @@ class MobileProfile {
     required this.avatarInitials,
     this.avatarUrl,
     this.firstName,
+    this.middleName,
     this.lastName,
     this.permissions = const [],
+    this.permissionsPresent = false,
     this.tenantName,
     this.tenantSubdomain,
     this.residenceId,

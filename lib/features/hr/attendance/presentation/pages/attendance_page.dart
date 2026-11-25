@@ -7,15 +7,19 @@ import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
+import '../../domain/entities/time_off_request.dart';
 import '../controllers/attendance_controller.dart';
 import '../widgets/attendance_filters.dart';
 import '../widgets/attendance_header.dart';
 import '../widgets/attendance_kpi_grid.dart';
+import '../widgets/attendance_main_tabs.dart';
 import '../widgets/attendance_pagination.dart';
 import '../widgets/attendance_record_card.dart';
+import '../widgets/time_off_section.dart';
 import 'attendance_clock_page.dart';
 import 'manual_attendance_entry_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Attendance" — mirrors web `/dashboard/attendance`.
 class AttendancePage extends StatelessWidget {
@@ -50,13 +54,23 @@ class AttendancePage extends StatelessWidget {
             color: AppColors.surfaceWhite,
             child: SafeArea(
               bottom: false,
-              child: AttendanceHeader(
-                onCalendarTap: () => _pickWeek(context, controller),
+              child: Obx(
+                () => AttendanceHeader(
+                  onCalendarTap: () => _pickWeek(context, controller),
+                  onManualEntryTap: controller.canManage
+                      ? () async {
+                          final saved = await openManualAttendanceEntry(
+                            defaultResidenceId: controller.residenceId.value,
+                          );
+                          if (saved == true) await controller.refresh();
+                        }
+                      : null,
+                ),
               ),
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: controller.refresh,
               child: Obx(
@@ -69,22 +83,36 @@ class AttendancePage extends StatelessWidget {
                     ResponsiveHelper.getResponsiveHeight(context, 24),
                   ),
                   children: [
-                    ..._filters(context, controller),
-                    if (!controller.appliesWeek) ...[
-                      _gap(context, 12),
-                      const _PendingBanner(),
-                    ],
-                    if (controller.canManage) ...[
+                    AttendanceMainTabs(
+                      selected: controller.mainTab.value,
+                      onSelected: controller.setMainTab,
+                    ),
+                    if (controller.mainTab.value ==
+                        AttendanceMainTab.timeOff) ...[
                       _gap(context, 14),
-                      AttendanceKpiGrid(
-                        summary:
-                            controller.summary.value ?? const AttendanceSummary(),
-                        activeStatus: controller.status.value,
-                        onSelect: controller.toggleKpi,
+                      TimeOffSection(
+                        controller: controller,
+                        managerMode: controller.canManage,
                       ),
+                    ] else ...[
+                      _gap(context, 14),
+                      ..._filters(context, controller),
+                      if (!controller.appliesWeek) ...[
+                        _gap(context, 12),
+                        const _PendingBanner(),
+                      ],
+                      if (controller.canManage) ...[
+                        _gap(context, 14),
+                        AttendanceKpiGrid(
+                          summary: controller.summary.value ??
+                              const AttendanceSummary(),
+                          activeStatus: controller.status.value,
+                          onSelect: controller.toggleKpi,
+                        ),
+                      ],
+                      _gap(context, 16),
+                      ..._records(context, controller),
                     ],
-                    _gap(context, 16),
-                    ..._records(context, controller),
                   ],
                 ),
               ),
@@ -138,40 +166,27 @@ class AttendancePage extends StatelessWidget {
           ),
         ],
       ),
-      if (controller.canWrite || controller.canManage) ...[
+      if (controller.canWrite) ...[
+        // Web: Start/End break when clocked in, then Clock in/out.
+        if (open != null) ...[
+          _gap(context, 10),
+          _HeaderButton(
+            key: const ValueKey('attendance-break'),
+            label: open.isOnBreak ? 'End break' : 'Start break',
+            icon: open.isOnBreak
+                ? Icons.free_breakfast_outlined
+                : Icons.coffee_outlined,
+            color: AppColors.secondaryTeal,
+            onTap: controller.breakBusy.value ? null : controller.toggleBreak,
+          ),
+        ],
         _gap(context, 10),
-        Row(
-          children: [
-            if (controller.canWrite)
-              Expanded(
-                child: _HeaderButton(
-                  key: const ValueKey('attendance-clock'),
-                  label: open == null ? 'Clock in' : 'Clock out',
-                  icon: open == null ? Icons.login_rounded : Icons.logout_rounded,
-                  color: open == null
-                      ? AppColors.activeGreen
-                      : AppColors.criticalRed,
-                  onTap: () => _openClock(controller),
-                ),
-              ),
-            if (controller.canWrite && controller.canManage)
-              SizedBox(width: spacing),
-            if (controller.canManage)
-              Expanded(
-                child: _HeaderButton(
-                  key: const ValueKey('attendance-manual-entry'),
-                  label: 'Manual Entry',
-                  icon: Icons.add_rounded,
-                  filled: true,
-                  onTap: () async {
-                    final saved = await openManualAttendanceEntry(
-                      defaultResidenceId: controller.residenceId.value,
-                    );
-                    if (saved == true) await controller.refresh();
-                  },
-                ),
-              ),
-          ],
+        _HeaderButton(
+          key: const ValueKey('attendance-clock'),
+          label: open == null ? 'Clock in' : 'Clock out',
+          icon: open == null ? Icons.login_rounded : Icons.logout_rounded,
+          color: open == null ? AppColors.activeGreen : AppColors.criticalRed,
+          onTap: () => _openClock(controller),
         ),
       ],
     ];

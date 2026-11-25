@@ -115,6 +115,7 @@ class StaffTrainingRepositoryImpl implements StaffTrainingRepository {
     int page = 1,
     int limit = 50,
     String? courseId,
+    String? staffId,
   }) async {
     final result = await _api.get(
       ApiEndpoints.trainingCertificates,
@@ -122,6 +123,7 @@ class StaffTrainingRepositoryImpl implements StaffTrainingRepository {
         'page': page,
         'limit': limit,
         if (courseId != null && courseId.isNotEmpty) 'courseId': courseId,
+        if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
       },
       silent: true,
     );

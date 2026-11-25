@@ -22,7 +22,7 @@ class FamilyProfileSettingsHeader extends StatelessWidget {
     super.key,
     this.onBackTap,
     this.initials = 'EJ',
-    this.title = 'Profile & Settings',
+    this.title = 'My Profile',
   });
 
   @override

@@ -6,6 +6,7 @@ import 'package:comprehensive_hr_and_ops/core/roles/user_session.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/appointments/data/mappers/hr_appointments_mapper.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/appointments/data/repositories/hr_appointments_repository_impl.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/appointments/domain/entities/hr_appointment.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/appointments/domain/entities/hr_outing.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/appointments/domain/repositories/hr_appointments_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/appointments/presentation/controllers/hr_appointments_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/appointments/presentation/pages/hr_appointments_page.dart';
@@ -55,11 +56,15 @@ Finder _inKey(String key, Finder matching) =>
 
 class _Session extends UserSession {
   final Set<String> denied;
+  final String? rawRole;
 
-  _Session({this.denied = const {}});
+  _Session({this.denied = const {}, this.rawRole = 'residence_manager'});
 
   @override
   bool can(String permission) => !denied.contains(permission);
+
+  @override
+  String? get roleRaw => rawRole;
 }
 
 // Live-shaped rows (GET /appointments on the demo tenant).
@@ -204,6 +209,44 @@ class _FakeRepo implements HrAppointmentsRepository {
     calls.add('export');
     return Result.success(utf8.encode('Request\n'));
   }
+
+  List<HrOuting> outingRows = [
+    HrOuting(
+      id: 'out-1',
+      clientId: 'c2',
+      clientName: 'Client Two',
+      residenceId: 'cozzy',
+      residenceName: 'Cozzy Cottage',
+      destination: 'Dhaka',
+      purpose: 'Traveling',
+      departAt: DateTime.utc(2026, 11, 15, 5),
+      returnAt: DateTime.utc(2026, 11, 15, 10),
+      responsibleAdultName: 'Tttt',
+      responsibleAdultPhone: '85656810949',
+      transportType: 'private_car',
+      status: 'pending',
+      requesterName: 'Guardian One',
+    ),
+  ];
+
+  @override
+  Future<Result<HrOutingPage>> listOutings(HrOutingQuery query) async {
+    calls.add('listOutings ${query.status}');
+    final items = outingRows
+        .where((r) => query.status == null || r.status == query.status)
+        .toList();
+    return Result.success(
+      HrOutingPage(items: items, total: items.length, totalPages: 1),
+    );
+  }
+
+  @override
+  Future<Result<void>> decideOuting(
+    String id, {
+    required String decision,
+    String? notes,
+  }) =>
+      _log('decideOuting $id $decision $notes');
 }
 
 final List<(String, List<int>)> _saved = [];

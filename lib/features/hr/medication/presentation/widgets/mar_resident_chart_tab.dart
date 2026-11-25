@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../ai/presentation/widgets/ai_draft_sheet.dart';
+import '../../../ai/presentation/widgets/ai_feature_sheets.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/mar_round.dart';
 import '../medication_labels.dart';
@@ -8,7 +10,7 @@ import 'medication_common.dart';
 
 /// Web "Resident chart": one person's day in four buckets, PRN availability
 /// and doses given outside a round.
-class MarResidentChartTab extends StatelessWidget {
+class MarResidentChartTab extends StatefulWidget {
   final String clientId;
   final List<MarChoice> clientOptions;
   final MarResidentChart? chart;
@@ -24,6 +26,11 @@ class MarResidentChartTab extends StatelessWidget {
     required this.onClientChange,
   });
 
+  @override
+  State<MarResidentChartTab> createState() => _MarResidentChartTabState();
+}
+
+class _MarResidentChartTabState extends State<MarResidentChartTab> {
   static const _buckets = [
     ('morning', 'Morning'),
     ('afternoon', 'Afternoon'),
@@ -31,9 +38,31 @@ class MarResidentChartTab extends StatelessWidget {
     ('night', 'Night'),
   ];
 
+  bool? _aiEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    aiDraftingEnabled().then((enabled) {
+      if (mounted) setState(() => _aiEnabled = enabled);
+    });
+  }
+
+  String get _firstName {
+    for (final option in widget.clientOptions) {
+      if (option.$1 == widget.clientId) {
+        final name = option.$2.trim();
+        if (name.isEmpty) return 'Client';
+        return name.split(RegExp(r'\s+')).first;
+      }
+    }
+    return 'Client';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final c = chart;
+    final c = widget.chart;
+    final clientId = widget.clientId;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -45,10 +74,25 @@ class MarResidentChartTab extends StatelessWidget {
                 key: const ValueKey('mar-chart-resident'),
                 label: 'Resident',
                 value: clientId,
-                options: clientOptions,
+                options: widget.clientOptions,
                 placeholder: 'Choose a resident',
-                onChanged: onClientChange,
+                onChanged: widget.onClientChange,
               ),
+              if (_aiEnabled == true && clientId.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: AiAssistButton(
+                    buttonKey: const ValueKey('mar-review-medication-patterns'),
+                    label: 'Review medication patterns',
+                    onPressed: () => openMarMedicationReview(
+                      context,
+                      clientId: clientId,
+                      firstName: _firstName,
+                    ),
+                  ),
+                ),
+              ],
               if (clientId.isNotEmpty && c != null && c.allergies.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Wrap(
@@ -82,7 +126,7 @@ class MarResidentChartTab extends StatelessWidget {
               ],
             ),
           )
-        else if (loading && c == null)
+        else if (widget.loading && c == null)
           const MarEmpty('Loading…')
         else if (c != null) ...[
           for (final (key, label) in _buckets) ...[

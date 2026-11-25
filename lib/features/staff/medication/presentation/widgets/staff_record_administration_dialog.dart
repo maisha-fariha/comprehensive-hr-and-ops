@@ -248,20 +248,18 @@ class _StaffRecordAdministrationDialogState
 
   bool get _isAdministered => _status.status == 'administered';
 
-  bool get _safetyOk =>
-      _safetyConfirmed &&
-      _identityVerified &&
-      _medicationVerified &&
-      _dosageVerified &&
-      _routeVerified &&
-      _timeVerified;
-
   DueDose? get _resolvedDose {
     final med = _medication;
     final client = _client;
     if (med == null || client == null) return null;
+    final pre = widget.preselectedDose;
+    // Keep occurrence id / dueAt from the overdue/due row so
+    // `scheduledFor` charts that slot (web parity).
+    final reusePre = pre != null &&
+        pre.medicationId == med.id &&
+        pre.clientId == client.id;
     return DueDose(
-      id: '${med.isPrn ? 'prn' : 'med'}-${med.id}',
+      id: reusePre ? pre.id : '${med.isPrn ? 'prn' : 'med'}-${med.id}',
       residentName: client.name,
       residentInitials: client.name
           .trim()
@@ -274,15 +272,22 @@ class _StaffRecordAdministrationDialogState
       medicationName: med.name,
       dose: med.dose,
       route: MedicationRoute.tabletOral,
-      timeLabel: med.isPrn
-          ? (med.instructions ?? 'PRN / as needed')
-          : (med.scheduleLabel ?? ''),
+      timeLabel: reusePre && pre.timeLabel.isNotEmpty
+          ? pre.timeLabel
+          : (med.isPrn
+              ? (med.instructions ?? 'PRN / as needed')
+              : (med.scheduleLabel ?? '')),
       section: DueDoseSection.dueNow,
+      state: reusePre ? pre.state : 'due',
       clientId: client.id,
       residenceId: (client.residenceId ?? med.residenceId),
       residenceName: client.residenceName ?? med.residenceName,
       medicationId: med.id,
       isPrn: med.isPrn,
+      scheduled: reusePre ? pre.scheduled : !med.isPrn,
+      slotLabel: reusePre ? pre.slotLabel : '',
+      scheduledTime: reusePre ? pre.scheduledTime : '',
+      dueAt: reusePre ? pre.dueAt : null,
     );
   }
 
@@ -296,14 +301,21 @@ class _StaffRecordAdministrationDialogState
     });
     if (client == null) return;
     setState(() => _loadingMeds = true);
-    final prescribed = await _repo.getClientMedications(client.id);
+    // Record Administration charts PRN doses for the selected resident only.
     final prn = await _repo.getClientPrnMedications(client.id);
     if (!mounted || _client != client) return;
-    final list = <StaffClientMedicationItem>[
-      ...?prescribed.value?.where((m) => m.isActive),
-      ...?prn.value?.where((m) => m.isActive),
-    ];
-    final keep = previous != null && previous.clientId == client.id
+    // Drop scheduled meds / other residents / house stock even when the
+    // PRN API over-returns them.
+    final list = StaffClientMedicationItem.scopedForRecordAdministration(
+      clientId: client.id,
+      residenceId: client.residenceId,
+      prescribed: const [],
+      prns: prn.value ?? const [],
+    );
+    final keep = previous != null &&
+            (previous.clientId == client.id ||
+                (previous.clientId.isEmpty &&
+                    previous.residenceId == (client.residenceId ?? '')))
         ? previous
         : null;
     if (keep != null && !list.contains(keep)) list.insert(0, keep);
@@ -329,9 +341,7 @@ class _StaffRecordAdministrationDialogState
       }
       return null;
     }
-    if (_step == 1 && _isAdministered && !_safetyOk) {
-      return 'Confirm pre-administration and all five rights checks.';
-    }
+    // Safety / five-rights toggles are optional — do not block Next/submit.
     return null;
   }
 
@@ -735,7 +745,7 @@ class _StaffRecordAdministrationDialogState
         ),
         const SizedBox(height: 6),
         const Text(
-          'The medicine list below is scoped to whoever is chosen here.',
+          'The medicine list below shows only this resident’s PRNs.',
           style: TextStyle(
             fontFamily: 'Outfit',
             fontSize: 11,
@@ -826,7 +836,7 @@ class _StaffRecordAdministrationDialogState
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Medication *',
-                    hintText: 'Search prescriptions & PRN',
+                    hintText: "Search this resident's PRN medicines",
                     isDense: true,
                   ),
                   items: [
@@ -854,7 +864,7 @@ class _StaffRecordAdministrationDialogState
                   _medications.isEmpty) ...[
                 const SizedBox(height: 8),
                 const Text(
-                  'No medicines on this resident’s chart yet.',
+                  'No PRN medicines on this resident’s chart yet.',
                   style: TextStyle(
                     fontFamily: 'Outfit',
                     fontSize: 12,

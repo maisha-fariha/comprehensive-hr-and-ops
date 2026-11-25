@@ -1,214 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:gems_responsive/gems_responsive.dart';
 
-import '../../../../../core/constants/app_colors.dart';
-import '../../domain/entities/family_messages_enums.dart';
-import '../controllers/compose_message_controller.dart';
-import '../widgets/attachment_options_row.dart';
-import '../widgets/compose_field_label.dart';
-import '../widgets/compose_message_field.dart';
-import '../widgets/compose_message_header.dart';
-import '../widgets/priority_toggle_row.dart';
-import '../widgets/send_message_button.dart';
+import '../widgets/message_care_team_sheet.dart';
+import 'family_conversation_page.dart';
 
-/// The "New Message" compose screen, reached from the [NewMessageFab] on
-/// `FamilyMessagesListPage`.
+/// Opens the web-parity "Message Care Team" compose sheet.
 ///
-/// Pushed as a standalone route via `Get.to()` with its own `Scaffold`/
-/// `SafeArea` and back button, mirroring how
-/// `lib/features/staff/tasks_messages/presentation/pages/message_thread_page.dart`
-/// is a standalone pushed page for the analogous Staff feature.
-class ComposeMessagePage extends StatelessWidget {
+/// Kept as a route entry for older `Get.to(ComposeMessagePage)` call sites;
+/// the UI itself is the modal sheet matching web.
+class ComposeMessagePage extends StatefulWidget {
   const ComposeMessagePage({super.key});
 
-  /// Always starts a fresh controller instance for a new draft rather than
-  /// resolving a shared singleton - reusing the same instance across
-  /// multiple "New Message" sessions would resurface a previous draft's
-  /// field values, and its `TextEditingController`s would already be
-  /// disposed after the first time this page is closed (see the identical
-  /// rationale on `CreateIncidentPage`).
-  ComposeMessageController _resolveController() {
-    if (Get.isRegistered<ComposeMessageController>()) {
-      Get.delete<ComposeMessageController>(force: true);
-    }
-    return Get.put(ComposeMessageController());
+  @override
+  State<ComposeMessagePage> createState() => _ComposeMessagePageState();
+}
+
+class _ComposeMessagePageState extends State<ComposeMessagePage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final conversationId = await showMessageCareTeamSheet(context);
+      if (!mounted) return;
+      final sent = conversationId != null;
+      Navigator.of(context).pop(sent);
+      if (conversationId != null && conversationId.isNotEmpty) {
+        Get.to(() => FamilyConversationPage(conversationId: conversationId));
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController();
-    final fieldGap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20));
-
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
-      body: SafeArea(
-        child: Column(
-          children: [
-            ColoredBox(
-              color: AppColors.surfaceWhite,
-              child: ComposeMessageHeader(
-                title: 'New Message',
-                subtitle: 'Sent to the care team for your family member',
-                onBack: Get.back,
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, vertical: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Obx(() {
-                      if (controller.hasLinkedResident.value != false) {
-                        return const SizedBox.shrink();
-                      }
-                      return Container(
-                        key: const Key('compose-not-linked-notice'),
-                        width: double.infinity,
-                        margin: EdgeInsets.only(
-                          bottom: ResponsiveHelper.getResponsiveHeight(context, 16),
-                        ),
-                        padding: ResponsiveHelper.getResponsivePadding(
-                          context,
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.urgentAmber.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(
-                            ResponsiveHelper.getResponsiveRadius(context, 12),
-                          ),
-                        ),
-                        child: Text(
-                          ComposeMessageController.notLinkedMessage,
-                          style: TextStyle(
-                            fontFamily: 'Manrope',
-                            fontWeight: FontWeight.w600,
-                            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13.5),
-                            color: AppColors.textHeading,
-                          ),
-                        ),
-                      );
-                    }),
-                    const ComposeFieldLabel('To'),
-                    Container(
-                      width: double.infinity,
-                      padding: ResponsiveHelper.getResponsivePadding(
-                        context,
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceWhite,
-                        border: Border.all(color: AppColors.cardBorder),
-                        borderRadius: BorderRadius.circular(
-                          ResponsiveHelper.getResponsiveRadius(context, 14),
-                        ),
-                      ),
-                      child: Text(
-                        'Care team',
-                        style: TextStyle(
-                          fontFamily: 'Manrope',
-                          fontWeight: FontWeight.w600,
-                          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
-                          color: AppColors.textHeading,
-                        ),
-                      ),
-                    ),
-                    fieldGap,
-                    const ComposeFieldLabel('Message'),
-                    ComposeMessageField(controller: controller.messageController),
-                    fieldGap,
-                    const ComposeFieldLabel('Attachments'),
-                    Obx(
-                      () => AttachmentOptionsRow(
-                        selected: {
-                          for (final file in controller.attachments)
-                            if (file.fileType.startsWith('image/'))
-                              MessageAttachmentType.photo
-                            else if (file.fileType.contains('pdf'))
-                              MessageAttachmentType.pdf
-                            else
-                              MessageAttachmentType.document,
-                        },
-                        onToggle: controller.pickAttachment,
-                      ),
-                    ),
-                    Obx(() {
-                      if (controller.attachments.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          top: ResponsiveHelper.getResponsiveHeight(context, 10),
-                        ),
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            for (final file in controller.attachments)
-                              InputChip(
-                                label: Text(
-                                  file.fileName,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                onDeleted: controller.isSending.value
-                                    ? null
-                                    : () => controller.removeAttachment(file),
-                              ),
-                          ],
-                        ),
-                      );
-                    }),
-                    Obx(() {
-                      if (!controller.isUploading.value) {
-                        return const SizedBox.shrink();
-                      }
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          top: ResponsiveHelper.getResponsiveHeight(context, 8),
-                        ),
-                        child: const LinearProgressIndicator(
-                          color: AppColors.secondaryTeal,
-                          minHeight: 2,
-                        ),
-                      );
-                    }),
-                    fieldGap,
-                    Obx(
-                      () => PriorityToggleRow(
-                        value: controller.isPriority.value,
-                        onChanged: controller.togglePriority,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            DecoratedBox(
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceWhite,
-                border: Border(top: BorderSide(color: AppColors.cardBorder)),
-              ),
-              child: Padding(
-                padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 20, top: 12, bottom: 12),
-                child: Obx(
-                  () => SendMessageButton(
-                    isSending: controller.isSending.value,
-                    onTap: !controller.canSend
-                        ? null
-                        : controller.isSending.value ||
-                                controller.isUploading.value
-                            ? () {}
-                            : controller.sendMessage,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SizedBox.shrink(),
     );
   }
 }

@@ -45,4 +45,25 @@ abstract class HrDocumentsRepository {
   /// Records a document can be filed against: `client`, `staff` or
   /// `residence`.
   Future<Result<List<HrDocumentOwner>>> owners(String ownerType);
+
+  /// `POST /documents/:id/assign` — send out for Read & Sign.
+  Future<Result<HrAcknowledgmentProgress>> requestAcknowledgment(
+    String id,
+    Map<String, dynamic> body,
+  );
+
+  /// `GET /documents/:id/acknowledgments`.
+  Future<Result<HrAcknowledgmentProgress>> acknowledgments(String id);
+
+  /// `POST /documents/:id/acknowledge`.
+  Future<Result<void>> acknowledge(String id);
+
+  /// `POST /documents/:id/acknowledgments/remind`.
+  Future<Result<int>> remindAcknowledgments(String id);
+
+  /// Active roles for the signing audience picker (`GET /roles`).
+  Future<Result<List<HrSignOption>>> roles();
+
+  /// Active non-family users for the signing audience picker.
+  Future<Result<List<HrSignOption>>> users();
 }

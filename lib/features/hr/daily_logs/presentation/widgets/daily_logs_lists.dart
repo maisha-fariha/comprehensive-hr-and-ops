@@ -13,6 +13,7 @@ class _QueueRow extends StatelessWidget {
   final String dayLabel;
   final Widget? extra;
   final String extraLabel;
+  final Widget? footer;
   final String action;
   final Key actionKey;
   final VoidCallback onAction;
@@ -27,6 +28,7 @@ class _QueueRow extends StatelessWidget {
     required this.onAction,
     this.extra,
     this.extraLabel = '',
+    this.footer,
   });
 
   Widget _column(BuildContext context, String label, Widget child) => Column(
@@ -61,6 +63,10 @@ class _QueueRow extends StatelessWidget {
               HandoverButton(key: actionKey, label: action, compact: true, onPressed: onAction),
             ],
           ),
+          if (footer != null) ...[
+            const SizedBox(height: 10),
+            footer!,
+          ],
         ],
       ),
     );
@@ -90,11 +96,89 @@ List<Widget> _spaced(List<Widget> rows) => [
       ],
     ];
 
+/// Web sign-off column "Shift's summary": shift name, then the summary.
+class _ShiftSummary extends StatelessWidget {
+  final String? label;
+  final String? summary;
+
+  const _ShiftSummary({required this.label, required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final shift = (label == null || label!.trim().isEmpty) ? 'Shift' : label!.trim();
+    final note = (summary == null || summary!.trim().isEmpty) ? '—' : summary!.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "SHIFT'S SUMMARY",
+          style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 4),
+        Text(shift, style: handoverText(context, 12.5, weight: FontWeight.w600)),
+        Text(note, style: handoverText(context, 12.5, color: AppColors.textMuted)),
+      ],
+    );
+  }
+}
+
+/// Web missing column "What is missing": up to three gaps, then a count.
+class _MissingGaps extends StatelessWidget {
+  final List<DailyLogGap> gaps;
+
+  const _MissingGaps({required this.gaps});
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = gaps.isEmpty
+        ? const [DailyLogGap(type: 'no_entries', detail: 'Nothing written for the day')]
+        : gaps;
+    final visible = shown.take(3).toList();
+    final more = shown.length - visible.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'WHAT IS MISSING',
+          style: handoverText(context, 11, weight: FontWeight.w600, color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 4),
+        for (final gap in visible)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                DailyLogPill(
+                  DailyLogLabels.gapLabels[gap.type] ?? gap.type,
+                  tone: gap.type == 'no_entries' ? DailyLogTone.warning : DailyLogTone.danger,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    gap.detail,
+                    style: handoverText(context, 12.5, color: AppColors.textMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (more > 0)
+          Text(
+            'and $more more',
+            style: handoverText(context, 12, color: AppColors.textMuted),
+          ),
+      ],
+    );
+  }
+}
+
 class ReviewQueueList extends StatelessWidget {
   final List<DailyLogReviewRow> rows;
   final bool loading;
   final String? error;
+  final String emptyMessage;
   final void Function(DailyLogReviewRow) onOpen;
+  final void Function(DailyLogReviewRow)? onSignOff;
 
   const ReviewQueueList({
     super.key,
@@ -102,12 +186,15 @@ class ReviewQueueList extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onOpen,
+    this.onSignOff,
+    this.emptyMessage =
+        'No finished shift is waiting to be signed off this week.',
   });
 
   @override
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
-      return _ListMessage(loading ? 'Loading…' : error ?? 'Nothing waiting to be reviewed.');
+      return _ListMessage(loading ? 'Loading…' : error ?? emptyMessage);
     }
     return Column(
       children: _spaced([
@@ -117,7 +204,7 @@ class ReviewQueueList extends StatelessWidget {
             client: r.clientName,
             dayLabel: 'Day',
             day: Text(r.logDate, style: handoverText(context, 13.5)),
-            extraLabel: 'Entries',
+            extraLabel: 'Notes',
             extra: Align(
               alignment: Alignment.centerLeft,
               child: DailyLogPill('${r.entriesCount}', tone: DailyLogTone.info),
@@ -125,6 +212,26 @@ class ReviewQueueList extends StatelessWidget {
             action: 'Open day',
             actionKey: ValueKey('dl-open-day-${r.clientId}-${r.logDate}'),
             onAction: () => onOpen(r),
+            footer: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ShiftSummary(label: r.shiftLabel, summary: r.summary),
+                if (onSignOff != null &&
+                    (r.shiftLogId ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: HandoverButton(
+                      key: ValueKey('dl-sign-off-${r.shiftLogId}'),
+                      label: 'Sign off',
+                      filled: true,
+                      compact: true,
+                      onPressed: () => onSignOff!(r),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
       ]),
     );
@@ -136,6 +243,8 @@ class MissingLogsList extends StatelessWidget {
   final bool loading;
   final String? error;
   final void Function(DailyLogMissingRow) onWrite;
+  /// Web: Write entry requires `daily-logs:write`.
+  final bool canWrite;
 
   const MissingLogsList({
     super.key,
@@ -143,13 +252,14 @@ class MissingLogsList extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onWrite,
+    this.canWrite = true,
   });
 
   @override
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
       return _ListMessage(
-        loading ? 'Loading…' : error ?? 'Every resident has a log for this period.',
+        loading ? 'Loading…' : error ?? 'Nothing owed and not done in this period.',
       );
     }
     return Column(
@@ -163,9 +273,14 @@ class MissingLogsList extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: DailyLogPill(r.logDate, tone: DailyLogTone.danger),
             ),
-            action: 'Write entry',
-            actionKey: ValueKey('dl-write-${r.clientId}-${r.logDate}'),
+            action: canWrite ? 'Write entry' : 'Open day',
+            actionKey: ValueKey(
+              canWrite
+                  ? 'dl-write-${r.clientId}-${r.logDate}'
+                  : 'dl-open-missing-${r.clientId}-${r.logDate}',
+            ),
             onAction: () => onWrite(r),
+            footer: _MissingGaps(gaps: r.gaps),
           ),
       ]),
     );
@@ -189,7 +304,7 @@ class HouseActivityList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const _ListMessage('Loading…');
     if (rows.isEmpty) {
-      return const _ListMessage('Nothing recorded for this home in the period chosen.');
+      return const _ListMessage('Nothing recorded in the period chosen.');
     }
     return HandoverPanel(
       child: Column(

@@ -202,6 +202,14 @@ class _FakeClientsRepo implements ClientsRepository {
 
   @override
   Future<Result<List<int>>> exportRosterCsv() async => Result.success(const []);
+
+  @override
+  Future<Result<List<int>>> exportProgressReportPdf({
+    required String clientId,
+    required String from,
+    required String to,
+  }) async =>
+      Result.success(const []);
 }
 
 Widget _wrap(Widget child) {
@@ -301,5 +309,7 @@ void main() {
     }
     expect(find.text('Transfer history'), findsOneWidget);
     expect(find.text('Oak Lodge → Elm House'), findsOneWidget);
+    // Web Client Details header action.
+    expect(find.text('Export Progress Report'), findsOneWidget);
   });
 }

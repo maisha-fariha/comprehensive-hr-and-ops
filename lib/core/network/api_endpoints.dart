@@ -37,6 +37,12 @@ abstract final class ApiEndpoints {
   // ── Scheduling ──────────────────────────────────────────────────────────
   static const String shifts = '/shifts';
   static const String shiftSwaps = '/shift-swaps';
+  /// Organisation settings aggregate (`general`, `notifications`, …).
+  static const String settings = '/settings';
+  /// Display timezone, date format and time format.
+  static const String settingsGeneral = '/settings/general';
+  /// Tenant scheduling defaults (`defaultBreakMinutes`, …).
+  static const String settingsScheduling = '/settings/scheduling';
 
   // ── Attendance ──────────────────────────────────────────────────────────
   static const String attendance = '/attendance';
@@ -47,26 +53,73 @@ abstract final class ApiEndpoints {
   static const String attendanceCheckOut = '/attendance/check-out';
   static const String attendanceBreakStart = '/attendance/break/start';
   static const String attendanceBreakEnd = '/attendance/break/end';
+  /// Web Attendance → Time-Off Requests (`GET`/`POST`).
+  static const String attendanceTimeOffRequests =
+      '/attendance/time-off-requests';
   static const String appointments = '/appointments';
   static const String appointmentsSummary = '/appointments/summary';
+  /// Manager Outing requests (`GET /outings`, `POST /outings/:id/decide`).
+  static const String outings = '/outings';
+  static String outingById(String id) => '/outings/$id';
+  static String outingDecide(String id) => '/outings/$id/decide';
   static const String recurringCheckSchedules = '/recurring-checks/schedules';
   static const String recurringCheckInstances = '/recurring-checks/instances';
   static const String recurringCheckEntries = '/recurring-checks/entries';
 
   // ── Daily logs ──────────────────────────────────────────────────────────
   static const String dailyLogs = '/daily-logs';
+  /// Web Today hub (`GET /daily-logs/board?residenceId&date`).
+  static const String dailyLogsBoard = '/daily-logs/board';
   static const String dailyLogEntries = '/daily-logs/entries';
   static const String dailyLogShifts = '/daily-logs/shifts';
   static const String residenceActivity = '/residence-activity';
   static const String careFlags = '/care-flags';
   static const String shiftHandovers = '/shift-handovers';
+  /// `GET /shift-handovers/prepare?shiftId=` — notes, unfinished tasks, incidents.
+  static const String shiftHandoverPrepare = '/shift-handovers/prepare';
   static const String clientActivities = '/client-activities';
+  /// Web resident day feed (`GET /clients/:id/daily-activity-feed?date=`).
+  static String clientDailyActivityFeed(String clientId) =>
+      '/clients/$clientId/daily-activity-feed';
 
   // ── Incidents ───────────────────────────────────────────────────────────
   static const String incidents = '/incidents';
   static const String incidentsSummary = '/incidents/summary';
   static const String incidentCategories = '/incident-categories';
   static const String incidentCirTemplates = '/incidents/cir-templates';
+  /// Web "Draft from my notes" (`POST /ai/incidents/draft`).
+  static const String aiIncidentsDraft = '/ai/incidents/draft';
+  /// AI drafting availability (`GET /ai`).
+  static const String aiStatus = '/ai';
+  /// AI Alerts & Insights list (`GET /ai-reports`).
+  static const String aiReports = '/ai-reports';
+  /// Detail (`GET /ai-reports/:id`) — marks the report read.
+  static String aiReportById(String id) => '/ai-reports/$id';
+  /// Scheduled automations (`GET /ai-reports/automations`).
+  static const String aiReportAutomations = '/ai-reports/automations';
+  static String aiMarClientReview(String clientId) =>
+      '/ai/mar/clients/$clientId/review';
+  static String aiClientGoalsSuggest(String clientId) =>
+      '/ai/client-goals/$clientId/suggest';
+  static String aiClientGoalsReview(String clientId) =>
+      '/ai/client-goals/$clientId/review';
+  static const String aiDailyLogsSummarize = '/ai/daily-logs/summarize';
+  /// Web AI Day Assistant (`POST /ai/daily-logs/ask-day`).
+  static const String aiDailyLogsAskDay = '/ai/daily-logs/ask-day';
+  /// Web "Tidy my note" (`POST /ai/daily-logs/draft-entry`).
+  static const String aiDailyLogsDraftEntry = '/ai/daily-logs/draft-entry';
+  /// Web "Draft handover note" (`POST /ai/handovers/draft`).
+  static const String aiHandoversDraft = '/ai/handovers/draft';
+  static const String aiSchedulingReview = '/ai/scheduling/review';
+  static const String aiTrainingGaps = '/ai/training/gaps';
+  static const String aiInventoryReorder = '/ai/inventory/reorder';
+  /// Resident day AI / auto daily summary (`GET` list, `POST …/generate`).
+  static String dailySummariesForClient(String clientId) =>
+      '/daily-summaries/clients/$clientId';
+  static String dailySummariesGenerate(String clientId) =>
+      '/daily-summaries/clients/$clientId/generate';
+  static String dailySummaryById(String id) => '/daily-summaries/$id';
+  static String dailySummaryShare(String id) => '/daily-summaries/$id/share';
   static const String uploads = '/uploads';
   static const String tickets = '/tickets';
   static const String notificationPreferences = '/notification-preferences';
@@ -80,20 +133,50 @@ abstract final class ApiEndpoints {
   static const String familyAppointments = '/family/appointments';
   static const String familyMessages = '/family/messages';
   static const String familyDocuments = '/family/documents';
+  static const String familyOutings = '/family/outings';
+  static String familyOutingCancel(String id) => '$familyOutings/$id/cancel';
+  static String familyDocumentSign(String id) => '$familyDocuments/$id/sign';
   static const String familyClients = '/family/clients';
   static const String familyTickets = '/family/tickets';
   static const String familySearch = '/family/search';
 
   static String familyDailyUpdates(String clientId) =>
       '$familyClients/$clientId/daily-updates';
+  /// Care Journal — weekly summaries (web `/family/updates`).
+  static String familyWeeklyUpdates(String clientId) =>
+      '$familyClients/$clientId/weekly-updates';
+  /// Care Journal — recreational photo moments gallery.
+  static String familyClientMoments(String clientId) =>
+      '$familyClients/$clientId/moments';
+  /// Shared activities for a linked resident (visibility.activities).
+  static String familyClientActivities(String clientId) =>
+      '$familyClients/$clientId/activities';
+  /// Incidents for a linked resident (visibility.incidents).
+  static String familyClientIncidents(String clientId) =>
+      '$familyClients/$clientId/incidents';
+  /// Medication schedule (visibility.medications).
+  static String familyClientMedications(String clientId) =>
+      '$familyClients/$clientId/medications';
+  /// Diagnoses / allergies / diet (visibility.medicalConditions).
+  static String familyClientMedicalConditions(String clientId) =>
+      '$familyClients/$clientId/medical-conditions';
   static String familyAppointmentById(String id) => '$familyAppointments/$id';
   static String familyAppointmentReschedule(String id) =>
       '$familyAppointments/$id/reschedule';
   static String familyAppointmentCancel(String id) =>
       '$familyAppointments/$id/cancel';
+  /// Family confirms or declines a care-home reschedule.
+  static String familyAppointmentDecide(String id) =>
+      '$familyAppointments/$id/decide';
   static String familyConversation(String id) => '$familyMessages/$id';
+  static String familyConversationRead(String id) => '$familyMessages/$id/read';
   static String familyConversationMessages(String id) =>
       '$familyMessages/$id/messages';
+  static String familyConversationHide(String id) => '$familyMessages/$id/hide';
+  static String familyConversationUnhide(String id) =>
+      '$familyMessages/$id/unhide';
+  static String familyConversationLeave(String id) =>
+      '$familyMessages/$id/leave';
   static String familyTicketById(String id) => '$familyTickets/$id';
   static String familyTicketMessages(String id) =>
       '$familyTickets/$id/messages';
@@ -137,8 +220,14 @@ abstract final class ApiEndpoints {
   static const String marDue = '/mar/due';
   static const String marRound = '/mar/round';
   static const String marAdministrations = '/mar/administrations';
+  /// Web Record Administration — charts existing round doses (no Given inflate).
+  static const String marAdministrationRound = '/mar/administrations/round';
+  static String marResidentChart(String clientId) =>
+      '/mar/residents/$clientId/chart';
   static const String medications = '/medications';
   static const String prnMedications = '/prn-medications';
+  /// Web MAR Stock tab trolley counts.
+  static const String medicationStock = '/medication-stock';
 
   // ── Tasks & compliance ──────────────────────────────────────────────────
   static const String tasks = '/tasks';
@@ -151,6 +240,38 @@ abstract final class ApiEndpoints {
   static const String emergencyAlerts = '/emergency-alerts';
   static const String inventoryItems = '/inventory/items';
   static const String supportTickets = '/support/tickets';
+  /// Web Users & Access (`/dashboard/users`) — requires `users:read`.
+  static const String users = '/users';
+  /// Combined people directory (employees + family) — `users:read`.
+  static const String usersDirectory = '/users/directory';
+  /// Atomic staff + login onboarding — `users:write`.
+  static const String usersOnboard = '/users/onboard';
+  /// Email invite with temporary credentials — `users:write`.
+  static const String usersInvite = '/users/invite';
+  static String userById(String id) => '$users/$id';
+  static String userDeactivate(String id) => '$users/$id/deactivate';
+  static String userReactivate(String id) => '$users/$id/reactivate';
+  static String userSendPasswordReset(String id) =>
+      '$users/$id/send-password-reset';
+  static String userRoles(String id) => '$users/$id/roles';
+  static String userResidences(String id) => '$users/$id/residences';
+  /// Job titles — `staff-categories:read` / `:write`.
+  static const String staffCategories = '/staff-categories';
+  static String staffCategoryById(String id) => '$staffCategories/$id';
+  static String staffCategoryArchive(String id) =>
+      '$staffCategories/$id/archive';
+  static String staffCategoryRestore(String id) =>
+      '$staffCategories/$id/restore';
+  /// Role catalog with grants — requires `roles:read`.
+  static const String roles = '/roles';
+  /// Single role — `GET` needs `roles:read`. Metadata rename uses `PATCH`
+  /// `{name, description}`; custom roles can be `DELETE`d.
+  static String roleById(String id) => '$roles/$id';
+  /// Replace a role's grants — `PUT` with `{permissionCodes: [...]}`
+  /// (or `permissionIds`). Needs `roles:write`. Unticked keys are revoked.
+  static String rolePermissions(String id) => '$roles/$id/permissions';
+  /// Users holding a role — web "Holders". Needs `roles:read`.
+  static String roleMembers(String id) => '$roles/$id/members';
   static const String referrals = '/referrals';
 
   static String emergencyAlertCancel(String id) =>
@@ -186,6 +307,9 @@ abstract final class ApiEndpoints {
   static const String documentTypes = '/document-types';
   static const String conversations = '/conversations';
   static const String conversationContacts = '/conversations/contacts';
+  static const String announcements = '/announcements';
+  static const String communicationLogs = '/communication-logs';
+  static String announcementRead(String id) => '$announcements/$id/read';
 
   static String staffById(String staffId) => '$staff/$staffId';
   static String staffDocuments(String staffId) => '$staff/$staffId/documents';
@@ -206,8 +330,18 @@ abstract final class ApiEndpoints {
   static String shiftAssignments(String id) => '$shifts/$id/assignments';
   static String shiftCancel(String id) => '$shifts/$id/cancel';
   static String shiftRecurring = '$shifts/recurring';
+  /// `POST /shifts/conflicts` — overlapping shifts + approved leave for staff.
+  static const String shiftConflicts = '$shifts/conflicts';
+  /// `PATCH /attendance/time-off-requests/{id}/review`.
+  static String attendanceTimeOffReview(String id) =>
+      '$attendanceTimeOffRequests/$id/review';
+  /// `POST /attendance/time-off-requests/{id}/cancel` (Withdraw on web).
+  static String attendanceTimeOffCancel(String id) =>
+      '$attendanceTimeOffRequests/$id/cancel';
   static String shiftBidAccept(String shiftId, String bidId) =>
       '$shifts/$shiftId/bids/$bidId/accept';
+  static String shiftBidReject(String shiftId, String bidId) =>
+      '$shifts/$shiftId/bids/$bidId/reject';
   static String shiftBids(String shiftId) => '$shifts/$shiftId/bids';
   static String shiftSwapRequests(String shiftId) =>
       '$shifts/$shiftId/swap-requests';

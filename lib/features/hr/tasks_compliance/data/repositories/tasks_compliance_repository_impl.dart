@@ -2,9 +2,11 @@ import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/create_task_request.dart';
 import '../../domain/entities/task_client_option.dart';
 import '../../domain/entities/task_residence_option.dart';
@@ -31,30 +33,32 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       if (residenceId != null && residenceId.isNotEmpty) 'residenceId': residenceId,
     };
 
-    // Compliance tab (A12):
-    // - GET /compliance/score          → overall % + breakdown
-    // - GET /compliance/overview       → Completed / Pending Review / Needs Attention
-    // - GET /compliance/checks?…&outstanding=true → checklist
-    // - GET /compliance/requirements   → Upcoming Compliance Reviews
-    // - GET /compliance/alerts         → Compliance tab alert badge
+    // Compliance endpoints require compliance:read — skip to avoid 403 storms
+    // when the user only has tasks:read (Tasks tab still works).
+    final canCompliance = _session.can('compliance:read');
+    Future<Result<dynamic>> skipped() async =>
+        Result.success(const <String, dynamic>{});
+
     final results = await Future.wait([
       _api.get(
         ApiEndpoints.tasksStats,
         query: residenceQuery,
         silent: true,
       ),
-      _api.get(
-        ApiEndpoints.tasks,
-        query: {
-          'page': 1,
-          'limit': 20,
-          ...residenceQuery,
-        },
+      // Web All Tasks lists the full set; a single page still truncates.
+      ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.tasks,
+        query: residenceQuery,
         silent: true,
+      ).then(
+        (result) => result.when(
+          success: (rows) => Result<dynamic>.success({'data': rows}),
+          failure: (error) => Result<dynamic>.failure(error),
+        ),
       ),
       _api.get(
         ApiEndpoints.tasksReview,
-        query: residenceQuery,
         silent: true,
       ),
       _api.get(
@@ -71,70 +75,98 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
         },
         silent: true,
       ),
-      _api.get(ApiEndpoints.complianceScore, query: residenceQuery, silent: true),
-      _api.get(
-        ApiEndpoints.complianceOverview,
-        query: residenceQuery,
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceChecks,
-        query: {
-          'page': 1,
-          'limit': 20,
-          'outstanding': true,
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceRequirements,
-        query: {
-          'page': 1,
-          'limit': 20,
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceAlerts,
-        query: residenceQuery,
-        silent: true,
-      ),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceScore,
+          query: residenceQuery,
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceOverview,
+          query: residenceQuery,
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceChecks,
+          query: {
+            'page': 1,
+            'limit': 20,
+            'outstanding': true,
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceRequirements,
+          query: {
+            'page': 1,
+            'limit': 20,
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceAlerts,
+          query: residenceQuery,
+          silent: true,
+        )
+      else
+        skipped(),
       // Corrective tab:
       // - Active: status=open,in_progress
       // - Overdue badge: overdue=true
       // - Recent Resolutions: status=completed
-      _api.get(
-        ApiEndpoints.complianceCorrectiveActions,
-        query: {
-          'page': 1,
-          'limit': 20,
-          'status': 'open,in_progress',
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceCorrectiveActions,
-        query: {
-          'page': 1,
-          'limit': 20,
-          'overdue': true,
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
-      _api.get(
-        ApiEndpoints.complianceCorrectiveActions,
-        query: {
-          'page': 1,
-          'limit': 20,
-          'status': 'completed',
-          ...residenceQuery,
-        },
-        silent: true,
-      ),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceCorrectiveActions,
+          query: {
+            'page': 1,
+            'limit': 20,
+            'status': 'open,in_progress',
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceCorrectiveActions,
+          query: {
+            'page': 1,
+            'limit': 20,
+            'overdue': true,
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
+      if (canCompliance)
+        _api.get(
+          ApiEndpoints.complianceCorrectiveActions,
+          query: {
+            'page': 1,
+            'limit': 20,
+            'status': 'completed',
+            ...residenceQuery,
+          },
+          silent: true,
+        )
+      else
+        skipped(),
     ]);
 
     final tasks = results[1];
@@ -186,19 +218,15 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     required String search,
     String? residenceId,
   }) async {
+    // Web opens the resident list on focus with an empty query.
     final trimmed = search.trim();
-    if (trimmed.isEmpty) {
-      return Result.success(<TaskClientOption>[]);
-    }
 
-    final scopedResidence = residenceId?.trim().isNotEmpty == true
-        ? residenceId!.trim()
-        : _session.residenceId;
+    final scopedResidence = residenceId?.trim();
 
     final result = await _api.get(
       ApiEndpoints.clients,
       query: {
-        'search': trimmed,
+        if (trimmed.isNotEmpty) 'search': trimmed,
         'page': 1,
         'limit': 20,
         if (scopedResidence != null && scopedResidence.isNotEmpty)
@@ -218,14 +246,10 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     required String search,
     String? residenceId,
   }) async {
+    // Web opens the staff list on focus with an empty query.
     final trimmed = search.trim();
-    if (trimmed.isEmpty) {
-      return Result.success(<TaskStaffOption>[]);
-    }
 
-    final scopedResidence = residenceId?.trim().isNotEmpty == true
-        ? residenceId!.trim()
-        : _session.residenceId;
+    final scopedResidence = residenceId?.trim();
 
     // Purpose-built picker: id, name, category — no payslip fields.
     var result = await _api.get(
@@ -236,11 +260,12 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
       },
       silent: true,
     );
-    if (result.isFailure) {
+    // GET /staff requires staff:read — do not fall back without it.
+    if (result.isFailure && _session.canReadStaffList) {
       result = await _api.get(
         ApiEndpoints.staff,
         query: {
-          'search': trimmed,
+          if (trimmed.isNotEmpty) 'search': trimmed,
           'page': 1,
           'limit': 20,
           if (scopedResidence != null && scopedResidence.isNotEmpty)
@@ -256,8 +281,10 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     }
 
     final needle = trimmed.toLowerCase();
-    final matches = TasksComplianceMapper.staffFrom(result.value)
-        .where((option) => option.name.toLowerCase().contains(needle))
+    final all = TasksComplianceMapper.staffFrom(result.value);
+    final matches = (needle.isEmpty
+            ? all
+            : all.where((option) => option.name.toLowerCase().contains(needle)))
         .take(20)
         .toList(growable: false);
     return Result.success(matches);
@@ -448,7 +475,7 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
         query: {'category': 'tasks'},
         allowQueue: false,
       );
-      return result.when(
+      return await result.when(
         success: (body) async {
           final map = JsonCodec.unwrapMap(body);
           final url = JsonCodec.string(map['fileUrl'] ?? map['url']);
@@ -482,14 +509,25 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
   Future<Result<List<TaskShiftOption>>> getShiftOptions(
     String residenceId,
   ) async {
-    final now = DateTime.now().toUtc();
+    // Web New Task shift menu: yesterday → 7 days ahead (tenant calendar),
+    // not a wide past window that floods the picker with old shifts.
+    final today = TenantClock.now();
+    final start = DateTime(today.year, today.month, today.day);
+    final from = TenantClock.at(
+      start.subtract(const Duration(days: 1)),
+      0,
+    ).toUtc().toIso8601String();
+    final to = TenantClock.at(
+      start.add(const Duration(days: 8)),
+      0,
+    ).toUtc().toIso8601String();
     final result = await _api.get(
       ApiEndpoints.shifts,
       query: {
         'residenceId': residenceId,
         'limit': 50,
-        'from': now.subtract(const Duration(days: 1)).toIso8601String(),
-        'to': now.add(const Duration(days: 7)).toIso8601String(),
+        'from': from,
+        'to': to,
       },
       silent: true,
     );
@@ -498,6 +536,60 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
           Result.success(TasksComplianceMapper.shiftOptionsFrom(body)),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  @override
+  Future<Result<void>> addTaskNote({
+    required String taskId,
+    required String body,
+  }) async {
+    final id = taskId.trim();
+    final text = body.trim();
+    if (id.isEmpty) {
+      return Result.failure(const ValidationError(message: 'Missing task id.'));
+    }
+    if (text.isEmpty) {
+      return Result.failure(const ValidationError(message: 'Write a note first.'));
+    }
+    final result = await _api.post(
+      ApiEndpoints.taskNotes(id),
+      data: {'body': text},
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> updateTask({
+    required String taskId,
+    required Map<String, dynamic> body,
+  }) async {
+    final id = taskId.trim();
+    if (id.isEmpty) {
+      return Result.failure(const ValidationError(message: 'Missing task id.'));
+    }
+    final result = await _api.patch(
+      ApiEndpoints.taskById(id),
+      data: body,
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<String>> uploadTaskFile({
+    required String path,
+    required String name,
+  }) {
+    return _upload(path, name);
   }
 
   @override
@@ -552,6 +644,43 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
   }
 
   @override
+  Future<Result<void>> cancelTask(String taskId) async {
+    final id = taskId.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Missing task id.'),
+      );
+    }
+    final result = await _api.patch(
+      ApiEndpoints.taskById(id),
+      data: const {'status': 'cancelled'},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> deleteTask(String taskId) async {
+    final id = taskId.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Missing task id.'),
+      );
+    }
+    final result = await _api.delete(
+      ApiEndpoints.taskById(id),
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<void>> pauseRecurring(String recurrenceId) async {
     final id = recurrenceId.trim();
     if (id.isEmpty) {
@@ -591,27 +720,8 @@ class TasksComplianceRepositoryImpl implements TasksComplianceRepository {
     );
   }
 
-  Future<String?> _resolveResidenceId() async {
-    final sessionId = _session.residenceId?.trim();
-    if (sessionId != null && sessionId.isNotEmpty) return sessionId;
-
-    final result = await _api.get(
-      ApiEndpoints.residences,
-      query: const {'page': 1, 'limit': 50},
-      silent: true,
-    );
-    if (result.isFailure) return null;
-
-    final rows = JsonCodec.unwrapList(result.value);
-    for (final row in rows) {
-      if (row is! Map) continue;
-      final map = JsonCodec.asMap(row);
-      final id = JsonCodec.string(map['id'] ?? map['residenceId'])?.trim();
-      if (id == null || id.isEmpty) continue;
-      final name = JsonCodec.string(map['name'] ?? map['residenceName']);
-      _session.applyStaffContext(residenceId: id, residenceName: name);
-      return id;
-    }
-    return null;
-  }
+  /// Web Task Management defaults to **All Residences**.
+  /// Do not inject session.residenceId — that made nurse/manager task boards
+  /// disagree with the web console for the same tenant.
+  Future<String?> _resolveResidenceId() async => null;
 }

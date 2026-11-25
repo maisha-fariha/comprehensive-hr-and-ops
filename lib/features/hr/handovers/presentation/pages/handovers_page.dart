@@ -12,11 +12,21 @@ import '../widgets/handover_card.dart';
 import '../widgets/handover_common.dart';
 import '../widgets/handover_detail_sheet.dart';
 import '../widgets/record_handover_sheet.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Shift Handovers" — mirrors web `/dashboard/handovers`.
 class HandoversPage extends StatefulWidget {
-  const HandoversPage({super.key});
+  /// Set from clock-out "Write it" so the record form opens for that shift.
+  final String? focusShiftId;
+  final String? focusResidenceId;
+
+  const HandoversPage({
+    super.key,
+    this.focusShiftId,
+    this.focusResidenceId,
+  });
 
   @override
   State<HandoversPage> createState() => _HandoversPageState();
@@ -24,11 +34,38 @@ class HandoversPage extends StatefulWidget {
 
 class _HandoversPageState extends State<HandoversPage> {
   late final HandoversController _c;
+  bool _openedFocus = false;
 
   @override
   void initState() {
     super.initState();
     _c = Get.put(GetIt.instance<HandoversController>());
+    final shiftId = widget.focusShiftId?.trim() ?? '';
+    if (shiftId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openFocusedShift());
+    }
+  }
+
+  /// Web "Write it" lands on Shift Handovers and records this shift.
+  Future<void> _openFocusedShift() async {
+    if (!mounted || _openedFocus) return;
+    _openedFocus = true;
+    final shiftId = widget.focusShiftId!.trim();
+    final residenceId = widget.focusResidenceId?.trim();
+    if (residenceId != null && residenceId.isNotEmpty) {
+      _c.residenceId.value = residenceId;
+    }
+    await _c.load();
+    if (!mounted) return;
+    final mine = _c.handovers.where((h) => h.fromShiftId == shiftId);
+    if (mine.any((h) => h.status == 'draft')) return;
+    if (mine.isNotEmpty) return;
+    await showRecordHandoverSheet(
+      context,
+      controller: _c,
+      initialResidenceId: residenceId,
+      initialFromShiftId: shiftId,
+    );
   }
 
   @override
@@ -119,13 +156,31 @@ class _HandoversPageState extends State<HandoversPage> {
                         style: handoverText(context, 18, weight: FontWeight.w700),
                       ),
                     ),
+                    if (_c.canWrite)
+                      HrHeaderPrimaryAction(
+                        actionKey: const ValueKey('handovers-record'),
+                        label: 'Handover',
+                        onTap: () async {
+                          await _c.ensureOptionsLoaded();
+                          if (!context.mounted) return;
+                          final home =
+                              _c.residenceId.value?.trim().isNotEmpty == true
+                                  ? _c.residenceId.value
+                                  : _c.session.residenceId;
+                          await showRecordHandoverSheet(
+                            context,
+                            controller: _c,
+                            initialResidenceId: home,
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.load,
               child: Obx(
@@ -218,19 +273,6 @@ class _HandoversPageState extends State<HandoversPage> {
       const SizedBox(height: 10),
       select('handovers-residence-filter', 'Residence', residenceOptions,
           _c.residenceId.value, _c.setResidence),
-      if (_c.canWrite) ...[
-        const SizedBox(height: 10),
-        Align(
-          alignment: Alignment.centerRight,
-          child: HandoverButton(
-            key: const ValueKey('handovers-record'),
-            label: 'Record Handover',
-            icon: Icons.add_rounded,
-            filled: true,
-            onPressed: () => showRecordHandoverSheet(context, controller: _c),
-          ),
-        ),
-      ],
     ];
   }
 

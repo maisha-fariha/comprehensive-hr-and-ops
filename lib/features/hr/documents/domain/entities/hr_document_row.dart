@@ -111,12 +111,23 @@ class HrDocumentRow {
   bool get withdrawn => document.deletedAt != null;
   bool get isStaffCertificate => document.source == 'staff_document';
   bool get restricted => visibility != 'all';
+  bool get ackRequired => document.ackRequired;
+  bool get myAckRequired => document.myAckRequired;
+  DateTime? get myAcknowledgedAt => document.myAcknowledgedAt;
+  DateTime? get myAckDueAt => document.myAckDueAt;
+  String? get signingMode => document.signingMode;
+  DateTime? get ackDueAt => document.ackDueAt;
 
   /// Edit / Withdraw / Restore only apply to registry documents; staff
   /// certificates are edited on the staff record.
   bool canEdit(bool canWrite) => canWrite && !isStaffCertificate && !withdrawn;
   bool canWithdraw(bool canWrite) => canEdit(canWrite);
   bool canRestore(bool canWrite) => canWrite && !isStaffCertificate && withdrawn;
+
+  /// Web shows Read & Sign for writable registry documents, or when the
+  /// current user still needs to sign.
+  bool showReadAndSign(bool canWrite) =>
+      !isStaffCertificate && !withdrawn && (canWrite || myAckRequired);
 
   static HrExpiryTone expiryToneOf(DateTime? expiresAt, DateTime now) {
     if (expiresAt == null) return HrExpiryTone.normal;

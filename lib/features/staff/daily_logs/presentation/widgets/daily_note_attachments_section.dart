@@ -49,28 +49,33 @@ class DailyNoteAttachmentsSection extends StatelessWidget {
             height: 1.2,
           ),
         ),
+        if (onAddPhoto != null || onAddFiles != null) ...[
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14)),
         Row(
           children: [
+            if (onAddPhoto != null)
             Expanded(
               child: _AttachmentButton(
                 asset: _cameraAsset,
                 label: 'Photo',
                 radius: buttonRadius,
-                onTap: onAddPhoto,
+                onTap: onAddPhoto!,
               ),
             ),
+            if (onAddPhoto != null && onAddFiles != null)
             SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),
+            if (onAddFiles != null)
             Expanded(
               child: _AttachmentButton(
                 asset: _uploadAsset,
                 label: 'Upload File',
                 radius: buttonRadius,
-                onTap: onAddFiles,
+                onTap: onAddFiles!,
               ),
             ),
           ],
         ),
+        ],
         SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
         if (attachments.isNotEmpty) ...[
           for (final file in attachments)

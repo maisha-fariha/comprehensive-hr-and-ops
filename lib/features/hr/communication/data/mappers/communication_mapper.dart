@@ -3,6 +3,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/communication_enums.dart';
 import '../../domain/entities/hr_conversation.dart';
 import '../../domain/entities/hr_message_contact.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class CommunicationMapper {
   static List<HrConversation> conversationsFrom(
@@ -25,9 +26,12 @@ abstract final class CommunicationMapper {
     String? currentUserId,
   }) {
     final members = JsonCodec.listAt(json, 'members');
+    final participants = _participants(members);
     final messages = JsonCodec.listAt(json, 'messages');
-    Map<String, dynamic>? lastMessage;
-    DateTime? lastAt;
+    Map<String, dynamic>? lastMessage = JsonCodec.mapAt(json, 'lastMessage');
+    DateTime? lastAt = lastMessage == null
+        ? null
+        : JsonCodec.dateTime(lastMessage['createdAt']);
     for (final raw in messages.whereType<Map>()) {
       final row = JsonCodec.asMap(raw);
       final at = JsonCodec.dateTime(row['createdAt']);
@@ -38,7 +42,10 @@ abstract final class CommunicationMapper {
       }
     }
     final type = (json['type'] ?? '').toString().toLowerCase();
-    final kind = _kindFromType(type, members.length);
+    final peopleCount = participants.isNotEmpty
+        ? participants.length
+        : (members.isEmpty ? 1 : members.length);
+    final kind = _kindFromType(type, peopleCount);
     final createdAt = JsonCodec.dateTime(json['createdAt']);
     lastAt ??= createdAt;
     final rawTitle = JsonCodec.string(json['title']);
@@ -51,23 +58,46 @@ abstract final class CommunicationMapper {
           );
     final unread = JsonCodec.integerOr(json['unreadCount'], 0);
     final monitored = JsonCodec.boolean(json['isMonitored']) ?? false;
+    final archived = JsonCodec.dateTime(json['archivedAt']) != null ||
+        (JsonCodec.boolean(json['archived']) ?? false);
 
     return HrConversation(
       id: JsonCodec.stringOr(json['id'], title),
       title: title,
       preview: JsonCodec.stringOr(
         lastMessage?['body'] ?? json['preview'],
-        monitored ? 'Monitored conversation' : 'No messages yet',
+        'No messages yet',
       ),
-      dateLabel: lastAt == null ? '' : IsoDateRange.formatShortDate(lastAt.toLocal()),
-      subtitle: _subtitle(kind, members.length, monitored),
+      dateLabel: lastAt == null ? '' : IsoDateRange.formatShortDate(TenantClock.wallOf(lastAt)),
+      subtitle: _subtitle(kind, peopleCount),
       kind: kind,
-      memberCount: members.isEmpty ? 1 : members.length,
+      memberCount: peopleCount,
       unreadCount: unread,
       isActive: unread > 0 || lastAt != null,
       isGroup: kind != ConversationFilter.direct,
       isMonitored: monitored,
+      isArchived: archived,
+      participants: participants,
     );
+  }
+
+  static List<HrConversationParticipant> _participants(List<dynamic> members) {
+    final people = <HrConversationParticipant>[];
+    for (final raw in members.whereType<Map>()) {
+      final row = JsonCodec.asMap(raw);
+      if (row['leftAt'] != null) continue;
+      final user = JsonCodec.mapAt(row, 'user') ?? row;
+      final userId = JsonCodec.string(row['userId'] ?? user['id']);
+      if (userId == null || userId.isEmpty) continue;
+      final name = IsoDateRange.personName(user);
+      people.add(
+        HrConversationParticipant(
+          userId: userId,
+          name: name == 'Unknown' ? 'Participant' : name,
+        ),
+      );
+    }
+    return people;
   }
 
   static String _fallbackTitle({
@@ -75,23 +105,37 @@ abstract final class CommunicationMapper {
     required List<dynamic> members,
     String? currentUserId,
   }) {
-    if (kind == ConversationFilter.direct) {
-      for (final raw in members.whereType<Map>()) {
-        final row = JsonCodec.asMap(raw);
-        final user = JsonCodec.mapAt(row, 'user') ?? row;
-        final userId = JsonCodec.string(row['userId'] ?? user['id']);
-        if (currentUserId != null &&
-            userId != null &&
-            userId == currentUserId) {
-          continue;
-        }
-        final name = IsoDateRange.personName(user);
-        if (name != 'Unknown' && name.isNotEmpty) return name;
-      }
-      return 'Direct message';
+    if (kind == ConversationFilter.direct ||
+        kind == ConversationFilter.family) {
+      final other = _otherMemberName(members, currentUserId);
+      if (other != null) return other;
+      // Web uses "Conversation" when a family thread has no title and no
+      // other person still in it (they left, or only you remain).
+      return kind == ConversationFilter.family
+          ? 'Conversation'
+          : 'Direct message';
     }
-    if (kind == ConversationFilter.family) return 'Family thread';
     return 'Group conversation';
+  }
+
+  /// Untitled direct and family threads use the other person's name,
+  /// the same way the web titles a guardian chat "Gurdian One".
+  static String? _otherMemberName(
+    List<dynamic> members,
+    String? currentUserId,
+  ) {
+    for (final raw in members.whereType<Map>()) {
+      final row = JsonCodec.asMap(raw);
+      if (row['leftAt'] != null) continue;
+      final user = JsonCodec.mapAt(row, 'user') ?? row;
+      final userId = JsonCodec.string(row['userId'] ?? user['id']);
+      if (currentUserId != null && userId != null && userId == currentUserId) {
+        continue;
+      }
+      final name = IsoDateRange.personName(user);
+      if (name != 'Unknown' && name.isNotEmpty) return name;
+    }
+    return null;
   }
 
   static List<HrMessageContact> contactsFrom(dynamic body) {
@@ -106,6 +150,7 @@ abstract final class CommunicationMapper {
                 .map((role) => role?.toString() ?? '')
                 .where((role) => role.isNotEmpty)
                 .toList(),
+            relationship: JsonCodec.string(json['relationship']),
             residenceIds: JsonCodec.listAt(json, 'residenceIds')
                 .map((id) => id?.toString() ?? '')
                 .where((id) => id.isNotEmpty)
@@ -166,7 +211,7 @@ abstract final class CommunicationMapper {
         fallback: 'TM',
       ),
       text: JsonCodec.stringOr(json['body'] ?? json['text'], ''),
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       direction:
           mine ? ChatMessageDirection.outgoing : ChatMessageDirection.incoming,
       sortKey: at?.millisecondsSinceEpoch ?? 0,
@@ -188,19 +233,15 @@ abstract final class CommunicationMapper {
         : ConversationFilter.direct;
   }
 
-  static String _subtitle(
-    ConversationFilter kind,
-    int memberCount,
-    bool monitored,
-  ) {
-    final base = switch (kind) {
+  static String _subtitle(ConversationFilter kind, int memberCount) {
+    return switch (kind) {
       ConversationFilter.direct => 'Direct message',
-      ConversationFilter.family => 'Family channel · $memberCount people',
+      ConversationFilter.family =>
+        memberCount == 1 ? '1 person' : '$memberCount people',
       ConversationFilter.group ||
       ConversationFilter.all =>
         'Residence group · $memberCount people',
     };
-    return monitored ? '$base · Monitored' : base;
   }
 
   static bool _isMine({

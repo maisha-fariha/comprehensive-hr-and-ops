@@ -5,6 +5,7 @@ import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_enums.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/scheduling_overview.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_residence_option.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_staff_conflict.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/entities/shift_staff_option.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/domain/repositories/scheduling_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/scheduling/presentation/controllers/scheduling_controller.dart';
@@ -68,6 +69,8 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     String? residenceId,
     ShiftStatusFilter? status,
     bool mine = false,
+    ScheduleSpan span = ScheduleSpan.week,
+    DateTime? monthOf,
   }) async =>
       Result.success(
         SchedulingMapper.compose(
@@ -84,13 +87,52 @@ class _FakeSchedulingRepo implements SchedulingRepository {
       );
 
   @override
+  Future<Result<void>> openShift(String shiftId) async => Result.success(null);
+
+  @override
+  Future<Result<void>> cancelShift(String shiftId) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> deleteShift(String shiftId) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> requestSwap({
+    required String shiftId,
+    String? note,
+    String? targetStaffId,
+    String? toShiftId,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> listSwapColleagues({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<({String id, String label})>>> listColleagueShifts(
+    String staffId,
+  ) async =>
+      Result.success(const []);
+
+  @override
   Future<Result<List<ShiftResidenceOption>>> getResidences() async =>
       Result.success(const [
         ShiftResidenceOption(id: 'elm', name: 'Elm House'),
       ]);
 
   @override
-  Future<Result<List<ShiftStaffOption>>> getStaffOptions() async =>
+  Future<Result<int>> getDefaultBreakMinutes() async => Result.success(30);
+
+  @override
+  Future<Result<List<ShiftClientOption>>> getClients(String residenceId) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<List<ShiftStaffOption>>> getStaffOptions({String? residenceId}) async =>
       Result.success(const [
         ShiftStaffOption(
           id: 'staff-shakib',
@@ -101,6 +143,24 @@ class _FakeSchedulingRepo implements SchedulingRepository {
           residenceLabel: 'Elm House',
         ),
       ]);
+
+  @override
+  Future<Result<List<ShiftWindowRow>>> listShiftsInRange({
+    required String from,
+    required String to,
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<ShiftConflictsResult>> checkStaffConflicts({
+    required List<String> staffIds,
+    required String startsAtIso,
+    required String endsAtIso,
+    String? residenceId,
+    String? excludeShiftId,
+  }) async =>
+      Result.success(const ShiftConflictsResult());
 
   @override
   Future<Result<int>> createShift(Map<String, dynamic> payload) async =>
@@ -117,6 +177,8 @@ class _FakeSchedulingRepo implements SchedulingRepository {
     required String shiftId,
     required Map<String, dynamic> payload,
     required List<String> staffIds,
+    String? restOverrideReason,
+    bool updateAssignments = true,
   }) async {
     updates.add((shiftId, payload, staffIds));
     return Result.success(null);
@@ -126,6 +188,13 @@ class _FakeSchedulingRepo implements SchedulingRepository {
   Future<Result<void>> decideShiftSwap({
     required String swapId,
     required bool approve,
+  }) async =>
+      Result.success(null);
+
+  @override
+  Future<Result<void>> acceptShiftBid({
+    required String shiftId,
+    required String bidId,
   }) async =>
       Result.success(null);
 }
@@ -159,10 +228,13 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-Finder _tab(String label) => find.descendant(
-      of: find.byType(CreateShiftStepTabs),
-      matching: find.text(label),
-    );
+Finder _tab(String label) {
+  final resolved = label == 'Staff Assignment' ? 'Staffing' : label;
+  return find.descendant(
+    of: find.byType(CreateShiftStepTabs),
+    matching: find.text(resolved),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

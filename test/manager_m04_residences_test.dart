@@ -124,6 +124,7 @@ class _Repo implements ResidencesRepository, ResidenceAdminRepository {
   (bool, bool)? payroll;
   String? archivedRoom;
   Map<String, Object?>? createdRoom;
+  Map<String, Object?>? updatedRoom;
 
   _Repo({List<ResidenceSummary>? rows, this.tenant = const ResidenceTenantContext()})
       : rows = rows ?? [_elm, _oak];
@@ -249,6 +250,27 @@ class _Repo implements ResidencesRepository, ResidenceAdminRepository {
 
   @override
   Future<Result<void>> reactivateRoom(String residenceId, String roomId) async => Result.success(null);
+
+  @override
+  Future<Result<void>> updateRoom(
+    String residenceId,
+    String roomId, {
+    required String name,
+    required int capacity,
+    String? floor,
+    String? wing,
+    String? roomType,
+  }) async {
+    updatedRoom = {
+      'id': roomId,
+      'name': name,
+      'capacity': capacity,
+      'floor': floor,
+      'wing': wing,
+      'roomType': roomType,
+    };
+    return Result.success(null);
+  }
 
   @override
   Future<Result<void>> archiveRoom(String residenceId, String roomId) async {
@@ -589,7 +611,8 @@ void main() {
       expect(body['status'], 'pending');
       expect(body['addressLine1'], '1 Birch Way');
       expect(body['bedCapacity'], 8);
-      expect(body['timezone'], 'America/Los_Angeles');
+      // Web create form has no Time Zone field; app keeps the UTC default.
+      expect(body['timezone'], 'UTC');
       expect(body['geofence'], {'radiusMeters': 150});
       expect(repo.createdAssignments, [(staffId: 's1', role: 'primary_manager')]);
       expect(find.text('Residence added'), findsOneWidget);
@@ -623,7 +646,11 @@ void main() {
       expect(find.text('Elm House'), findsWidgets);
 
       await tester.enterText(_key('residence-field-name'), 'Elm House North');
-      await _tap(tester, _key('residence-form-save'));
+      // Edit saves on the last step only (no Save beside Next on earlier steps).
+      for (var i = 0; i < 4; i++) {
+        await _tap(tester, _key('residence-form-next'));
+      }
+      await _tap(tester, _key('residence-form-submit'));
 
       expect(repo.updated, isTrue);
       expect(repo.updatedBody!['name'], 'Elm House North');
@@ -735,7 +762,7 @@ void main() {
       expect(_key('residence-create-schedule'), findsOneWidget);
 
       await _tap(tester, _key('residence-week-next'));
-      expect(find.text('Nothing rostered this week'), findsOneWidget);
+      expect(find.text('Nothing on roster for this week'), findsOneWidget);
       expect(_key('residence-week-this'), findsOneWidget);
     });
 
@@ -758,7 +785,10 @@ void main() {
 
       await _tap(tester, _key('residence-detail-edit'));
       expect(find.byType(ResidenceFormPage), findsOneWidget);
-      await _tap(tester, _key('residence-form-save'));
+      for (var i = 0; i < 4; i++) {
+        await _tap(tester, _key('residence-form-next'));
+      }
+      await _tap(tester, _key('residence-form-submit'));
 
       expect(repo.updatedAssignments, [
         (staffId: 's1', role: 'primary_manager'),
@@ -799,6 +829,19 @@ void main() {
       final r = page.items.single;
       expect(r.status, 'active');
       expect(r.gpsRadiusMeters, 120);
+      // Top-level geofenceRadiusMeters wins when nested geofence disagrees (web form).
+      final withTopLevel = ResidencesMapper.pageFrom({
+        'data': [
+          {
+            'id': 'r2',
+            'name': 'Oak House',
+            'geofence': {'radiusMeters': 150},
+            'geofenceRadiusMeters': 50,
+          },
+        ],
+        'meta': {'total': 1, 'totalPages': 1},
+      });
+      expect(withTopLevel.items.single.gpsRadiusMeters, 50);
       expect(r.outOfPocketEnabled, isTrue);
       expect(r.mileageEnabled, isFalse);
       expect(r.primaryManager!.name, 'Rafi Ahmed');

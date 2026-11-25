@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 enum StaffAppointmentTab {
   pending,
@@ -97,7 +98,7 @@ class StaffAppointment {
   String get dateTimeLabel {
     final at = scheduledAt;
     if (at == null) return '—';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     final h = local.hour.toString().padLeft(2, '0');
@@ -108,7 +109,7 @@ class StaffAppointment {
   String get decidedAtLabel {
     final at = decidedAt;
     if (at == null) return '';
-    final local = at.toLocal();
+    final local = TenantClock.wallOf(at);
     final d = local.day.toString().padLeft(2, '0');
     final m = local.month.toString().padLeft(2, '0');
     return '$d/$m/${local.year}';

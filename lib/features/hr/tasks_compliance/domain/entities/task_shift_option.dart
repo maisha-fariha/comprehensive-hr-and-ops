@@ -7,6 +7,17 @@ class TaskShiftOption {
   final String id;
   final String label;
   final DateTime? startsAt;
+  final DateTime? endsAt;
 
-  const TaskShiftOption({required this.id, required this.label, this.startsAt});
+  /// True while [startsAt]–[endsAt] contains now (for selection helpers).
+  /// Create Task menus list newest start first; they do not reorder on this.
+  final bool isActive;
+
+  const TaskShiftOption({
+    required this.id,
+    required this.label,
+    this.startsAt,
+    this.endsAt,
+    this.isActive = false,
+  });
 }

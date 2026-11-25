@@ -1,5 +1,6 @@
 import 'package:gems_core/gems_core.dart';
 
+import '../entities/incident_ai_draft.dart';
 import '../entities/incident_category_option.dart';
 import '../entities/incident_cir_template_option.dart';
 import '../entities/incident_client_option.dart';
@@ -12,7 +13,25 @@ import '../entities/incidents_board.dart';
 
 /// Contract for the Incidents list board and create-incident flow.
 abstract class IncidentsRepository {
-  Future<Result<IncidentsBoard>> getBoard();
+  /// Board for Open / Under Review / Closed tabs.
+  ///
+  /// Extra filters match web Incident Reports
+  /// (`severity`, `residenceId`, `clientId`, `investigatorId`, `from`, `to`,
+  /// and `reporter=me` when [reportedByMe] is true).
+  Future<Result<IncidentsBoard>> getBoard({
+    /// Web status dropdown: `open` | `investigating` | `closed`. Null = any.
+    String? status,
+    String? severity,
+    String? residenceId,
+    String? clientId,
+    String? investigatorId,
+    String? from,
+    String? to,
+    bool reportedByMe = false,
+  });
+
+  /// Open-incident count for the shell badge (`GET /incidents/summary` only).
+  Future<Result<int>> getOpenCount();
 
   /// Investigation summary for Under Review → View Investigation.
   ///
@@ -128,4 +147,17 @@ abstract class IncidentsRepository {
   /// When status/download is forbidden (role has `incidents:export` but not
   /// `reports:read`), falls back to CSV built from `GET /incidents`.
   Future<Result<List<int>>> exportIncidentListCsv();
+
+  /// Whether AI drafting is enabled for this tenant (`GET /ai`).
+  Future<Result<bool>> isAiDraftingEnabled();
+
+  /// Web "Draft from my notes" (`POST /ai/incidents/draft`).
+  Future<Result<IncidentAiDraft>> draftIncidentFromNotes({
+    required String notes,
+    String? residenceId,
+    String? clientId,
+    String? categoryId,
+    List<String>? detectedDuringOptions,
+    List<String>? notificationParties,
+  });
 }

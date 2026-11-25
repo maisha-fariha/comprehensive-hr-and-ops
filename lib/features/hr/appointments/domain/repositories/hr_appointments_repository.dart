@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../entities/hr_appointment.dart';
+import '../entities/hr_outing.dart';
 
 /// Reads and writes behind the web `/dashboard/appointments` screen.
 abstract class HrAppointmentsRepository {
@@ -45,4 +46,15 @@ abstract class HrAppointmentsRepository {
 
   /// The "Export List" CSV (`reportKey: appointment_log`).
   Future<Result<List<int>>> exportCsv();
+
+  /// Web "Outing requests" — `GET /outings`.
+  Future<Result<HrOutingPage>> listOutings(HrOutingQuery query);
+
+  /// `POST /outings/{id}/decide` with `{ decision, notes? }`.
+  /// [decision] is `approved` or `declined`.
+  Future<Result<void>> decideOuting(
+    String id, {
+    required String decision,
+    String? notes,
+  });
 }

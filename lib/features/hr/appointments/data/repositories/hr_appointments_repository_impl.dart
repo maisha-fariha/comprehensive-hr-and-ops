@@ -9,6 +9,7 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
 import '../../domain/entities/hr_appointment.dart';
+import '../../domain/entities/hr_outing.dart';
 import '../../domain/repositories/hr_appointments_repository.dart';
 import '../hr_appointments_endpoints.dart';
 import '../mappers/hr_appointments_mapper.dart';
@@ -174,6 +175,38 @@ class HrAppointmentsRepositoryImpl implements HrAppointmentsRepository {
     final server = await _serverExport();
     if (server.isSuccess && (server.value?.isNotEmpty ?? false)) return server;
     return _localExport();
+  }
+
+  @override
+  Future<Result<HrOutingPage>> listOutings(HrOutingQuery query) async {
+    String? blank(String? v) => v == null || v.trim().isEmpty ? null : v.trim();
+    final result = await _api.get(
+      HrAppointmentsEndpoints.outings,
+      query: {
+        'page': query.page,
+        'limit': query.limit,
+        'status': ?blank(query.status),
+        'residenceId': ?blank(query.residenceId),
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) => Result.success(HrAppointmentsMapper.outingPageFrom(body)),
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<void>> decideOuting(
+    String id, {
+    required String decision,
+    String? notes,
+  }) {
+    final text = notes?.trim();
+    return _post(HrAppointmentsEndpoints.outingDecide(id), {
+      'decision': decision,
+      if (text != null && text.isNotEmpty) 'notes': text,
+    });
   }
 
   /// The web flow: create the export, poll it, then download. Manager roles

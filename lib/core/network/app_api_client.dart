@@ -40,8 +40,29 @@ class AppApiClient implements OutboxTransport {
   /// Wired from auth DI after [AuthRepository] is registered.
   Future<bool> Function()? tokenRefresher;
 
+  /// Soft refresh when access is about to expire — runs before the request
+  /// so background polls never hit the API with an expired JWT (401).
+  /// Must not force-refresh; a still-valid token should no-op.
+  Future<void> Function()? ensureAccessTokenFresh;
+
+  /// Why the last refresh failed. Set by [tokenRefresher] before it returns
+  /// false. A network or server failure here is not an expired session.
+  AppError? refreshFailure;
+
   /// Shared in-flight refresh so concurrent 401s only refresh once.
   Future<bool>? _refreshInFlight;
+
+  /// Coalesce 403 → `/mobile/me` so revoked menus (Attendance, etc.) hide
+  /// instead of staying visible while every tap shows Access denied.
+  Future<void>? _permissionRefreshInFlight;
+  DateTime? _lastPermissionRefreshAt;
+
+  /// After refresh is rejected (or sign-out starts), block further API calls
+  /// so shell tabs / prewarm cannot flood the backend with 401s.
+  bool _sessionClosed = false;
+
+  /// Coalesce identical in-flight GETs (e.g. many modules hitting /residences).
+  final Map<String, Future<Result<dynamic>>> _inFlightGets = {};
 
   AppApiClient(
     this._api,
@@ -53,6 +74,23 @@ class AppApiClient implements OutboxTransport {
   })  : _cache = cache,
         _sync = sync,
         _connectivity = connectivity;
+
+  /// Call when refresh is rejected or sign-out begins — stops new HTTP.
+  void noteSessionClosed() => _sessionClosed = true;
+
+  /// Call after a successful login / session restore.
+  void noteSessionOpened() => _sessionClosed = false;
+
+  bool get _apiBlocked {
+    if (_sessionClosed) return true;
+    try {
+      if (Get.isRegistered<UserSession>() &&
+          Get.find<UserSession>().isSigningOut) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
 
   Options _options({
     bool includeTenant = true,
@@ -131,7 +169,17 @@ class AppApiClient implements OutboxTransport {
         OfflineOverlay.forTempPath(path, outbox!.overlayItems),
       ));
     }
-    return _send(
+    final key = _getCoalesceKey(
+      path: path,
+      query: query,
+      includeTenant: includeTenant,
+      allowTokenRefresh: allowTokenRefresh,
+    );
+    final existing = _inFlightGets[key];
+    if (existing != null) return existing;
+
+    late final Future<Result<dynamic>> tracked;
+    tracked = _send(
       method: 'GET',
       path: path,
       query: query,
@@ -142,7 +190,29 @@ class AppApiClient implements OutboxTransport {
         queryParameters: query,
         options: _options(includeTenant: includeTenant),
       ),
-    );
+    ).whenComplete(() {
+      if (identical(_inFlightGets[key], tracked)) {
+        _inFlightGets.remove(key);
+      }
+    });
+    _inFlightGets[key] = tracked;
+    return tracked;
+  }
+
+  String _getCoalesceKey({
+    required String path,
+    required Map<String, dynamic>? query,
+    required bool includeTenant,
+    required bool allowTokenRefresh,
+  }) {
+    final parts = <String>[
+      path,
+      if (query != null)
+        ...(query.entries.map((e) => '${e.key}=${e.value}').toList()..sort()),
+      't=$includeTenant',
+      'r=$allowTokenRefresh',
+    ];
+    return parts.join('|');
   }
 
   /// File uploads (and any upload inside `OutboxContext.run(stageUploads:
@@ -474,7 +544,7 @@ class AppApiClient implements OutboxTransport {
           code: 'offline',
         ),
       );
-      await _showError(error, silent: silent);
+      await _showError(error, silent: silent, path: path);
       return Result.failure(error);
     }
 
@@ -507,8 +577,33 @@ class AppApiClient implements OutboxTransport {
       await _showError(
         error,
         silent: silent || (outbox != null && _isBackgroundPath(path)),
+        path: path,
       );
       return Result.failure(error);
+    }
+
+    // Session closed / signing out: do not hit the network (auth paths OK).
+    // DELETE /devices must still run so logout can unregister the push token.
+    if (_apiBlocked &&
+        !_isAuthPath(path) &&
+        !_isLogoutDeviceUnregister(method, path)) {
+      return Result.failure(
+        const AuthError(message: 'Sign-in needed', code: '401'),
+      );
+    }
+
+    // Refresh before the first byte when the access token is near expiry so
+    // silent polls (emergency-alerts, etc.) do not log a 401 every ~15 min.
+    if (allowTokenRefresh &&
+        !alreadyRetriedAfterRefresh &&
+        !_isAuthPath(path) &&
+        !_apiBlocked) {
+      final ensure = ensureAccessTokenFresh;
+      if (ensure != null) {
+        try {
+          await ensure();
+        } catch (_) {}
+      }
     }
 
     try {
@@ -521,6 +616,11 @@ class AppApiClient implements OutboxTransport {
             !alreadyRetriedAfterRefresh &&
             _isUnauthorized(rawError, response.statusCode) &&
             !_isAuthPath(path)) {
+          if (_apiBlocked) {
+            return Result.failure(
+              const AuthError(message: 'Sign-in needed', code: '401'),
+            );
+          }
           final refreshed = await _tryRefreshToken();
           if (refreshed) {
             return await _send(
@@ -537,6 +637,60 @@ class AppApiClient implements OutboxTransport {
               stagingForm: stagingForm,
             );
           }
+          final refreshError = refreshFailure;
+          // The server asked us to wait. Keep the session, do not show a
+          // warning, and try the call again with the token already stored.
+          if (refreshError != null &&
+              (_isRateLimited(refreshError) ||
+                  refreshError.code == 'refresh_rejected')) {
+            if (_isRateLimited(refreshError)) {
+              if (_apiBlocked) {
+                return Result.failure(rawError);
+              }
+              final again = await request();
+              if (again.success) {
+                _connectivity?.reportReachable();
+                if (canCache) {
+                  await _cache?.put(
+                    method: method,
+                    path: path,
+                    query: query,
+                    body: again.data,
+                  );
+                }
+                return Result.success(again.data);
+              }
+              if (method == 'GET' && canCache) {
+                final cached = await _readCache(method, path, query);
+                if (cached != null) return Result.success(cached);
+              }
+              // Soft failure — never pass "Too many token refreshes" to UI.
+              return Result.failure(rawError);
+            }
+            // refresh_rejected: tokenRefresher already signed the user out.
+            noteSessionClosed();
+            return Result.failure(refreshError);
+          }
+          // Network / 5xx on refresh: keep the tokens. Only a 401 from the
+          // refresh call itself signs the user out.
+          if (refreshError != null &&
+              AppErrorMapper.isTransient(refreshError)) {
+            await _showError(
+              refreshError,
+              silent: silent || AppErrorDialog.holdingTransient,
+              path: path,
+            );
+            return Result.failure(refreshError);
+          }
+        }
+
+        // 403 → hide the matching bottom-nav / More item immediately (e.g.
+        // Attendance still listed while the page only shows Missing permission).
+        if (response.statusCode == 403 || rawError is PermissionError) {
+          if (Get.isRegistered<UserSession>()) {
+            Get.find<UserSession>().noteForbiddenPath(path);
+          }
+          _schedulePermissionRefresh();
         }
 
         var error = AppErrorMapper.toFriendly(rawError);
@@ -566,12 +720,16 @@ class AppApiClient implements OutboxTransport {
           );
           return Result.success(queued.response);
         }
+        // 5xx / timeout: never block the screen with a modal. AppErrorDialog
+        // turns these into a short notice (or nothing while starting up).
         await _showError(
           error,
           silent: silent ||
+              AppErrorMapper.isTransient(error) ||
               (outbox != null &&
                   _isBackgroundPath(path) &&
                   _isOfflineError(error)),
+          path: path,
         );
         return Result.failure(error);
       }
@@ -615,9 +773,11 @@ class AppApiClient implements OutboxTransport {
       await _showError(
         mapped,
         silent: silent ||
+            AppErrorMapper.isTransient(mapped) ||
             (outbox != null &&
                 _isBackgroundPath(path) &&
                 _isOfflineError(mapped)),
+        path: path,
       );
       return Result.failure(mapped);
     }
@@ -693,9 +853,14 @@ class AppApiClient implements OutboxTransport {
     if (existing != null) return existing;
 
     final future = () async {
+      refreshFailure = null;
       try {
         return await refresher();
       } catch (_) {
+        refreshFailure ??= const NetworkError(
+          message: 'No connection',
+          code: 'offline',
+        );
         return false;
       }
     }();
@@ -707,6 +872,11 @@ class AppApiClient implements OutboxTransport {
         _refreshInFlight = null;
       }
     }
+  }
+
+  bool _isRateLimited(AppError error) {
+    if (error.code == 'RATE_LIMITED') return true;
+    return error is ApiError && error.statusCode == 429;
   }
 
   bool _isUnauthorized(AppError error, int? statusCode) {
@@ -841,6 +1011,9 @@ class AppApiClient implements OutboxTransport {
     if (method != 'GET') return false;
     // SIN and banking numbers must never be written to the device.
     if (path.endsWith('/sensitive')) return false;
+    // Organisation timezone / formats change from Settings → General; never
+    // serve a saved copy or the app keeps showing the previous zone.
+    if (path.contains('/settings')) return false;
     return !_isAuthPath(path);
   }
 
@@ -863,6 +1036,12 @@ class AppApiClient implements OutboxTransport {
         path.contains('/auth/logout');
   }
 
+  /// Logout must DELETE `/devices/{token}` while the access token is still
+  /// valid, even though [noteSessionClosed] / signing-out already block APIs.
+  bool _isLogoutDeviceUnregister(String method, String path) {
+    return method.toUpperCase() == 'DELETE' && path.startsWith('/devices');
+  }
+
   bool get _suppressErrorDialogs {
     try {
       if (Get.isRegistered<UserSession>() &&
@@ -873,9 +1052,59 @@ class AppApiClient implements OutboxTransport {
     return false;
   }
 
-  Future<void> _showError(AppError error, {required bool silent}) async {
+  Future<void> _showError(
+    AppError error, {
+    required bool silent,
+    String? path,
+  }) async {
     if (silent || _suppressErrorDialogs) return;
+
+    // 403 while the user already has :read for that module (or a supporting
+    // lookup like /clients on Incident Reports) must not block the screen.
+    // PermissionGate handles true "no access" entry and pops the route.
+    if (_isPermissionDenied(error) &&
+        path != null &&
+        Get.isRegistered<UserSession>()) {
+      final session = Get.find<UserSession>();
+      final family = UserSession.permissionFamilyForPath(path);
+      if (family != null && session.canReadModule(family)) {
+        return;
+      }
+      // Dropdown / lookup 403s (clients, staff, …) must not cover another
+      // module. Open those modules via PermissionGate instead.
+      if (_isSupportingPermissionPath(path)) {
+        return;
+      }
+      if (family != null && !session.canReadModule(family)) {
+        await AppErrorDialog.showError(
+          error,
+          onDismissed: () {
+            final nav = Get.key.currentState;
+            if (nav != null && nav.canPop()) {
+              Get.back();
+            }
+          },
+        );
+        return;
+      }
+    }
+
     await AppErrorDialog.showError(error);
+  }
+
+  /// Paths used as dropdowns / lookups on other modules — not "open Clients".
+  bool _isSupportingPermissionPath(String path) {
+    final p = path.toLowerCase();
+    return p.contains('/clients') ||
+        p.contains('/staff') ||
+        p.contains('/residences') ||
+        p.contains('/roles');
+  }
+
+  bool _isPermissionDenied(AppError error) {
+    if (error is PermissionError) return true;
+    if (error is ApiError && error.statusCode == 403) return true;
+    return error.code == '403';
   }
 
   /// Non-blocking notice. Briefly holds other snackbars so a feature's own
@@ -912,6 +1141,29 @@ class AppApiClient implements OutboxTransport {
         ? error.statusCode
         : int.tryParse(error.code ?? '');
     return status != null && status >= 500;
+  }
+
+  /// After a 403, reload grants so bottom-nav / More drop revoked modules
+  /// instead of leaving a tappable item that only shows Access denied.
+  void _schedulePermissionRefresh() {
+    final existing = _permissionRefreshInFlight;
+    if (existing != null) return;
+    final last = _lastPermissionRefreshAt;
+    if (last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 15)) {
+      return;
+    }
+    if (!Get.isRegistered<UserSession>()) return;
+    _lastPermissionRefreshAt = DateTime.now();
+    final run = Get.find<UserSession>().refreshProfile();
+    _permissionRefreshInFlight = run;
+    unawaited(
+      run.whenComplete(() {
+        if (identical(_permissionRefreshInFlight, run)) {
+          _permissionRefreshInFlight = null;
+        }
+      }),
+    );
   }
 }
 

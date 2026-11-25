@@ -1,5 +1,6 @@
 import '../../attendance/presentation/widgets/attendance_record_card.dart';
 import '../domain/entities/inventory_item.dart';
+import '../../../../core/time/tenant_clock.dart';
 
 /// Labels, pill tones and number / date formatting shared by the
 /// Inventory screens, copied from the web.
@@ -120,12 +121,12 @@ abstract final class InventoryLabels {
   /// Tenant default `DD/MM/YYYY`.
   static String date(DateTime? value) {
     if (value == null) return '—';
-    final d = value.toLocal();
+    final d = TenantClock.wallOf(value);
     return '${_two(d.day)}/${_two(d.month)}/${d.year}';
   }
 
   static String time(DateTime value) {
-    final d = value.toLocal();
+    final d = TenantClock.wallOf(value);
     return '${_two(d.hour)}:${_two(d.minute)}';
   }
 
@@ -135,7 +136,7 @@ abstract final class InventoryLabels {
   /// Web `formatShort`: the time for today, the date otherwise.
   static String short(DateTime? value, {DateTime? now}) {
     if (value == null) return '';
-    final d = value.toLocal();
+    final d = TenantClock.wallOf(value);
     final today = (now ?? DateTime.now()).toLocal();
     final sameDay = d.year == today.year && d.month == today.month && d.day == today.day;
     return sameDay ? time(d) : date(d);

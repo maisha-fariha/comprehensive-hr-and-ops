@@ -13,12 +13,18 @@ class BoardShift {
   final int total;
   final CoverageStatus status;
   final String statusLabel;
+
+  /// Raw API `status` (e.g. `draft`) — used for lifecycle chips.
+  final String apiStatus;
   final List<StaffAvatar> avatars;
   final int extraStaffCount;
   final List<String> roleChips;
 
   /// e.g. "2 RN needed".
   final String neededLabel;
+
+  /// Assigned residence name when the API includes it.
+  final String? residenceName;
 
   const BoardShift({
     required this.id,
@@ -28,9 +34,13 @@ class BoardShift {
     required this.total,
     required this.status,
     required this.statusLabel,
+    this.apiStatus = '',
     required this.avatars,
     required this.extraStaffCount,
     required this.roleChips,
     required this.neededLabel,
+    this.residenceName,
   });
+
+  bool get isDraft => apiStatus.toLowerCase() == 'draft';
 }

@@ -50,10 +50,18 @@ class StaffSearchController extends GetxController {
   }
 
   /// Web `useVisibleNavItems`: module enabled and any listed permission held.
-  List<StaffSearchDestination> get visibleDestinations => _destinations
-      .where((d) => d.module == null || modules.value.has(d.module!))
-      .where((d) => d.permissions.isEmpty || d.permissions.any(session.can))
-      .toList();
+  /// Hidden until grants are ready so revoked modules never appear as taps
+  /// that only show Access denied.
+  List<StaffSearchDestination> get visibleDestinations {
+    session.permissionEpoch;
+    if (!session.permissionsReady) {
+      return _destinations.where((d) => d.permissions.isEmpty).toList();
+    }
+    return _destinations
+        .where((d) => d.module == null || modules.value.has(d.module!))
+        .where((d) => d.permissions.isEmpty || d.permissions.any(session.can))
+        .toList();
+  }
 
   List<StaffSearchDestination> get matchingDestinations {
     final q = query.value.trim().toLowerCase();

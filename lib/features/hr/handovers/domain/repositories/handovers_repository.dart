@@ -44,4 +44,8 @@ abstract class HandoversRepository {
     String residenceId,
     DateTime? after,
   );
+
+  /// Web Record handover: `GET /shift-handovers/prepare?shiftId=`.
+  /// Dynamic notes for the next shift, unfinished tasks, and incidents.
+  Future<Result<HandoverPrepare>> prepare(String shiftId);
 }

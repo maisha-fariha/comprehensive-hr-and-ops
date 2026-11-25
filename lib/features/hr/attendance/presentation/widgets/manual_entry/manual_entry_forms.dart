@@ -12,6 +12,7 @@ class ManualEntryDetailsForm extends StatelessWidget {
   final VoidCallback? onResidenceTap;
   final TextEditingController staffSearchController;
   final ValueChanged<String>? onStaffSearchChanged;
+  final VoidCallback? onStaffSearchFocus;
   final List<ManualEntryStaffOption> staffResults;
   final bool isLoadingStaff;
   final ManualEntryStaffOption? selectedStaff;
@@ -35,6 +36,7 @@ class ManualEntryDetailsForm extends StatelessWidget {
     this.onResidenceTap,
     required this.staffSearchController,
     this.onStaffSearchChanged,
+    this.onStaffSearchFocus,
     this.staffResults = const [],
     this.isLoadingStaff = false,
     this.selectedStaff,
@@ -88,6 +90,7 @@ class ManualEntryDetailsForm extends StatelessWidget {
               controller: staffSearchController,
               hint: 'Search staff by name...',
               onChanged: onStaffSearchChanged,
+              onFocus: onStaffSearchFocus,
             ),
             if (selectedStaff != null) ...[
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),

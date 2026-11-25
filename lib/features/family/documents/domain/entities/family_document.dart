@@ -18,7 +18,15 @@ class FamilyDocument {
   final String? fileUrl;
   final String? fileName;
   final String? tenantId;
+
+  /// `consent_form` or `resident_memory` when the family sent it. Empty for care-home files.
   final String category;
+  final String? documentType;
+  final bool uploadedByMe;
+  final DateTime? updatedAt;
+  final bool signatureRequired;
+  final DateTime? signatureAcknowledgedAt;
+  final DateTime? signatureDueAt;
 
   const FamilyDocument({
     required this.id,
@@ -31,7 +39,33 @@ class FamilyDocument {
     this.fileName,
     this.tenantId,
     this.category = '',
+    this.documentType,
+    this.uploadedByMe = false,
+    this.updatedAt,
+    this.signatureRequired = false,
+    this.signatureAcknowledgedAt,
+    this.signatureDueAt,
   });
+
+  /// Web type line: category label, otherwise the document type, otherwise General.
+  String get kindLabel {
+    switch (category) {
+      case 'consent_form':
+        return 'Consent form';
+      case 'resident_memory':
+        return 'Memory';
+    }
+    final type = documentType?.trim();
+    if (type != null && type.isNotEmpty) return type;
+    return 'General';
+  }
+
+  /// Web source badge.
+  String get sourceLabel {
+    if (uploadedByMe) return 'Sent by you';
+    if (category.isNotEmpty) return 'From family';
+    return 'From the care home';
+  }
 
   String get subtitle => '$dateLabel · ${fileType.label}';
 

@@ -64,8 +64,12 @@ class ShiftCard extends StatelessWidget {
               SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
               _Badge(
                 label: shift.statusLabel,
-                color: const Color(0xFF2E8C58),
-                background: const Color(0xFFEAF5EF),
+                color: shift.apiStatus.toLowerCase() == 'draft'
+                    ? const Color(0xFFD97706)
+                    : const Color(0xFF2E8C58),
+                background: shift.apiStatus.toLowerCase() == 'draft'
+                    ? const Color(0xFFFFF4E5)
+                    : const Color(0xFFEAF5EF),
                 radius: 999,
               ),
             ],

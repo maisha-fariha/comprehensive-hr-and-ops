@@ -206,6 +206,7 @@ class CreateShiftTextField extends StatelessWidget {
   final String hint;
   final TextInputType? keyboardType;
   final int maxLines;
+  final int? maxLength;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final TextInputAction? textInputAction;
@@ -217,6 +218,7 @@ class CreateShiftTextField extends StatelessWidget {
     required this.hint,
     this.keyboardType,
     this.maxLines = 1,
+    this.maxLength,
     this.onChanged,
     this.onSubmitted,
     this.textInputAction,
@@ -235,6 +237,16 @@ class CreateShiftTextField extends StatelessWidget {
         textInputAction: textInputAction,
         maxLines: maxLines,
         minLines: maxLines > 1 ? maxLines : null,
+        maxLength: maxLength,
+        buildCounter: maxLength == null
+            ? null
+            : (
+                context, {
+                required currentLength,
+                required isFocused,
+                required maxLength,
+              }) =>
+                const SizedBox.shrink(),
         style: _fieldStyle(context, placeholder: false),
         decoration: InputDecoration(
           isDense: true,

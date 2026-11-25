@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/errors/app_snackbar.dart';
 import '../../../attendance/presentation/widgets/attendance_record_card.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
+import '../../data/residence_geocoder.dart';
 import '../../domain/entities/residence_form.dart';
 import '../../domain/entities/residence_summary.dart';
 import '../residences_labels.dart';
 import 'residence_form_inputs.dart';
+import 'residence_geofence_map.dart';
 
 /// State shared by the wizard steps.
 class ResidenceFormBinding {
@@ -107,6 +112,9 @@ class ResidenceBasicStep extends StatelessWidget {
             b.input('emergencyContact', 'Emergency Contact Number', v.emergencyContact,
                 (x) => v.emergencyContact = x,
                 keyboardType: TextInputType.phone),
+            b.input('email', 'Email', v.email, (x) => v.email = x,
+                placeholder: 'residence@example.com',
+                keyboardType: TextInputType.emailAddress),
           ],
         ),
         const SizedBox(height: 12),
@@ -170,14 +178,86 @@ class ResidenceBasicStep extends StatelessWidget {
   }
 }
 
-class ResidenceAddressStep extends StatelessWidget {
+class ResidenceAddressStep extends StatefulWidget {
   final ResidenceFormBinding b;
 
   const ResidenceAddressStep({super.key, required this.b});
 
   @override
+  State<ResidenceAddressStep> createState() => _ResidenceAddressStepState();
+}
+
+class _ResidenceAddressStepState extends State<ResidenceAddressStep> {
+  final _geocoder = ResidenceGeocoder();
+  Timer? _debounce;
+  String _lastQueried = '';
+  bool _locating = false;
+  bool _manualCoords = false;
+
+  ResidenceFormBinding get b => widget.b;
+  ResidenceFormValues get v => b.values;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  String get _composedAddress => ResidenceGeocoder.composeAddress(
+        street: v.streetAddress,
+        city: v.city,
+        state: v.state,
+        postalCode: v.postalCode,
+        country: v.country,
+      );
+
+  void _onAddressChanged(VoidCallback apply) {
+    b.update(() {
+      apply();
+      _manualCoords = false;
+    });
+    _scheduleGeocode();
+  }
+
+  void _scheduleGeocode() {
+    _debounce?.cancel();
+    final address = _composedAddress;
+    if (address.length < 8 || _manualCoords) return;
+    // Web debounces ~900ms after the composed address changes.
+    _debounce = Timer(const Duration(milliseconds: 900), () {
+      _locate(address, silent: true);
+    });
+  }
+
+  Future<void> _locate(String address, {required bool silent}) async {
+    if (address.trim().isEmpty || address == _lastQueried && silent) return;
+    setState(() => _locating = true);
+    final hit = await _geocoder.geocode(address);
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (hit == null) {
+      // Web Google Geocoder often still finds a hit; when the pin already has
+      // coordinates (map tap / prior locate), keep them instead of alarming.
+      final hasCoords = v.latitude.trim().isNotEmpty &&
+          v.longitude.trim().isNotEmpty &&
+          double.tryParse(v.latitude) != null &&
+          double.tryParse(v.longitude) != null;
+      if (!silent && !hasCoords) {
+        AppSnackbar.show('That address could not be located', '');
+      }
+      return;
+    }
+    _lastQueried = address;
+    b.update(() {
+      v.latitude = hit.lat;
+      v.longitude = hit.lng;
+      b.text('latitude', hit.lat).text = hit.lat;
+      b.text('longitude', hit.lng).text = hit.lng;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final v = b.values;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -186,14 +266,38 @@ class ResidenceAddressStep extends StatelessWidget {
           title: 'Address',
           description: 'Physical location of the residence.',
           children: [
-            b.input('streetAddress', 'Street Address', v.streetAddress, (x) => v.streetAddress = x,
-                placeholder: '1420 Lakeside Drive', required: true),
-            b.input('city', 'City', v.city, (x) => v.city = x,
-                placeholder: 'Portland', required: true),
-            b.input('state', 'State / Region', v.state, (x) => v.state = x,
-                placeholder: 'Oregon', required: true),
-            b.input('postalCode', 'Postal Code', v.postalCode, (x) => v.postalCode = x,
-                placeholder: '97035', required: true),
+            b.input(
+              'streetAddress',
+              'Street Address',
+              v.streetAddress,
+              (x) => _onAddressChanged(() => v.streetAddress = x),
+              placeholder: 'Street and number',
+              required: true,
+            ),
+            b.input(
+              'city',
+              'City',
+              v.city,
+              (x) => _onAddressChanged(() => v.city = x),
+              placeholder: 'City',
+              required: true,
+            ),
+            b.input(
+              'state',
+              'State / Region',
+              v.state,
+              (x) => _onAddressChanged(() => v.state = x),
+              placeholder: 'State / region',
+              required: true,
+            ),
+            b.input(
+              'postalCode',
+              'Postal Code',
+              v.postalCode,
+              (x) => _onAddressChanged(() => v.postalCode = x),
+              placeholder: 'Postal code',
+              required: true,
+            ),
             ResidenceSelectInput(
               field: 'country',
               label: 'Country',
@@ -201,7 +305,7 @@ class ResidenceAddressStep extends StatelessWidget {
               value: v.country,
               options: [for (final c in ResidencesLabels.countries) (c, c)],
               error: b.errors['country'],
-              onChanged: (x) => b.update(() {
+              onChanged: (x) => _onAddressChanged(() {
                 v.country = x;
                 b.errors.remove('country');
               }),
@@ -214,23 +318,81 @@ class ResidenceAddressStep extends StatelessWidget {
           title: 'GPS Coordinates & Geofence',
           description: 'Used for staff geofenced attendance and location checks.',
           children: [
-            b.input('latitude', 'Latitude', v.latitude, (x) => v.latitude = x,
-                placeholder: '45.5231',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true)),
-            b.input('longitude', 'Longitude', v.longitude, (x) => v.longitude = x,
-                placeholder: '-122.6765',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true)),
-            ResidenceSelectInput(
-              field: 'timeZone',
-              label: 'Time Zone',
-              value: v.timeZone,
-              options: ResidencesLabels.timeZones,
-              onChanged: (x) => b.update(() => v.timeZone = x),
+            ResidenceGeofenceMap(
+              latitude: v.latitude,
+              longitude: v.longitude,
+              geofenceRadiusMeters: v.geofenceRadius,
+              onPinChanged: (hit) {
+                _manualCoords = true;
+                b.update(() {
+                  v.latitude = hit.lat;
+                  v.longitude = hit.lng;
+                  b.text('latitude', hit.lat).text = hit.lat;
+                  b.text('longitude', hit.lng).text = hit.lng;
+                });
+              },
             ),
-            b.input('geofenceRadius', 'Geofence Radius (meters)', v.geofenceRadius,
-                (x) => v.geofenceRadius = x,
-                numeric: true,
-                helper: 'Radius used to validate staff clock-in proximity.'),
+            const SizedBox(height: 8),
+            b.input(
+              'latitude',
+              'Latitude',
+              v.latitude,
+              (x) {
+                b.update(() {
+                  v.latitude = x;
+                  _manualCoords = true;
+                });
+              },
+              placeholder: 'Filled from address or map',
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true, signed: true),
+            ),
+            b.input(
+              'longitude',
+              'Longitude',
+              v.longitude,
+              (x) {
+                b.update(() {
+                  v.longitude = x;
+                  _manualCoords = true;
+                });
+              },
+              placeholder: 'Filled from address or map',
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true, signed: true),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('residence-locate-from-address'),
+                onPressed: _locating
+                    ? null
+                    : () {
+                        _manualCoords = false;
+                        _locate(_composedAddress, silent: false);
+                      },
+                icon: _locating
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.my_location_outlined, size: 16),
+                label: Text(
+                  _locating ? 'Locating…' : 'Find from address',
+                ),
+              ),
+            ),
+            // Web Address & Location has no Time Zone control; payload still
+            // sends the form default (`UTC`) / existing value on edit.
+            b.input(
+              'geofenceRadius',
+              'Geofence Radius (meters)',
+              v.geofenceRadius,
+              (x) => b.update(() => v.geofenceRadius = x),
+              numeric: true,
+              helper: 'Radius used to validate staff clock-in proximity.',
+            ),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -245,10 +407,14 @@ class ResidenceAddressStep extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Enable GPS Tracking',
-                            style: handoverText(context, 13.5, weight: FontWeight.w600)),
-                        Text('Require staff to be within the geofence to clock in.',
-                            style: handoverText(context, 12, color: AppColors.textMuted)),
+                        Text(
+                          'Enable GPS Tracking',
+                          style: handoverText(context, 13.5, weight: FontWeight.w600),
+                        ),
+                        Text(
+                          'Require staff to be within the geofence to clock in.',
+                          style: handoverText(context, 12, color: AppColors.textMuted),
+                        ),
                       ],
                     ),
                   ),
@@ -473,6 +639,8 @@ class ResidenceReviewStep extends StatelessWidget {
           ('Residence Name', v.name),
           ('Type', v.type),
           ('Status', v.lifecycleStatus),
+          ('Phone', v.phone),
+          ('Email', v.email),
           ('Emergency Contact', v.emergencyContact),
         ]),
         _section(context, Icons.place_outlined, 'Address', ResidenceFormStep.address, [

@@ -11,16 +11,15 @@ import '../../../../../core/widgets/change_password_dialog.dart';
 import '../../../../../core/widgets/section_header_row.dart';
 import '../../../staff_shell.dart';
 import '../../../presentation/widgets/staff_bottom_nav_bar.dart';
-import '../../domain/entities/staff_linked_item.dart';
 import '../../domain/entities/staff_preference_item.dart';
 import '../controllers/staff_profile_settings_controller.dart';
-import '../widgets/staff_linked_item_row.dart';
 import '../widgets/staff_log_out_row.dart';
 import '../widgets/staff_preference_tile.dart';
 import '../widgets/staff_profile_card.dart';
 import '../widgets/staff_profile_settings_header.dart';
 import 'staff_profile_detail_page.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Profile & Settings for the Staff portal — same visual design as Family.
 class StaffProfileSettingsPage extends StatefulWidget {
@@ -32,7 +31,7 @@ class StaffProfileSettingsPage extends StatefulWidget {
 }
 
 class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
-  static const int _moreTabIndex = 4;
+  static const int _moreTabIndex = 5;
   late final StaffProfileSettingsController _controller;
 
   @override
@@ -217,7 +216,7 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(
@@ -237,10 +236,6 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
                       ),
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 22)),
-                    const SectionHeaderRow(title: 'Assigned Clients'),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                    _StaffLinkedItemsCard(items: overview.linkedItems),
-                    SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18)),
                     const SectionHeaderRow(title: 'Preferences & Support'),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
                     _StaffPreferencesCard(
@@ -259,60 +254,6 @@ class _StaffProfileSettingsPageState extends State<StaffProfileSettingsPage> {
           ],
         );
       }),
-    );
-  }
-}
-
-class _StaffLinkedItemsCard extends StatelessWidget {
-  final List<StaffLinkedItem> items;
-
-  static const Color _cardBorder = Color(0xFFEEF1F4);
-  static const Color _divider = Color(0xFFEEF1F4);
-  static const Color _shadow = Color(0xFF142846);
-
-  const _StaffLinkedItemsCard({required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = ResponsiveHelper.getResponsiveRadius(context, 20);
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: _cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: _shadow.withValues(alpha: 0.04),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 1)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 2),
-          ),
-          BoxShadow(
-            color: _shadow.withValues(alpha: 0.05),
-            offset: Offset(0, ResponsiveHelper.getResponsiveHeight(context, 6)),
-            blurRadius: ResponsiveHelper.getResponsiveHeight(context, 14),
-          ),
-        ],
-      ),
-      child: items.isEmpty
-          ? Padding(
-              padding: ResponsiveHelper.getResponsivePadding(context, all: 16),
-              child: const Text('No assigned clients for this account.'),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < items.length; i++) ...[
-                  if (i > 0)
-                    Padding(
-                      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 16),
-                      child: const Divider(height: 1, thickness: 1, color: _divider),
-                    ),
-                  StaffLinkedItemRow(item: items[i]),
-                ],
-              ],
-            ),
     );
   }
 }

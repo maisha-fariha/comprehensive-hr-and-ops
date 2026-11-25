@@ -3,14 +3,22 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
+import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
-import '../../../family_shell.dart';
+import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/app_svg_icon.dart';
+import '../../../appointments/presentation/widgets/family_primary_button.dart';
+import '../../domain/entities/family_document.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/family_documents_controller.dart';
 import '../widgets/family_document_row_tile.dart';
-import '../widgets/family_documents_caption.dart';
 import '../widgets/family_documents_header.dart';
+import '../widgets/family_send_document_sheet.dart';
+import '../widgets/family_sign_document_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// "Documents" — the Family portal's screen listing documents shared by the
 /// care facility (care plans, appointment summaries, policies, etc.).
@@ -35,9 +43,7 @@ class FamilyDocumentsPage extends StatelessWidget {
     }
   }
 
-  void _onBottomNavTap(int index) {
-    Get.offAll(() => FamilyShell(initialIndex: index));
-  }
+  void _onBottomNavTap(int index) => familyGoToTab(index);
 
   @override
   Widget build(BuildContext context) {
@@ -68,66 +74,577 @@ class FamilyDocumentsPage extends StatelessWidget {
           );
         }
 
-        final documents = overview.documents;
-
-        return Column(
+        return Stack(
           children: [
-            ColoredBox(
-              color: AppColors.surfaceWhite,
-              child: SafeArea(
-                bottom: false,
-                child: Column(
-                  children: [
-                    FamilyDocumentsHeader(onBackTap: () => Navigator.maybePop(context)),
-                    FamilyDocumentsCaption(text: overview.captionText),
-                  ],
-                ),
+            _FamilyDocumentsBody(
+              documents: overview.documents,
+              openingDocumentId: controller.openingDocumentId.value,
+              onRefresh: controller.refresh,
+              onSend: () async {
+                final sent = await showFamilySendDocumentSheet(
+                  context: context,
+                  repository: controller.repository,
+                );
+                if (sent == true) controller.refresh();
+              },
+              onDownload: controller.openDocument,
+              onPreview: (document) =>
+                  _previewDocument(context, controller, document),
+              onSign: (document) => showFamilySignDocumentSheet(
+                context: context,
+                document: document,
+                defaultSignerName: Get.isRegistered<UserSession>()
+                    ? Get.find<UserSession>().displayName
+                    : '',
+                onConfirm: () => controller.signDocument(document),
               ),
             ),
-            Expanded(
-              child: RefreshIndicator(
-                color: AppColors.secondaryTeal,
-                onRefresh: controller.refresh,
-                child: documents.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: ResponsiveHelper.getResponsiveHeight(
-                              context,
-                              80,
-                            ),
-                          ),
-                          const Center(
-                            child: Text('No approved documents have been shared.'),
-                          ),
-                        ],
-                      )
-                    : ListView.separated(
-                  padding: EdgeInsets.fromLTRB(
-                    ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                    ResponsiveHelper.getResponsiveHeight(context, 16),
-                    ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
-                    ResponsiveHelper.getResponsiveHeight(context, 24),
-                  ),
-                  itemCount: documents.length,
-                  separatorBuilder: (context, index) =>
-                      SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-                  itemBuilder: (context, index) {
-                    final document = documents[index];
-                    return FamilyDocumentRowTile(
-                      document: document,
-                      onDownloadTap: () => controller.openDocument(document),
-                    );
-                  },
-                ),
+            if (controller.isOpening)
+              const ModalBarrier(
+                dismissible: false,
+                color: Color(0x33000000),
               ),
-            ),
+            if (controller.isOpening)
+              const Center(
+                child: _DocumentDownloadLoader(),
+              ),
           ],
         );
       }),
     );
   }
+}
+
+class _DocumentDownloadLoader extends StatelessWidget {
+  const _DocumentDownloadLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceWhite,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.6,
+                color: AppColors.secondaryTeal,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Preparing download…',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w700,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                color: AppColors.textHeading,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Fetching your file securely',
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FamilyDocumentsBody extends StatefulWidget {
+  final List<FamilyDocument> documents;
+  final String? openingDocumentId;
+  final Future<void> Function() onRefresh;
+  final Future<void> Function() onSend;
+  final ValueChanged<FamilyDocument> onDownload;
+  final ValueChanged<FamilyDocument> onPreview;
+  final ValueChanged<FamilyDocument> onSign;
+
+  const _FamilyDocumentsBody({
+    required this.documents,
+    required this.openingDocumentId,
+    required this.onRefresh,
+    required this.onSend,
+    required this.onDownload,
+    required this.onPreview,
+    required this.onSign,
+  });
+
+  @override
+  State<_FamilyDocumentsBody> createState() => _FamilyDocumentsBodyState();
+}
+
+class _FamilyDocumentsBodyState extends State<_FamilyDocumentsBody> {
+  static const _filters = [
+    ('all', 'All documents'),
+    ('care_home', 'From the care home'),
+    ('consent_form', 'Consent forms'),
+    ('resident_memory', 'Memories & photos'),
+    ('mine', 'Sent by me'),
+  ];
+
+  String _filter = 'all';
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<FamilyDocument> get _visible {
+    final query = _search.text.trim().toLowerCase();
+    return widget.documents.where((document) {
+      final categoryOk = switch (_filter) {
+        'care_home' => document.category.isEmpty,
+        'mine' => document.uploadedByMe,
+        'consent_form' || 'resident_memory' => document.category == _filter,
+        _ => true,
+      };
+      if (!categoryOk) return false;
+      if (query.isEmpty) return true;
+      return document.title.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visible;
+    final searching = _search.text.trim().isNotEmpty || _filter != 'all';
+    return Column(
+      children: [
+        ColoredBox(
+          color: AppColors.surfaceWhite,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                FamilyDocumentsHeader(onBackTap: () => Navigator.maybePop(context)),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: AppRefreshIndicator(
+            color: AppColors.secondaryTeal,
+            onRefresh: widget.onRefresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+                12,
+                ResponsiveHelper.getResponsiveWidth(context, AppDimens.screenPaddingHorizontal),
+                24,
+              ),
+              children: [
+                const _CareRecordsBanner(),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final filter in _filters)
+                      _DocumentFilterChip(
+                        label: filter.$2,
+                        selected: _filter == filter.$1,
+                        onTap: () => setState(() => _filter = filter.$1),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _DocumentSearchField(
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                if (visible.isEmpty)
+                  _EmptyDocuments(
+                    filtered: searching || widget.documents.isNotEmpty,
+                  )
+                else
+                  for (final document in visible) ...[
+                    FamilyDocumentRowTile(
+                      document: document,
+                      isDownloading: widget.openingDocumentId == document.id,
+                      onDownloadTap: () => widget.onDownload(document),
+                      onPreviewTap: () => widget.onPreview(document),
+                      onSignTap: document.signatureRequired &&
+                              document.signatureAcknowledgedAt == null
+                          ? () => widget.onSign(document)
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+              ],
+            ),
+          ),
+        ),
+        if (!Get.isRegistered<UserSession>() ||
+            Get.find<UserSession>().can('family:write'))
+        ColoredBox(
+          color: AppColors.surfaceWhite,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              ResponsiveHelper.getResponsiveWidth(context, 20),
+              ResponsiveHelper.getResponsiveHeight(context, 12),
+              ResponsiveHelper.getResponsiveWidth(context, 20),
+              ResponsiveHelper.getResponsiveHeight(context, 12),
+            ),
+            child: FamilyPrimaryButton(
+              label: 'Send Document or Photo',
+              icon: Icons.add_rounded,
+              onTap: () => widget.onSend(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DocumentFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _DocumentFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 12,
+          vertical: 8,
+        ),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.secondaryTeal : const Color(0xFFF4F7F9),
+          borderRadius: BorderRadius.circular(
+            ResponsiveHelper.getResponsiveRadius(context, 10),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Manrope',
+            fontWeight: FontWeight.w700,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+            color: selected ? Colors.white : AppColors.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DocumentSearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  const _DocumentSearchField({required this.controller, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: ResponsiveHelper.getResponsivePadding(context, horizontal: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FB),
+        border: Border.all(color: const Color(0xFFE2E8EE)),
+        borderRadius: BorderRadius.circular(
+          ResponsiveHelper.getResponsiveRadius(context, 16),
+        ),
+      ),
+      child: Row(
+        children: [
+          const AppSvgIcon(AppAssets.search, size: 18, color: Color(0xFF9AA8B8)),
+          SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 10)),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                color: const Color(0xFF1A2B48),
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: ResponsiveHelper.getResponsivePadding(context, vertical: 14),
+                hintText: 'Search documents...',
+                hintStyle: TextStyle(
+                  fontFamily: 'Manrope',
+                  fontWeight: FontWeight.w400,
+                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                  color: const Color(0xFF9AA8B8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CareRecordsBanner extends StatelessWidget {
+  const _CareRecordsBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 18, color: AppColors.secondaryTeal),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Care Records & Legal Documentation',
+                  style: TextStyle(fontFamily: 'Manrope', fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textHeading),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Papers the care home shares with you, and anything you send in: a signed consent form, or a family photo for your relative\'s memory board. Photos also appear in your relative\'s activities for the carers.',
+                  style: TextStyle(fontFamily: 'Manrope', fontSize: 13, color: AppColors.textSecondary, height: 1.35),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyDocuments extends StatelessWidget {
+  final bool filtered;
+
+  const _EmptyDocuments({required this.filtered});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 8),
+      child: Column(
+        children: [
+          const Icon(Icons.folder_open_outlined, size: 28, color: AppColors.textMuted),
+          const SizedBox(height: 8),
+          Text(
+            filtered ? 'No matching documents found' : 'No documents on file yet',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontFamily: 'Manrope', fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textHeading),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            filtered
+                ? 'Try adjusting your search terms or category filter.'
+                : 'When the care team shares agreements or you upload consent files, they will appear here.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontFamily: 'Manrope', fontSize: 13, color: AppColors.textSecondary),
+          ),
+          if (!filtered) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Use Send Document or Photo below to share the first file.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Manrope',
+                fontWeight: FontWeight.w500,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+                color: AppColors.textMuted,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _previewDocument(
+  BuildContext context,
+  FamilyDocumentsController controller,
+  FamilyDocument document,
+) {
+  return showAppBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.surfaceWhite,
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryTeal.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.description_outlined,
+                    color: AppColors.secondaryTeal,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        document.title,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${document.kindLabel} • ${document.updatedAt == null ? 'On file' : document.dateLabel.replaceFirst('Updated ', '')}',
+                        style: const TextStyle(
+                          fontFamily: 'Manrope',
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F9FB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.cardBorder),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.secondaryTeal.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.description_outlined,
+                      color: AppColors.secondaryTeal,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    document.title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: AppColors.textHeading,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'This document is securely encrypted on the care home server. Click below to download or view the full file.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Manrope',
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Obx(() {
+                    final busy = controller.isOpeningDocument(document.id);
+                    return Opacity(
+                      opacity: busy ? 0.7 : 1,
+                      child: FamilyPrimaryButton(
+                        label:
+                            busy ? 'Downloading…' : 'Download File to Device',
+                        icon: Icons.download_rounded,
+                        onTap: () {
+                          if (busy) return;
+                          Navigator.of(sheetContext).pop();
+                          controller.openDocument(document);
+                        },
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textHeading,
+                  side: const BorderSide(color: AppColors.cardBorder),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                ),
+                child: Text(
+                  'Close Preview',
+                  style: TextStyle(
+                    fontFamily: 'Manrope',
+                    fontWeight: FontWeight.w700,
+                    fontSize: ResponsiveHelper.getResponsiveFontSize(
+                      sheetContext,
+                      14,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _FamilyDocumentsError extends StatelessWidget {

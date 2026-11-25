@@ -160,10 +160,11 @@ class CreateIncidentTextField extends StatelessWidget {
 }
 
 /// Search field with trailing search icon (BUG_Report012).
-class CreateIncidentSearchField extends StatelessWidget {
+class CreateIncidentSearchField extends StatefulWidget {
   final TextEditingController controller;
   final String hint;
   final ValueChanged<String>? onChanged;
+  final VoidCallback? onFocus;
   final Key? fieldKey;
 
   const CreateIncidentSearchField({
@@ -171,8 +172,31 @@ class CreateIncidentSearchField extends StatelessWidget {
     required this.controller,
     required this.hint,
     this.onChanged,
+    this.onFocus,
     this.fieldKey,
   });
+
+  @override
+  State<CreateIncidentSearchField> createState() =>
+      _CreateIncidentSearchFieldState();
+}
+
+class _CreateIncidentSearchFieldState extends State<CreateIncidentSearchField> {
+  late final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (_focus.hasFocus) widget.onFocus?.call();
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,14 +207,16 @@ class CreateIncidentSearchField extends StatelessWidget {
         color: Color(0xFF94A3B8),
       ),
       child: TextField(
-        key: fieldKey,
-        controller: controller,
-        onChanged: onChanged,
+        key: widget.fieldKey,
+        controller: widget.controller,
+        focusNode: _focus,
+        onChanged: widget.onChanged,
+        onTap: widget.onFocus,
         style: _fieldTextStyle(context, isPlaceholder: false),
         decoration: InputDecoration(
           isDense: true,
           border: InputBorder.none,
-          hintText: hint,
+          hintText: widget.hint,
           hintStyle: _fieldTextStyle(context, isPlaceholder: true),
         ),
       ),

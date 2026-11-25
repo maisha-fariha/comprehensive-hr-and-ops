@@ -1,8 +1,9 @@
 class DailyLogOption {
   final String id;
   final String label;
+  final String? residenceId;
 
-  const DailyLogOption({required this.id, required this.label});
+  const DailyLogOption({required this.id, required this.label, this.residenceId});
 }
 
 class DailyLogPage<T> {
@@ -20,6 +21,10 @@ class DailyLogReviewRow {
   final String clientName;
   final String logDate;
   final int entriesCount;
+  final String? shiftLabel;
+  final String? summary;
+  final String? residenceId;
+  final String? shiftLogId;
 
   const DailyLogReviewRow({
     required this.id,
@@ -27,7 +32,31 @@ class DailyLogReviewRow {
     required this.clientName,
     required this.logDate,
     required this.entriesCount,
+    this.shiftLabel,
+    this.summary,
+    this.residenceId,
+    this.shiftLogId,
   });
+
+  DailyLogReviewRow atResidence(String residenceId) => DailyLogReviewRow(
+        id: id,
+        clientId: clientId,
+        clientName: clientName,
+        logDate: logDate,
+        entriesCount: entriesCount,
+        shiftLabel: shiftLabel,
+        summary: summary,
+        residenceId: residenceId,
+        shiftLogId: shiftLogId,
+      );
+}
+
+/// One gap on a missing resident-day (`gaps[]` from `/daily-logs?status=missing`).
+class DailyLogGap {
+  final String type;
+  final String detail;
+
+  const DailyLogGap({required this.type, required this.detail});
 }
 
 /// A resident-day with nothing written (`status=missing`).
@@ -35,12 +64,24 @@ class DailyLogMissingRow {
   final String clientId;
   final String clientName;
   final String logDate;
+  final List<DailyLogGap> gaps;
+  final String? residenceId;
 
   const DailyLogMissingRow({
     required this.clientId,
     required this.clientName,
     required this.logDate,
+    this.gaps = const [],
+    this.residenceId,
   });
+
+  DailyLogMissingRow atResidence(String residenceId) => DailyLogMissingRow(
+        clientId: clientId,
+        clientName: clientName,
+        logDate: logDate,
+        gaps: gaps,
+        residenceId: residenceId,
+      );
 }
 
 class DailyLogEntryFlag {
@@ -241,4 +282,266 @@ class DailyLogUpload {
   final String? fileName;
 
   const DailyLogUpload({required this.fileUrl, this.fileType, this.fileName});
+}
+
+/// One gap or open flag on a board resident row.
+class DailyLogBoardGap {
+  final String type;
+  final String detail;
+
+  const DailyLogBoardGap({required this.type, required this.detail});
+}
+
+class DailyLogBoardFlag {
+  final String id;
+  final String category;
+
+  const DailyLogBoardFlag({required this.id, required this.category});
+}
+
+/// `/daily-logs/board` resident row.
+class DailyLogBoardResident {
+  final String clientId;
+  final String name;
+  final String? room;
+  final String? photoUrl;
+  final int notes;
+  final DateTime? lastNoteAt;
+  final String? lastNoteBy;
+  final List<DailyLogBoardGap> gaps;
+  final List<DailyLogBoardFlag> flags;
+
+  const DailyLogBoardResident({
+    required this.clientId,
+    required this.name,
+    this.room,
+    this.photoUrl,
+    this.notes = 0,
+    this.lastNoteAt,
+    this.lastNoteBy,
+    this.gaps = const [],
+    this.flags = const [],
+  });
+
+  bool get needsSomething => gaps.isNotEmpty || notes == 0;
+  bool get isFlagged => flags.isNotEmpty;
+}
+
+/// Staff on a board shift (`onDuty[]`).
+class DailyLogBoardOnDuty {
+  final String staffId;
+  final String name;
+  final DateTime? clockedInAt;
+  final DateTime? clockedOutAt;
+  final bool late;
+
+  const DailyLogBoardOnDuty({
+    required this.staffId,
+    required this.name,
+    this.clockedInAt,
+    this.clockedOutAt,
+    this.late = false,
+  });
+
+  bool get notClockedIn => clockedInAt == null;
+}
+
+class DailyLogBoardShift {
+  final String id;
+  final String? title;
+  final String? shiftType;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final List<DailyLogBoardOnDuty> onDuty;
+
+  const DailyLogBoardShift({
+    required this.id,
+    required this.startsAt,
+    required this.endsAt,
+    this.title,
+    this.shiftType,
+    this.onDuty = const [],
+  });
+}
+
+class DailyLogBoardHandover {
+  final String id;
+  final String status;
+  final DateTime? submittedAt;
+  final String? from;
+  final String? to;
+  final String? givenBy;
+  final DateTime? takenAt;
+  final List<String> takenBy;
+  final int tasks;
+  final int tasksWaiting;
+
+  const DailyLogBoardHandover({
+    required this.id,
+    required this.status,
+    this.submittedAt,
+    this.from,
+    this.to,
+    this.givenBy,
+    this.takenAt,
+    this.takenBy = const [],
+    this.tasks = 0,
+    this.tasksWaiting = 0,
+  });
+
+  bool get notTakenYet => takenAt == null;
+}
+
+/// Note marked for the next shift on the board.
+class DailyLogBoardNextNote {
+  final String id;
+  final String clientId;
+  final String clientName;
+  final String body;
+  final DateTime occurredAt;
+  final String? author;
+  final bool inHandover;
+
+  const DailyLogBoardNextNote({
+    required this.id,
+    required this.clientId,
+    required this.clientName,
+    required this.body,
+    required this.occurredAt,
+    this.author,
+    this.inHandover = false,
+  });
+}
+
+class DailyLogBoardCounts {
+  final int notesMissing;
+  final int dosesMissing;
+  final int checksMissing;
+  final int openFlags;
+
+  const DailyLogBoardCounts({
+    this.notesMissing = 0,
+    this.dosesMissing = 0,
+    this.checksMissing = 0,
+    this.openFlags = 0,
+  });
+}
+
+/// Web Today hub payload (`GET /daily-logs/board`).
+class DailyLogBoard {
+  final String residenceId;
+  final String date;
+  final List<DailyLogBoardNextNote> forNextShift;
+  final List<DailyLogBoardNextNote> notHandedOver;
+  final DailyLogBoardCounts counts;
+  final List<DailyLogBoardResident> residents;
+  final List<DailyLogBoardShift> shifts;
+  final List<DailyLogBoardHandover> handovers;
+
+  const DailyLogBoard({
+    required this.residenceId,
+    required this.date,
+    this.forNextShift = const [],
+    this.notHandedOver = const [],
+    this.counts = const DailyLogBoardCounts(),
+    this.residents = const [],
+    this.shifts = const [],
+    this.handovers = const [],
+  });
+}
+
+/// One item on `/clients/:id/daily-activity-feed`.
+class DailyActivityFeedItem {
+  final String id;
+  final String module;
+  final String type;
+  final String title;
+  final String detail;
+  final DateTime occurredAt;
+  final String? staffName;
+  final String? status;
+
+  const DailyActivityFeedItem({
+    required this.id,
+    required this.module,
+    required this.type,
+    required this.title,
+    required this.detail,
+    required this.occurredAt,
+    this.staffName,
+    this.status,
+  });
+}
+
+class DailyActivityFeed {
+  final String clientId;
+  final String date;
+  final List<DailyActivityFeedItem> items;
+  final Map<String, int> counts;
+
+  const DailyActivityFeed({
+    required this.clientId,
+    required this.date,
+    this.items = const [],
+    this.counts = const {},
+  });
+}
+
+/// Web Resident Activity "Daily summary" (`/daily-summaries/*`).
+class DailySummary {
+  final String id;
+  final String clientId;
+  final String? residenceId;
+  final String day;
+  final String summary;
+  final String? familySummary;
+  final List<String> attention;
+  /// Source kind → count (care notes, doses, …).
+  final Map<String, int> sources;
+  final String? model;
+  final String? generatedBy;
+  final DateTime? generatedAt;
+  final DateTime? editedAt;
+  final DateTime? sharedAt;
+
+  const DailySummary({
+    required this.id,
+    required this.clientId,
+    required this.day,
+    required this.summary,
+    this.residenceId,
+    this.familySummary,
+    this.attention = const [],
+    this.sources = const {},
+    this.model,
+    this.generatedBy,
+    this.generatedAt,
+    this.editedAt,
+    this.sharedAt,
+  });
+
+  bool get isShared => sharedAt != null;
+
+  DailySummary copyWith({
+    String? summary,
+    String? familySummary,
+    DateTime? editedAt,
+    DateTime? sharedAt,
+    bool clearSharedAt = false,
+  }) =>
+      DailySummary(
+        id: id,
+        clientId: clientId,
+        residenceId: residenceId,
+        day: day,
+        summary: summary ?? this.summary,
+        familySummary: familySummary ?? this.familySummary,
+        attention: attention,
+        sources: sources,
+        model: model,
+        generatedBy: generatedBy,
+        generatedAt: generatedAt,
+        editedAt: editedAt ?? this.editedAt,
+        sharedAt: clearSharedAt ? null : (sharedAt ?? this.sharedAt),
+      );
 }

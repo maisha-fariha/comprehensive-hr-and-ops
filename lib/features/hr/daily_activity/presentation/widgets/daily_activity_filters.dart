@@ -12,10 +12,15 @@ class DailyActivityFilters extends StatelessWidget {
   final DailyActivityController controller;
   final TextEditingController searchController;
 
+  /// Web Daily Logs embed (`hideDuplicateFilters`): home + day sit above, so
+  /// hide the standalone date-range picker and resident home picker noise.
+  final bool hideDuplicateFilters;
+
   const DailyActivityFilters({
     super.key,
     required this.controller,
     required this.searchController,
+    this.hideDuplicateFilters = false,
   });
 
   @override
@@ -53,53 +58,84 @@ class DailyActivityFilters extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            pair(
-              DailyActivitySelect(
-                key: const ValueKey('daily-activity-filter-resident'),
-                title: 'Resident',
-                options: [
-                  ('', 'All residents'),
-                  for (final o in c.clients) (o.id, o.name),
-                ],
-                selected: c.clientId.value ?? '',
-                onChanged: c.setClient,
+            if (hideDuplicateFilters) ...[
+              // Web Activities: All staff · All types · All statuses
+              pair(
+                DailyActivitySelect(
+                  key: const ValueKey('daily-activity-filter-staff'),
+                  title: 'Staff',
+                  options: [
+                    ('', 'All staff'),
+                    for (final o in c.staff) (o.id, o.name),
+                  ],
+                  selected: c.staffId.value ?? '',
+                  onChanged: c.setStaff,
+                ),
+                DailyActivitySelect(
+                  key: const ValueKey('daily-activity-filter-type'),
+                  title: 'Activity type',
+                  options: const [('', 'All types'), ...DailyActivityLabels.types],
+                  selected: c.activityType.value ?? '',
+                  onChanged: c.setType,
+                ),
               ),
+              const SizedBox(height: 10),
               DailyActivitySelect(
-                key: const ValueKey('daily-activity-filter-staff'),
-                title: 'Staff',
-                options: [
-                  ('', 'All staff'),
-                  for (final o in c.staff) (o.id, o.name),
-                ],
-                selected: c.staffId.value ?? '',
-                onChanged: c.setStaff,
+                key: const ValueKey('daily-activity-filter-status'),
+                title: 'Status',
+                options: const [('', 'All statuses'), ...DailyActivityLabels.statuses],
+                selected: c.status.value ?? '',
+                onChanged: c.setStatus,
               ),
-            ),
-            const SizedBox(height: 10),
-            pair(
+            ] else ...[
+              pair(
+                DailyActivitySelect(
+                  key: const ValueKey('daily-activity-filter-resident'),
+                  title: 'Resident',
+                  options: [
+                    ('', 'All residents'),
+                    for (final o in c.clients) (o.id, o.name),
+                  ],
+                  selected: c.clientId.value ?? '',
+                  onChanged: c.setClient,
+                ),
+                DailyActivitySelect(
+                  key: const ValueKey('daily-activity-filter-staff'),
+                  title: 'Staff',
+                  options: [
+                    ('', 'All staff'),
+                    for (final o in c.staff) (o.id, o.name),
+                  ],
+                  selected: c.staffId.value ?? '',
+                  onChanged: c.setStaff,
+                ),
+              ),
+              const SizedBox(height: 10),
+              pair(
+                DailyActivitySelect(
+                  key: const ValueKey('daily-activity-filter-type'),
+                  title: 'Activity type',
+                  options: const [('', 'All types'), ...DailyActivityLabels.types],
+                  selected: c.activityType.value ?? '',
+                  onChanged: c.setType,
+                ),
+                DailyActivitySelect(
+                  key: const ValueKey('daily-activity-filter-date'),
+                  title: 'Date',
+                  options: DailyActivityLabels.dateRanges,
+                  selected: c.range.value ?? '',
+                  onChanged: c.setRange,
+                ),
+              ),
+              const SizedBox(height: 10),
               DailyActivitySelect(
-                key: const ValueKey('daily-activity-filter-type'),
-                title: 'Activity type',
-                options: const [('', 'All types'), ...DailyActivityLabels.types],
-                selected: c.activityType.value ?? '',
-                onChanged: c.setType,
+                key: const ValueKey('daily-activity-filter-status'),
+                title: 'Status',
+                options: const [('', 'All statuses'), ...DailyActivityLabels.statuses],
+                selected: c.status.value ?? '',
+                onChanged: c.setStatus,
               ),
-              DailyActivitySelect(
-                key: const ValueKey('daily-activity-filter-date'),
-                title: 'Date',
-                options: DailyActivityLabels.dateRanges,
-                selected: c.range.value ?? '',
-                onChanged: c.setRange,
-              ),
-            ),
-            const SizedBox(height: 10),
-            DailyActivitySelect(
-              key: const ValueKey('daily-activity-filter-status'),
-              title: 'Status',
-              options: const [('', 'All statuses'), ...DailyActivityLabels.statuses],
-              selected: c.status.value ?? '',
-              onChanged: c.setStatus,
-            ),
+            ],
           ],
         ),
       ),

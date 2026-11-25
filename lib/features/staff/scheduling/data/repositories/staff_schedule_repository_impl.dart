@@ -1,10 +1,12 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../domain/entities/staff_schedule_overview.dart';
 import '../../domain/entities/staff_shift.dart';
 import '../../domain/entities/staff_shift_form_option.dart';
@@ -12,8 +14,6 @@ import '../../domain/repositories/staff_schedule_repository.dart';
 import '../mappers/staff_schedule_mapper.dart';
 
 class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
-  static const _pageLimit = 20;
-
   final AppApiClient _api;
   final UserSession _session;
 
@@ -28,46 +28,75 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
     DateTime? weekStart,
     DateTime? selectedDate,
   }) async {
-    final start = IsoDateRange.startOfWeek(weekStart ?? DateTime.now());
+    await TenantClock.syncFromApi(_api);
+    final start = IsoDateRange.startOfWeek(weekStart ?? TenantClock.now());
     final end = start.add(const Duration(days: 7));
+    // Open bidding look-ahead: two weeks so next-week opens aren't missed
+    // when the list is paginated oldest-first without a date window.
+    final openEnd = start.add(const Duration(days: 14));
+    final fromIso = TenantClock.at(start, 0).toUtc().toIso8601String();
+    final toIso = TenantClock.at(end, 0).toUtc().toIso8601String();
+    final openEndIso = TenantClock.at(openEnd, 0).toUtc().toIso8601String();
     // B2: appointments are nurse / caregiver only — never housekeeper / other.
     final includeAppointments = _session.canSeeStaffScheduleAppointments;
 
+    Future<Result<dynamic>> asBody(
+      Future<Result<List<dynamic>>> fetch,
+    ) async {
+      final result = await fetch;
+      return result.when(
+        success: (rows) => Result.success({'data': rows}),
+        failure: (error) => Result.failure(error),
+      );
+    }
+
     final futures = <Future<Result<dynamic>>>[
-      // B2: weekly My Shifts
-      _api.get(
-        ApiEndpoints.shifts,
-        query: {
-          'mine': true,
-          'from': start.toUtc().toIso8601String(),
-          'to': end.toUtc().toIso8601String(),
-          'page': 1,
-          'limit': _pageLimit,
-        },
+      // B2: weekly My Shifts — walk every page inside the week window.
+      asBody(
+        ApiPageFetcher.fetchAll(
+          _api,
+          path: ApiEndpoints.shifts,
+          query: {
+            'mine': true,
+            'from': fromIso,
+            'to': toIso,
+          },
+        ),
       ),
-      // B2: Open Shift Requests
-      _api.get(
-        ApiEndpoints.shifts,
-        query: {'status': 'open', 'page': 1, 'limit': _pageLimit},
+      // Open Shift Requests — date window so newest opens aren't buried
+      // behind older pages when the API sorts ascending.
+      asBody(
+        ApiPageFetcher.fetchAll(
+          _api,
+          path: ApiEndpoints.shifts,
+          query: {
+            'status': 'open',
+            'from': fromIso,
+            'to': openEndIso,
+          },
+        ),
       ),
       // B2: my swap list — active requests only (not settled history)
-      _api.get(
-        ApiEndpoints.shiftSwaps,
-        query: {
-          'mine': true,
-          'status': 'awaiting_peer,awaiting_manager',
-          'page': 1,
-          'limit': _pageLimit,
-        },
+      asBody(
+        ApiPageFetcher.fetchAll(
+          _api,
+          path: ApiEndpoints.shiftSwaps,
+          query: {
+            'mine': true,
+            'status': 'awaiting_peer,awaiting_manager',
+          },
+        ),
       ),
     ];
 
     if (includeAppointments) {
       // B2: Upcoming Appointments (nurse / caregiver)
       futures.add(
-        _api.get(
-          ApiEndpoints.appointments,
-          query: {'page': 1, 'limit': _pageLimit},
+        asBody(
+          ApiPageFetcher.fetchAll(
+            _api,
+            path: ApiEndpoints.appointments,
+          ),
         ),
       );
     }
@@ -226,13 +255,19 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
     String? search,
     String? residenceId,
   }) async {
+    if (!_session.can('staff:read')) {
+      return Result.success(const []);
+    }
     final trimmed = search?.trim() ?? '';
-    final scopedResidenceId = residenceId ?? _session.residenceId;
+    // Match web: only scope when the UI filter is set (not session home house).
+    final scopedResidenceId = residenceId?.trim().isNotEmpty == true
+        ? residenceId!.trim()
+        : null;
     final result = await _api.get(
       ApiEndpoints.staff,
       query: {
         'page': 1,
-        'limit': _pageLimit,
+        'limit': 100,
         if (trimmed.isNotEmpty) 'search': trimmed,
         'residenceId': ?scopedResidenceId,
       },
@@ -243,6 +278,99 @@ class StaffScheduleRepositoryImpl implements StaffScheduleRepository {
           Result.success(StaffScheduleMapper.staffFrom(body)),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  @override
+  Future<Result<List<StaffShiftStaffOption>>> listColleagues({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: {
+        'page': 1,
+        'limit': 100,
+        'residenceId': ?residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async => Result.success(_colleaguesFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  List<StaffShiftStaffOption> _colleaguesFrom(dynamic body) {
+    final people = <StaffShiftStaffOption>[];
+    for (final item in JsonCodec.unwrapList(body)) {
+      if (item is! Map) continue;
+      final json = JsonCodec.asMap(item);
+      final id = JsonCodec.string(json['id'] ?? json['staffId']);
+      final joined = [
+        JsonCodec.string(json['firstName']),
+        JsonCodec.string(json['lastName']),
+      ].whereType<String>().join(' ').trim();
+      final display = joined.isEmpty
+          ? (JsonCodec.string(json['name']) ?? '')
+          : joined;
+      if (id == null || display.isEmpty) continue;
+      people.add(
+        StaffShiftStaffOption(
+          id: id,
+          name: display,
+          detail: JsonCodec.string(JsonCodec.mapAt(json, 'category')?['name']) ??
+              '',
+          initials: '',
+        ),
+      );
+    }
+    return people;
+  }
+
+  @override
+  Future<Result<List<StaffColleagueShift>>> listColleagueShifts(
+    String staffId,
+  ) async {
+    final today = DateTime.now();
+    final from =
+        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final result = await _api.get(
+      ApiEndpoints.shifts,
+      query: {
+        'page': 1,
+        'limit': 50,
+        'from': from,
+        'staffId': staffId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final shifts = <StaffColleagueShift>[];
+        for (final item in JsonCodec.unwrapList(body)) {
+          if (item is! Map) continue;
+          final json = JsonCodec.asMap(item);
+          final status = JsonCodec.stringOr(json['status'], '').toLowerCase();
+          if (status == 'cancelled' || status == 'canceled') continue;
+          final id = JsonCodec.string(json['id']);
+          final start = JsonCodec.dateTime(
+            json['startsAt'] ?? json['startAt'],
+          )?.toLocal();
+          if (id == null || start == null) continue;
+          shifts.add(StaffColleagueShift(id: id, label: _swapShiftLabel(start)));
+        }
+        return Result.success(shifts);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  static String _swapShiftLabel(DateTime start) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final day = start.day.toString().padLeft(2, '0');
+    final month = start.month.toString().padLeft(2, '0');
+    final hour = start.hour.toString().padLeft(2, '0');
+    final minute = start.minute.toString().padLeft(2, '0');
+    return '${days[start.weekday - 1]} $day/$month/${start.year} $hour:$minute';
   }
 
   String? _extractId(dynamic body) {

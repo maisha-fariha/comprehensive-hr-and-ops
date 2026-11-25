@@ -1,6 +1,7 @@
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/staff_residence.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffExtrasMapper {
   static StaffResidencePerson? _personFrom(dynamic raw) {
@@ -59,13 +60,21 @@ abstract final class StaffExtrasMapper {
       occupiedBeds: JsonCodec.integer(json['occupiedBeds']),
       availableBeds: JsonCodec.integer(json['availableBeds']),
       atCapacity: JsonCodec.boolean(json['atCapacity']) ?? false,
+      // Web form uses top-level `geofenceRadiusMeters`; nested
+      // `geofence.radiusMeters` is secondary (and can disagree).
       geofenceRadiusMeters: JsonCodec.integer(
-        geofence?['radiusMeters'] ?? json['gpsRadiusMeters'],
+        json['geofenceRadiusMeters'] ??
+            geofence?['radiusMeters'] ??
+            geofence?['radius'] ??
+            json['gpsRadiusMeters'] ??
+            json['radiusMeters'],
       ),
       latitude: JsonCodec.number(json['latitude'])?.toDouble(),
       longitude: JsonCodec.number(json['longitude'])?.toDouble(),
-      gpsTrackingEnabled: JsonCodec.boolean(geofence?['enabled']) ??
-          (JsonCodec.integer(geofence?['radiusMeters']) ?? 0) > 0,
+      // Top-level `geofenceEnabled` is source of truth (radius alone ≠ ON).
+      gpsTrackingEnabled: JsonCodec.boolean(json['geofenceEnabled']) ??
+          JsonCodec.boolean(geofence?['enabled']) ??
+          false,
       roomCount: JsonCodec.integerOr(json['roomCount'], 0),
       careLevelMix: careLevelMix,
       outOfPocketEnabled:
@@ -118,7 +127,7 @@ abstract final class StaffExtrasMapper {
         json['createdAt'] ?? json['activityDate'] ?? json['updatedAt'],
       );
       if (subtitle.isEmpty && at != null) {
-        subtitle = IsoDateRange.formatDisplayDate(at.toLocal());
+        subtitle = IsoDateRange.formatDisplayDate(TenantClock.wallOf(at));
       }
       return {
         'id': JsonCodec.stringOr(json['id'], title),

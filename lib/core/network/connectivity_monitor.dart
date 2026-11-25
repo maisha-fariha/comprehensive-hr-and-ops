@@ -9,7 +9,9 @@ import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 
 import '../config/app_env.dart';
+import '../errors/app_error_dialog.dart';
 import '../offline/offline_config.dart';
+import '../roles/user_session.dart';
 import 'app_api_client.dart';
 
 /// App-wide online/offline flag. Syncs queued writes when connectivity returns.
@@ -57,6 +59,9 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
       _observing = true;
     }
     if (_hasInterface) unawaited(_confirmReachability());
+    // Do not poll the profile on a short timer. That path used to exchange
+    // the refresh token every 15 seconds (access tokens last 15 minutes).
+    // Profile reload happens when the app returns to the foreground.
     return this;
   }
 
@@ -75,6 +80,7 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
   /// A real API response arrived: the server is reachable.
   void reportReachable() {
     if (!_hasInterface) return;
+    AppErrorDialog.releaseTransient();
     _setOnline(true);
   }
 
@@ -145,6 +151,7 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
     final wasOffline = !isOnline.value;
     isOnline.value = next;
     if (next) {
+      AppErrorDialog.releaseTransient();
       _offlineProbeTimer?.cancel();
       _offlineProbeTimer = null;
       if (wasOffline) unawaited(_flushQueue(ignoreBackoff: true));
@@ -163,9 +170,13 @@ class ConnectivityMonitor extends GetxService with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
+    AppErrorDialog.holdTransient();
     unawaited(() async {
       if (await refresh()) await _flushQueue(ignoreBackoff: true);
     }());
+    if (Get.isRegistered<UserSession>()) {
+      unawaited(Get.find<UserSession>().refreshProfile());
+    }
   }
 
   Future<void> _flushQueue({required bool ignoreBackoff}) async {

@@ -128,6 +128,7 @@ class _FakeRepo implements DailyActivityRepository {
     required int limit,
     String? search,
     String? clientId,
+    String? residenceId,
     String? recordedByStaffId,
     String? activityType,
     String? status,
@@ -139,6 +140,7 @@ class _FakeRepo implements DailyActivityRepository {
       'limit': limit,
       'search': search,
       'clientId': clientId,
+      'residenceId': residenceId,
       'staff': recordedByStaffId,
       'type': activityType,
       'status': status,
@@ -174,6 +176,12 @@ class _FakeRepo implements DailyActivityRepository {
   }
 
   @override
+  Future<Result<void>> createBatch(DailyActivityBatchDraft draft) async {
+    calls.add('batch ${draft.clientIds.length}');
+    return Result.success(null);
+  }
+
+  @override
   Future<Result<void>> update(String id, DailyActivityDraft draft) async {
     updated = (id, draft);
     return Result.success(null);
@@ -192,7 +200,8 @@ class _FakeRepo implements DailyActivityRepository {
   }
 
   @override
-  Future<Result<List<DailyActivityOption>>> clients() async => Result.success(const [
+  Future<Result<List<DailyActivityOption>>> clients({String? residenceId}) async =>
+      Result.success(const [
         DailyActivityOption(
           id: 'c1',
           name: 'Puchan Indha',

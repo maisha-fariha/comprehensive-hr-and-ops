@@ -55,7 +55,9 @@ class ClientsController extends GetxController {
 
   final RxMap<String, String> residenceNames = <String, String>{}.obs;
   final RxnInt clientLimit = RxnInt();
-  final RxBool isExporting = false.obs;
+  /// Separate flags so Export List and Export Progress never share a spinner.
+  final RxBool isExportingList = false.obs;
+  final RxBool isExportingProgress = false.obs;
 
   final Map<String, List<ClientRoom>> _rooms = {};
   Worker? _searchWorker;
@@ -250,6 +252,9 @@ class ClientsController extends GetxController {
     }
   }
 
+  /// Most recent successful [createClient] result (for opening Care Planning AI).
+  ClientSummary? justCreated;
+
   /// "Create Client" / "Save Draft". Returns an error message, or `null`.
   ///
   /// Once the client exists the wizard is done: a contact or goal that the
@@ -260,6 +265,7 @@ class ClientsController extends GetxController {
     bool draft = false,
     String? idempotencyKey,
   }) async {
+    justCreated = null;
     final ClientSummary client;
     try {
       final photoUrl = await _uploadPhoto(form);
@@ -294,6 +300,7 @@ class ClientsController extends GetxController {
       );
     }
     await loadClients();
+    justCreated = client;
     return null;
   }
 
@@ -451,8 +458,8 @@ class ClientsController extends GetxController {
 
   /// Web "Export List" (`client_roster`).
   Future<void> exportList() async {
-    if (isExporting.value) return;
-    isExporting.value = true;
+    if (isExportingList.value) return;
+    isExportingList.value = true;
     try {
       final result = await repository.exportRosterCsv();
       await result.when(
@@ -468,7 +475,52 @@ class ClientsController extends GetxController {
         failure: (error) async => AppSnackbar.show(error.message, '', force: true),
       );
     } finally {
-      isExporting.value = false;
+      isExportingList.value = false;
+    }
+  }
+
+  /// Web Client Details "Export Progress Report" PDF.
+  Future<void> exportProgressReport({
+    required String clientId,
+    required DateTime from,
+    required DateTime to,
+    String? clientName,
+  }) async {
+    if (isExportingProgress.value) return;
+    isExportingProgress.value = true;
+    try {
+      String ymd(DateTime d) =>
+          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final result = await repository.exportProgressReportPdf(
+        clientId: clientId,
+        from: ymd(from),
+        to: ymd(to),
+      );
+      await result.when(
+        success: (bytes) async {
+          final safe = (clientName ?? 'client')
+              .trim()
+              .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
+              .replaceAll(RegExp(r'_+'), '_');
+          final name =
+              'client_progress_${safe.isEmpty ? clientId : safe}_${ymd(from)}_${ymd(to)}.pdf';
+          final saved = await MediaStoreDownload.savePdfAndOpen(
+            fileName: name,
+            bytes: Uint8List.fromList(bytes),
+          );
+          AppSnackbar.show(
+            saved.success
+                ? 'Progress report ready'
+                : (saved.error ?? 'Could not save or open the PDF.'),
+            '',
+            force: true,
+          );
+        },
+        failure: (error) async =>
+            AppSnackbar.show(error.message, '', force: true),
+      );
+    } finally {
+      isExportingProgress.value = false;
     }
   }
 

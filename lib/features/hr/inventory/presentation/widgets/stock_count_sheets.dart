@@ -121,6 +121,8 @@ class _StockCountSheetState extends State<StockCountSheet> {
   final Map<String, TextEditingController> _entries = {};
   _CountFilter _filter = _CountFilter.all;
   bool _busy = false;
+  /// 'save' | 'submit' — only that control is marked busy.
+  String? _busyAction;
 
   @override
   void initState() {
@@ -144,10 +146,28 @@ class _StockCountSheetState extends State<StockCountSheet> {
         success: (count) {
           _count = count;
           _loadError = null;
+          _seedEntries(count);
         },
         failure: (error) => _loadError = error.message,
       );
     });
+  }
+
+  /// Keep typed digits; otherwise show the saved counted qty (web inputs).
+  void _seedEntries(StockCount count) {
+    for (final line in count.lines) {
+      final existing = _entries[line.id];
+      if (existing != null && existing.text.trim().isNotEmpty) continue;
+      final saved = line.countedQty;
+      final text = saved == null
+          ? ''
+          : (saved == saved.roundToDouble() ? saved.round().toString() : saved.toString());
+      if (existing != null) {
+        existing.text = text;
+      } else {
+        _entries[line.id] = TextEditingController(text: text);
+      }
+    }
   }
 
   TextEditingController _entry(String lineId) =>
@@ -171,21 +191,33 @@ class _StockCountSheetState extends State<StockCountSheet> {
       AppSnackbar.show('Nothing counted yet.', '');
       return;
     }
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _busyAction = 'save';
+    });
     final error = await widget.controller.saveLines(count.id, lines);
     if (!mounted) return;
-    setState(() => _busy = false);
+    setState(() {
+      _busy = false;
+      _busyAction = null;
+    });
     if (error == null) await _load();
   }
 
   Future<void> _submit(StockCount count) async {
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _busyAction = 'submit';
+    });
     final error = await widget.controller.submit(count.id);
     if (!mounted) return;
     if (error == null) {
       Navigator.of(context).pop();
     } else {
-      setState(() => _busy = false);
+      setState(() {
+        _busy = false;
+        _busyAction = null;
+      });
     }
   }
 
@@ -229,12 +261,12 @@ class _StockCountSheetState extends State<StockCountSheet> {
         if (editable) ...[
           HandoverButton(
             key: const ValueKey('count-save'),
-            label: 'Save counts',
+            label: _busyAction == 'save' ? 'Saving…' : 'Save counts',
             onPressed: _busy ? null : () => _save(count),
           ),
           HandoverButton(
             key: const ValueKey('count-submit'),
-            label: 'Submit count',
+            label: _busyAction == 'submit' ? 'Submitting…' : 'Submit count',
             filled: true,
             onPressed: _busy ? null : () => _submit(count),
           ),

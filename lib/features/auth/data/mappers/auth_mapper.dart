@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../../core/network/json_codec.dart';
 import '../../../../core/roles/user_role.dart';
 import '../../domain/entities/auth_tokens.dart';
@@ -37,7 +39,43 @@ abstract final class AuthMapper {
           JsonCodec.string(nested['refresh_token']) ??
           JsonCodec.string(json['refreshToken']) ??
           JsonCodec.string(json['refresh_token']),
+      accessExpiresAt: accessExpiry(
+        expiresInSeconds: JsonCodec.integer(
+          nested['expiresIn'] ??
+              nested['expires_in'] ??
+              json['expiresIn'] ??
+              json['expires_in'],
+        ),
+        accessToken: access,
+      ),
     );
+  }
+
+  /// `expiresIn` is seconds (server sends 900). Never treat it as minutes.
+  static DateTime? accessExpiry({
+    required int? expiresInSeconds,
+    required String accessToken,
+  }) {
+    if (expiresInSeconds != null && expiresInSeconds > 0) {
+      return DateTime.now().add(Duration(seconds: expiresInSeconds));
+    }
+    return jwtExpiry(accessToken);
+  }
+
+  static DateTime? jwtExpiry(String accessToken) {
+    final parts = accessToken.split('.');
+    if (parts.length < 2) return null;
+    try {
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+      if (payload is! Map) return null;
+      final exp = JsonCodec.integer(payload['exp']);
+      if (exp == null || exp <= 0) return null;
+      return DateTime.fromMillisecondsSinceEpoch(exp * 1000, isUtc: true)
+          .toLocal();
+    } catch (_) {
+      return null;
+    }
   }
 
   static MobileProfile? profileFromJson(dynamic body) {
@@ -54,28 +92,46 @@ abstract final class AuthMapper {
         JsonCodec.string(user['first_name']);
     final lastName = JsonCodec.string(user['lastName']) ??
         JsonCodec.string(user['last_name']);
+    final staffEarly = JsonCodec.mapAt(user, 'staff') ??
+        JsonCodec.mapAt(json, 'staff');
+    final middleName = JsonCodec.string(user['middleName']) ??
+        JsonCodec.string(user['middle_name']) ??
+        JsonCodec.string(staffEarly?['middleName']) ??
+        JsonCodec.string(staffEarly?['middle_name']);
     final email = JsonCodec.stringOr(user['email'] ?? json['email'], '');
-    final displayName = JsonCodec.string(user['displayName']) ??
+    // Prefer first + middle + last so middle name appears on My Profile.
+    // API `name` / `displayName` often drops the middle name.
+    final fromParts = _joinName(firstName, middleName, lastName);
+    final apiName = JsonCodec.string(user['displayName']) ??
         JsonCodec.string(user['fullName']) ??
-        JsonCodec.string(user['name']) ??
-        _joinName(firstName, lastName) ??
-        (email.contains('@') ? email.split('@').first : 'there');
+        JsonCodec.string(user['name']);
+    final displayName = () {
+      if (fromParts != null &&
+          middleName != null &&
+          middleName.trim().isNotEmpty) {
+        return fromParts;
+      }
+      return fromParts ??
+          apiName ??
+          (email.contains('@') ? email.split('@').first : 'there');
+    }();
 
     final tenant = JsonCodec.mapAt(user, 'tenant') ??
         JsonCodec.mapAt(json, 'tenant');
     final residence = _firstResidence(user) ?? _firstResidence(json);
-    final staff = JsonCodec.mapAt(user, 'staff') ??
-        JsonCodec.mapAt(json, 'staff');
+    final staff = staffEarly;
 
     return MobileProfile(
       id: JsonCodec.stringOr(user['id'] ?? user['userId'] ?? json['id'], ''),
       email: email,
       displayName: displayName,
       firstName: firstName,
+      middleName: middleName,
       lastName: lastName,
       role: role,
       roleRaw: roleRaw,
       permissions: _permissions(user, json),
+      permissionsPresent: _permissionsPresent(user, json),
       tenantName: JsonCodec.string(tenant?['name']) ??
           JsonCodec.string(user['tenantName']) ??
           JsonCodec.string(json['organizationName']),
@@ -119,12 +175,20 @@ abstract final class AuthMapper {
   }
 
   static const restrictedAccountMessage =
-      'This app is for managers, staff and family members. Tenant admin '
-      'accounts cannot sign in here — please use the web dashboard.';
+      'This app is for managers, staff and family members. Tenant admin and '
+      'platform admin accounts cannot sign in here — please use the web '
+      'dashboard.';
 
-  static const _webOnlyRoles = {'tenant_admin', 'platform_admin', 'super_admin'};
+  /// Web-only roles: tenant admins and platform operators use the dashboard,
+  /// not the mobile portals (Bug Report 001 — Tenant Admin mobile login).
+  /// `hr_admin` / residence managers still use the manager shell.
+  static const _webOnlyRoles = {
+    'tenant_admin',
+    'platform_admin',
+    'super_admin',
+  };
 
-  /// Tenant admins and platform users only have the web dashboard.
+  /// Tenant admin and platform users only have the web dashboard.
   static bool isWebOnlyAccount(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
     final user = JsonCodec.mapAt(json, 'user') ??
@@ -181,13 +245,29 @@ abstract final class AuthMapper {
     return null;
   }
 
+  static bool _permissionsPresent(
+    Map<String, dynamic> user,
+    Map<String, dynamic> json,
+  ) {
+    if (user.containsKey('permissions') || json.containsKey('permissions')) {
+      return true;
+    }
+    final role = JsonCodec.mapAt(user, 'role') ?? JsonCodec.mapAt(json, 'role');
+    return role != null && role.containsKey('permissions');
+  }
+
   static List<String> _permissions(
     Map<String, dynamic> user,
     Map<String, dynamic> json,
   ) {
-    final raw = JsonCodec.listAt(user, 'permissions');
-    final source = raw.isEmpty ? JsonCodec.listAt(json, 'permissions') : raw;
-    return source
+    var raw = JsonCodec.listAt(user, 'permissions');
+    if (raw.isEmpty) raw = JsonCodec.listAt(json, 'permissions');
+    if (raw.isEmpty) {
+      final role =
+          JsonCodec.mapAt(user, 'role') ?? JsonCodec.mapAt(json, 'role');
+      if (role != null) raw = JsonCodec.listAt(role, 'permissions');
+    }
+    return raw
         .map((item) {
           if (item is Map) {
             final map = JsonCodec.asMap(item);
@@ -212,8 +292,11 @@ abstract final class AuthMapper {
     return null;
   }
 
-  static String? _joinName(String? first, String? last) {
-    final parts = [first, last].whereType<String>().where((p) => p.isNotEmpty);
+  static String? _joinName(String? first, String? middle, String? last) {
+    final parts = [first, middle, last]
+        .whereType<String>()
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty);
     if (parts.isEmpty) return null;
     return parts.join(' ');
   }

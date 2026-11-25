@@ -3,9 +3,12 @@ import 'package:gems_core/gems_core.dart';
 import 'package:get/get.dart' show Get, Inst;
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
+import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../profile_settings/domain/entities/family_linked_client.dart';
 import '../../domain/entities/conversation_preview.dart';
 import '../../domain/entities/family_conversation_thread.dart';
 import '../../domain/entities/message_attachment.dart';
@@ -28,28 +31,59 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
 
   @override
   Future<Result<List<String>>> getLinkedClientIds() async {
+    final residents = await getLinkedResidents();
+    return residents.when(
+      success: (rows) async => Result.success([for (final r in rows) r.id]),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<FamilyLinkedClient>>> getLinkedResidents() async {
     final result = await _api.get(ApiEndpoints.familyClients, silent: true);
     return result.when(
-      success: (body) async => Result.success(
-        JsonCodec.unwrapList(body)
-            .whereType<Map>()
-            .map((item) => JsonCodec.string(JsonCodec.asMap(item)['id']) ?? '')
-            .where((id) => id.isNotEmpty)
-            .toList(),
-      ),
+      success: (body) async {
+        final people = <FamilyLinkedClient>[];
+        for (final item in JsonCodec.unwrapList(body).whereType<Map>()) {
+          final json = JsonCodec.asMap(item);
+          final id = JsonCodec.stringOr(json['id'], '');
+          if (id.isEmpty) continue;
+          final name = IsoDateRange.personName(
+            json['preferredName'] ?? json['name'] ?? json,
+          );
+          final room = JsonCodec.string(json['room'] ?? json['roomNumber']);
+          final residence = JsonCodec.string(
+            json['residenceName'] ??
+                JsonCodec.mapAt(json, 'residence')?['name'],
+          );
+          people.add(
+            FamilyLinkedClient(
+              id: id,
+              initials: IsoDateRange.initials(name),
+              name: name.isEmpty ? 'Resident' : name,
+              subtitle: [
+                if (residence != null && residence.isNotEmpty) residence,
+                if (room != null) 'Room $room',
+              ].join(' · '),
+              statusLabel: JsonCodec.stringOr(json['status'], 'active'),
+            ),
+          );
+        }
+        return Result.success(people);
+      },
       failure: (error) async => Result.failure(error),
     );
   }
 
   @override
   Future<Result<List<ConversationPreview>>> getConversations() async {
-    final result = await _api.get(
-      ApiEndpoints.familyMessages,
-      query: const {'page': 1, 'limit': 20},
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.familyMessages,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(FamilyMessagesMapper.listFrom(body)),
+      success: (rows) async =>
+          Result.success(FamilyMessagesMapper.listFrom({'data': rows})),
       failure: (error) async => Result.failure(error),
     );
   }
@@ -84,7 +118,7 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
         query: const {'category': 'messages'},
         allowQueue: false,
       );
-      return result.when(
+      return await result.when(
         success: (body) async {
           final map = JsonCodec.unwrapMap(body);
           final url = JsonCodec.string(
@@ -151,18 +185,81 @@ class FamilyMessagesRepositoryImpl implements FamilyMessagesRepository {
   }
 
   @override
+  Future<Result<void>> markConversationRead(String conversationId) async {
+    final id = conversationId.trim();
+    if (id.isEmpty) {
+      return Result.failure(
+        const ApiError(message: 'Missing conversation id.'),
+      );
+    }
+    final result = await _api.post(
+      ApiEndpoints.familyConversationRead(id),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+      silent: true,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> setHidden(
+    String conversationId, {
+    required bool hidden,
+  }) async {
+    final result = await _api.post(
+      hidden
+          ? ApiEndpoints.familyConversationHide(conversationId)
+          : ApiEndpoints.familyConversationUnhide(conversationId),
+      data: const <String, dynamic>{},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> leaveConversation(
+    String conversationId, {
+    bool confirm = false,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.familyConversationLeave(conversationId),
+      data: confirm ? const {'confirm': true} : const <String, dynamic>{},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
   Future<Result<String?>> startConversation({
     required String clientId,
     required String body,
-    bool highPriority = false,
+    String? subject,
+    String? priority,
     List<MessageAttachment> attachments = const [],
   }) async {
+    final trimmedSubject = subject?.trim() ?? '';
+    final priorityValue = (priority ?? '').trim().toLowerCase();
     final result = await _api.post(
       ApiEndpoints.familyMessages,
       data: {
         'clientId': clientId,
         'body': body,
-        if (highPriority) 'priority': 'high',
+        if (trimmedSubject.isNotEmpty)
+          'subject': trimmedSubject.length > 200
+              ? trimmedSubject.substring(0, 200)
+              : trimmedSubject,
+        // Web omits priority when "general".
+        if (priorityValue.isNotEmpty && priorityValue != 'general')
+          'priority': priorityValue,
         if (attachments.isNotEmpty)
           'attachments': [
             for (final item in attachments) item.toJson(),

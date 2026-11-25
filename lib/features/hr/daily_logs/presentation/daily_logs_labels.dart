@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/formatting/web_formats.dart';
+import '../../../../core/time/tenant_clock.dart';
 
 enum DailyLogTone { success, warning, danger, info, neutral, cyan, purple }
 
@@ -29,7 +30,14 @@ extension DailyLogToneColors on DailyLogTone {
 
 /// Option lists, pill tones and formatting from the web Daily Logs page.
 abstract final class DailyLogLabels {
-  static const tabs = ['To review', 'Missing', 'Resident day view', 'House activity'];
+  static const tabs = ['Today', 'Review', 'Activities'];
+
+  /// Web `GAP_LABELS` on the Missing Logs column "What is missing".
+  static const gapLabels = {
+    'unconfirmed_med': 'Dose not recorded',
+    'missed_check': 'Check not done',
+    'no_entries': 'Nothing written',
+  };
 
   static const shifts = [
     ('morning', 'Morning'),
@@ -151,7 +159,7 @@ abstract final class DailyLogLabels {
   /// `29 Sep, 08:15` (Priority Notes raised stamp).
   static String raised(DateTime? value) {
     if (value == null) return '';
-    final l = value.toLocal();
+    final l = TenantClock.wallOf(value);
     return '${l.day} ${_months[l.month - 1]}, ${WebFormat.time(l)}';
   }
 

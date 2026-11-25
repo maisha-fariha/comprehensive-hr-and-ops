@@ -9,6 +9,7 @@ import '../../../../../core/offline/outbox_context.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../hr/attendance/data/mappers/attendance_mapper.dart';
 import '../../../../hr/attendance/domain/entities/manual_entry_options.dart';
+import '../../../../hr/attendance/domain/entities/time_off_request.dart';
 import '../../domain/entities/staff_attendance_overview.dart';
 import '../../domain/repositories/staff_attendance_repository.dart';
 import '../mappers/staff_attendance_mapper.dart';
@@ -26,12 +27,17 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
        _session = session;
 
   @override
-  Future<Result<StaffAttendanceOverview>> getOverview() async {
-    final residenceId = _session.residenceId;
+  Future<Result<StaffAttendanceOverview>> getOverview({
+    String? from,
+    String? to,
+    String? residenceId,
+  }) async {
+    final homeResidenceId = _session.residenceId;
 
-    // Web list uses `mine` without a tight from/to — date filters on the API
-    // drop missed rows (null checkInAt). Open punch uses the web's
-    // `useMyOpenAttendance` window (now-48h → now+1h) so overnight shifts count.
+    // Open punch uses the web's `useMyOpenAttendance` window
+    // (now-48h → now+1h) so overnight shifts count. The history list uses
+    // the same `mine` + week dates as the web table. An unscoped summary
+    // counts every staff member, so the cards are counted from this list.
     final now = DateTime.now().toUtc();
     final futures = <Future<Result<dynamic>>>[
       _api.get(
@@ -44,31 +50,25 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
           'limit': 50,
         },
       ),
-      // History: omit from/to so missed / pending rows are returned (web parity).
       _api.get(
         ApiEndpoints.attendance,
         query: {
           'mine': true,
           'page': 1,
           'limit': 50,
+          'from': ?from,
+          'to': ?to,
+          'residenceId': ?residenceId,
         },
       ),
       _api.get(
         ApiEndpoints.shifts,
-        query: {
-          'mine': true,
-          'from': IsoDateRange.daysAgoStartIso(7),
-          'to': IsoDateRange.weekEndIso,
-          'page': 1,
-          'limit': _pageLimit,
-        },
+        query: _clockShiftQuery(),
       ),
-      // Summary drives Present / Late / Missed / Pending cards (web).
-      _api.get(ApiEndpoints.attendanceSummary, silent: true),
     ];
 
-    if (residenceId != null && residenceId.isNotEmpty) {
-      futures.add(_api.get(ApiEndpoints.residenceById(residenceId)));
+    if (homeResidenceId != null && homeResidenceId.isNotEmpty) {
+      futures.add(_api.get(ApiEndpoints.residenceById(homeResidenceId)));
     }
 
     final results = await Future.wait(futures);
@@ -85,11 +85,10 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
         todayAttendanceBody: results[0].isSuccess ? results[0].value : const [],
         historyBody: results[1].isSuccess ? results[1].value : const [],
         shiftsBody: results[2].isSuccess ? results[2].value : const [],
-        summaryBody: results[3].isSuccess ? results[3].value : null,
-        residenceBody: results.length > 4 && results[4].isSuccess
-            ? results[4].value
+        residenceBody: results.length > 3 && results[3].isSuccess
+            ? results[3].value
             : null,
-        sessionResidenceId: residenceId,
+        sessionResidenceId: homeResidenceId,
       ),
     );
   }
@@ -122,6 +121,8 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   }) {
     return _clockAction(
       ApiEndpoints.attendanceCheckOut,
@@ -131,6 +132,8 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       longitude: longitude,
       accuracyMeters: accuracyMeters,
       selfieUrl: selfieUrl,
+      earlyDepartureReason: earlyDepartureReason,
+      earlyDepartureNotes: earlyDepartureNotes,
     );
   }
 
@@ -194,6 +197,23 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
           Result.success(AttendanceMapper.residencesFrom(body)),
       failure: (error) async => Result.failure(error),
     );
+  }
+
+  /// Web `useMyCurrentShift`: this staff member, from 14 hours ago to
+  /// 14 hours ahead, not cancelled. Clock-in opens 15 minutes early.
+  Map<String, dynamic> _clockShiftQuery() {
+    final now = DateTime.now().toUtc();
+    final staffId = _session.staffId;
+    // Wider than web's ±14h current-shift probe so an open punch's shift
+    // (late / overtime) is still found for clock-out and handover.
+    return {
+      if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
+      if (staffId == null || staffId.isEmpty) 'mine': true,
+      'from': now.subtract(const Duration(hours: 48)).toIso8601String(),
+      'to': now.add(const Duration(hours: 24)).toIso8601String(),
+      'page': 1,
+      'limit': 50,
+    };
   }
 
   @override
@@ -269,6 +289,24 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     }
   }
 
+  /// `/mobile/me` has no staffId. Clock-out without it is
+  /// `{staffId: Required}` instead of the handover error the web shows.
+  Future<String?> _staffIdForClock() async {
+    final current = _session.staffId;
+    if (current != null && current.isNotEmpty) return current;
+    final home = await _api.get(ApiEndpoints.mobileHome, silent: true);
+    return home.when(
+      success: (data) {
+        final id = JsonCodec.string(JsonCodec.unwrapMap(data)['staffId']);
+        if (id != null && id.isNotEmpty) {
+          _session.applyStaffContext(staffId: id);
+        }
+        return id;
+      },
+      failure: (_) => null,
+    );
+  }
+
   Future<Result<void>> _clockAction(
     String path, {
     String? shiftId,
@@ -277,9 +315,11 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
     double? longitude,
     double? accuracyMeters,
     String? selfieUrl,
+    String? earlyDepartureReason,
+    String? earlyDepartureNotes,
   }) async {
     final resolvedResidence = residenceId ?? _session.residenceId;
-    final staffId = _session.staffId;
+    final staffId = await _staffIdForClock();
     final body = <String, dynamic>{
       if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
       if (resolvedResidence != null && resolvedResidence.isNotEmpty)
@@ -289,8 +329,14 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       if (longitude != null) 'longitude': longitude,
       if (accuracyMeters != null) 'accuracyMeters': accuracyMeters,
       if (selfieUrl != null && selfieUrl.isNotEmpty) 'selfieUrl': selfieUrl,
+      if (earlyDepartureReason != null && earlyDepartureReason.isNotEmpty)
+        'earlyDepartureReason': earlyDepartureReason,
+      if (earlyDepartureNotes != null && earlyDepartureNotes.isNotEmpty)
+        'earlyDepartureNotes': earlyDepartureNotes,
     };
-    final result = await _api.post(path, data: body);
+    // The clock sheet shows its own error, including the handover "Write it"
+    // action. A generic dialog would cover that and leave only OK.
+    final result = await _api.post(path, data: body, silent: true);
     return result.when(
       success: (_) async => Result.success(null),
       failure: (error) async => Result.failure(error),
@@ -358,6 +404,65 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
       success: (body) async {
         final json = JsonCodec.unwrapMap(body);
         return Result.success(JsonCodec.string(json['id']) ?? '');
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<TimeOffRequest>>> getMyTimeOffRequests({
+    String? from,
+    String? to,
+    String? status,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.attendanceTimeOffRequests,
+      query: {
+        'mine': true,
+        'from': ?from,
+        'to': ?to,
+        'status': ?status,
+        'page': 1,
+        'limit': _pageLimit,
+      },
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AttendanceMapper.timeOffListFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<TimeOffRequest>> createTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? reason,
+  }) async {
+    final note = reason?.trim();
+    final result = await _api.post(
+      ApiEndpoints.attendanceTimeOffRequests,
+      data: {
+        'type': type.apiValue,
+        'startDate': startDate,
+        'endDate': endDate,
+        if (note != null && note.isNotEmpty) 'reason': note,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        final row = AttendanceMapper.timeOffFrom(json);
+        if (row == null) {
+          return Result.failure(
+            const ApiError(
+              message: 'Time-off request was saved but could not be read back.',
+            ),
+          );
+        }
+        return Result.success(row);
       },
       failure: (error) async => Result.failure(error),
     );

@@ -5,7 +5,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_snackbar.dart';
-import '../../../family_shell.dart';
+import '../../../presentation/family_portal_nav.dart';
 import '../../../presentation/widgets/family_bottom_nav_bar.dart';
 import '../controllers/appointment_request_controller.dart';
 import '../widgets/appointment_form_fields.dart';
@@ -47,9 +47,7 @@ class _CreateAppointmentPageState extends State<CreateAppointmentPage> {
     super.dispose();
   }
 
-  void _onBottomNavTap(int index) {
-    Get.offAll(() => FamilyShell(initialIndex: index));
-  }
+  void _onBottomNavTap(int index) => familyGoToTab(index, context: context);
 
   void _close() => Navigator.of(context).maybePop();
 

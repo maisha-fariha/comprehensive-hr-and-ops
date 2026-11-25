@@ -33,6 +33,8 @@ class MarRegistryTabView extends StatelessWidget {
   final ValueChanged<String> onNotGiven;
   final ValueChanged<DueDose>? onOpenClientMedications;
   final ValueChanged<DueDose>? onEdit;
+  final ValueChanged<DueDose>? onDelete;
+  final ValueChanged<DueDose>? onDiscontinue;
   final String Function(DueDose dose)? administeredByName;
   final bool Function(DueDose dose)? isPendingSync;
   final bool canWriteScheduled;
@@ -58,6 +60,8 @@ class MarRegistryTabView extends StatelessWidget {
     required this.onNotGiven,
     this.onOpenClientMedications,
     this.onEdit,
+    this.onDelete,
+    this.onDiscontinue,
     this.administeredByName,
     this.isPendingSync,
     this.canWriteScheduled = true,
@@ -132,6 +136,10 @@ class MarRegistryTabView extends StatelessWidget {
                   ? null
                   : () => onOpenClientMedications!(doses[i]),
               onEdit: onEdit == null ? null : () => onEdit!(doses[i]),
+              onDelete: onDelete == null ? null : () => onDelete!(doses[i]),
+              onDiscontinue: onDiscontinue == null
+                  ? null
+                  : () => onDiscontinue!(doses[i]),
               administeredByName:
                   administeredByName?.call(doses[i]) ?? 'you',
             ),

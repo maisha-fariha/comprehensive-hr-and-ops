@@ -47,7 +47,7 @@ class CreateShiftNotificationsForm extends StatelessWidget {
             key: const ValueKey('create-shift-notify-toggle'),
             label: 'Notify assigned staff',
             description:
-                'Send each assignee a notification as soon as the shift is saved. Turn off while drafting a rota.',
+                'Tell each assignee, in the app and by email, with the date, time, place and their tasks. On an edit: when the time or place changes, and anyone newly added. Turn off while drafting a rota.',
             value: notifyAssignedStaff,
             onChanged: onNotifyAssignedStaffChanged,
           ),

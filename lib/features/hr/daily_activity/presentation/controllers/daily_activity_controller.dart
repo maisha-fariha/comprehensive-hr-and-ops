@@ -20,13 +20,22 @@ class DailyActivityController extends GetxController {
   final DailyActivityRepository repository;
   final UserSession session;
   final DateTime Function() _now;
+  final bool loadOnInit;
 
   DailyActivityController({
     required this.repository,
     UserSession? session,
     DateTime Function()? now,
+    this.loadOnInit = true,
   })  : session = session ?? Get.find<UserSession>(),
         _now = now ?? DateTime.now;
+
+  /// When set (Daily Logs → Activities), list uses this window instead of the
+  /// standalone "today / week / month" range filter — matching web
+  /// `eP({ from, to, residenceId, hideDuplicateFilters })`.
+  final RxnString boundFrom = RxnString();
+  final RxnString boundTo = RxnString();
+  final RxnString boundResidenceId = RxnString();
 
   static const List<int> pageSizes = [10, 25, 50];
   static const int historyLimit = 100;
@@ -75,8 +84,17 @@ class DailyActivityController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadOptions();
-    load();
+    loadOptions(residenceId: boundResidenceId.value);
+    if (loadOnInit) load();
+  }
+
+  /// Pin the registry to a home + day (web Daily Logs Activities embed).
+  void bindBoard({required String? residenceId, required String day}) {
+    boundResidenceId.value =
+        (residenceId == null || residenceId.isEmpty) ? null : residenceId;
+    boundFrom.value = day;
+    boundTo.value = day;
+    page.value = 1;
   }
 
   @override
@@ -87,21 +105,72 @@ class DailyActivityController extends GetxController {
 
   Future<void> refreshAll() => Future.wait([load(), loadHistory()]);
 
-  Future<void> loadOptions() async {
-    final results = await Future.wait([repository.clients(), repository.staff()]);
+  Future<void> loadOptions({String? residenceId}) async {
+    final staffFuture = session.canReadStaffList
+        ? repository.staff()
+        : Future.value(
+            Result.success(const <DailyActivityOption>[]),
+          );
+    final results = await Future.wait([
+      repository.clients(residenceId: residenceId),
+      staffFuture,
+    ]);
     results[0].when(success: clients.assignAll, failure: (_) {});
     results[1].when(success: staff.assignAll, failure: (_) {});
+  }
+
+  /// Web "Record a group activity" → `POST /client-activities/batch`.
+  Future<String?> saveBatch(
+    DailyActivityBatchDraft draft, {
+    List<DailyActivityLocalFile> files = const [],
+  }) async {
+    final uploaded = <DailyActivityAttachment>[];
+    for (final file in files) {
+      final result = await repository.upload(file);
+      final error = result.when(
+        success: (url) {
+          uploaded.add(DailyActivityAttachment(fileUrl: url, fileType: file.name));
+          return null;
+        },
+        failure: (e) => _message(e),
+      );
+      if (error != null) return error;
+    }
+    final body = DailyActivityBatchDraft(
+      clientIds: draft.clientIds,
+      activityDate: draft.activityDate,
+      activityType: draft.activityType,
+      status: draft.status,
+      description: draft.description,
+      occurredAt: draft.occurredAt,
+      shareWithFamily: draft.shareWithFamily,
+      individualNotes: draft.individualNotes,
+      attachments: uploaded,
+    );
+    final result = await repository.createBatch(body);
+    return result.when(
+      success: (_) {
+        AppSnackbar.show('Recorded for ${draft.clientIds.length} residents', '');
+        refreshAll();
+        return null;
+      },
+      failure: _message,
+    );
   }
 
   Future<void> load() async {
     final serial = ++_serial;
     loading.value = true;
-    final (from, to) = DailyActivityLabels.range(range.value, _now());
+    final boundDay = boundFrom.value;
+    final (rangeFrom, rangeTo) = DailyActivityLabels.range(range.value, _now());
+    final from = boundDay ?? rangeFrom;
+    final to = boundTo.value ?? rangeTo;
     final result = await repository.list(
       page: page.value,
       limit: limit.value,
       search: search.value,
       clientId: clientId.value,
+      residenceId: boundResidenceId.value,
       recordedByStaffId: staffId.value,
       activityType: activityType.value,
       status: status.value,

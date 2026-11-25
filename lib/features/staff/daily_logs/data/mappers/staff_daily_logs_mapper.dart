@@ -9,6 +9,7 @@ import '../../domain/entities/staff_daily_logs_enums.dart';
 import '../../domain/entities/staff_daily_logs_overview.dart';
 import '../../domain/entities/staff_day_log_entry.dart';
 import '../../domain/entities/staff_house_activity_entry.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffDailyLogsMapper {
   static StaffDailyLogsOverview compose({
@@ -127,7 +128,7 @@ abstract final class StaffDailyLogsMapper {
       dayClientName: dayClientName,
       dayLogDateLabel: dayDate == null
           ? null
-          : IsoDateRange.formatShortDate(dayDate.toLocal()),
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(dayDate)),
       houseActivities: activities,
       houseActivitiesTotal: activitiesTotal,
       residents: residents,
@@ -166,7 +167,7 @@ abstract final class StaffDailyLogsMapper {
     final entriesCount = JsonCodec.integerOr(json['entriesCount'], 0);
     final dateLabel = logDate == null
         ? '—'
-        : IsoDateRange.formatShortDate(logDate.toLocal());
+        : IsoDateRange.formatShortDate(TenantClock.wallOf(logDate));
 
     final subtitle = status == ClientLogStatus.missing
         ? 'No log for $dateLabel'
@@ -174,7 +175,7 @@ abstract final class StaffDailyLogsMapper {
             ? '$entriesCount ${entriesCount == 1 ? 'entry' : 'entries'}'
             : (created == null
                 ? 'Awaiting review'
-                : 'Submitted ${IsoDateRange.timeLabel(created.toLocal())}'));
+                : 'Submitted ${IsoDateRange.timeLabel(created)}'));
 
     return StaffClientLogEntry(
       id: JsonCodec.stringOr(
@@ -209,7 +210,7 @@ abstract final class StaffDailyLogsMapper {
         author['name'] ?? IsoDateRange.personName(author),
         'Staff',
       ),
-      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at.toLocal()),
+      timeLabel: at == null ? '' : IsoDateRange.timeLabel(at),
       logType: JsonCodec.stringOr(json['logType'] ?? json['source'], ''),
       shift: JsonCodec.string(json['shift']),
     );
@@ -234,7 +235,7 @@ abstract final class StaffDailyLogsMapper {
       status: JsonCodec.stringOr(json['status'], ''),
       dateLabel: date == null
           ? '—'
-          : IsoDateRange.formatShortDate(date.toLocal()),
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(date)),
       notes: JsonCodec.stringOr(json['notes'] ?? json['description'], ''),
       authorName: JsonCodec.stringOr(
         author['name'] ?? IsoDateRange.personName(author),

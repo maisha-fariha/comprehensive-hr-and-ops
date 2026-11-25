@@ -6,9 +6,11 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../../core/constants/app_assets.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/constants/app_dimens.dart';
+import '../../../../../core/roles/permission_gate.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 import '../../../presentation/open_manager_portal_search.dart';
+import '../../../presentation/widgets/hr_company_brand.dart';
 import '../../domain/entities/incidents_board.dart';
 import '../../domain/entities/incidents_enums.dart';
 import '../controllers/incidents_controller.dart';
@@ -16,23 +18,28 @@ import '../widgets/add_investigation_note_sheet.dart';
 import '../widgets/closed_incident_card.dart';
 import '../widgets/create_incident_button.dart';
 import '../widgets/incident_stat_tile_row.dart';
+import '../widgets/incidents_filters_bar.dart';
 import '../widgets/investigation_incident_card.dart';
 import '../widgets/investigation_summary_sheet.dart';
 import '../widgets/open_incident_card.dart';
 import 'hr_incident_details_page.dart';
 import 'incident_creation_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
-/// The Incidents list screen — "Open / Under Review / Closed" tabs.
-/// Open tab UI matches the "Open - Incidents" Figma reference.
+/// Incidents list — web-parity filters (status dropdown, not status tabs).
 class IncidentsListPage extends StatelessWidget {
   const IncidentsListPage({super.key});
 
   IncidentsController _resolveController() {
+    IncidentsController controller;
     try {
-      return Get.find<IncidentsController>();
+      controller = Get.find<IncidentsController>();
     } catch (_) {
-      return Get.put(GetIt.instance<IncidentsController>(), permanent: true);
+      controller =
+          Get.put(GetIt.instance<IncidentsController>(), permanent: true);
     }
+    controller.ensureLoaded();
+    return controller;
   }
 
   Future<void> _openCreationWizard(IncidentsController controller) async {
@@ -51,7 +58,7 @@ class IncidentsListPage extends StatelessWidget {
     final changed = await Get.to<bool>(
       () => HrIncidentDetailsPage(
         incidentId: incidentId,
-        canWrite: session?.can('incidents:write') ?? true,
+        canWrite: session?.can('incidents:write') ?? false,
       ),
     );
     if (changed == true) {
@@ -61,6 +68,14 @@ class IncidentsListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return PermissionGate(
+      anyOf: const ['incidents:read'],
+      title: 'Incident Reports',
+      builder: () => _buildAllowed(context),
+    );
+  }
+
+  Widget _buildAllowed(BuildContext context) {
     final controller = _resolveController();
 
     return Scaffold(
@@ -84,7 +99,6 @@ class IncidentsListPage extends StatelessWidget {
           );
         }
 
-        final selectedTab = controller.selectedTab.value;
         final horizontalPad = ResponsiveHelper.getResponsiveWidth(
           context,
           AppDimens.screenPaddingHorizontal,
@@ -92,37 +106,27 @@ class IncidentsListPage extends StatelessWidget {
 
         return Column(
           children: [
-            ColoredBox(
+            const ColoredBox(
               color: AppColors.surfaceWhite,
               child: SafeArea(
                 bottom: false,
-                child: Column(
-                  children: [
-                    const _IncidentsHeader(),
-                    _IncidentsTabBar(
-                      selected: selectedTab,
-                      openBadgeCount: board.open.activeCount,
-                      onSelected: controller.selectTab,
-                    ),
-                  ],
-                ),
+                child: _IncidentsHeader(),
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(
                     horizontalPad,
-                    ResponsiveHelper.getResponsiveHeight(context, 16),
+                    ResponsiveHelper.getResponsiveHeight(context, 12),
                     horizontalPad,
                     ResponsiveHelper.getResponsiveHeight(context, 14),
                   ),
-                  children: _buildTabChildren(
+                  children: _buildListChildren(
                     context,
-                    selectedTab,
                     board,
                     controller,
                   ),
@@ -138,20 +142,40 @@ class IncidentsListPage extends StatelessWidget {
                   horizontalPad,
                   ResponsiveHelper.getResponsiveHeight(context, 10),
                 ),
-                child: Column(
+                child: Builder(
+                  builder: (context) {
+                    final session = Get.isRegistered<UserSession>()
+                        ? Get.find<UserSession>()
+                        : null;
+                    final canExport = session == null ||
+                        session.can('incidents:export');
+                    final canWrite =
+                        session == null || session.can('incidents:write');
+                    if (!canExport && !canWrite) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ExportListButton(
-                      isLoading: controller.isExporting.value,
-                      onTap: controller.exportIncidentList,
-                    ),
-                    SizedBox(
-                      height: ResponsiveHelper.getResponsiveHeight(context, 10),
-                    ),
-                    CreateIncidentButton(
-                      onTap: () => _openCreationWizard(controller),
-                    ),
+                    if (canExport)
+                      ExportListButton(
+                        isLoading: controller.isExporting.value,
+                        onTap: controller.exportIncidentList,
+                      ),
+                    if (canExport && canWrite)
+                      SizedBox(
+                        height: ResponsiveHelper.getResponsiveHeight(
+                          context,
+                          10,
+                        ),
+                      ),
+                    if (canWrite)
+                      CreateIncidentButton(
+                        onTap: () => _openCreationWizard(controller),
+                      ),
                   ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -161,117 +185,147 @@ class IncidentsListPage extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildTabChildren(
+  List<Widget> _buildListChildren(
     BuildContext context,
-    IncidentsTab tab,
     IncidentsBoard board,
     IncidentsController controller,
   ) {
-    final gap12 = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 18));
-    final gap10 = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10));
+    final gap12 =
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12));
+    final gap8 =
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8));
+    final status = controller.statusFilter.value;
+    final stats = switch (status) {
+      IncidentListStatus.open => board.open.stats,
+      IncidentListStatus.investigating => board.underReview.stats,
+      IncidentListStatus.closed => board.closed.stats,
+      null => board.open.stats,
+    };
+    final openCount = board.open.activeCount;
+    final reviewCount = board.underReview.investigationCount;
+    final closedCount = board.closed.incidents.length;
+    final totalCount = openCount + reviewCount + closedCount;
+    final title = switch (status) {
+      IncidentListStatus.open => 'Open Incidents',
+      IncidentListStatus.investigating => 'Investigating',
+      IncidentListStatus.closed => 'Closed Incidents',
+      null => 'All Incidents',
+    };
+    final badgeCount = switch (status) {
+      IncidentListStatus.open => openCount,
+      IncidentListStatus.investigating => reviewCount,
+      IncidentListStatus.closed => closedCount,
+      null => totalCount,
+    };
+    final badgeBg = switch (status) {
+      IncidentListStatus.open => AppColors.criticalBackground,
+      IncidentListStatus.investigating => AppColors.infoBackground,
+      IncidentListStatus.closed => AppColors.activeBackground,
+      null => AppColors.infoBackground,
+    };
+    final badgeFg = switch (status) {
+      IncidentListStatus.open => AppColors.criticalRed,
+      IncidentListStatus.investigating => AppColors.infoBlue,
+      IncidentListStatus.closed => AppColors.activeGreen,
+      null => AppColors.infoBlue,
+    };
 
-    switch (tab) {
-      case IncidentsTab.open:
-        final section = board.open;
-        return [
-          IncidentStatTileRow(stats: section.stats),
-          gap12,
-          _SectionHeader(
-            title: 'Active Incidents',
-            badgeCount: section.activeCount,
-            badgeBackground: AppColors.criticalBackground,
-            badgeForeground: AppColors.criticalRed,
+    return [
+      IncidentsFiltersBar(
+        reportedByMe: controller.reportedByMe.value,
+        statusFilter: controller.statusFilter.value,
+        severityFilter: controller.severityFilter.value,
+        residenceFilterId: controller.residenceFilterId.value,
+        clientFilterId: controller.clientFilterId.value,
+        investigatorFilterId: controller.investigatorFilterId.value,
+        residences: controller.residences.toList(),
+        clients: controller.clients.toList(),
+        investigators: controller.investigators.toList(),
+        fromDate: controller.fromDate.value,
+        toDate: controller.toDate.value,
+        onReportedByMeChanged: controller.setReportedByMe,
+        onStatusChanged: controller.setStatusFilter,
+        onSeverityChanged: controller.setSeverityFilter,
+        onResidenceChanged: (id) {
+          controller.setResidenceFilter(id);
+        },
+        onClientChanged: controller.setClientFilter,
+        onInvestigatorChanged: controller.setInvestigatorFilter,
+        onFromChanged: controller.setFromDate,
+        onToChanged: controller.setToDate,
+        onClearFilters: controller.clearFilters,
+      ),
+      gap12,
+      if (stats.isNotEmpty) ...[
+        IncidentStatTileRow(stats: stats),
+        gap12,
+      ],
+      _SectionHeader(
+        title: title,
+        badgeCount: badgeCount,
+        badgeBackground: badgeBg,
+        badgeForeground: badgeFg,
+      ),
+      gap8,
+      if (status == null || status == IncidentListStatus.open)
+        for (final incident in board.open.incidents) ...[
+          OpenIncidentCard(
+            key: ValueKey('incident-open-${incident.id}'),
+            incident: incident,
+            onTap: () => _openDetails(controller, incident.id),
           ),
-          gap10,
-          for (final incident in section.incidents) ...[
-            OpenIncidentCard(
-              key: ValueKey('incident-open-${incident.id}'),
+          gap8,
+        ],
+      if (status == null || status == IncidentListStatus.investigating)
+        for (final incident in board.underReview.incidents) ...[
+          GestureDetector(
+            key: ValueKey('incident-review-${incident.id}'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _openDetails(controller, incident.id),
+            child: InvestigationIncidentCard(
               incident: incident,
-              onTap: () => _openDetails(controller, incident.id),
-            ),
-            gap10,
-          ],
-        ];
-      case IncidentsTab.underReview:
-        final section = board.underReview;
-        return [
-          IncidentStatTileRow(stats: section.stats),
-          gap12,
-          _SectionHeader(
-            title: 'In Investigation',
-            badgeCount: section.investigationCount,
-            badgeBackground: AppColors.infoBackground,
-            badgeForeground: AppColors.infoBlue,
-          ),
-          gap10,
-          for (final incident in section.incidents) ...[
-            GestureDetector(
-              key: ValueKey('incident-review-${incident.id}'),
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _openDetails(controller, incident.id),
-              child: InvestigationIncidentCard(
+              onViewInvestigation: () => showInvestigationSummarySheet(
+                context,
                 incident: incident,
-                onViewInvestigation: () => showInvestigationSummarySheet(
+              ),
+              onAddNote: () async {
+                final saved = await showAddInvestigationNoteSheet(
                   context,
                   incident: incident,
-                ),
-                onAddNote: () async {
-                  final saved = await showAddInvestigationNoteSheet(
-                    context,
-                    incident: incident,
-                  );
-                  if (saved) {
-                    await controller.refresh();
-                  }
-                },
-              ),
+                );
+                if (saved) {
+                  await controller.refresh();
+                }
+              },
             ),
-            gap10,
-          ],
-        ];
-      case IncidentsTab.closed:
-        final section = board.closed;
-        return [
-          IncidentStatTileRow(stats: section.stats),
-          gap12,
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Resolved Incidents',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: ResponsiveHelper.getResponsiveFontSize(context, 16),
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              Text(
-                'This week',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w500,
-                  fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-                  color: AppColors.textFaint,
-                ),
-              ),
-            ],
           ),
-          gap10,
-          for (final incident in section.incidents) ...[
-            GestureDetector(
-              key: ValueKey('incident-closed-${incident.id}'),
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _openDetails(controller, incident.id),
-              child: ClosedIncidentCard(incident: incident),
+          gap8,
+        ],
+      if (status == null || status == IncidentListStatus.closed)
+        for (final incident in board.closed.incidents) ...[
+          GestureDetector(
+            key: ValueKey('incident-closed-${incident.id}'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _openDetails(controller, incident.id),
+            child: ClosedIncidentCard(incident: incident),
+          ),
+          gap8,
+        ],
+      if (badgeCount == 0)
+        Padding(
+          padding: ResponsiveHelper.getResponsivePadding(context, vertical: 24),
+          child: Text(
+            'No incidents match these filters.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w500,
+              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
+              color: AppColors.textMuted,
             ),
-            gap10,
-          ],
-        ];
-    }
+          ),
+        ),
+    ];
   }
 }
 
@@ -295,15 +349,18 @@ class _IncidentsHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.menu_rounded,
-            size: ResponsiveHelper.getResponsiveSize(context, 24),
-            color: AppColors.textHeading,
+          const Flexible(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: HrCompanyBrand(maxNameWidth: 110),
+            ),
           ),
           Expanded(
             child: Text(
               'Incidents',
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.w700,
@@ -335,146 +392,6 @@ class _IncidentsHeader extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tab bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _IncidentsTabBar extends StatelessWidget {
-  final IncidentsTab selected;
-  final int openBadgeCount;
-  final ValueChanged<IncidentsTab> onSelected;
-
-  const _IncidentsTabBar({
-    required this.selected,
-    required this.openBadgeCount,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tabs = [
-      (IncidentsTab.open, 'Open', openBadgeCount),
-      (IncidentsTab.underReview, 'Under Review', null),
-      (IncidentsTab.closed, 'Closed', null),
-    ];
-
-    return Padding(
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 20,
-        bottom: 14,
-      ),
-      child: Container(
-        height: ResponsiveHelper.getResponsiveHeight(context, 44),
-        padding: ResponsiveHelper.getResponsivePadding(context, all: 3),
-        decoration: BoxDecoration(
-          color: AppColors.filterButtonBackground,
-          borderRadius: BorderRadius.circular(
-            ResponsiveHelper.getResponsiveRadius(context, 14),
-          ),
-        ),
-        child: Row(
-          children: [
-            for (final (tab, label, badge) in tabs)
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => onSelected(tab),
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    margin: EdgeInsets.symmetric(
-                      horizontal: ResponsiveHelper.getResponsiveWidth(context, 2),
-                    ),
-                    decoration: BoxDecoration(
-                      color: tab == selected
-                          ? AppColors.surfaceWhite
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(
-                        ResponsiveHelper.getResponsiveRadius(context, 12),
-                      ),
-                      boxShadow: tab == selected
-                          ? [
-                              BoxShadow(
-                                color: AppColors.shadowNavy.withValues(alpha: 0.08),
-                                offset: Offset(
-                                  0,
-                                  ResponsiveHelper.getResponsiveHeight(context, 1),
-                                ),
-                                blurRadius: ResponsiveHelper.getResponsiveHeight(
-                                  context,
-                                  3,
-                                ),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: tab == selected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                context,
-                                12.5,
-                              ),
-                              color: tab == selected
-                                  ? AppColors.secondaryTeal
-                                  : AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                        if (tab != selected && (badge ?? 0) > 0) ...[
-                          SizedBox(
-                            width: ResponsiveHelper.getResponsiveWidth(context, 5),
-                          ),
-                          Container(
-                            constraints: const BoxConstraints(minWidth: 18),
-                            height: ResponsiveHelper.getResponsiveSize(context, 18),
-                            padding: ResponsiveHelper.getResponsivePadding(
-                              context,
-                              horizontal: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.criticalRed,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '$badge',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w700,
-                                fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                  context,
-                                  10,
-                                ),
-                                color: AppColors.surfaceWhite,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }

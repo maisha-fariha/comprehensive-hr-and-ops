@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/daily_log.dart';
 import '../../domain/repositories/daily_logs_repository.dart';
 import '../mappers/daily_logs_mapper.dart';
@@ -43,8 +45,57 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
   @override
   Future<Result<List<DailyLogOption>>> clients(String? residenceId) => _get(
         ApiEndpoints.clients,
-        {'residenceId': ?residenceId, 'page': 1, 'limit': 100},
+        {
+          'residenceId': ?((residenceId != null && residenceId.isNotEmpty) ? residenceId : null),
+          'page': 1,
+          'limit': 100,
+        },
         DailyLogsMapper.clientsFrom,
+      );
+
+  @override
+  Future<Result<List<DailyLogOption>>> staff() async {
+    var result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: const {'page': 1, 'limit': 100},
+      silent: true,
+    );
+    final canStaffRead = Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().canReadStaffList;
+    if (canStaffRead &&
+        (result.isFailure || JsonCodec.unwrapList(result.value).isEmpty)) {
+      result = await _api.get(
+        ApiEndpoints.staff,
+        query: const {'page': 1, 'limit': 100},
+        silent: true,
+      );
+    }
+    return result.when(
+      success: (body) async => Result.success(DailyLogsMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailyLogBoard>> board({
+    required String residenceId,
+    required String date,
+  }) =>
+      _get(
+        ApiEndpoints.dailyLogsBoard,
+        {'residenceId': residenceId, 'date': date},
+        DailyLogsMapper.boardFrom,
+      );
+
+  @override
+  Future<Result<DailyActivityFeed>> activityFeed({
+    required String clientId,
+    required String date,
+  }) =>
+      _get(
+        ApiEndpoints.clientDailyActivityFeed(clientId),
+        {'date': date},
+        DailyLogsMapper.activityFeedFrom,
       );
 
   Map<String, dynamic> _queue({
@@ -149,9 +200,31 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
       );
 
   @override
-  Future<Result<void>> createEntry(Map<String, dynamic> body) => _void(
-        _api.post(ApiEndpoints.dailyLogEntries, data: body, silent: true, allowQueue: false),
-      );
+  Future<Result<void>> createEntry(Map<String, dynamic> body) {
+    final payload = Map<String, dynamic>.from(body);
+    // API rejects stringified booleans ("true") with VALIDATION_ERROR.
+    for (final key in const [
+      'wellnessCheckCompleted',
+      'bedCheckCompleted',
+    ]) {
+      if (!payload.containsKey(key)) continue;
+      final value = payload[key];
+      // Web tri-state: Done / Not done / Not said (null).
+      if (value == null) {
+        payload[key] = null;
+      } else {
+        payload[key] = value == true || value == 'true' || value == 1;
+      }
+    }
+    return _void(
+      _api.post(
+        ApiEndpoints.dailyLogEntries,
+        data: payload,
+        silent: true,
+        allowQueue: false,
+      ),
+    );
+  }
 
   @override
   Future<Result<void>> amendEntry(String id, {required String body, required String reason}) =>
@@ -167,7 +240,8 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
 
   @override
   Future<Result<DailyLogPage<ResidenceActivityRow>>> activity({
-    required String residenceId,
+    String? residenceId,
+    String? staffId,
     required String from,
     required String to,
     required int page,
@@ -175,7 +249,16 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
   }) =>
       _get(
         ApiEndpoints.residenceActivity,
-        {'residenceId': residenceId, 'from': from, 'to': to, 'page': page, 'limit': limit},
+        {
+          'residenceId': ?((residenceId != null && residenceId.isNotEmpty) ? residenceId : null),
+          'staffId': ?((staffId != null && staffId.isNotEmpty) ? staffId : null),
+          'from': from,
+          // The web sends the end of the chosen day. A date-only `to` is
+          // midnight, so that day's activity never comes back.
+          'to': to.length == 10 ? '${to}T23:59:59.999Z' : to,
+          'page': page,
+          'limit': limit,
+        },
         DailyLogsMapper.activityFrom,
       );
 
@@ -191,6 +274,110 @@ class DailyLogsRepositoryImpl implements DailyLogsRepository {
         _api.post(ApiEndpoints.careFlagResolve(id),
             data: {'note': ?note}, silent: true, allowQueue: false),
       );
+
+  @override
+  Future<Result<DailySummary?>> daySummary({
+    required String clientId,
+    required String day,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.dailySummariesForClient(clientId),
+      query: {'from': day, 'to': day, 'limit': 1},
+      silent: true,
+    );
+    return result.when(
+      success: (body) async {
+        final rows = JsonCodec.unwrapList(body).whereType<Map>();
+        if (rows.isEmpty) return Result.success(null);
+        return Result.success(
+          DailyLogsMapper.dailySummaryFrom(JsonCodec.asMap(rows.first)),
+        );
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailySummary?>> generateDaySummary({
+    required String clientId,
+    required String day,
+  }) async {
+    final result = await _api.post(
+      ApiEndpoints.dailySummariesGenerate(clientId),
+      data: {'day': day},
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final data = JsonCodec.unwrap(body);
+        if (data == null) return Result.success(null);
+        if (data is Map && data.isEmpty) return Result.success(null);
+        final map = JsonCodec.unwrapMap(body);
+        if (map.isEmpty || JsonCodec.string(map['id']) == null) {
+          return Result.success(null);
+        }
+        return Result.success(DailyLogsMapper.dailySummaryFrom(map));
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailySummary>> updateDaySummary(
+    String id, {
+    required String summary,
+    String? familySummary,
+  }) async {
+    final trimmedFamily = familySummary?.trim();
+    final result = await _api.patch(
+      ApiEndpoints.dailySummaryById(id),
+      data: {
+        'summary': summary,
+        if (trimmedFamily != null && trimmedFamily.isNotEmpty)
+          'familySummary': trimmedFamily,
+      },
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async => Result.success(
+        DailyLogsMapper.dailySummaryFrom(JsonCodec.unwrapMap(body)),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailySummary>> shareDaySummary(String id) async {
+    final result = await _api.post(
+      ApiEndpoints.dailySummaryShare(id),
+      data: const <String, dynamic>{},
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async => Result.success(
+        DailyLogsMapper.dailySummaryFrom(JsonCodec.unwrapMap(body)),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<DailySummary>> unshareDaySummary(String id) async {
+    final result = await _api.delete(
+      ApiEndpoints.dailySummaryShare(id),
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async => Result.success(
+        DailyLogsMapper.dailySummaryFrom(JsonCodec.unwrapMap(body)),
+      ),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<DailyLogUpload>> upload(String path, String fileName) async {

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'message_attachment.dart';
+
 enum FamilyMessageDirection { incoming, outgoing }
 
 /// Delivery state of an outgoing bubble. Messages loaded from the server are
@@ -14,6 +16,7 @@ class FamilyChatMessage {
   final String timeLabel;
   final String senderName;
   final FamilyMessageDelivery delivery;
+  final List<MessageAttachment> attachments;
 
   const FamilyChatMessage({
     required this.id,
@@ -22,6 +25,7 @@ class FamilyChatMessage {
     required this.timeLabel,
     required this.senderName,
     this.delivery = FamilyMessageDelivery.sent,
+    this.attachments = const [],
   });
 
   FamilyChatMessage copyWith({
@@ -29,6 +33,7 @@ class FamilyChatMessage {
     String? timeLabel,
     String? senderName,
     FamilyMessageDelivery? delivery,
+    List<MessageAttachment>? attachments,
   }) {
     return FamilyChatMessage(
       id: id,
@@ -37,6 +42,7 @@ class FamilyChatMessage {
       timeLabel: timeLabel ?? this.timeLabel,
       senderName: senderName ?? this.senderName,
       delivery: delivery ?? this.delivery,
+      attachments: attachments ?? this.attachments,
     );
   }
 }

@@ -50,6 +50,8 @@ class HrDocumentsController extends GetxController {
   final RxInt page = 1.obs;
   final RxInt limit = defaultLimit.obs;
   final RxnString busyId = RxnString();
+  final RxList<HrSignOption> signRoles = <HrSignOption>[].obs;
+  final RxList<HrSignOption> signUsers = <HrSignOption>[].obs;
 
   Timer? _searchTimer;
   int _serial = 0;
@@ -70,8 +72,32 @@ class HrDocumentsController extends GetxController {
     super.onClose();
   }
 
-  Future<void> refreshAll() =>
-      Future.wait([load(), loadSummary(), loadTypes(), loadDirectories()]);
+  Future<void> refreshAll() => Future.wait([
+        load(),
+        loadSummary(),
+        loadTypes(),
+        loadDirectories(),
+        loadSignOptions(),
+      ]);
+
+  /// Roles + users for the document detail "Send for signing" form.
+  Future<void> loadSignOptions() async {
+    if (!canWrite) return;
+    await Future.wait([
+      repository.roles().then(
+            (result) => result.when(
+              success: signRoles.assignAll,
+              failure: (_) {},
+            ),
+          ),
+      repository.users().then(
+            (result) => result.when(
+              success: signUsers.assignAll,
+              failure: (_) {},
+            ),
+          ),
+    ]);
+  }
 
   Future<void> _refreshData() => Future.wait([load(), loadSummary()]);
 
@@ -296,10 +322,60 @@ class HrDocumentsController extends GetxController {
   }
 
   Future<void> download(String fileUrl, String name) async {
+    busyId.value = 'download:$fileUrl';
     final result = await repository.download(fileUrl, name);
+    busyId.value = null;
     await result.when(
       success: openFile,
       failure: (error) async => AppSnackbar.show(error.message, ''),
+    );
+  }
+
+  Future<Result<HrAcknowledgmentProgress>> loadAcknowledgments(String id) =>
+      repository.acknowledgments(id);
+
+  /// `POST /documents/:id/assign` with the web `eq(form)` body shape.
+  Future<Result<HrAcknowledgmentProgress>> sendForSigning(
+    String documentId,
+    Map<String, dynamic> body,
+  ) async {
+    busyId.value = documentId;
+    final result = await repository.requestAcknowledgment(documentId, body);
+    busyId.value = null;
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Sent out for signing', '');
+        _refreshData();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
+    return result;
+  }
+
+  Future<Result<void>> acknowledgeDocument(String documentId) async {
+    busyId.value = documentId;
+    final result = await repository.acknowledge(documentId);
+    busyId.value = null;
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Thank you — your signature has been recorded', '');
+        _refreshData();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
+    return result;
+  }
+
+  Future<void> remindSigning(String documentId) async {
+    busyId.value = documentId;
+    final result = await repository.remindAcknowledgments(documentId);
+    busyId.value = null;
+    result.when(
+      success: (count) => AppSnackbar.show(
+        count == 1 ? '1 reminder sent' : '$count reminders sent',
+        '',
+      ),
+      failure: (error) => AppSnackbar.show(error.message, ''),
     );
   }
 

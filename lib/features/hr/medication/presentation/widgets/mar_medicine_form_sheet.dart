@@ -1,12 +1,27 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../common/widgets/prn_shortest_gap_field.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/mar_medication.dart';
 import '../../domain/entities/mar_options.dart';
 import '../medication_labels.dart';
 import 'medication_common.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
+
+const _marMedicineErrorKeys = <String, Key>{
+  'name': ValueKey('mar-form-name'),
+  'house': ValueKey('mar-form-house'),
+  'resident': ValueKey('mar-form-resident'),
+  'dose': ValueKey('mar-form-dose'),
+  'route': ValueKey('mar-form-route'),
+  'stock': ValueKey('mar-form-stock'),
+  'times': ValueKey('mar-form-time-input'),
+  'weekdays': ValueKey('mar-form-weekdays'),
+  'ends': ValueKey('mar-form-ends'),
+  'gap': ValueKey('prn-shortest-gap'),
+};
 
 /// Web "Add a medicine" / "Correct a medicine" (and the PRN variants).
 /// [onSubmit] returns the error for the banner, or null once saved.
@@ -58,6 +73,34 @@ class MarMedicineForm extends StatefulWidget {
   State<MarMedicineForm> createState() => _MarMedicineFormState();
 }
 
+String _costText(num? value) {
+  if (value == null) return '';
+  if (value == value.roundToDouble()) return value.round().toString();
+  return value.toString();
+}
+
+/// Per-kind (Medicine vs PRN) draft so switching the tab does not leak fields.
+class _KindBuffer {
+  List<MarMedicineDraft> list = [];
+  String name = '';
+  String dose = '';
+  String timeInput = '';
+  String route = '';
+  String stock = '';
+  String cost = '';
+  String gap = '';
+  String instructions = '';
+  String within = '60';
+  String frequency = 'daily';
+  List<String> times = [];
+  Set<int> weekdays = {};
+  String starts = '';
+  String ends = '';
+  bool controlled = false;
+  String check = '';
+  String? error;
+}
+
 class _MarMedicineFormState extends State<MarMedicineForm> {
   late bool _prn = widget.editing?.isPrn ?? widget.prn;
   final List<MarMedicineDraft> _list = [];
@@ -69,7 +112,9 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   final _timeInput = TextEditingController();
   final _route = TextEditingController();
   final _stock = TextEditingController();
-  final _gap = TextEditingController();
+  final _cost = TextEditingController();
+  final _gapHours = TextEditingController();
+  final _gapMinutes = TextEditingController();
   final _instructions = TextEditingController();
   final _within = TextEditingController(text: '60');
   String _frequency = 'daily';
@@ -83,7 +128,73 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   String? _error;
   bool _saving = false;
 
+  /// Separate Medicine / PRN working copies while the sheet is open.
+  final _KindBuffer _scheduledBuf = _KindBuffer();
+  final _KindBuffer _prnBuf = _KindBuffer();
+
   bool get _editingMode => widget.editing != null;
+
+  void _captureKind(bool prn) {
+    final buf = prn ? _prnBuf : _scheduledBuf;
+    buf.list = List<MarMedicineDraft>.from(_list);
+    buf.name = _name.text;
+    buf.dose = _dose.text;
+    buf.timeInput = _timeInput.text;
+    buf.route = _route.text;
+    buf.stock = _stock.text;
+    buf.cost = _cost.text;
+    buf.gap = PrnShortestGapField.totalMinutes(
+          hours: _gapHours,
+          minutes: _gapMinutes,
+        )?.toString() ??
+        '';
+    buf.instructions = _instructions.text;
+    buf.within = _within.text;
+    buf.frequency = _frequency;
+    buf.times = List<String>.from(_times);
+    buf.weekdays = Set<int>.from(_weekdays);
+    buf.starts = _starts;
+    buf.ends = _ends;
+    buf.controlled = _controlled;
+    buf.check = _check;
+    buf.error = _error;
+  }
+
+  void _restoreKind(bool prn) {
+    final buf = prn ? _prnBuf : _scheduledBuf;
+    _list
+      ..clear()
+      ..addAll(buf.list);
+    _name.text = buf.name;
+    _dose.text = buf.dose;
+    _timeInput.text = buf.timeInput;
+    _route.text = buf.route;
+    _stock.text = buf.stock;
+    _cost.text = buf.cost;
+    PrnShortestGapField.applyMinutes(
+      int.tryParse(buf.gap),
+      hours: _gapHours,
+      minutes: _gapMinutes,
+    );
+    _instructions.text = buf.instructions;
+    _within.text = buf.within.isEmpty ? '60' : buf.within;
+    _frequency = buf.frequency;
+    _times = List<String>.from(buf.times);
+    _weekdays = Set<int>.from(buf.weekdays);
+    _starts = buf.starts;
+    _ends = buf.ends;
+    _controlled = buf.controlled;
+    _check = buf.check;
+    _error = buf.error;
+  }
+
+  void _switchKind(bool prn) {
+    if (_prn == prn || _editingMode) return;
+    _commitTime();
+    _captureKind(_prn);
+    _prn = prn;
+    _restoreKind(prn);
+  }
 
   @override
   void initState() {
@@ -99,7 +210,12 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       _starts = m.startsAt;
       _ends = m.endsAt;
       _stock.text = m.stockUnitsPerDose?.toString() ?? '';
-      _gap.text = m.minIntervalMinutes?.toString() ?? '';
+      _cost.text = _costText(m.costPerDose);
+      PrnShortestGapField.applyMinutes(
+        m.minIntervalMinutes,
+        hours: _gapHours,
+        minutes: _gapMinutes,
+      );
       _check = m.requiresCheckScheduleId ?? '';
       _within.text = '${m.requiresCheckWithinMinutes ?? 60}';
       // Kept from the record so a correction does not wipe the round times.
@@ -113,7 +229,18 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _dose, _timeInput, _route, _stock, _gap, _instructions, _within]) {
+    for (final c in [
+      _name,
+      _dose,
+      _timeInput,
+      _route,
+      _stock,
+      _cost,
+      _gapHours,
+      _gapMinutes,
+      _instructions,
+      _within,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -140,7 +267,12 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       startsAt: _starts,
       endsAt: _ends,
       stockUnitsPerDose: _stock.text,
-      minIntervalMinutes: _gap.text,
+      costPerDose: _cost.text,
+      minIntervalMinutes: PrnShortestGapField.totalMinutes(
+            hours: _gapHours,
+            minutes: _gapMinutes,
+          )?.toString() ??
+          '',
       instructions: _instructions.text.trim(),
       isControlled: _controlled,
       requiresCheckScheduleId: _check,
@@ -149,7 +281,17 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
   }
 
   void _resetMedicine() {
-    for (final c in [_name, _dose, _route, _stock, _gap, _instructions, _timeInput]) {
+    for (final c in [
+      _name,
+      _dose,
+      _route,
+      _stock,
+      _cost,
+      _gapHours,
+      _gapMinutes,
+      _instructions,
+      _timeInput,
+    ]) {
       c.clear();
     }
     _within.text = '60';
@@ -162,34 +304,121 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
     _check = '';
   }
 
+  ({String field, String message})? _firstFieldError() {
+    if (_name.text.trim().isEmpty) {
+      return (field: 'name', message: 'What is the medicine called?');
+    }
+    if (_house.isEmpty) {
+      return (field: 'house', message: 'Which house is this held at?');
+    }
+    if (!_prn && _resident.isEmpty) {
+      return (
+        field: 'resident',
+        message: 'A prescription is for one resident — choose who.',
+      );
+    }
+    if (!_prn && _dose.text.trim().isEmpty) {
+      return (field: 'dose', message: 'What dose is prescribed?');
+    }
+    if (_route.text.trim().isEmpty) {
+      return (field: 'route', message: 'How is it given — the route?');
+    }
+    if (_stock.text.trim().isEmpty) {
+      return (
+        field: 'stock',
+        message: 'How many stock units does one dose use?',
+      );
+    }
+    if (_prn &&
+        PrnShortestGapField.totalMinutes(
+              hours: _gapHours,
+              minutes: _gapMinutes,
+            ) ==
+            null) {
+      return (
+        field: 'gap',
+        message:
+            'Set the shortest gap between doses (preset or hours/minutes).',
+      );
+    }
+    if (!_prn && _times.isEmpty && _timeInput.text.trim().isEmpty) {
+      return (
+        field: 'times',
+        message: 'A scheduled medication needs at least one time of day',
+      );
+    }
+    if (!_prn && _frequency == 'weekly' && _weekdays.isEmpty) {
+      return (
+        field: 'weekdays',
+        message: 'A weekly medicine has to say which days it falls on.',
+      );
+    }
+    if (_starts.isNotEmpty &&
+        _ends.isNotEmpty &&
+        _ends.compareTo(_starts) < 0) {
+      return (
+        field: 'ends',
+        message: 'A course cannot end before it starts',
+      );
+    }
+    return null;
+  }
+
+  void _showFieldError(String field, String message) {
+    setState(() => _error = message);
+    scrollToFirstFormError(
+      context,
+      errors: {field: message},
+      fieldKeys: _marMedicineErrorKeys,
+    );
+  }
+
   void _addAnother() {
+    final error = _firstFieldError();
+    if (error != null) {
+      _showFieldError(error.field, error.message);
+      return;
+    }
     setState(() {
       _error = null;
-      if (_name.text.trim().isEmpty) {
-        _error = 'What is the medicine called?';
-      } else if (_house.isEmpty || (!_prn && _resident.isEmpty)) {
-        _error = _prn
-            ? 'Which house is this held at?'
-            : 'A prescription is for one resident — choose who, and where.';
-      } else {
-        _list.add(_current());
-        _resetMedicine();
+      _commitTime();
+      _list.add(_current());
+      _resetMedicine();
+    });
+  }
+
+  void _syncStockFromDose(String doseText) {
+    final match = RegExp(r'^(\d+(?:\.\d+)?)').firstMatch(doseText.trim());
+    if (match == null) return;
+    final next = match.group(1)!;
+    if (_stock.text == next) return;
+    _stock.text = next;
+  }
+
+  Future<void> _pickClockTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child ?? const SizedBox.shrink(),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final t =
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    setState(() {
+      if (!_times.contains(t)) {
+        _times = [..._times, t]..sort();
       }
     });
   }
 
   Future<void> _submit() async {
     setState(() => _error = null);
-    String? error;
-    if (_name.text.trim().isEmpty) {
-      error = 'What is the medicine called?';
-    } else if (_house.isEmpty) {
-      error = 'Which house is this held at?';
-    } else if (!_prn && _resident.isEmpty) {
-      error = 'A prescription is for one resident — choose who.';
-    }
-    if (error != null) {
-      setState(() => _error = error);
+    final fieldError = _firstFieldError();
+    if (fieldError != null) {
+      _showFieldError(fieldError.field, fieldError.message);
       return;
     }
     setState(() => _saving = true);
@@ -369,10 +598,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
         child: InkWell(
           key: ValueKey(prn ? 'mar-form-kind-prn' : 'mar-form-kind-prescribed'),
           borderRadius: BorderRadius.circular(8),
-          onTap: () => setState(() {
-            _prn = prn;
-            _list.clear();
-          }),
+          onTap: () => setState(() => _switchKind(prn)),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 9),
             alignment: Alignment.center,
@@ -484,8 +710,10 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       MarTextField(
         key: const ValueKey('mar-form-dose'),
         label: 'Dose',
+        required: !_prn,
         controller: _dose,
-        placeholder: '1 tablet',
+        placeholder: _prn ? '1 tablet' : '1 tablet',
+        onChanged: (v) => setState(() => _syncStockFromDose(v)),
       ),
       gap,
       if (_prn)
@@ -512,6 +740,7 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       MarTextField(
         key: const ValueKey('mar-form-route'),
         label: 'Route',
+        required: true,
         controller: _route,
         placeholder: 'Oral, topical, inhaled…',
       ),
@@ -519,10 +748,21 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       MarTextField(
         key: const ValueKey('mar-form-stock'),
         label: 'Units of stock per dose',
+        required: true,
         controller: _stock,
         numeric: true,
-        placeholder: 'Leave blank to count stock by hand',
-        helper: 'Only set this where a dose maps cleanly onto the stock unit.',
+        placeholder: 'e.g. 1',
+        helper:
+            'Units deducted automatically from stock when each dose is given.',
+      ),
+      gap,
+      MarTextField(
+        key: const ValueKey('mar-form-cost'),
+        label: 'Cost per dose',
+        controller: _cost,
+        decimal: true,
+        placeholder: 'Leave blank if not tracked',
+        helper: "Counts toward the resident's cost of care each time a dose is given.",
       ),
       gap,
       _dateField(
@@ -547,13 +787,33 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
       ),
       if (_prn) ...[
         gap,
-        MarTextField(
-          key: const ValueKey('mar-form-gap'),
-          label: 'Shortest gap between doses (minutes)',
-          controller: _gap,
-          numeric: true,
-          placeholder: 'Leave blank for no minimum',
-          helper: '240 for a medicine prescribed no more often than four hourly.',
+        PrnShortestGapField(
+          hours: _gapHours,
+          minutes: _gapMinutes,
+          onChanged: () => setState(() {}),
+          fieldStyle: handoverText(context, 13.5),
+          decoration: ({String? hint, Widget? suffix}) {
+            OutlineInputBorder border(Color c) => OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(9),
+                  borderSide: BorderSide(color: c),
+                );
+            return InputDecoration(
+              isDense: true,
+              hintText: hint,
+              hintStyle:
+                  handoverText(context, 13.5, color: AppColors.textMuted),
+              filled: true,
+              fillColor: AppColors.surfaceWhite,
+              suffixIcon: suffix,
+              suffixIconConstraints:
+                  const BoxConstraints(minWidth: 0, minHeight: 0),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              border: border(AppColors.searchBorder),
+              enabledBorder: border(AppColors.searchBorder),
+              focusedBorder: border(AppColors.secondaryTeal),
+            );
+          },
         ),
       ],
       gap,
@@ -593,90 +853,178 @@ class _MarMedicineFormState extends State<MarMedicineForm> {
     ];
   }
 
+  static const _timePresets = [
+    '08:00',
+    '12:00',
+    '14:00',
+    '18:00',
+    '20:00',
+    '22:00',
+  ];
+
   Widget _timesField(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const MarLabel('At what times'),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceWhite,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.searchBorder),
-          ),
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              for (final t in _times)
-                Chip(
-                  label: Text(t, style: handoverText(context, 12, weight: FontWeight.w600)),
-                  visualDensity: VisualDensity.compact,
-                  backgroundColor: AppColors.filterButtonBackground,
-                  side: BorderSide.none,
-                  deleteIcon: const Icon(Icons.close_rounded, size: 12),
-                  onDeleted: () => setState(() => _times = _times.where((x) => x != t).toList()),
+        const MarLabel('At what times', required: true),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceWhite,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.searchBorder),
                 ),
-              SizedBox(
-                width: 140,
-                child: TextField(
-                  key: const ValueKey('mar-form-time-input'),
-                  controller: _timeInput,
-                  style: handoverText(context, 13),
-                  onSubmitted: (_) => setState(_commitTime),
-                  onTapOutside: (_) {
-                    if (_timeInput.text.trim().isNotEmpty) setState(_commitTime);
-                  },
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintText: _times.isEmpty ? 'Type and press Enter…' : '',
-                    hintStyle: handoverText(context, 13, color: AppColors.textMuted),
-                  ),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (final t in _times)
+                      Chip(
+                        label: Text(
+                          t,
+                          style: handoverText(context, 12, weight: FontWeight.w600),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: AppColors.filterButtonBackground,
+                        side: BorderSide.none,
+                        deleteIcon: const Icon(Icons.close_rounded, size: 12),
+                        onDeleted: () => setState(
+                          () => _times = _times.where((x) => x != t).toList(),
+                        ),
+                      ),
+                    SizedBox(
+                      width: 120,
+                      child: TextField(
+                        key: const ValueKey('mar-form-time-input'),
+                        controller: _timeInput,
+                        style: handoverText(context, 13),
+                        onSubmitted: (_) => setState(_commitTime),
+                        onTapOutside: (_) {
+                          if (_timeInput.text.trim().isNotEmpty) {
+                            setState(_commitTime);
+                          }
+                        },
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          hintText: _times.isEmpty ? '08:00' : '',
+                          hintStyle: handoverText(
+                            context,
+                            13,
+                            color: AppColors.textMuted,
+                          ),
+                          suffixIcon: IconButton(
+                            key: const ValueKey('mar-form-time-clock'),
+                            tooltip: 'Pick a time',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 32,
+                              minHeight: 32,
+                            ),
+                            onPressed: _pickClockTime,
+                            icon: const Icon(
+                              Icons.access_time_rounded,
+                              size: 18,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            HandoverButton(
+              key: const ValueKey('mar-form-add-time'),
+              label: 'Add time',
+              icon: Icons.add_rounded,
+              compact: true,
+              onPressed: () {
+                if (_timeInput.text.trim().isEmpty) {
+                  _pickClockTime();
+                } else {
+                  setState(_commitTime);
+                }
+              },
+            ),
+          ],
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 8),
         Text(
-          '24-hour, one per entry — 08:00, 14:00, 20:00',
-          style: handoverText(context, 12, color: AppColors.textMuted),
+          'Presets',
+          style: handoverText(context, 12, weight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final t in _timePresets)
+              ActionChip(
+                key: ValueKey('mar-form-time-preset-$t'),
+                label: Text(
+                  '+ $t',
+                  style: handoverText(context, 12, weight: FontWeight.w600),
+                ),
+                backgroundColor: AppColors.filterButtonBackground,
+                side: BorderSide.none,
+                onPressed: () => setState(() {
+                  if (!_times.contains(t)) {
+                    _times = [..._times, t]..sort();
+                  }
+                }),
+              ),
+          ],
         ),
       ],
     );
   }
 
   Widget _weekdaysField(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const MarLabel('On which days', required: true),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (final (value, label) in MedicationLabels.weekdays)
-              FilterChip(
-                key: ValueKey('mar-form-day-$value'),
-                label: Text(label, style: handoverText(context, 12, weight: FontWeight.w600)),
-                selected: _weekdays.contains(value),
-                selectedColor: AppColors.activeBackground,
-                checkmarkColor: AppColors.secondaryTeal,
-                onSelected: (on) => setState(() {
-                  on ? _weekdays.add(value) : _weekdays.remove(value);
-                }),
-              ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        Text(
-          _weekdays.isEmpty ? 'Pick the days…' : 'A weekly medicine has to say which days it falls on.',
-          style: handoverText(context, 12, color: AppColors.textMuted),
-        ),
-      ],
+    return KeyedSubtree(
+      key: const ValueKey('mar-form-weekdays'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const MarLabel('On which days', required: true),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final (value, label) in MedicationLabels.weekdays)
+                FilterChip(
+                  key: ValueKey('mar-form-day-$value'),
+                  label: Text(
+                    label,
+                    style: handoverText(context, 12, weight: FontWeight.w600),
+                  ),
+                  selected: _weekdays.contains(value),
+                  selectedColor: AppColors.activeBackground,
+                  checkmarkColor: AppColors.secondaryTeal,
+                  onSelected: (on) => setState(() {
+                    on ? _weekdays.add(value) : _weekdays.remove(value);
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            _weekdays.isEmpty
+                ? 'Pick the days…'
+                : 'A weekly medicine has to say which days it falls on.',
+            style: handoverText(context, 12, color: AppColors.textMuted),
+          ),
+        ],
+      ),
     );
   }
 

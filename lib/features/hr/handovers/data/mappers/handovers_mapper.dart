@@ -1,3 +1,4 @@
+import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/handover_options.dart';
 import '../../domain/entities/shift_handover.dart';
@@ -12,10 +13,28 @@ abstract final class HandoversMapper {
     final id = JsonCodec.string(json['id']);
     if (id == null) return null;
     final flag = JsonCodec.mapAt(json, 'flagForAttention');
+    final residence = JsonCodec.mapAt(json, 'residence');
+    final author = JsonCodec.mapAt(json, 'author') ??
+        JsonCodec.mapAt(json, 'createdByUser') ??
+        JsonCodec.mapAt(json, 'createdByStaff');
+    final authorLabel = () {
+      final raw = JsonCodec.string(
+        author?['name'] ?? json['createdByName'] ?? json['authorName'],
+      );
+      if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+      if (author == null) return null;
+      final composed = IsoDateRange.personName(author);
+      return composed == 'Unknown' ? null : composed;
+    }();
     return ShiftHandover(
       id: id,
-      residenceId: JsonCodec.stringOr(json['residenceId'], ''),
-      residenceName: JsonCodec.string(JsonCodec.mapAt(json, 'residence')?['name']),
+      residenceId: JsonCodec.stringOr(
+        json['residenceId'] ?? residence?['id'],
+        '',
+      ),
+      residenceName: JsonCodec.string(
+        residence?['name'] ?? json['residenceName'],
+      ),
       fromShiftId: JsonCodec.string(json['fromShiftId']),
       fromShiftStartsAt:
           JsonCodec.dateTime(JsonCodec.mapAt(json, 'fromShift')?['startsAt']),
@@ -25,10 +44,12 @@ abstract final class HandoversMapper {
       status: JsonCodec.stringOr(json['status'], 'submitted'),
       pendingActions: [
         for (final action in JsonCodec.listAt(json, 'pendingActions'))
-          if (action is String)
-            action
+          if (action is String && action.trim().isNotEmpty)
+            action.trim()
           else if (action is Map)
-            ?JsonCodec.string(action['title']),
+            if (JsonCodec.string(action['title']) case final title?
+                when title.trim().isNotEmpty)
+              title.trim(),
       ],
       clientUpdates: [
         for (final row in JsonCodec.listAt(json, 'clientUpdates').whereType<Map>())
@@ -48,14 +69,128 @@ abstract final class HandoversMapper {
         for (final row in JsonCodec.listAt(json, 'tasks').whereType<Map>())
           _task(JsonCodec.asMap(row)),
       ],
+      notesForNextShift: [
+        for (final row
+            in JsonCodec.listAt(json, 'notesForNextShift').whereType<Map>())
+          _nextNote(JsonCodec.asMap(row)),
+      ],
+      handedOverTasks: [
+        for (final row
+            in JsonCodec.listAt(json, 'handedOverTasks').whereType<Map>())
+          _handedTask(JsonCodec.asMap(row)),
+      ],
       acknowledgements: [
         for (final row in JsonCodec.listAt(json, 'acknowledgements').whereType<Map>())
           _acknowledgement(JsonCodec.asMap(row)),
       ],
       flagCategory: flag?['category'] is String ? flag!['category'] as String : null,
-      createdBy: JsonCodec.string(json['createdBy']),
-      authorName: JsonCodec.string(JsonCodec.mapAt(json, 'author')?['name']),
+      createdBy: JsonCodec.string(
+        json['createdBy'] ?? author?['id'] ?? json['createdByStaffId'],
+      ),
+      authorName: authorLabel,
       createdAt: JsonCodec.dateTime(json['createdAt']),
+    );
+  }
+
+  /// `GET /shift-handovers/prepare?shiftId=`.
+  static HandoverPrepare prepareFrom(dynamic body, {required String shiftId}) {
+    final json = JsonCodec.unwrapMap(body);
+    final residenceId = JsonCodec.string(json['residenceId']);
+    return HandoverPrepare(
+      shiftId: JsonCodec.stringOr(json['shiftId'], shiftId),
+      incidents: [
+        for (final row in JsonCodec.listAt(json, 'incidents').whereType<Map>())
+          _incident(JsonCodec.asMap(row)),
+      ],
+      notesForNextShift: [
+        for (final row
+            in JsonCodec.listAt(json, 'notesForNextShift').whereType<Map>())
+          _nextNote(JsonCodec.asMap(row)),
+      ],
+      unfinishedTasks: [
+        for (final row
+            in JsonCodec.listAt(json, 'unfinishedTasks').whereType<Map>())
+          _handedTask(JsonCodec.asMap(row)),
+      ],
+      incomingShifts: [
+        for (final row
+            in JsonCodec.listAt(json, 'incomingShifts').whereType<Map>())
+          if (JsonCodec.string(row['id']) case final id?)
+            HandoverShift(
+              id: id,
+              residenceId: residenceId,
+              title: JsonCodec.string(row['title']),
+              shiftType: JsonCodec.string(row['shiftType']),
+              startsAt: JsonCodec.dateTime(row['startsAt']),
+              endsAt: JsonCodec.dateTime(row['endsAt']),
+              staff: [
+                for (final person
+                    in JsonCodec.listAt(JsonCodec.asMap(row), 'staff')
+                        .whereType<Map>())
+                  HandoverShiftStaff(
+                    id: JsonCodec.stringOr(person['id'], ''),
+                    name: JsonCodec.string(person['name']),
+                    status: JsonCodec.string(person['status']),
+                  ),
+              ],
+            ),
+      ],
+    );
+  }
+
+  static HandoverNextNote _nextNote(Map<String, dynamic> json) {
+    final client = JsonCodec.mapAt(json, 'client');
+    final name = client == null
+        ? null
+        : [
+            JsonCodec.string(client['firstName']),
+            JsonCodec.string(client['lastName']),
+          ].whereType<String>().where((s) => s.isNotEmpty).join(' ');
+    return HandoverNextNote(
+      id: JsonCodec.stringOr(json['id'], ''),
+      body: JsonCodec.stringOr(json['body'], ''),
+      occurredAt: JsonCodec.dateTime(json['occurredAt']),
+      author: JsonCodec.string(json['author']),
+      clientId: JsonCodec.string(client?['id'] ?? json['clientId']),
+      clientName: (name == null || name.isEmpty) ? null : name,
+    );
+  }
+
+  static HandoverHandedTask _handedTask(Map<String, dynamic> json) {
+    final transferred = JsonCodec.mapAt(json, 'transferredTo');
+    final transferredName = transferred == null
+        ? null
+        : [
+            JsonCodec.string(transferred['firstName']),
+            JsonCodec.string(transferred['lastName']),
+          ].whereType<String>().where((s) => s.isNotEmpty).join(' ');
+    return HandoverHandedTask(
+      id: JsonCodec.stringOr(json['id'], ''),
+      title: JsonCodec.stringOr(json['title'], ''),
+      status: JsonCodec.stringOr(json['status'], 'open'),
+      priority: JsonCodec.string(json['priority']),
+      overdue: JsonCodec.boolean(json['overdue']) ?? false,
+      suggested: JsonCodec.boolean(json['suggested']) ?? true,
+      transferredToName:
+          (transferredName == null || transferredName.isEmpty)
+              ? null
+              : transferredName,
+      assigneeNames: [
+        for (final a in JsonCodec.listAt(json, 'assignees').whereType<Map>())
+          if ([
+                JsonCodec.string(
+                  JsonCodec.mapAt(JsonCodec.asMap(a), 'staff')?['firstName'],
+                ),
+                JsonCodec.string(
+                  JsonCodec.mapAt(JsonCodec.asMap(a), 'staff')?['lastName'],
+                ),
+              ]
+                  .whereType<String>()
+                  .where((s) => s.isNotEmpty)
+                  .join(' ')
+              case final name)
+            if (name.isNotEmpty) name,
+      ],
     );
   }
 
@@ -78,9 +213,20 @@ abstract final class HandoversMapper {
 
   static HandoverClientUpdate _clientUpdate(Map<String, dynamic> json) {
     final care = JsonCodec.mapAt(json, 'care');
+    final client = JsonCodec.mapAt(json, 'client');
+    final clientName = JsonCodec.string(json['clientName']) ??
+        (client == null
+            ? null
+            : () {
+                final composed = IsoDateRange.personName(client);
+                return composed == 'Unknown' ? null : composed;
+              }());
     return HandoverClientUpdate(
-      id: JsonCodec.stringOr(json['id'], JsonCodec.stringOr(json['clientId'], '')),
-      clientName: JsonCodec.string(json['clientName']),
+      id: JsonCodec.stringOr(
+        json['id'] ?? json['clientId'] ?? client?['id'],
+        '',
+      ),
+      clientName: clientName,
       status: JsonCodec.stringOr(json['status'], 'stable'),
       health: _textEntries(JsonCodec.mapAt(json, 'health')),
       medication: _textEntries(JsonCodec.mapAt(json, 'medication')),
@@ -89,7 +235,7 @@ abstract final class HandoversMapper {
           : HandoverCare(
               completed: [
                 for (final item in JsonCodec.listAt(care, 'completed'))
-                  if (item is String) item,
+                  if (item is String && item.trim().isNotEmpty) item.trim(),
               ],
               otherCompleted: _nonBlank(care['otherCompleted']),
               pending: _nonBlank(care['pending']),
@@ -181,19 +327,34 @@ abstract final class HandoversMapper {
             if (JsonCodec.string(row['status']) != 'cancelled')
               HandoverShift(
                 id: id,
-                residenceId: JsonCodec.string(row['residenceId']),
-                residenceName: JsonCodec.string(row['residenceName']),
+                residenceId: JsonCodec.string(
+                  row['residenceId'] ??
+                      JsonCodec.mapAt(JsonCodec.asMap(row), 'residence')?['id'],
+                ),
+                residenceName: JsonCodec.string(
+                  row['residenceName'] ??
+                      JsonCodec.mapAt(JsonCodec.asMap(row), 'residence')?['name'],
+                ),
                 title: JsonCodec.string(row['title']),
                 shiftType: JsonCodec.string(row['shiftType']),
                 startsAt: JsonCodec.dateTime(row['startsAt']),
                 endsAt: JsonCodec.dateTime(row['endsAt']),
                 staff: [
                   for (final person
-                      in JsonCodec.listAt(JsonCodec.asMap(row), 'staff').whereType<Map>())
-                    if (JsonCodec.string(person['id']) case final staffId?)
+                      in JsonCodec.listAt(JsonCodec.asMap(row), 'staff')
+                          .whereType<Map>())
+                    if (JsonCodec.string(person['id'] ?? person['staffId'])
+                        case final staffId?)
                       HandoverShiftStaff(
                         id: staffId,
-                        name: JsonCodec.string(person['name']),
+                        name: () {
+                          final direct = JsonCodec.string(person['name']);
+                          if (direct != null && direct.trim().isNotEmpty) {
+                            return direct.trim();
+                          }
+                          final composed = IsoDateRange.personName(person);
+                          return composed == 'Unknown' ? null : composed;
+                        }(),
                         status: JsonCodec.string(person['status']),
                       ),
                 ],
@@ -201,9 +362,22 @@ abstract final class HandoversMapper {
       ];
 
   /// Shift ids from `/attendance?mine=true` rows that were clocked in to.
+  /// Matches web `useMyRecentShifts`: `checkInAt && shiftId`.
   static Set<String> clockedInShiftIds(dynamic body) => {
         for (final row in JsonCodec.unwrapList(body).whereType<Map>())
-          if (row['checkInAt'] != null)
-            ?JsonCodec.string(row['shiftId']),
+          if (_attendanceHasCheckIn(JsonCodec.asMap(row)))
+            ?JsonCodec.string(
+              JsonCodec.asMap(row)['shiftId'] ??
+                  JsonCodec.mapAt(JsonCodec.asMap(row), 'shift')?['id'],
+            ),
       };
+
+  static bool _attendanceHasCheckIn(Map<String, dynamic> row) {
+    if (JsonCodec.string(row['checkInAt'] ?? row['clockInAt']) != null) {
+      return true;
+    }
+    final nested = JsonCodec.mapAt(row, 'checkIn');
+    return nested != null &&
+        JsonCodec.string(nested['at'] ?? nested['checkInAt']) != null;
+  }
 }

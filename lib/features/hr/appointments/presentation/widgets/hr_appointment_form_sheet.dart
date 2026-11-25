@@ -10,6 +10,13 @@ import '../hr_appointments_labels.dart';
 import 'hr_appointment_day_log_panel.dart';
 import 'hr_appointments_common.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import '../../../../../core/widgets/form_scroll_to_error.dart';
+
+const _appointmentErrorKeys = <String, Key>{
+  'clientId': ValueKey('appointment-form-resident'),
+  'date': ValueKey('appointment-form-date'),
+  'time': ValueKey('appointment-form-time'),
+};
 
 /// "Create Appointment" / "Edit Appointment". Resolves true once saved.
 Future<bool> showHrAppointmentFormSheet(
@@ -38,6 +45,7 @@ class HrAppointmentFormSheet extends StatefulWidget {
 
 class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
   final _location = TextEditingController();
   final _purpose = TextEditingController();
   final _notes = TextEditingController();
@@ -56,6 +64,11 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
   @override
   void initState() {
     super.initState();
+    _searchFocus.addListener(() {
+      if (_searchFocus.hasFocus && _client == null) {
+        setState(() => _pickerOpen = true);
+      }
+    });
     final now = DateTime.now();
     _type = 'family_visit';
     _date = DateTime(now.year, now.month, now.day);
@@ -87,6 +100,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
 
   @override
   void dispose() {
+    _searchFocus.dispose();
     for (final c in [_search, _location, _purpose, _notes]) {
       c.dispose();
     }
@@ -115,7 +129,14 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
       _submitted = true;
       _saveError = null;
     });
-    if (_errors.isNotEmpty) return;
+    if (_errors.isNotEmpty) {
+      scrollToFirstFormError(
+        context,
+        errors: _errors,
+        fieldKeys: _appointmentErrorKeys,
+      );
+      return;
+    }
     final d = _date!;
     final t = _time!;
     final client = _client!;
@@ -254,7 +275,10 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
                       title: 'Resident & Residence',
                       description: 'Who this appointment is for',
                       children: [
-                        _residentPicker(context),
+                        KeyedSubtree(
+                          key: const ValueKey('appointment-form-resident'),
+                          child: _residentPicker(context),
+                        ),
                         const SizedBox(height: 14),
                         _ReadOnlyField(
                           label: 'Residence',
@@ -468,6 +492,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
         TextField(
           key: const ValueKey('appointment-form-resident-search'),
           controller: _search,
+          focusNode: _searchFocus,
           onTap: () => setState(() => _pickerOpen = true),
           onChanged: (_) => setState(() => _pickerOpen = true),
           style: handoverText(context, 13.5),
@@ -552,7 +577,7 @@ class _HrAppointmentFormSheetState extends State<HrAppointmentFormSheet> {
           ),
         const SizedBox(height: 5),
         Text(
-          error ?? 'Type to search clients or family contacts',
+          error ?? 'Tap to browse or type to filter',
           style: handoverText(context, 12, color: error != null ? AppColors.criticalRed : AppColors.textMuted),
         ),
       ],

@@ -8,16 +8,30 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../../staff_shell.dart';
 import '../controllers/staff_schedule_controller.dart';
+import '../../domain/entities/staff_shift.dart';
 import '../widgets/my_shifts_section.dart';
+import '../widgets/staff_swap_request_sheet.dart';
 import '../widgets/open_shift_requests_section.dart';
+import '../widgets/shifts_you_can_swap_section.dart';
 import '../widgets/staff_schedule_header.dart';
 import '../widgets/swap_requests_section.dart';
 import '../widgets/upcoming_appointments_section.dart';
 import '../widgets/week_navigator.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// "My Schedule" — the Staff (care-worker) portal's Scheduling screen.
 class StaffSchedulePage extends StatelessWidget {
-  const StaffSchedulePage({super.key});
+  /// When opened from a shift notification, jump the week strip to this day.
+  final DateTime? focusDate;
+
+  /// Fallback when [focusDate] is missing — load `GET /shifts/{id}` for startsAt.
+  final String? focusShiftId;
+
+  const StaffSchedulePage({
+    super.key,
+    this.focusDate,
+    this.focusShiftId,
+  });
 
   StaffScheduleController _resolveController() {
     try {
@@ -34,6 +48,14 @@ class StaffSchedulePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = _resolveController();
+    if (focusDate != null || (focusShiftId != null && focusShiftId!.isNotEmpty)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.applyNotificationFocus(
+          date: focusDate,
+          shiftId: focusShiftId,
+        );
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
@@ -60,6 +82,19 @@ class StaffSchedulePage extends StatelessWidget {
 
           final selectedShifts = controller.shiftsForSelectedDay;
           final dayLabel = controller.selectedDayShiftsLabel;
+          final session = Get.find<UserSession>();
+          final roleRaw = (session.roleRaw ?? '').toLowerCase();
+          final isTenantAdmin = roleRaw.contains('tenant_admin') ||
+              roleRaw.contains('tenant admin');
+          // Web: Bid only with scheduling:bid (tenant admin never bids).
+          final canBid =
+              !isTenantAdmin && session.can('scheduling:bid');
+          final canWrite = session.can('scheduling:write');
+          final openShifts = overview.openShiftRequests;
+          void openSwap(StaffShift shift) {
+            if (!shift.canRequestSwap) return;
+            showStaffSwapRequestSheet(context, controller, shift);
+          }
 
           return Column(
             children: [
@@ -93,7 +128,7 @@ class StaffSchedulePage extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: controller.refresh,
                   child: ListView(
@@ -114,7 +149,8 @@ class StaffSchedulePage extends StatelessWidget {
                         shiftsThisWeekLabel: dayLabel,
                         shifts: selectedShifts,
                         onShiftTap: controller.openShiftDetail,
-                        onRequestSwap: controller.requestCoverSwap,
+                        // Web moves swap actions into "Shifts you can swap".
+                        onRequestSwap: null,
                       ),
                       if (selectedShifts.isEmpty) ...[
                         SizedBox(
@@ -137,28 +173,42 @@ class StaffSchedulePage extends StatelessWidget {
                           ),
                         ),
                       ],
+                      if (canBid) ...[
+                        SizedBox(
+                          height:
+                              ResponsiveHelper.getResponsiveHeight(context, 18),
+                        ),
+                        ShiftsYouCanSwapSection(
+                          shifts: overview.shifts,
+                          onRequestSwap: openSwap,
+                        ),
+                        SizedBox(
+                          height:
+                              ResponsiveHelper.getResponsiveHeight(context, 18),
+                        ),
+                        SwapRequestsSection(
+                          swaps: overview.swapRequests,
+                          showWhenEmpty: true,
+                          onAccept: (swap) => controller.respondToSwap(
+                            swapId: swap.id,
+                            accepted: true,
+                          ),
+                          onDecline: (swap) => controller.respondToSwap(
+                            swapId: swap.id,
+                            accepted: false,
+                          ),
+                          onCancel: (swap) => controller.cancelSwap(swap.id),
+                        ),
+                      ],
                       SizedBox(
                         height: ResponsiveHelper.getResponsiveHeight(context, 18),
                       ),
                       OpenShiftRequestsSection(
-                        shifts: overview.openShiftRequests,
-                        onRequestTap: (shift) =>
-                            controller.requestOpenShift(shift.id),
-                      ),
-                      SizedBox(
-                        height: ResponsiveHelper.getResponsiveHeight(context, 18),
-                      ),
-                      SwapRequestsSection(
-                        swaps: overview.swapRequests,
-                        onAccept: (swap) => controller.respondToSwap(
-                          swapId: swap.id,
-                          accepted: true,
-                        ),
-                        onDecline: (swap) => controller.respondToSwap(
-                          swapId: swap.id,
-                          accepted: false,
-                        ),
-                        onCancel: (swap) => controller.cancelSwap(swap.id),
+                        shifts: openShifts,
+                        canWrite: canWrite,
+                        onRequestTap: canBid
+                            ? (shift) => controller.requestOpenShift(shift.id)
+                            : null,
                       ),
                       if (Get.find<UserSession>()
                           .canSeeStaffScheduleAppointments) ...[

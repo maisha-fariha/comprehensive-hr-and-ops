@@ -65,6 +65,7 @@ class StaffCreateMedicationInput {
   final String? dose;
   final String? route;
   final int? stockUnitsPerDose;
+  final num? costPerDose;
   final String scheduleFrequency;
   final List<String> scheduleTimes;
   final List<int> scheduleWeekdays;
@@ -81,6 +82,7 @@ class StaffCreateMedicationInput {
     this.dose,
     this.route,
     this.stockUnitsPerDose,
+    this.costPerDose,
     this.scheduleFrequency = 'daily',
     this.scheduleTimes = const [],
     this.scheduleWeekdays = const [],
@@ -102,6 +104,7 @@ class StaffCreatePrnMedicationInput {
   final String? route;
   final String? instructions;
   final int? stockUnitsPerDose;
+  final num? costPerDose;
   final DateTime? startsAt;
   final DateTime? endsAt;
   final bool isControlled;
@@ -117,6 +120,7 @@ class StaffCreatePrnMedicationInput {
     this.route,
     this.instructions,
     this.stockUnitsPerDose,
+    this.costPerDose,
     this.startsAt,
     this.endsAt,
     this.isControlled = false,

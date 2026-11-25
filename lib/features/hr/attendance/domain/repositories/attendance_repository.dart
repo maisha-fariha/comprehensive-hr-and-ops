@@ -2,6 +2,7 @@ import 'package:gems_core/gems_core.dart';
 
 import '../entities/attendance_record.dart';
 import '../entities/manual_entry_options.dart';
+import '../entities/time_off_request.dart';
 
 /// Contract for the manager "Attendance" screen and its nested flows.
 abstract class AttendanceRepository {
@@ -37,6 +38,12 @@ abstract class AttendanceRepository {
 
   /// `POST /attendance/check-out`.
   Future<Result<void>> clockOut(Map<String, dynamic> body);
+
+  /// `POST /attendance/break/start` with `{ residenceId }` for the open punch.
+  Future<Result<void>> startBreak({required String residenceId});
+
+  /// `POST /attendance/break/end` with `{ residenceId }` for the open punch.
+  Future<Result<void>> endBreak({required String residenceId});
 
   /// Clock photo upload (`POST /uploads?category=attendance-selfies`).
   Future<Result<String>> uploadSelfie(String localPath, String fileName);
@@ -76,4 +83,31 @@ abstract class AttendanceRepository {
 
   /// `POST /attendance/manual`. Returns the new attendance id when present.
   Future<Result<String>> recordManualAttendance(Map<String, dynamic> payload);
+
+  /// `GET /attendance/time-off-requests`.
+  Future<Result<List<TimeOffRequest>>> getTimeOffRequests({
+    String? from,
+    String? to,
+    String? status,
+    String? residenceId,
+    bool mine = false,
+  });
+
+  /// `POST /attendance/time-off-requests`.
+  Future<Result<TimeOffRequest>> createTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? staffId,
+    String? reason,
+  });
+
+  /// `PATCH /attendance/time-off-requests/{id}/review` with `approved`/`rejected`.
+  Future<Result<void>> reviewTimeOffRequest({
+    required String id,
+    required TimeOffStatus status,
+  });
+
+  /// `POST /attendance/time-off-requests/{id}/cancel` — web "Withdraw".
+  Future<Result<void>> cancelTimeOffRequest(String id);
 }

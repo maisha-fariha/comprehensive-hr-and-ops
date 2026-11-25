@@ -24,83 +24,57 @@ class PortalVisibilityGroup {
 const portalVisibilityGroups = [
   PortalVisibilityGroup('Daily Care & Activity', [
     PortalVisibilityItem(
-      'dailyLogs',
-      'Daily Logs',
-      'Allow family members to view daily care notes, observations, and routine updates.',
-    ),
-    PortalVisibilityItem(
       'activities',
-      'Activities & Progress',
-      'Share completed activities, engagement updates, and progress tracking.',
+      'Activities & Daily Journal',
+      'Activities shared with the family, their photos, and the day\'s care notes.',
     ),
     PortalVisibilityItem(
-      'shiftUpdates',
-      'Shift Updates',
-      'Show which shifts are covering the home, and when cover changes.',
-      'Shift cover only. Which individual staff are assigned is the separate switch below.',
+      'incidents',
+      'Incident Summaries',
+      'Resolved and closed incidents, as a summary: when, what kind and the outcome.',
     ),
   ]),
   PortalVisibilityGroup('Health Information', [
     PortalVisibilityItem(
       'medications',
-      'Medication Information',
-      'Share current medication information and medication updates.',
-      'Medication administration details are only visible based on organization policy.',
+      'Current Medications',
+      'What is prescribed and when it is given.',
+      'Individual dose administration status (given/refused) is hidden from family.',
     ),
     PortalVisibilityItem(
       'medicalConditions',
       'Medical Conditions',
-      'Share diagnoses and standing medical conditions.',
-    ),
-    PortalVisibilityItem(
-      'carePlan',
-      'Care Plan',
-      'Share the care plan itself, as opposed to the notes written against it.',
+      'Diagnoses, allergies and dietary requirements.',
+      'Behavioural triggers and the safety plan stay with staff.',
     ),
   ]),
-  PortalVisibilityGroup('Care Team Information', [
+  PortalVisibilityGroup('Contact, Visits & Documents', [
     PortalVisibilityItem(
       'messages',
-      'Staff Messages',
-      'Allow communication between family members and authorized staff.',
+      'Messages',
+      'Conversation with the home\'s manager and administration.',
     ),
-    PortalVisibilityItem(
-      'assignedStaff',
-      'Assigned Staff',
-      'Show which staff are assigned to this resident.',
-    ),
-  ]),
-  PortalVisibilityGroup('Appointments & Documents', [
     PortalVisibilityItem(
       'appointments',
-      'Appointments',
-      'Show upcoming and completed appointments.',
+      'Appointments & Outings',
+      'Visits and outings the family can request and follow.',
     ),
     PortalVisibilityItem(
       'documents',
       'Documents',
-      'Allow access to approved client documents and files.',
-    ),
-    PortalVisibilityItem(
-      'incidents',
-      'Incident Updates',
-      'Share approved incident summaries and important notifications.',
+      'Documents filed as visible to family, and consent forms or photos the family sends in.',
     ),
   ]),
 ];
 
 const _defaultPortalVisibility = {
-  'dailyLogs': true,
   'activities': true,
-  'incidents': false,
-  'medications': false,
-  'documents': true,
+  'incidents': true,
+  'medications': true,
+  'medicalConditions': true,
+  'messages': true,
   'appointments': true,
-  'messages': false,
-  'shiftUpdates': false,
-  'medicalConditions': false,
-  'carePlan': false,
-  'assignedStaff': false,
+  'documents': true,
 };
 
 /// The web client form steps, in order.
@@ -160,6 +134,9 @@ class ClientForm {
   final middleName = TextEditingController();
   final lastName = TextEditingController();
   final roomNumber = TextEditingController();
+  final rateAmount = TextEditingController();
+  final fundingVendorName = TextEditingController();
+  final fundingVendorId = TextEditingController();
   final assignmentNotes = TextEditingController();
   final guardianName = TextEditingController();
   final guardianMiddleName = TextEditingController();
@@ -171,6 +148,7 @@ class ClientForm {
   final contactNotes = TextEditingController();
   final doctorName = TextEditingController();
   final pharmacyName = TextEditingController();
+  final healthCardNumber = TextEditingController();
   final behavioralTriggers = TextEditingController();
   final safetyPlanNotes = TextEditingController();
   final servicePlan = TextEditingController();
@@ -184,10 +162,14 @@ class ClientForm {
   String admissionDate = '';
   String roomId = '';
   String fundingSource = '';
+
+  /// API `rateFrequency`: `daily` | `weekly` | `monthly`.
+  String rateFrequency = 'daily';
   String relationship = '';
   String secondaryRelationship = '';
   bool emergencyContact = true;
-  bool familyPortalAccess = true;
+  /// Web defaults portal access off until the user opts in (Bug Report 002).
+  bool familyPortalAccess = false;
   bool receiveNotifications = true;
   bool emergencyAlerts = true;
   Map<String, bool> portalVisibility = Map.of(_defaultPortalVisibility);
@@ -229,6 +211,7 @@ class ClientForm {
       ..admissionDate = ClientsLabels.dateInput(c.admissionDate)
       ..roomId = c.roomId ?? ''
       ..fundingSource = c.fundingSource ?? ''
+      ..rateFrequency = _normalizeRateFrequency(c.rateFrequency)
       ..portalVisibility = {..._defaultPortalVisibility, ...c.portalVisibility}
       ..allergies = List.of(c.allergies)
       ..diagnoses = List.of(c.diagnoses)
@@ -237,10 +220,16 @@ class ClientForm {
     form.middleName.text = c.middleName ?? '';
     form.lastName.text = c.lastName;
     form.roomNumber.text = c.roomNumber ?? '';
+    form.rateAmount.text = c.rateAmount == null
+        ? ''
+        : _formatRateAmount(c.rateAmount!);
+    form.fundingVendorName.text = c.fundingVendorName ?? '';
+    form.fundingVendorId.text = c.fundingVendorId ?? '';
     form.assignmentNotes.text = c.assignmentNotes;
     form.contactNotes.text = c.contactNotes;
     form.doctorName.text = c.doctorName;
     form.pharmacyName.text = c.pharmacyName;
+    form.healthCardNumber.text = c.healthCardNumber;
     form.behavioralTriggers.text = c.behavioralTriggers;
     form.safetyPlanNotes.text = c.safetyPlanNotes;
     form.servicePlan.text = c.servicePlan;
@@ -252,6 +241,12 @@ class ClientForm {
       form.outcomes.add(TextEditingController(text: o));
     }
     return form;
+  }
+
+  /// Web `em(fundingSource)` — billed agency fields when not Private Pay.
+  bool get _showsFundingVendor {
+    final source = fundingSource.trim();
+    return source.isNotEmpty && source != 'Private Pay';
   }
 
   static bool _filled(String v) => v.trim().isNotEmpty;
@@ -366,7 +361,8 @@ class ClientForm {
   /// Email format, plus the web rule that a family portal login needs one.
   String? guardianEmailError() {
     final email = guardianEmail.text.trim();
-    if (email.isEmpty && familyPortalAccess && _filled(guardianName.text)) {
+    // Web: portal access ON always requires a guardian email (name optional).
+    if (email.isEmpty && familyPortalAccess) {
       return 'Add an email for the family portal login, or turn portal access off';
     }
     return optionalEmailError(email);
@@ -414,6 +410,25 @@ class ClientForm {
     return t.isEmpty ? null : t;
   }
 
+  static String _normalizeRateFrequency(String? raw) {
+    final v = (raw ?? '').trim().toLowerCase();
+    for (final (id, _) in ClientsLabels.rateFrequencies) {
+      if (id == v) return id;
+    }
+    return 'daily';
+  }
+
+  static String _formatRateAmount(double value) {
+    if (value == value.roundToDouble()) return value.round().toString();
+    return value.toStringAsFixed(2);
+  }
+
+  static num? _rateNumber(String raw) {
+    final t = raw.trim().replaceAll(',', '');
+    if (t.isEmpty) return null;
+    return num.tryParse(t);
+  }
+
   static List<String> _lines(List<TextEditingController> list) => list
       .map((c) => c.text.trim())
       .where((t) => t.isNotEmpty)
@@ -437,7 +452,17 @@ class ClientForm {
       'roomId': ?_opt(roomId),
       'roomNumber': ?_opt(roomNumber.text),
       'fundingSource': ?_opt(fundingSource),
-      'portalVisibility': Map.of(portalVisibility),
+      if (_showsFundingVendor)
+        'fundingVendorName': ?_opt(fundingVendorName.text),
+      if (_showsFundingVendor)
+        'fundingVendorId': ?_opt(fundingVendorId.text),
+      'rateAmount': ?_rateNumber(rateAmount.text),
+      if (_rateNumber(rateAmount.text) != null)
+        'rateFrequency': _normalizeRateFrequency(rateFrequency),
+      'portalVisibility': {
+        for (final item in portalVisibilityGroups.expand((g) => g.items))
+          item.key: portalVisibility[item.key] ?? false,
+      },
       'carePlan': {
         'servicePlan': servicePlan.text,
         'goals': _lines(goals),
@@ -452,6 +477,7 @@ class ClientForm {
         'currentMedications': List.of(currentMedications),
         'doctorName': doctorName.text,
         'pharmacyName': pharmacyName.text,
+        'healthCardNumber': healthCardNumber.text.trim(),
         'behavioralTriggers': behavioralTriggers.text,
         'safetyPlanNotes': safetyPlanNotes.text,
       },
@@ -517,6 +543,9 @@ class ClientForm {
       middleName,
       lastName,
       roomNumber,
+      rateAmount,
+      fundingVendorName,
+      fundingVendorId,
       assignmentNotes,
       guardianName,
       guardianMiddleName,
@@ -528,6 +557,7 @@ class ClientForm {
       contactNotes,
       doctorName,
       pharmacyName,
+      healthCardNumber,
       behavioralTriggers,
       safetyPlanNotes,
       servicePlan,

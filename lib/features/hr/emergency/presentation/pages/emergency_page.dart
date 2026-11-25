@@ -14,6 +14,7 @@ import '../widgets/emergency_detail_sheet.dart';
 import '../widgets/emergency_kpi_grid.dart';
 import '../widgets/raise_emergency_sheet.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Emergency Alarms" — mirrors web `/dashboard/emergency`.
 class EmergencyPage extends StatefulWidget {
@@ -124,7 +125,7 @@ class _EmergencyPageState extends State<EmergencyPage> {
             ),
           ),
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: AppColors.secondaryTeal,
               onRefresh: _c.refreshAll,
               child: Obx(

@@ -3,6 +3,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/searchable_option_list.dart';
 
 /// Web MAR registry filters: search + residence / resident / medicine / status.
 class StaffMarFiltersBar extends StatelessWidget {
@@ -210,57 +211,26 @@ class StaffMarFiltersBar extends StatelessWidget {
   }) async {
     final selected = await showAppBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.surfaceWhite,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: AppColors.textHeading,
-                  ),
-                ),
-              ),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: options.length,
-                  itemBuilder: (_, i) {
-                    final o = options[i];
-                    final isSelected = o.value == current;
-                    return ListTile(
-                      title: Text(
-                        o.label,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight:
-                              isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: AppColors.textHeading,
-                        ),
-                      ),
-                      trailing: isSelected
-                          ? const Icon(
-                              Icons.check_rounded,
-                              color: AppColors.secondaryTeal,
-                            )
-                          : null,
-                      onTap: () => Navigator.pop(ctx, o.value),
-                    );
-                  },
-                ),
-              ),
-            ],
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.7,
+            ),
+            child: SearchableOptionList<({String value, String label})>(
+              title: title,
+              options: options,
+              labelOf: (option) => option.label,
+              idOf: (option) => option.value,
+              selectedId: current,
+              searchHint: 'Search $title',
+              onSelected: (option) => Navigator.of(ctx).pop(option.value),
+            ),
           ),
         );
       },

@@ -49,6 +49,7 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
       if (hasClient) 'clientId': clientId,
     };
 
+    final canFlags = _session.can('care-flags:read');
     final futures = <Future<Result<dynamic>>>[
       _api.get(
         ApiEndpoints.dailyLogs,
@@ -79,17 +80,20 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
         },
         silent: true,
       ),
-      _api.get(
-        ApiEndpoints.careFlags,
-        query: {
-          'state': 'open',
-          'page': 1,
-          'limit': 50,
-          'residenceId': residenceId,
-          if (hasClient) 'clientId': clientId,
-        },
-        silent: true,
-      ),
+      if (canFlags)
+        _api.get(
+          ApiEndpoints.careFlags,
+          query: {
+            'state': 'open',
+            'page': 1,
+            'limit': 50,
+            'residenceId': residenceId,
+            if (hasClient) 'clientId': clientId,
+          },
+          silent: true,
+        )
+      else
+        Future.value(Result.success(const {'data': <dynamic>[]})),
     ];
 
     final results = await Future.wait(futures);
@@ -216,9 +220,9 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
           'body': body,
           'status': status,
           'shift': resolvedShift,
-          'wellnessCheckCompleted': wellnessCheckCompleted,
+          'wellnessCheckCompleted': wellnessCheckCompleted == true,
           // Map treats this as a boolean; only send on submit.
-          'flagForAttention': submit && flagForAttention,
+          'flagForAttention': submit && flagForAttention == true,
           if (observationsPayload != null) 'observations': observationsPayload,
           if (attachmentPayload.isNotEmpty) 'attachments': attachmentPayload,
         },
@@ -240,8 +244,8 @@ class StaffDailyLogsRepositoryImpl implements StaffDailyLogsRepository {
         'body': body,
         'status': status,
         'shift': resolvedShift,
-        'wellnessCheckCompleted': wellnessCheckCompleted,
-        'flagForAttention': submit && flagForAttention,
+        'wellnessCheckCompleted': wellnessCheckCompleted == true,
+        'flagForAttention': submit && flagForAttention == true,
         if (observationsPayload != null) 'observations': observationsPayload,
         if (attachmentPayload.isNotEmpty) 'attachments': attachmentPayload,
       },

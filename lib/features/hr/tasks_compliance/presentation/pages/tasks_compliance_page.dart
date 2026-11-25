@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../../hr_shell.dart';
 import '../../../presentation/open_manager_portal_search.dart';
 import '../../../presentation/widgets/hr_bottom_nav_bar.dart';
@@ -19,6 +20,7 @@ import '../widgets/tasks_tab_view.dart';
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../domain/entities/task_item.dart';
 import '../../domain/repositories/tasks_compliance_repository.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// The "Tasks & Compliance" screen — shared white header + pill tab bar,
 /// with Tasks / Compliance / Corrective body content.
@@ -46,10 +48,17 @@ class TasksCompliancePage extends StatelessWidget {
   TasksComplianceRepository get _repository =>
       GetIt.instance<TasksComplianceRepository>();
 
+  /// Web Manager Review: Approve is gated by the supervisory sign-off checkbox.
   Future<void> _approveReview(
+    BuildContext context,
     TasksComplianceController controller,
     TaskItem task,
   ) async {
+    final confirmed = await showTaskReviewSignOffSheet(
+      context,
+      title: task.title,
+    );
+    if (confirmed != true) return;
     final result = await _repository.reviewTask(
       taskId: task.id,
       decision: 'approve',
@@ -66,13 +75,16 @@ class TasksCompliancePage extends StatelessWidget {
   }
 
   Future<void> _rejectReview(
+    BuildContext context,
     TasksComplianceController controller,
     TaskItem task,
   ) async {
+    final notes = await showTaskReviewSendBackSheet(context, title: task.title);
+    if (notes == null) return;
     final result = await _repository.reviewTask(
       taskId: task.id,
       decision: 'reject',
-      reviewNotes: 'Needs more work before approval.',
+      reviewNotes: notes,
     );
     result.when(
       success: (_) async {
@@ -83,6 +95,47 @@ class TasksCompliancePage extends StatelessWidget {
         AppSnackbar.show('Could not reject', error.message);
       },
     );
+  }
+
+  bool _canWriteTasks() {
+    if (!Get.isRegistered<UserSession>()) return true;
+    final session = Get.find<UserSession>();
+    return session.can('tasks:write') || session.can('tasks:manage');
+  }
+
+  /// Creating a task matches the web: `tasks:manage`, not `tasks:write`.
+  bool _canCreateTasks() {
+    if (!Get.isRegistered<UserSession>()) return true;
+    return Get.find<UserSession>().can('tasks:manage');
+  }
+
+  bool _canReviewTasks() {
+    if (!Get.isRegistered<UserSession>()) return true;
+    return Get.find<UserSession>().can('tasks:review');
+  }
+
+  String _screenTitle() {
+    if (!Get.isRegistered<UserSession>()) return 'Tasks & Compliance';
+    final session = Get.find<UserSession>();
+    if (!session.permissionsReady) return 'Tasks & Compliance';
+    final tasks = session.can('tasks:read');
+    final compliance = session.can('compliance:read');
+    if (tasks && compliance) return 'Tasks & Compliance';
+    if (compliance) return 'Compliance & Audit';
+    return 'Task Management';
+  }
+
+  List<TasksComplianceTab> _visibleTabs() {
+    if (!Get.isRegistered<UserSession>()) return TasksComplianceTab.values;
+    final session = Get.find<UserSession>();
+    if (!session.permissionsReady) return TasksComplianceTab.values;
+    return [
+      if (session.can('tasks:read')) TasksComplianceTab.tasks,
+      if (session.can('compliance:read')) ...[
+        TasksComplianceTab.compliance,
+        TasksComplianceTab.corrective,
+      ],
+    ];
   }
 
   Future<void> _pauseRecurring(
@@ -149,6 +202,10 @@ class TasksCompliancePage extends StatelessWidget {
           );
         }
 
+        final tabs = _visibleTabs();
+        final selected = tabs.contains(controller.selectedTab.value)
+            ? controller.selectedTab.value
+            : (tabs.isEmpty ? TasksComplianceTab.tasks : tabs.first);
         return Column(
           children: [
             ColoredBox(
@@ -156,56 +213,70 @@ class TasksCompliancePage extends StatelessWidget {
               child: Column(
                 children: [
                   TasksComplianceHeader(
+                    title: _screenTitle(),
                     subtitle: overview.headerSubtitle,
                     onSearchTap: openManagerPortalSearch,
+                    onNewTaskTap: selected == TasksComplianceTab.tasks &&
+                            _canCreateTasks()
+                        ? () => showCreateTaskSheet(
+                              context,
+                              onCreated: controller.refresh,
+                            )
+                        : null,
                   ),
-                  Padding(
-                    padding: ResponsiveHelper.getResponsivePadding(
-                      context,
-                      horizontal: 16,
-                      top: 4,
-                      bottom: 12,
+                  // Web Task Management has no lone “Tasks” pill under the title.
+                  if (tabs.length > 1)
+                    Padding(
+                      padding: ResponsiveHelper.getResponsivePadding(
+                        context,
+                        horizontal: 16,
+                        top: 4,
+                        bottom: 12,
+                      ),
+                      child: TasksComplianceTabBar(
+                        selectedTab: selected,
+                        onTabSelected: controller.selectTab,
+                        complianceAlertCount: overview.complianceAlertCount,
+                        tabs: tabs,
+                      ),
                     ),
-                    child: TasksComplianceTabBar(
-                      selectedTab: controller.selectedTab.value,
-                      onTabSelected: controller.selectTab,
-                      complianceAlertCount: overview.complianceAlertCount,
-                    ),
-                  ),
                 ],
               ),
             ),
             Expanded(
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: AppColors.secondaryTeal,
                 onRefresh: controller.refresh,
                 child: ListView(
                   padding: EdgeInsets.fromLTRB(
                     ResponsiveHelper.getResponsiveWidth(context, 16),
-                    ResponsiveHelper.getResponsiveHeight(context, 16),
+                    ResponsiveHelper.getResponsiveHeight(context, 12),
                     ResponsiveHelper.getResponsiveWidth(context, 16),
                     ResponsiveHelper.getResponsiveHeight(context, 24),
                   ),
                   children: [
-                    switch (controller.selectedTab.value) {
+                    switch (selected) {
                       TasksComplianceTab.tasks => TasksTabView(
                           overview: overview,
-                          onNewTaskTap: () => showCreateTaskSheet(
-                            context,
-                            onCreated: controller.refresh,
-                          ),
                           onTaskTap: (task) => showTaskDetailSheet(
                             context,
                             task: task,
+                            onChanged: controller.refresh,
                           ),
-                          onApproveReview: (task) =>
-                              _approveReview(controller, task),
-                          onRejectReview: (task) =>
-                              _rejectReview(controller, task),
-                          onPauseRecurring: (task) =>
-                              _pauseRecurring(controller, task),
-                          onResumeRecurring: (task) =>
-                              _resumeRecurring(controller, task),
+                          onApproveReview: _canReviewTasks()
+                              ? (task) =>
+                                  _approveReview(context, controller, task)
+                              : null,
+                          onRejectReview: _canReviewTasks()
+                              ? (task) =>
+                                  _rejectReview(context, controller, task)
+                              : null,
+                          onPauseRecurring: _canWriteTasks()
+                              ? (task) => _pauseRecurring(controller, task)
+                              : null,
+                          onResumeRecurring: _canWriteTasks()
+                              ? (task) => _resumeRecurring(controller, task)
+                              : null,
                         ),
                       TasksComplianceTab.compliance =>
                         ComplianceTabView(overview: overview),

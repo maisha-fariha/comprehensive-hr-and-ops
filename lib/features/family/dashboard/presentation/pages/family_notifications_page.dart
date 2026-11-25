@@ -4,6 +4,7 @@ import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../controllers/family_notifications_controller.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 class FamilyNotificationsPage extends StatelessWidget {
   const FamilyNotificationsPage({super.key});
@@ -40,7 +41,7 @@ class FamilyNotificationsPage extends StatelessWidget {
         if (controller.items.isEmpty) {
           return const Center(child: Text('No notifications yet.'));
         }
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           color: AppColors.secondaryTeal,
           onRefresh: controller.refresh,
           child: ListView.separated(

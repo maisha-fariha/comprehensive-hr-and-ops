@@ -54,4 +54,6 @@ abstract final class InventoryEndpoints {
   static String purchaseOrderReject(String id) => '$purchaseOrders/$id/reject';
   static String purchaseOrderReceive(String id) => '$purchaseOrders/$id/receive';
   static String purchaseOrderCancel(String id) => '$purchaseOrders/$id/cancel';
+  /// Web "Send to supplier" — body `{ via: email|manual, message? }`.
+  static String purchaseOrderSend(String id) => '$purchaseOrders/$id/send';
 }

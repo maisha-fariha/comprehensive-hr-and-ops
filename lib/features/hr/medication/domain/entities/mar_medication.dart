@@ -19,6 +19,9 @@ class MarMedication {
   final String startsAt;
   final String endsAt;
   final int? stockUnitsPerDose;
+
+  /// Money amount, blank when the home does not track it.
+  final num? costPerDose;
   final int? minIntervalMinutes;
   final String instructions;
   final bool isControlled;
@@ -41,6 +44,7 @@ class MarMedication {
     this.startsAt = '',
     this.endsAt = '',
     this.stockUnitsPerDose,
+    this.costPerDose,
     this.minIntervalMinutes,
     this.instructions = '',
     this.isControlled = false,
@@ -70,6 +74,7 @@ class MarMedicineDraft {
   final String startsAt;
   final String endsAt;
   final String stockUnitsPerDose;
+  final String costPerDose;
   final String minIntervalMinutes;
   final String instructions;
   final bool isControlled;
@@ -89,6 +94,7 @@ class MarMedicineDraft {
     this.startsAt = '',
     this.endsAt = '',
     this.stockUnitsPerDose = '',
+    this.costPerDose = '',
     this.minIntervalMinutes = '',
     this.instructions = '',
     this.isControlled = false,

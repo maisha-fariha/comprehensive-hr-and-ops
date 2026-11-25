@@ -3,7 +3,9 @@ import 'package:get/get.dart';
 
 import '../../../../../core/errors/app_snackbar.dart';
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/roles/app_permissions.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../data/mappers/scheduling_mapper.dart';
 import '../../domain/entities/scheduling_enums.dart';
 import '../../domain/entities/scheduling_overview.dart';
@@ -40,6 +42,14 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   /// Web "My shifts" toggle: only the signed-in user's shifts.
   final RxBool mineOnly = false.obs;
 
+  /// Web Week / Month / All shifts switch. Week is the default.
+  final Rx<ScheduleSpan> span = ScheduleSpan.week.obs;
+  final Rx<DateTime> monthOf = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    1,
+  ).obs;
+
   final UserSession? session;
 
   SchedulingController({required this.repository, this.session}) {
@@ -48,6 +58,15 @@ class SchedulingController extends BaseController<SchedulingOverview> {
 
   /// `scheduling:write` gates "My shifts" and "Create Shift", as on the web.
   bool get canWrite => session?.can('scheduling:write') ?? true;
+
+  /// Web shows Request swap when the user can bid and is not a tenant admin.
+  bool get canBid {
+    final raw = (session?.roleRaw ?? '').toLowerCase();
+    if (raw.contains('tenant_admin') || raw.contains('tenant admin')) {
+      return false;
+    }
+    return session?.can('scheduling:bid') ?? false;
+  }
 
   Future<void> toggleMine() {
     mineOnly.toggle();
@@ -61,12 +80,21 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   Future<void> loadResidences() async {
     if (_residencesLoaded) return;
     final result = await repository.getResidences();
+    final loaded = <ShiftResidenceOption>[];
     result.when(
-      success: (items) {
-        _residencesLoaded = true;
-        residences.assignAll(items);
-      },
+      success: loaded.addAll,
       failure: (_) {},
+    );
+    _residencesLoaded = true;
+    residences.assignAll(
+      mergeResidencePickerOptions<ShiftResidenceOption>(
+        loaded: loaded,
+        idOf: (r) => r.id,
+        nameOf: (r) => r.name,
+        create: (id, name) => ShiftResidenceOption(id: id, name: name),
+        sessionId: session?.residenceId,
+        sessionName: session?.residenceName,
+      ),
     );
   }
 
@@ -93,7 +121,7 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   SchedulingOverview? get overview => state.value.data;
 
   static DateTime _todayLocal() {
-    final now = DateTime.now();
+    final now = TenantClock.now();
     return DateTime(now.year, now.month, now.day);
   }
 
@@ -105,34 +133,34 @@ class SchedulingController extends BaseController<SchedulingOverview> {
   /// Call when the Schedule tab becomes visible (login, shell open, or
   /// bottom-nav switch). Resets the week strip to today until the user
   /// manually picks another day again.
+  ///
+  /// Always refetches so Settings → General timezone changes apply (shift
+  /// labels are baked in at map time and cannot be reused).
   Future<void> resetCalendarToToday() async {
     final today = _todayLocal();
     final currentWeek = IsoDateRange.startOfWeek(today);
-    final sameWeek = _isSameDay(weekOf.value, currentWeek);
 
     _userPickedDay = false;
     weekOf.value = currentWeek;
     selectedDay.value = today;
 
-    final current = overview;
-    if (sameWeek && current != null) {
-      setSuccess(
-        current.copyWith(
-          calendar: SchedulingMapper.calendarForSelectedDay(
-            current: current.calendar,
-            selectedDay: today,
-          ),
-        ),
-      );
-      return;
-    }
-
     await loadOverview();
   }
 
-  Future<void> loadOverview() async {
+  Future<void>? _overviewInFlight;
+
+  Future<void> loadOverview() {
+    // Coalesce overlapping week/nav/refresh calls (was ×3–4 shift-swap bursts).
+    return _overviewInFlight ??= _loadOverviewBody().whenComplete(() {
+      _overviewInFlight = null;
+    });
+  }
+
+  Future<void> _loadOverviewBody() async {
     final generation = ++_loadGeneration;
     setLoading(true);
+    // Profile refresh is owned by AppRefreshIndicator / explicit refresh —
+    // not every overview (avoids /mobile/me storms).
 
     // Until the user picks a day, always request today's selection when the
     // visible week contains today.
@@ -153,6 +181,8 @@ class SchedulingController extends BaseController<SchedulingOverview> {
       residenceId: residenceFilter.value,
       status: statusFilter.value,
       mine: mineOnly.value,
+      span: span.value,
+      monthOf: monthOf.value,
     );
     if (generation != _loadGeneration) return;
 
@@ -193,6 +223,85 @@ class SchedulingController extends BaseController<SchedulingOverview> {
     weekOf.value = weekOf.value.add(const Duration(days: 7));
     _syncSelectionAfterWeekChange();
     return loadOverview();
+  }
+
+  void selectSpan(ScheduleSpan next) {
+    if (span.value == next) return;
+    span.value = next;
+    loadOverview();
+  }
+
+  Future<void> goToPreviousMonth() {
+    final current = monthOf.value;
+    monthOf.value = DateTime(current.year, current.month - 1, 1);
+    return loadOverview();
+  }
+
+  Future<void> goToNextMonth() {
+    final current = monthOf.value;
+    monthOf.value = DateTime(current.year, current.month + 1, 1);
+    return loadOverview();
+  }
+
+  /// Opens the week that contains [day]. Web month cells do the same.
+  Future<void> openWeekOf(DateTime day) {
+    span.value = ScheduleSpan.week;
+    return jumpToDate(day);
+  }
+
+  Future<void> openShift(String shiftId) async {
+    final result = await repository.openShift(shiftId);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Shift opened for bids', '');
+        loadOverview();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
+  }
+
+  Future<void> cancelShift(String shiftId) async {
+    final result = await repository.cancelShift(shiftId);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Shift cancelled', '');
+        loadOverview();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
+  }
+
+  Future<void> deleteShift(String shiftId) async {
+    final result = await repository.deleteShift(shiftId);
+    result.when(
+      success: (_) {
+        AppSnackbar.show('Shift deleted', '');
+        loadOverview();
+      },
+      failure: (error) => AppSnackbar.show(error.message, ''),
+    );
+  }
+
+  /// Returns an error message when the request fails; null on success.
+  Future<String?> requestSwap(
+    String shiftId, {
+    String? note,
+    String? targetStaffId,
+    String? toShiftId,
+  }) async {
+    final result = await repository.requestSwap(
+      shiftId: shiftId,
+      note: note,
+      targetStaffId: targetStaffId,
+      toShiftId: toShiftId,
+    );
+    return result.when(
+      success: (_) async {
+        loadOverview();
+        return null;
+      },
+      failure: (error) async => error.message,
+    );
   }
 
   void _syncSelectionAfterWeekChange() {
@@ -259,6 +368,73 @@ class SchedulingController extends BaseController<SchedulingOverview> {
 
   Future<void> declineRequest(ShiftRequest request) =>
       _decideSwap(request, approve: false);
+
+  /// Awards an open-shift bid (`POST …/bids/{bidId}/accept`).
+  Future<bool> acceptShiftBid({
+    required String shiftId,
+    required String bidId,
+  }) async {
+    final result = await repository.acceptShiftBid(
+      shiftId: shiftId,
+      bidId: bidId,
+    );
+    return result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid accepted', 'Staff is now assigned to this shift.');
+        await loadOverview();
+        return true;
+      },
+      failure: (error) async {
+        AppSnackbar.show('Could not accept bid', error.message);
+        return false;
+      },
+    );
+  }
+
+  Future<bool> rejectShiftBid({
+    required String shiftId,
+    required String bidId,
+  }) async {
+    final result = await repository.rejectShiftBid(
+      shiftId: shiftId,
+      bidId: bidId,
+    );
+    return result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid rejected', '');
+        await loadOverview();
+        return true;
+      },
+      failure: (error) async {
+        AppSnackbar.show('Could not reject bid', error.message);
+        return false;
+      },
+    );
+  }
+
+  Future<bool> placeShiftBid(String shiftId, {String? note}) async {
+    final staffId = session?.staffId ?? session?.userId;
+    if (staffId == null || staffId.isEmpty) {
+      AppSnackbar.show('Could not bid', 'Your staff profile is not loaded.');
+      return false;
+    }
+    final result = await repository.placeShiftBid(
+      shiftId: shiftId,
+      staffId: staffId,
+      note: note,
+    );
+    return result.when(
+      success: (_) async {
+        AppSnackbar.show('Bid submitted', 'Waiting on a manager.');
+        await loadOverview();
+        return true;
+      },
+      failure: (error) async {
+        AppSnackbar.show('Could not bid', error.message);
+        return false;
+      },
+    );
+  }
 
   Future<void> _decideSwap(ShiftRequest request, {required bool approve}) async {
     if (!request.canManagerDecide) {

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/formatting/web_formats.dart';
+import '../../../daily_logs/domain/repositories/daily_logs_repository.dart';
+import '../../../daily_logs/presentation/controllers/daily_logs_controller.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/client_extras.dart';
 import '../../domain/entities/client_goals.dart';
@@ -45,7 +49,7 @@ class ClientBasicSection extends StatelessWidget {
         _gap,
         ClientFileField(
           label: 'Client Photo',
-          hint: 'Image only • JPG, PNG up to 2MB',
+          hint: 'JPG, PNG, WebP or HEIC · up to 25MB',
           icon: Icons.add_a_photo_outlined,
           fileName: form.photo?.name,
           existingUrl: form.photoUrl,
@@ -132,6 +136,15 @@ class ClientBasicSection extends StatelessWidget {
           enabled: enabled,
           error: errors['status'],
           onChanged: (v) => _set(() => form.status = v),
+        ),
+        _gap,
+        ClientInput(
+          key: const ValueKey('client-health-card'),
+          label: 'Health Card #',
+          placeholder: 'e.g. 1234-567-890-XX',
+          controller: form.healthCardNumber,
+          enabled: enabled,
+          onChanged: (_) => onChanged(),
         ),
       ],
     );
@@ -319,6 +332,65 @@ class _ClientResidenceSectionState extends State<ClientResidenceSection> {
           enabled: widget.enabled,
           onChanged: (v) => _set(() => form.fundingSource = v),
         ),
+        if (form.fundingSource.trim().isNotEmpty &&
+            form.fundingSource != 'Private Pay') ...[
+          _gap,
+          ClientInput(
+            key: const ValueKey('client-funding-vendor-name'),
+            label: 'Billed Agency',
+            placeholder: 'e.g. Cuyahoga County Board of DD',
+            helper:
+                'Who pays for this placement. Fees are addressed to them, '
+                'with the resident as beneficiary.',
+            controller: form.fundingVendorName,
+            enabled: widget.enabled,
+            onChanged: (_) => widget.onChanged(),
+          ),
+          _gap,
+          ClientInput(
+            key: const ValueKey('client-funding-vendor-id'),
+            label: 'Vendor / Account ID',
+            placeholder: 'e.g. VEND-88219',
+            helper: "The agency's own number for this home.",
+            controller: form.fundingVendorId,
+            enabled: widget.enabled,
+            onChanged: (_) => widget.onChanged(),
+          ),
+        ],
+        _gap,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: ClientInput(
+                key: const ValueKey('client-rate-amount'),
+                label: 'Placement Rate',
+                placeholder: 'e.g. 1200.00',
+                helper:
+                    'What the home charges for this placement, per night, week or month. '
+                    'The residence P&L earns it night by night while the resident is here.',
+                controller: form.rateAmount,
+                enabled: widget.enabled,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => widget.onChanged(),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: ClientSelect(
+                key: const ValueKey('client-rate-frequency'),
+                label: 'Charged',
+                placeholder: 'Select',
+                value: form.rateFrequency,
+                options: ClientsLabels.rateFrequencies,
+                enabled: widget.enabled,
+                onChanged: (v) => _set(() => form.rateFrequency = v),
+              ),
+            ),
+          ],
+        ),
         _gap,
         ClientInput(
           label: 'Assignment Notes',
@@ -479,14 +551,27 @@ class ClientGuardianSection extends StatelessWidget {
         ),
         _gap,
         ClientSwitchTile(
+          key: const ValueKey('client-family-portal-access'),
           label: 'Enable Family Portal Access',
-          description: 'Grants a secure family login',
+          description: 'Grants a secure family login to view care updates',
           value: form.familyPortalAccess,
           bordered: true,
           onChanged: (v) => _set(() => form.familyPortalAccess = v),
         ),
-        _gap,
-        _PortalVisibilityCard(form: form, onChanged: onChanged),
+        // Web: show Turn Off whenever portal is on and email is missing so the
+        // validation message has an in-page control (not gated on name).
+        if (form.familyPortalAccess &&
+            form.guardianEmail.text.trim().isEmpty) ...[
+          _gap,
+          _PortalAccessRequiredBanner(
+            onTurnOff: () => _set(() => form.familyPortalAccess = false),
+          ),
+        ],
+        // Web: portal module checkboxes only when Family Portal Access is ON.
+        if (form.familyPortalAccess) ...[
+          _gap,
+          ClientPortalVisibilityCard(form: form, onChanged: onChanged),
+        ],
         _gap,
         _OutlinedCard(
           icon: Icons.groups_outlined,
@@ -503,6 +588,49 @@ class ClientGuardianSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Web amber notice when portal is on but guardian email is empty.
+class _PortalAccessRequiredBanner extends StatelessWidget {
+  final VoidCallback onTurnOff;
+
+  const _PortalAccessRequiredBanner({required this.onTurnOff});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('client-turn-off-portal-banner'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE8C96A)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'A guardian email is required for portal login. If there is no email, turn portal access off.',
+              style: handoverText(context, 12, color: const Color(0xFF96631A)),
+            ),
+          ),
+          TextButton(
+            key: const ValueKey('client-turn-off-portal'),
+            onPressed: onTurnOff,
+            child: Text(
+              'Turn Off Portal',
+              style: handoverText(
+                context,
+                12.5,
+                weight: FontWeight.w700,
+                color: const Color(0xFF96631A),
+              ).copyWith(decoration: TextDecoration.underline),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -598,11 +726,18 @@ class _OutlinedCard extends StatelessWidget {
   }
 }
 
-class _PortalVisibilityCard extends StatelessWidget {
+/// Web "Family Portal Visibility" card — create wizard and edit record.
+class ClientPortalVisibilityCard extends StatelessWidget {
   final ClientForm form;
   final VoidCallback onChanged;
+  final bool enabled;
 
-  const _PortalVisibilityCard({required this.form, required this.onChanged});
+  const ClientPortalVisibilityCard({
+    super.key,
+    required this.form,
+    required this.onChanged,
+    this.enabled = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -627,6 +762,18 @@ class _PortalVisibilityCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Keep Turn Off reachable while this card is on-screen (email empty).
+          if (form.familyPortalAccess &&
+              form.guardianEmail.text.trim().isEmpty &&
+              enabled) ...[
+            _PortalAccessRequiredBanner(
+              onTurnOff: () {
+                form.familyPortalAccess = false;
+                onChanged();
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
           for (final group in portalVisibilityGroups) ...[
             Text(
               group.label.toUpperCase(),
@@ -638,10 +785,13 @@ class _PortalVisibilityCard extends StatelessWidget {
               _VisibilityOption(
                 item: item,
                 value: form.portalVisibility[item.key] ?? false,
-                onTap: () {
-                  form.portalVisibility[item.key] = !(form.portalVisibility[item.key] ?? false);
-                  onChanged();
-                },
+                onTap: enabled
+                    ? () {
+                        form.portalVisibility[item.key] =
+                            !(form.portalVisibility[item.key] ?? false);
+                        onChanged();
+                      }
+                    : null,
               ),
               const SizedBox(height: 8),
             ],
@@ -656,7 +806,7 @@ class _PortalVisibilityCard extends StatelessWidget {
 class _VisibilityOption extends StatelessWidget {
   final PortalVisibilityItem item;
   final bool value;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _VisibilityOption({required this.item, required this.value, required this.onTap});
 
@@ -863,7 +1013,7 @@ class ClientCareSection extends StatelessWidget {
         _gap,
         ClientFileField(
           label: 'Upload Care Plan Document',
-          hint: 'PDF or DOCX up to 10MB',
+          hint: 'PDF or DOCX up to 25MB',
           fileName: form.carePlanDocument?.name,
           onPick: !enabled
               ? null
@@ -1010,6 +1160,296 @@ class _GoalCategoryPickerState extends State<_GoalCategoryPicker> {
             );
           },
         ),
+      ],
+    );
+  }
+}
+
+/// Web Client Details "Daily Logs" tab — recent review rows from the API.
+class ClientDailyLogsSection extends StatefulWidget {
+  final String clientId;
+  final String? residenceId;
+  final VoidCallback? onViewAll;
+
+  const ClientDailyLogsSection({
+    super.key,
+    required this.clientId,
+    this.residenceId,
+    this.onViewAll,
+  });
+
+  @override
+  State<ClientDailyLogsSection> createState() => _ClientDailyLogsSectionState();
+}
+
+class _ClientDailyLogsSectionState extends State<ClientDailyLogsSection> {
+  bool _loading = true;
+  String? _error;
+  List<(String, String, String, String)> _rows = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant ClientDailyLogsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.clientId != widget.clientId ||
+        oldWidget.residenceId != widget.residenceId) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    if (!GetIt.instance.isRegistered<DailyLogsRepository>()) {
+      setState(() {
+        _loading = false;
+        _error = 'Daily logs are unavailable.';
+        _rows = const [];
+      });
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final now = DateTime.now();
+    final to = DailyLogsController.dayKey(now);
+    final from = DailyLogsController.dayKey(
+      now.subtract(const Duration(days: 14)),
+    );
+    final residenceId = (widget.residenceId ?? '').trim();
+    if (residenceId.isEmpty) {
+      setState(() {
+        _loading = false;
+        _rows = const [];
+        _error = null;
+      });
+      return;
+    }
+    final result = await GetIt.instance<DailyLogsRepository>().reviewQueue(
+      residenceId: residenceId,
+      clientId: widget.clientId,
+      from: from,
+      to: to,
+      page: 1,
+      limit: 12,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (page) {
+        setState(() {
+          _rows = [
+            for (final row in page.items)
+              (
+                _dateLabel(row.logDate),
+                (row.shiftLabel ?? '').trim().isEmpty
+                    ? '—'
+                    : row.shiftLabel!.trim(),
+                row.entriesCount > 0 ? '${row.entriesCount} notes' : '—',
+                row.entriesCount > 0 ? 'In Review' : 'Pending',
+              ),
+          ];
+          _loading = false;
+        });
+      },
+      failure: (error) {
+        setState(() {
+          _error = error.message;
+          _rows = const [];
+          _loading = false;
+        });
+      },
+    );
+  }
+
+  String _dateLabel(String logDate) {
+    final parsed = DateTime.tryParse(logDate);
+    if (parsed == null) return logDate;
+    return WebFormat.date(parsed);
+  }
+
+  Color _statusBg(String status) => switch (status) {
+        'Complete' => AppColors.activeBackground,
+        'In Review' => AppColors.infoBackground,
+        'Flagged' => AppColors.criticalBackgroundSoft,
+        _ => AppColors.filterButtonBackground,
+      };
+
+  Color _statusFg(String status) => switch (status) {
+        'Complete' => AppColors.activeGreen,
+        'In Review' => AppColors.infoBlue,
+        'Flagged' => AppColors.criticalRed,
+        _ => AppColors.textMuted,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = handoverText(context, 13, color: AppColors.textMuted);
+    return Column(
+      key: const ValueKey('client-daily-logs-section'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.filterButtonBackground,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.edit_note_rounded,
+                size: 18,
+                color: AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Daily Logs',
+                    style: handoverText(context, 16, weight: FontWeight.w700),
+                  ),
+                  Text(
+                    "Read-only summary of the client's recent daily activity logs.",
+                    style: muted,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.infoBackground,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Read only',
+                style: handoverText(
+                  context,
+                  11,
+                  weight: FontWeight.w600,
+                  color: AppColors.infoBlue,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.secondaryTeal),
+            ),
+          )
+        else if (_error != null)
+          Text(_error!, style: handoverText(context, 13, color: AppColors.criticalRed))
+        else if (_rows.isEmpty)
+          Text(
+            'No recent daily logs for this client.',
+            style: muted,
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                Container(
+                  color: AppColors.filterButtonBackground.withValues(alpha: 0.4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      for (final h in ['Date', 'Shift', 'Submitted', 'Status'])
+                        Expanded(
+                          child: Text(
+                            h.toUpperCase(),
+                            style: handoverText(
+                              context,
+                              11,
+                              weight: FontWeight.w600,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                for (final row in _rows)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: AppColors.cardBorder)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            row.$1,
+                            style: handoverText(context, 13, weight: FontWeight.w600),
+                          ),
+                        ),
+                        Expanded(child: Text(row.$2, style: muted)),
+                        Expanded(child: Text(row.$3, style: muted)),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _statusBg(row.$4),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                row.$4,
+                                style: handoverText(
+                                  context,
+                                  11,
+                                  weight: FontWeight.w600,
+                                  color: _statusFg(row.$4),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        if (widget.onViewAll != null) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: widget.onViewAll,
+              child: Text(
+                'View all daily logs →',
+                style: handoverText(
+                  context,
+                  12.5,
+                  weight: FontWeight.w600,
+                  color: AppColors.secondaryTeal,
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

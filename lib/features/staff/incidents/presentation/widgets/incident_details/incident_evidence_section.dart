@@ -14,13 +14,15 @@ class IncidentEvidenceSection extends StatelessWidget {
 
   final List<IncidentEvidenceItem> items;
   final ValueChanged<IncidentEvidenceItem>? onDownload;
-  final bool isBusy;
+
+  /// File URL currently being saved. That row shows a spinner.
+  final String? busyUrl;
 
   const IncidentEvidenceSection({
     super.key,
     required this.items,
     this.onDownload,
-    this.isBusy = false,
+    this.busyUrl,
   });
 
   @override
@@ -46,7 +48,8 @@ class IncidentEvidenceSection extends StatelessWidget {
               SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
             _EvidenceAttachmentCard(
               item: items[i],
-              onDownload: isBusy ? null : onDownload,
+              busy: busyUrl != null && busyUrl == items[i].fileUrl,
+              onDownload: busyUrl == null ? onDownload : null,
             ),
           ],
       ],
@@ -57,10 +60,12 @@ class IncidentEvidenceSection extends StatelessWidget {
 class _EvidenceAttachmentCard extends StatelessWidget {
   final IncidentEvidenceItem item;
   final ValueChanged<IncidentEvidenceItem>? onDownload;
+  final bool busy;
 
   const _EvidenceAttachmentCard({
     required this.item,
     this.onDownload,
+    this.busy = false,
   });
 
   Color get _badgeColor {
@@ -174,11 +179,20 @@ class _EvidenceAttachmentCard extends StatelessWidget {
                 ),
               ),
               alignment: Alignment.center,
-              child: AppSvgIcon(
-                'assets/icons/staff_incidents/download.svg',
-                size: ResponsiveHelper.getResponsiveSize(context, 18),
-                color: AppColors.secondaryTeal,
-              ),
+              child: busy
+                  ? SizedBox(
+                      width: ResponsiveHelper.getResponsiveSize(context, 18),
+                      height: ResponsiveHelper.getResponsiveSize(context, 18),
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.secondaryTeal,
+                      ),
+                    )
+                  : AppSvgIcon(
+                      'assets/icons/staff_incidents/download.svg',
+                      size: ResponsiveHelper.getResponsiveSize(context, 18),
+                      color: AppColors.secondaryTeal,
+                    ),
             ),
           ),
         ],

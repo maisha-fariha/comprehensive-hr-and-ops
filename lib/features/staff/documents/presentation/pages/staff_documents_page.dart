@@ -17,6 +17,7 @@ import '../widgets/staff_documents_metrics_strip.dart';
 import '../widgets/staff_documents_registry.dart';
 import '../widgets/staff_missing_documents_sheet.dart';
 import '../widgets/staff_upload_document_sheet.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Staff Documents Management — web `/dashboard/documents` parity.
 class StaffDocumentsPage extends StatefulWidget {
@@ -88,7 +89,7 @@ class _StaffDocumentsPageState extends State<StaffDocumentsPage> {
       key: const Key('staff-documents-page'),
       backgroundColor: AppColors.scaffoldBackground,
       bottomNavigationBar: StaffBottomNavBar(
-        currentIndex: 4,
+        currentIndex: 5,
         onTap: (i) => Get.offAll(() => StaffShell(initialIndex: i)),
       ),
       body: SafeArea(
@@ -121,7 +122,7 @@ class _StaffDocumentsPageState extends State<StaffDocumentsPage> {
                   );
                 }
 
-                return RefreshIndicator(
+                return AppRefreshIndicator(
                   color: AppColors.secondaryTeal,
                   onRefresh: _controller.reload,
                   child: ListView(

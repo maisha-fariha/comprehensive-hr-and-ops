@@ -50,7 +50,11 @@ class _TasksRepo implements StaffTasksMessagesRepository {
       ));
 
   @override
-  Future<Result<void>> completeTask(String taskId, {bool signOff = false}) async {
+  Future<Result<void>> completeTask(
+    String taskId, {
+    bool signOff = false,
+    List<Map<String, dynamic>>? checklist,
+  }) async {
     completions.add(signOff);
     return Result.success(null);
   }
@@ -111,7 +115,8 @@ void main() {
   });
 
   void phone(WidgetTester tester) {
-    tester.view.physicalSize = const Size(375, 812);
+    // Tall enough for the full task sheet form (sign-off / Complete CTAs).
+    tester.view.physicalSize = const Size(375, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);

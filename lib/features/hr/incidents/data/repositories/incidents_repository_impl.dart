@@ -4,13 +4,17 @@ import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/config/app_env.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
+
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
 import '../../../../../core/offline/offline_file_cache.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../domain/entities/incident_ai_draft.dart';
 import '../../domain/entities/incident_category_option.dart';
 import '../../domain/entities/incident_cir_template_option.dart';
 import '../../domain/entities/incident_client_option.dart';
@@ -25,46 +29,103 @@ import '../mappers/incidents_mapper.dart';
 
 class IncidentsRepositoryImpl implements IncidentsRepository {
   final AppApiClient _api;
-  final UserSession _session;
   final TokenStore _tokens;
   final TenantStore _tenant;
 
   IncidentsRepositoryImpl({
     required AppApiClient api,
-    required UserSession session,
     required TokenStore tokens,
     required TenantStore tenant,
   })  : _api = api,
-        _session = session,
         _tokens = tokens,
         _tenant = tenant;
 
   @override
-  Future<Result<IncidentsBoard>> getBoard() async {
-    final residenceId = _session.residenceId;
+  Future<Result<int>> getOpenCount() async {
+    final result = await _api.get(ApiEndpoints.incidentsSummary, silent: true);
+    return result.when(
+      success: (body) async {
+        final summary = JsonCodec.unwrapMap(body);
+        return Result.success(
+          JsonCodec.integerOr(
+            summary['open'] ?? summary['openCount'],
+            0,
+          ),
+        );
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<IncidentsBoard>> getBoard({
+    String? status,
+    String? severity,
+    String? residenceId,
+    String? clientId,
+    String? investigatorId,
+    String? from,
+    String? to,
+    bool reportedByMe = false,
+  }) async {
+    // Web Incidents lists the whole tenant until a residence filter is chosen.
+    // Filter keys match web `useListParams` + `reporter=me` for Reported by Me.
+    // Status values match web dropdown: open | investigating | closed.
+    final normalizedStatus = status?.trim().toLowerCase();
     final base = <String, dynamic>{
-      'page': 1,
-      'limit': 100,
-      'residenceId': ?residenceId,
+      if (severity != null && severity.isNotEmpty) 'severity': severity,
+      if (residenceId != null && residenceId.isNotEmpty)
+        'residenceId': residenceId,
+      if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
+      if (investigatorId != null && investigatorId.isNotEmpty)
+        'investigatorId': investigatorId,
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
+      if (reportedByMe) 'reporter': 'me',
     };
 
+    final summaryQuery = <String, dynamic>{
+      if (residenceId != null && residenceId.isNotEmpty)
+        'residenceId': residenceId,
+      if (reportedByMe) 'reporter': 'me',
+    };
+
+    final wantOpen =
+        normalizedStatus == null || normalizedStatus == 'open';
+    final wantReview =
+        normalizedStatus == null || normalizedStatus == 'investigating';
+    final wantClosed =
+        normalizedStatus == null || normalizedStatus == 'closed';
+
+    final emptyBody = <String, dynamic>{'data': <dynamic>[]};
+    Future<Result<dynamic>> incidentsForStatus(String statusValue) async {
+      final result = await ApiPageFetcher.fetchAll(
+        _api,
+        path: ApiEndpoints.incidents,
+        query: {...base, 'status': statusValue},
+        silent: true,
+      );
+      return result.when(
+        success: (rows) => Result.success({'data': rows}),
+        failure: (error) => Result.failure(error),
+      );
+    }
+
     final incidents = await Future.wait([
+      wantOpen
+          ? incidentsForStatus('open')
+          : Future.value(Result.success(emptyBody)),
+      wantReview
+          ? incidentsForStatus('investigating')
+          : Future.value(Result.success(emptyBody)),
+      wantClosed
+          ? incidentsForStatus('closed')
+          : Future.value(Result.success(emptyBody)),
       _api.get(
-        ApiEndpoints.incidents,
-        query: {...base, 'status': 'open'},
+        ApiEndpoints.incidentsSummary,
+        query: summaryQuery.isEmpty ? null : summaryQuery,
+        silent: true,
       ),
-      _api.get(
-        ApiEndpoints.incidents,
-        query: {
-          ...base,
-          'status': 'under_review,in_review,investigating,assigned',
-        },
-      ),
-      _api.get(
-        ApiEndpoints.incidents,
-        query: {...base, 'status': 'closed,resolved,archived'},
-      ),
-      _api.get(ApiEndpoints.incidentsSummary),
     ]);
 
     final open = incidents[0];
@@ -72,11 +133,16 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
     final closed = incidents[2];
     final summary = incidents[3];
 
-    if (open.isFailure && review.isFailure && closed.isFailure) {
-      return Result.failure(
-        open.error ??
-            const ApiError(message: 'Could not load incidents.'),
-      );
+    final primaryFailure = switch (normalizedStatus) {
+      'open' => open.isFailure ? open.error : null,
+      'investigating' => review.isFailure ? review.error : null,
+      'closed' => closed.isFailure ? closed.error : null,
+      _ => open.isFailure && review.isFailure && closed.isFailure
+          ? open.error
+          : null,
+    };
+    if (primaryFailure != null) {
+      return Result.failure(primaryFailure);
     }
 
     if (summary.isFailure) {
@@ -100,7 +166,10 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   Future<Result<IncidentInvestigationSummary>> getInvestigationSummary(
     String incidentId,
   ) async {
-    final result = await _api.get(ApiEndpoints.incidentById(incidentId));
+    final result = await _api.get(
+      ApiEndpoints.incidentById(incidentId),
+      silent: true,
+    );
     return result.when(
       success: (body) async =>
           Result.success(IncidentsMapper.investigationSummaryFrom(body)),
@@ -112,7 +181,10 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   Future<Result<Map<String, dynamic>>> getIncidentDetail(
     String incidentId,
   ) async {
-    final result = await _api.get(ApiEndpoints.incidentById(incidentId));
+    final result = await _api.get(
+      ApiEndpoints.incidentById(incidentId),
+      silent: true,
+    );
     return result.when(
       success: (body) async => Result.success(JsonCodec.unwrapMap(body)),
       failure: (error) async => Result.failure(error),
@@ -319,15 +391,20 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
 
   @override
   Future<Result<List<IncidentStaffOption>>> getStaff() async {
-    final result = await _api.get(
-      ApiEndpoints.staff,
-      query: {
-        'page': 1,
-        'limit': 100,
-        'residenceId': ?_session.residenceId,
-      },
-      silent: true,
-    );
+    // Same list the web incident form uses: GET /staff/directory, no residence filter.
+    var result = await _api.get(ApiEndpoints.staffDirectory, silent: true);
+    final canStaffRead = Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().canReadStaffList;
+    // Only fall back to GET /staff when the caller has staff:read — otherwise
+    // caregivers without it flood the backend with 403s.
+    if (canStaffRead &&
+        (result.isFailure || JsonCodec.unwrapList(result.value).isEmpty)) {
+      result = await _api.get(
+        ApiEndpoints.staff,
+        query: const {'page': 1, 'limit': 100},
+        silent: true,
+      );
+    }
     return result.when(
       success: (body) async =>
           Result.success(IncidentsMapper.staffFrom(body)),
@@ -485,7 +562,7 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
         allowQueue: false,
       );
 
-      return result.when(
+      return await result.when(
         success: (body) async {
           final map = JsonCodec.unwrapMap(body);
           final url = JsonCodec.string(
@@ -544,7 +621,7 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
     final result = await _api.patch(
       ApiEndpoints.incidentInvestigation(incidentId),
       data: {
-        'findings': findings,
+        if (findings.trim().isNotEmpty) 'findings': findings.trim(),
         if (rootCause != null && rootCause.isNotEmpty) 'rootCause': rootCause,
         if (correctiveActions != null && correctiveActions.isNotEmpty)
           'correctiveActions': correctiveActions,
@@ -737,14 +814,11 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
   }
 
   Future<Result<List<int>>> _buildIncidentListCsvFromApi() async {
-    final residenceId = _session.residenceId;
     final result = await _api.get(
       ApiEndpoints.incidents,
       query: {
         'page': 1,
         'limit': 500,
-        if (residenceId != null && residenceId.isNotEmpty)
-          'residenceId': residenceId,
       },
       silent: true,
     );
@@ -844,5 +918,61 @@ class IncidentsRepositoryImpl implements IncidentsRepository {
       return map['id']?.toString() ?? map['incidentId']?.toString();
     }
     return null;
+  }
+
+  @override
+  Future<Result<bool>> isAiDraftingEnabled() async {
+    final result = await _api.get(ApiEndpoints.aiStatus, silent: true);
+    return result.when(
+      success: (body) async {
+        final map = JsonCodec.unwrapMap(body);
+        return Result.success(map['enabled'] == true);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<IncidentAiDraft>> draftIncidentFromNotes({
+    required String notes,
+    String? residenceId,
+    String? clientId,
+    String? categoryId,
+    List<String>? detectedDuringOptions,
+    List<String>? notificationParties,
+  }) async {
+    final trimmed = notes.trim();
+    if (trimmed.isEmpty) {
+      return Result.failure(
+        const ValidationError(message: 'Enter your notes before drafting.'),
+      );
+    }
+
+    final body = <String, dynamic>{
+      'notes': trimmed,
+      if (residenceId != null && residenceId.trim().isNotEmpty)
+        'residenceId': residenceId.trim(),
+      if (clientId != null && clientId.trim().isNotEmpty)
+        'clientId': clientId.trim(),
+      if (categoryId != null && categoryId.trim().isNotEmpty)
+        'categoryId': categoryId.trim(),
+      'options': {
+        'detectedDuring':
+            detectedDuringOptions ?? const <String>[],
+        'notificationParties':
+            notificationParties ?? const <String>[],
+      },
+    };
+
+    final result = await _api.post(
+      ApiEndpoints.aiIncidentsDraft,
+      data: body,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (response) async =>
+          Result.success(IncidentsMapper.aiDraftFrom(response)),
+      failure: (error) async => Result.failure(error),
+    );
   }
 }

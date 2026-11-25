@@ -7,6 +7,7 @@ import '../../domain/entities/refused_dose.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_medication_enums.dart';
 import '../../domain/entities/staff_medication_overview.dart';
+import '../../../../../core/time/tenant_clock.dart';
 
 abstract final class StaffMedicationMapper {
   /// Maps `GET /mar/round` into all four tab lists + summary counters.
@@ -44,41 +45,33 @@ abstract final class StaffMedicationMapper {
         continue;
       }
 
-      // Missed (+ overdue also appears under Missed per B6 map)
+      // Missed / Overdue panel — web keeps these out of Due Now.
       if (state == 'missed' || state == 'overdue') {
         missed.add(_missed(row));
         if (state == 'overdue') overdueFromOcc += 1;
-        if (state == 'missed') continue;
-        // overdue also stays in Due Now below
+        continue;
       }
 
-      // Due Now / Later Today: due | upcoming | overdue
-      if (state == 'upcoming') {
-        later.add(
-          _due(
-            row,
-            DueDoseSection.laterToday,
-            DueDoseStatus.upcoming,
-            webState: 'upcoming',
-          ),
-        );
-      } else if (state == 'due' ||
-          state == 'overdue' ||
+      // Web / HR Due Now: due + upcoming (earliest first), not overdue.
+      if (state == 'due' ||
+          state == 'upcoming' ||
           state.isEmpty ||
           state == 'pending') {
-        final webState = state == 'overdue'
-            ? 'overdue'
-            : (state.isEmpty || state == 'pending' ? 'due' : state);
+        final isUpcoming = state == 'upcoming';
+        final webState =
+            state.isEmpty || state == 'pending' ? 'due' : state;
         dueNow.add(
           _due(
             row,
             DueDoseSection.dueNow,
-            DueDoseStatus.pending,
+            isUpcoming ? DueDoseStatus.upcoming : DueDoseStatus.pending,
             webState: webState,
           ),
         );
       }
     }
+
+    dueNow.sort(_byDueAt);
 
     final summary = JsonCodec.mapAt(json, 'summary') ?? const {};
     final dueSummary = JsonCodec.integer(summary['due']);
@@ -182,6 +175,7 @@ abstract final class StaffMedicationMapper {
         startsAt: JsonCodec.dateTime(json['startsAt']),
         endsAt: JsonCodec.dateTime(json['endsAt']),
         stockUnitsPerDose: JsonCodec.integer(json['stockUnitsPerDose']),
+        costPerDose: JsonCodec.number(json['costPerDose']),
         minIntervalMinutes: JsonCodec.integer(json['minIntervalMinutes']),
         isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
         requiresCheckScheduleId: JsonCodec.string(
@@ -233,13 +227,18 @@ abstract final class StaffMedicationMapper {
       'upcoming' => DueDoseStatus.upcoming,
       _ => DueDoseStatus.pending,
     };
+    // Registry cards keep section for layout only; Due Now panel uses dueNowDoses.
     return _due(
       json,
-      state == 'upcoming' ? DueDoseSection.laterToday : DueDoseSection.dueNow,
+      DueDoseSection.dueNow,
       status,
       webState: state,
     );
   }
+
+  static int _byDueAt(DueDose a, DueDose b) =>
+      (a.dueAt?.toIso8601String() ?? a.timeLabel)
+          .compareTo(b.dueAt?.toIso8601String() ?? b.timeLabel);
 
   static DueDose _due(
     Map<String, dynamic> json,
@@ -251,9 +250,15 @@ abstract final class StaffMedicationMapper {
     final scheduled = JsonCodec.dateTime(
       json['scheduledAt'] ?? json['dueAt'] ?? json['time'],
     );
-    final inRound = JsonCodec.boolean(json['scheduled']) ?? true;
+    final isPrn = _isPrn(json);
+    // Web MAR registry is scheduled-round only. PRN / off-round chartings
+    // come back on `/mar/round` with `scheduled: false` (and sometimes omit
+    // the flag) — never treat those as in-round MAR rows.
+    final inRound = isPrn
+        ? false
+        : (JsonCodec.boolean(json['scheduled']) ?? true);
     final scheduledTime = JsonCodec.stringOr(json['scheduledTime'], '');
-    final dueLocal = scheduled?.toLocal();
+    final dueLocal = (scheduled == null ? null : TenantClock.wallOf(scheduled));
     final dueHhmm = dueLocal == null
         ? ''
         : '${dueLocal.hour.toString().padLeft(2, '0')}:'
@@ -282,6 +287,8 @@ abstract final class StaffMedicationMapper {
       timeLabel: timeLabel,
       scheduled: inRound,
       slotLabel: slotFor(!inRound && dueHhmm.isNotEmpty ? dueHhmm : scheduledTime),
+      scheduledTime: scheduledTime,
+      dueAt: scheduled,
       administrationId: JsonCodec.string(json['administrationId']),
       administeredAt: JsonCodec.dateTime(json['administeredAt']),
       administeredBy: JsonCodec.string(json['administeredBy']),
@@ -309,7 +316,7 @@ abstract final class StaffMedicationMapper {
             JsonCodec.mapAt(json, 'prnMedication')?['id'],
         '',
       ),
-      isPrn: _isPrn(json),
+      isPrn: isPrn,
     );
   }
 
@@ -338,7 +345,7 @@ abstract final class StaffMedicationMapper {
       medicationName: _medName(json),
       dose: _dose(json),
       route: _route(json),
-      givenTimeLabel: given == null ? '' : _givenStamp(given.toLocal()),
+      givenTimeLabel: given == null ? '' : _givenStamp(TenantClock.wallOf(given)),
       administeredByName: JsonCodec.stringOr(
         staff?['name'] ??
             IsoDateRange.personName(
@@ -353,10 +360,13 @@ abstract final class StaffMedicationMapper {
             json['houseName'],
         '',
       ),
+      wasLate: JsonCodec.boolean(json['wasLate']) ?? false,
+      administeredOnDuty: JsonCodec.boolean(json['administeredOnDuty']),
+      witnessOnDuty: JsonCodec.boolean(json['witnessOnDuty']),
     );
   }
 
-  /// Web Given column style: `Aug 27, 09:33 AM`.
+  /// Web Given column: month day + Settings → General time format.
   static String _givenStamp(DateTime local) {
     const months = [
       'Jan',
@@ -372,12 +382,10 @@ abstract final class StaffMedicationMapper {
       'Nov',
       'Dec',
     ];
-    final h24 = local.hour;
-    final h12 = h24 % 12 == 0 ? 12 : h24 % 12;
-    final ampm = h24 >= 12 ? 'PM' : 'AM';
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '${months[local.month - 1]} ${local.day}, '
-        '${h12.toString().padLeft(2, '0')}:$mm $ampm';
+    final time = TenantClock.formatClock(hour: local.hour, minute: local.minute)
+        .replaceAll(' am', ' AM')
+        .replaceAll(' pm', ' PM');
+    return '${months[local.month - 1]} ${local.day}, $time';
   }
 
   /// Maps `GET /mar/administrations` list payload.
@@ -401,7 +409,7 @@ abstract final class StaffMedicationMapper {
       route: _route(json),
       scheduledTimeLabel: scheduled == null
           ? ''
-          : IsoDateRange.timeLabel(scheduled.toLocal()),
+          : IsoDateRange.timeLabel(scheduled),
       missedByName: IsoDateRange.personName(json['recordedBy'] ?? json['staff']),
       reason: JsonCodec.stringOr(json['notes'] ?? json['reason'], ''),
     );
@@ -420,7 +428,7 @@ abstract final class StaffMedicationMapper {
       medicationName: _medName(json),
       dose: _dose(json),
       route: _route(json),
-      timeLabel: when == null ? '' : IsoDateRange.timeLabel(when.toLocal()),
+      timeLabel: when == null ? '' : IsoDateRange.timeLabel(when),
       refusedByName:
           IsoDateRange.personName(json['recordedBy'] ?? json['staff']),
       notes: JsonCodec.stringOr(json['notes'] ?? json['reason'], ''),

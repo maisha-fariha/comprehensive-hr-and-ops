@@ -19,13 +19,21 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
 
   StaffDashboardOverview? get overview => state.value.data;
 
+  Future<void>? _overviewInFlight;
+
   @override
   void onInit() {
     super.onInit();
     loadOverview();
   }
 
-  Future<void> loadOverview() async {
+  Future<void> loadOverview() {
+    return _overviewInFlight ??= _loadOverviewBody().whenComplete(() {
+      _overviewInFlight = null;
+    });
+  }
+
+  Future<void> _loadOverviewBody() async {
     setLoading(true);
     final result = await repository.getOverview();
     result.when(
@@ -37,7 +45,14 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
         }
         setSuccess(data);
       },
-      failure: (error) => setError(error.message),
+      failure: (error) {
+        if (error?.code == 'RATE_LIMITED' ||
+            (error?.message ?? '').toLowerCase().contains('token refresh')) {
+          setLoading(false);
+          return;
+        }
+        setError(error.message);
+      },
     );
     setLoading(false);
   }
@@ -48,7 +63,7 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
     if (shift == null || clockBusy.value) return;
 
     clockBusy.value = true;
-    final result = shift.onShift
+    final result = shift.clockedIn
         ? await repository.checkOut(
             shiftId: shift.shiftId,
             residenceId: shift.residenceId,
@@ -62,8 +77,8 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
     result.when(
       success: (_) async {
         AppSnackbar.show(
-          shift.onShift ? 'Clocked out' : 'Clocked in',
-          shift.onShift
+          shift.clockedIn ? 'Clocked out' : 'Clocked in',
+          shift.clockedIn
               ? 'Your shift attendance was updated.'
               : 'You are now on shift.',
         );

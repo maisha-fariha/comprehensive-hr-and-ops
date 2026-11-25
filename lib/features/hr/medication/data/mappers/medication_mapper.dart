@@ -1,6 +1,7 @@
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/mar_administration.dart';
 import '../../domain/entities/mar_medication.dart';
+import '../../domain/entities/mar_medication_stock.dart';
 import '../../domain/entities/mar_options.dart';
 import '../../domain/entities/mar_round.dart';
 
@@ -35,25 +36,36 @@ abstract final class MedicationMapper {
                 .trim(),
           );
 
-  static MarOccurrence occurrenceFrom(Map<String, dynamic> json) => MarOccurrence(
-        id: JsonCodec.stringOr(json['id'], ''),
-        medicationId: JsonCodec.stringOr(json['medicationId'], ''),
-        clientId: JsonCodec.stringOr(json['clientId'], ''),
-        clientName: JsonCodec.string(json['clientName']),
-        allergies: _strings(json['clientAllergies']),
-        residenceId: JsonCodec.stringOr(json['residenceId'], ''),
-        residenceName: JsonCodec.string(json['residenceName']),
-        name: JsonCodec.stringOr(json['name'], ''),
-        dose: JsonCodec.string(json['dose']),
-        isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
-        scheduledTime: JsonCodec.stringOr(json['scheduledTime'], ''),
-        dueAt: JsonCodec.dateTime(json['dueAt']),
-        state: JsonCodec.stringOr(json['state'], 'upcoming'),
-        scheduled: JsonCodec.boolean(json['scheduled']) ?? true,
-        administrationId: JsonCodec.string(json['administrationId']),
-        administeredAt: JsonCodec.dateTime(json['administeredAt']),
-        administeredBy: JsonCodec.string(json['administeredBy']),
-      );
+  static MarOccurrence occurrenceFrom(Map<String, dynamic> json) {
+    final source = (JsonCodec.string(json['source']) ?? '').toLowerCase();
+    final isPrnOccurrence = json['prnMedicationId'] != null ||
+        JsonCodec.mapAt(json, 'prnMedication') != null ||
+        source == 'prn';
+    // Web MAR tab = scheduled round only. PRN givens reappear on the round
+    // payload as off-round rows — never default them into the MAR registry.
+    final scheduled = isPrnOccurrence
+        ? false
+        : (JsonCodec.boolean(json['scheduled']) ?? true);
+    return MarOccurrence(
+      id: JsonCodec.stringOr(json['id'], ''),
+      medicationId: JsonCodec.stringOr(json['medicationId'], ''),
+      clientId: JsonCodec.stringOr(json['clientId'], ''),
+      clientName: JsonCodec.string(json['clientName']),
+      allergies: _strings(json['clientAllergies']),
+      residenceId: JsonCodec.stringOr(json['residenceId'], ''),
+      residenceName: JsonCodec.string(json['residenceName']),
+      name: JsonCodec.stringOr(json['name'], ''),
+      dose: JsonCodec.string(json['dose']),
+      isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
+      scheduledTime: JsonCodec.stringOr(json['scheduledTime'], ''),
+      dueAt: JsonCodec.dateTime(json['dueAt']),
+      state: JsonCodec.stringOr(json['state'], 'upcoming'),
+      scheduled: scheduled,
+      administrationId: JsonCodec.string(json['administrationId']),
+      administeredAt: JsonCodec.dateTime(json['administeredAt']),
+      administeredBy: JsonCodec.string(json['administeredBy']),
+    );
+  }
 
   static MarRound roundFrom(dynamic body) {
     final json = JsonCodec.unwrapMap(body);
@@ -64,10 +76,19 @@ abstract final class MedicationMapper {
           .map((o) => occurrenceFrom(JsonCodec.asMap(o)))
           .toList(),
       summary: MarSummary(
-        scheduled: JsonCodec.integerOr(summary['scheduled'], 0),
-        administered: JsonCodec.integerOr(summary['administered'], 0),
+        // Match staff/web aliases — some tenants send scheduledToday / given.
+        scheduled: JsonCodec.integerOr(
+          summary['scheduled'] ?? summary['scheduledToday'],
+          0,
+        ),
+        administered: JsonCodec.integerOr(
+          summary['administered'] ?? summary['given'],
+          0,
+        ),
         unscheduled: JsonCodec.integerOr(summary['unscheduled'], 0),
+        // Web KPI "Missed / Overdue" is summary.missed (already includes overdue).
         missed: JsonCodec.integerOr(summary['missed'], 0),
+        overdue: JsonCodec.integerOr(summary['overdue'], 0),
         complianceRate: JsonCodec.number(summary['complianceRate'])?.round(),
       ),
     );
@@ -89,6 +110,7 @@ abstract final class MedicationMapper {
       startsAt: _isoDay(json['startsAt']),
       endsAt: _isoDay(json['endsAt']),
       stockUnitsPerDose: JsonCodec.integer(json['stockUnitsPerDose']),
+      costPerDose: JsonCodec.number(json['costPerDose']),
       isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
       requiresCheckScheduleId: JsonCodec.string(json['requiresCheckScheduleId']),
       requiresCheckWithinMinutes: JsonCodec.integer(json['requiresCheckWithinMinutes']),
@@ -105,6 +127,7 @@ abstract final class MedicationMapper {
         dose: JsonCodec.string(json['dose']),
         instructions: JsonCodec.stringOr(json['instructions'], ''),
         stockUnitsPerDose: JsonCodec.integer(json['stockUnitsPerDose']),
+        costPerDose: JsonCodec.number(json['costPerDose']),
         minIntervalMinutes: JsonCodec.integer(json['minIntervalMinutes']),
         isControlled: JsonCodec.boolean(json['isControlled']) ?? false,
         isActive: JsonCodec.boolean(json['isActive']) ?? true,
@@ -115,6 +138,35 @@ abstract final class MedicationMapper {
       _rows(body).map(medicationFrom).toList();
 
   static List<MarMedication> prnsFrom(dynamic body) => _rows(body).map(prnFrom).toList();
+
+  static MarMedicationStock stockFrom(Map<String, dynamic> json) =>
+      MarMedicationStock(
+        id: JsonCodec.stringOr(json['id'], ''),
+        residenceId: JsonCodec.stringOr(json['residenceId'], ''),
+        medicationId: JsonCodec.string(json['medicationId']),
+        prnMedicationId: JsonCodec.string(json['prnMedicationId']),
+        quantity: JsonCodec.number(json['quantity']) ?? 0,
+        unit: JsonCodec.string(json['unit']),
+        refillThreshold: JsonCodec.number(json['refillThreshold']),
+        needsRefill: JsonCodec.boolean(json['needsRefill']) ?? false,
+        updatedAt: JsonCodec.dateTime(json['updatedAt']),
+      );
+
+  static List<MarMedicationStock> stocksFrom(dynamic body) =>
+      _rows(body).map(stockFrom).toList();
+
+  static Map<String, dynamic> stockCountToJson(MarStockCountDraft draft) => {
+        'residenceId': draft.residenceId,
+        'quantity': draft.quantity,
+        if (draft.medicationId != null && draft.medicationId!.isNotEmpty)
+          'medicationId': draft.medicationId,
+        if (draft.prnMedicationId != null && draft.prnMedicationId!.isNotEmpty)
+          'prnMedicationId': draft.prnMedicationId,
+        if (draft.unit != null && draft.unit!.trim().isNotEmpty)
+          'unit': draft.unit!.trim(),
+        if (draft.refillThreshold != null)
+          'refillThreshold': draft.refillThreshold,
+      };
 
   static MarAdministration administrationFrom(Map<String, dynamic> json) {
     final medication = JsonCodec.mapAt(json, 'medication');
@@ -213,10 +265,26 @@ abstract final class MedicationMapper {
     return DateTime.utc(parsed.year, parsed.month, parsed.day).toIso8601String();
   }
 
+  /// End of the chosen calendar day. A same-day course must still end after
+  /// its start midnight — the API rejects an end that is not later.
+  static String? _isoEndOfDay(String day) {
+    final parsed = DateTime.tryParse(day.trim());
+    if (parsed == null) return null;
+    return DateTime.utc(parsed.year, parsed.month, parsed.day, 23, 59, 59, 999)
+        .toIso8601String();
+  }
+
   static num? _number(String text) {
     final t = text.trim();
     if (t.isEmpty) return null;
     return int.tryParse(t) ?? double.tryParse(t);
+  }
+
+  /// Blank means not tracked. `0` is kept, matching the web `Number` field.
+  static num? _cost(String text) {
+    final t = text.trim();
+    if (t.isEmpty) return null;
+    return num.tryParse(t);
   }
 
   static String? _blank(String text) {
@@ -243,8 +311,9 @@ abstract final class MedicationMapper {
       'isControlled': d.isControlled,
       'route': ?_route(d.route, update),
       'startsAt': _isoMidnight(d.startsAt),
-      'endsAt': _isoMidnight(d.endsAt),
+      'endsAt': _isoEndOfDay(d.endsAt),
       'stockUnitsPerDose': _number(d.stockUnitsPerDose),
+      'costPerDose': _cost(d.costPerDose),
       'requiresCheckScheduleId': checkId,
       'requiresCheckWithinMinutes':
           checkId == null ? null : (within == null || within == 0 ? 60 : within),
@@ -275,9 +344,10 @@ abstract final class MedicationMapper {
         'isControlled': d.isControlled,
         'minIntervalMinutes': _number(d.minIntervalMinutes),
         'stockUnitsPerDose': _number(d.stockUnitsPerDose),
+        'costPerDose': _cost(d.costPerDose),
         'route': ?_route(d.route, update),
         'startsAt': _isoMidnight(d.startsAt),
-        'endsAt': _isoMidnight(d.endsAt),
+        'endsAt': _isoEndOfDay(d.endsAt),
         'requiresCheckScheduleId': _blank(d.requiresCheckScheduleId),
         'requiresCheckWithinMinutes': _number(d.requiresCheckWithinMinutes),
       };
@@ -317,6 +387,9 @@ abstract final class MedicationMapper {
             'status': item.status,
             if (item.status != 'administered' && item.doseReason.isNotEmpty)
               'reason': item.doseReason,
+            // Web charts a specific round slot via occurrence dueAt.
+            if (!item.isPrn && item.scheduledFor.isNotEmpty)
+              'scheduledFor': item.scheduledFor,
             'witnessStaffId': ?_blank(item.witnessStaffId),
             'notes': ?_blank(item.notes),
             'clinicalNotes': ?_blank(item.clinicalNotes),

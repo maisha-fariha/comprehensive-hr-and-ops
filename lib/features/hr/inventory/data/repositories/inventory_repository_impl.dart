@@ -340,8 +340,12 @@ class InventoryRepositoryImpl implements InventoryRepository {
       );
 
   @override
-  Future<Result<void>> createSupplier({required String name, required String category}) =>
-      _post(InventoryEndpoints.suppliers, {'name': name, 'category': category});
+  Future<Result<void>> createSupplier(Map<String, dynamic> body) =>
+      _post(InventoryEndpoints.suppliers, body);
+
+  @override
+  Future<Result<void>> updateSupplier(String id, Map<String, dynamic> body) =>
+      _patch(InventoryEndpoints.supplier(id), body);
 
   @override
   Future<Result<void>> removeSupplier(String id) => _delete(InventoryEndpoints.supplier(id));
@@ -360,6 +364,23 @@ class InventoryRepositoryImpl implements InventoryRepository {
         InventoryMapper.orderPageFrom,
         query: {'page': page, 'limit': limit},
       );
+
+  @override
+  Future<Result<PurchaseOrder>> purchaseOrder(String id) async {
+    final result = await _api.get(InventoryEndpoints.purchaseOrder(id), silent: true);
+    return result.when(
+      success: (body) async {
+        final order = InventoryMapper.orderFrom(JsonCodec.unwrapMap(body));
+        if (order == null) {
+          return Result.failure(
+            const ApiError(message: 'Purchase order could not be loaded.'),
+          );
+        }
+        return Result.success(order);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<void>> createOrder(Map<String, dynamic> body) =>
@@ -392,4 +413,15 @@ class InventoryRepositoryImpl implements InventoryRepository {
   @override
   Future<Result<void>> cancelOrder(String id) =>
       _post(InventoryEndpoints.purchaseOrderCancel(id));
+
+  @override
+  Future<Result<void>> sendOrder(
+    String id, {
+    required String via,
+    String? message,
+  }) =>
+      _post(InventoryEndpoints.purchaseOrderSend(id), {
+        'via': via,
+        if (message != null && message.trim().isNotEmpty) 'message': message.trim(),
+      });
 }

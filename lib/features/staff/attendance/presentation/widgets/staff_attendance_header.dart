@@ -86,10 +86,14 @@ class StaffAttendanceHeader extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
-            Row(
-              children: [
-                Expanded(
+            if (onClockInTap != null ||
+                onClockOutTap != null ||
+                onManualEntryTap != null) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 10)),
+              Row(
+                children: [
+                  if ((isOnShift ? onClockOutTap : onClockInTap) != null)
+                    Expanded(
                   child: GestureDetector(
                     key: Key(
                       isOnShift
@@ -151,11 +155,16 @@ class StaffAttendanceHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 8)),
-                Expanded(
-                  child: GestureDetector(
-                    key: const Key('staff-attendance-manual-entry'),
+                  ),
+                  if ((isOnShift ? onClockOutTap : onClockInTap) != null &&
+                      onManualEntryTap != null)
+                    SizedBox(
+                      width: ResponsiveHelper.getResponsiveWidth(context, 8),
+                    ),
+                  if (onManualEntryTap != null)
+                    Expanded(
+                      child: GestureDetector(
+                        key: const Key('staff-attendance-manual-entry'),
                     onTap: onManualEntryTap,
                     behavior: HitTestBehavior.opaque,
                     child: Container(
@@ -195,10 +204,11 @@ class StaffAttendanceHeader extends StatelessWidget {
                         ],
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

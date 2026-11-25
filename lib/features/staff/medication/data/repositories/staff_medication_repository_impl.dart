@@ -5,6 +5,9 @@ import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/iso_date_range.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
+import '../../../../hr/medication/data/mappers/medication_mapper.dart';
+import '../../../../hr/medication/domain/entities/mar_medication_stock.dart';
+import '../../../../hr/medication/domain/entities/mar_round.dart';
 import '../../domain/entities/administered_dose.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_med_options.dart';
@@ -63,10 +66,22 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
     String? doseReason,
     String? witnessStaffId,
     bool isPrn = false,
+    DateTime? scheduledFor,
+    bool scheduled = true,
     Map<String, bool>? safetyChecks,
     Map<String, String>? vitals,
   }) async {
-    final staffId = _session.staffId?.trim();
+    // Web charts via `POST /mar/administrations/round` (not a bare
+    // `/mar/administrations` create). Using the create path duplicates
+    // Given rows and can 403 approved-staff checks differently.
+    final staffId = _session.staffId?.trim() ?? '';
+    if (staffId.isEmpty) {
+      return Result.failure(
+        const ApiError(
+          message: 'Say who administered it — your staff profile is missing.',
+        ),
+      );
+    }
     final cleanedVitals = <String, String>{};
     if (vitals != null) {
       for (final entry in vitals.entries) {
@@ -74,31 +89,42 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
         if (value.isNotEmpty) cleanedVitals[entry.key] = value;
       }
     }
-    final data = <String, dynamic>{
+    final anyCheck =
+        safetyChecks != null && safetyChecks.values.any((v) => v);
+    final reason = doseReason?.trim() ?? '';
+    // Web: for prescribed round doses, send occurrence dueAt as
+    // `scheduledFor` so the API charts that slot (not another already-given
+    // time for the same medicine).
+    final scheduledForIso = (!isPrn &&
+            scheduled &&
+            scheduledFor != null)
+        ? scheduledFor.toUtc().toIso8601String()
+        : null;
+    final item = <String, dynamic>{
       'source': isPrn ? 'prn' : 'prescribed',
-      'clientId': clientId,
-      'residenceId': residenceId,
+      if (isPrn) 'prnMedicationId': medicationId else 'medicationId': medicationId,
       'status': status,
-      'administeredAt': IsoDateRange.nowIso,
-      if (isPrn)
-        'prnMedicationId': medicationId
-      else
-        'medicationId': medicationId,
-      if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
+      if (status != 'administered' && reason.isNotEmpty) 'reason': reason,
+      if (scheduledForIso != null) 'scheduledFor': scheduledForIso,
+      if (witnessStaffId != null && witnessStaffId.trim().isNotEmpty)
+        'witnessStaffId': witnessStaffId.trim(),
       if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
       if (clinicalNotes != null && clinicalNotes.trim().isNotEmpty)
         'clinicalNotes': clinicalNotes.trim(),
-      if (doseReason != null && doseReason.trim().isNotEmpty)
-        'doseReason': doseReason.trim(),
-      if (witnessStaffId != null && witnessStaffId.trim().isNotEmpty)
-        'witnessStaffId': witnessStaffId.trim(),
-      if (safetyChecks != null && safetyChecks.isNotEmpty)
-        'safetyChecks': safetyChecks,
-      if (cleanedVitals.isNotEmpty) 'vitals': cleanedVitals,
+      if (status == 'administered' && anyCheck) 'safetyChecks': safetyChecks,
+      if (status == 'administered' && cleanedVitals.isNotEmpty)
+        'vitals': cleanedVitals,
+    };
+    final data = <String, dynamic>{
+      'clientId': clientId,
+      'residenceId': residenceId,
+      'staffId': staffId,
+      'administeredAt': IsoDateRange.nowIso,
+      'items': [item],
     };
 
     final result = await _api.post(
-      ApiEndpoints.marAdministrations,
+      ApiEndpoints.marAdministrationRound,
       data: data,
     );
     return result.when(
@@ -134,9 +160,18 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       silent: true,
     );
     return result.when(
-      success: (body) async => Result.success(
-        StaffMedicationMapper.clientMedicationsFrom(body, isPrn: true),
-      ),
+      success: (body) async {
+        final items = StaffMedicationMapper.clientMedicationsFrom(
+          body,
+          isPrn: true,
+        );
+        // Drop other residents and house-stock (empty clientId) so Record
+        // Administration only offers this resident's PRNs.
+        return Result.success([
+          for (final m in items)
+            if (m.clientId == clientId) m,
+        ]);
+      },
       failure: (error) async => Result.failure(error),
     );
   }
@@ -166,51 +201,58 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   }
 
   @override
-  Future<Result<List<AdministeredDose>>> listAdministrations({
+  Future<Result<MarAdministrationsList>> listAdministrations({
     String? residenceId,
     int page = 1,
     int limit = 50,
   }) async {
+    // Web Given tab: every page, no status filter; badge = meta.total.
     final filter = residenceId?.trim();
-    final result = await _api.get(
-      ApiEndpoints.marAdministrations,
-      query: {
-        'page': page,
-        'limit': limit,
-        if (filter != null && filter.isNotEmpty) 'residenceId': filter,
-      },
-      silent: true,
-    );
-    return result.when(
-      success: (body) async {
-        final residences = await _residenceNameMap();
-        final items = <AdministeredDose>[];
-        for (final row in JsonCodec.unwrapList(body)) {
-          if (row is! Map) continue;
-          final json = JsonCodec.asMap(row);
-          final mapped = StaffMedicationMapper.administrationsFrom([json]).first;
-          final rid = JsonCodec.string(json['residenceId']);
-          items.add(
-            AdministeredDose(
-              id: mapped.id,
-              residentName: mapped.residentName,
-              residentInitials: mapped.residentInitials,
-              avatarColor: mapped.avatarColor,
-              medicationName: mapped.medicationName,
-              dose: mapped.dose,
-              route: mapped.route,
-              givenTimeLabel: mapped.givenTimeLabel,
-              administeredByName: mapped.administeredByName,
-              outcomeLabel: mapped.outcomeLabel,
-              residenceName: mapped.residenceName.isNotEmpty
-                  ? mapped.residenceName
-                  : (rid == null ? '' : (residences[rid] ?? '')),
-            ),
-          );
-        }
-        return Result.success(items);
-      },
-      failure: (error) async => Result.failure(error),
+    final residences = await _residenceNameMap();
+    final items = <AdministeredDose>[];
+    var current = page;
+    var totalPages = 1;
+    int? badgeTotal;
+    do {
+      final result = await _api.get(
+        ApiEndpoints.marAdministrations,
+        query: {
+          'page': current,
+          'limit': limit < 100 ? 100 : limit,
+          if (filter != null && filter.isNotEmpty) 'residenceId': filter,
+        },
+        silent: true,
+      );
+      if (result.isFailure) {
+        return Result.failure(
+          result.error ??
+              const ApiError(message: 'Could not load charted doses.'),
+        );
+      }
+      final meta = JsonCodec.metaOf(result.value);
+      badgeTotal ??= JsonCodec.integer(meta?['total']);
+      for (final row in JsonCodec.unwrapList(result.value)) {
+        if (row is! Map) continue;
+        final json = JsonCodec.asMap(row);
+        final mapped = StaffMedicationMapper.administrationsFrom([json]).first;
+        final rid = JsonCodec.string(json['residenceId']);
+        final house = mapped.residenceName.isNotEmpty
+            ? mapped.residenceName
+            : (rid == null ? '' : (residences[rid] ?? ''));
+        items.add(
+          house == mapped.residenceName
+              ? mapped
+              : mapped.copyWith(residenceName: house),
+        );
+      }
+      totalPages = JsonCodec.integerOr(meta?['totalPages'], 1);
+      current++;
+    } while (current <= totalPages && current <= 50);
+    return Result.success(
+      MarAdministrationsList(
+        items: items,
+        total: badgeTotal ?? items.length,
+      ),
     );
   }
 
@@ -218,6 +260,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
   Future<Result<List<StaffClientMedicationItem>>> listMedications({
     String? residenceId,
     String? clientId,
+    String? type,
   }) async {
     final result = await _api.get(
       ApiEndpoints.medications,
@@ -227,6 +270,7 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
         if (residenceId != null && residenceId.isNotEmpty)
           'residenceId': residenceId,
         if (clientId != null && clientId.isNotEmpty) 'clientId': clientId,
+        if (type != null && type.isNotEmpty) 'type': type,
       },
       silent: true,
     );
@@ -237,6 +281,51 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
         return Result.success(await _enrichMedicationResidences(items));
       },
       failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<List<MarMedicationStock>>> listMedicationStock({
+    String? residenceId,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.medicationStock,
+      query: {
+        'page': 1,
+        'limit': 100,
+        if (residenceId != null && residenceId.isNotEmpty)
+          'residenceId': residenceId,
+      },
+      silent: true,
+    );
+    return result.when(
+      success: (body) => Result.success(MedicationMapper.stocksFrom(body)),
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  ) async {
+    final result = await _api.put(
+      ApiEndpoints.medicationStock,
+      data: MedicationMapper.stockCountToJson(draft),
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) {
+        final map = JsonCodec.mapAt(body, 'data') ??
+            (body is Map ? JsonCodec.asMap(body) : null);
+        if (map == null) {
+          return Result.failure(
+            const ApiError(message: 'Stock count response was empty.'),
+          );
+        }
+        return Result.success(MedicationMapper.stockFrom(map));
+      },
+      failure: Result.failure,
     );
   }
 
@@ -294,6 +383,13 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       ? null
       : DateTime.utc(value.year, value.month, value.day).toIso8601String();
 
+  /// End of that calendar day. A same-day course must end after its start
+  /// midnight — the API rejects an end that is not later.
+  static String? _endOfDay(DateTime? value) => value == null
+      ? null
+      : DateTime.utc(value.year, value.month, value.day, 23, 59, 59, 999)
+          .toIso8601String();
+
   static String? _blank(String? value) {
     final t = value?.trim() ?? '';
     return t.isEmpty ? null : t;
@@ -323,8 +419,9 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       },
       'isControlled': input.isControlled,
       'startsAt': _day(input.startsAt),
-      'endsAt': _day(input.endsAt),
+      'endsAt': _endOfDay(input.endsAt),
       'stockUnitsPerDose': input.stockUnitsPerDose,
+      'costPerDose': input.costPerDose,
       'requiresCheckScheduleId': checkId,
       'requiresCheckWithinMinutes': checkId == null
           ? null
@@ -348,9 +445,10 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
       'isControlled': input.isControlled,
       'minIntervalMinutes': input.minIntervalMinutes,
       'stockUnitsPerDose': input.stockUnitsPerDose,
+      'costPerDose': input.costPerDose,
       'route': ?_route(input.route, update: update),
       'startsAt': _day(input.startsAt),
-      'endsAt': _day(input.endsAt),
+      'endsAt': _endOfDay(input.endsAt),
       'requiresCheckScheduleId': checkId,
       'requiresCheckWithinMinutes': checkId == null
           ? null
@@ -410,6 +508,51 @@ class StaffMedicationRepositoryImpl implements StaffMedicationRepository {
         '${ApiEndpoints.prnMedications}/$id',
         data: _prnBody(input, update: true),
       ),
+    );
+  }
+
+  @override
+  Future<Result<void>> deleteMedication(String id) async => _done(
+        await _api.delete(
+          '${ApiEndpoints.medications}/$id',
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<void>> discontinueMedication(String id) async => _done(
+        await _api.post(
+          '${ApiEndpoints.medications}/$id/discontinue',
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<void>> deletePrnMedication(String id) async => _done(
+        await _api.delete(
+          '${ApiEndpoints.prnMedications}/$id',
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<void>> discontinuePrnMedication(String id) async => _done(
+        await _api.post(
+          '${ApiEndpoints.prnMedications}/$id/discontinue',
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<MarResidentChart>> residentChart(String clientId) async {
+    final result = await _api.get(
+      ApiEndpoints.marResidentChart(clientId),
+      silent: true,
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(MedicationMapper.chartFrom(body)),
+      failure: (error) async => Result.failure(error),
     );
   }
 

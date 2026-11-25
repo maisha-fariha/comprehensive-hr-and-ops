@@ -30,6 +30,7 @@ import '../widgets/team_reports_header.dart';
 import '../widgets/team_reports_segmented_tabs.dart';
 import '../widgets/team_staff_profile_sheet.dart';
 import '../widgets/team_tab_view.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// "Team & Reports" screen — shared white header + pill tabs, with Team /
 /// Reports / Messages body content.
@@ -191,6 +192,13 @@ class TeamReportsPage extends StatelessWidget {
       residences: List<CommunicationResidenceOption>.from(residences),
       clients: List<CommunicationClientOption>.from(clients),
       initialResidenceId: initialResidenceId,
+      loadFamilyContacts: (clientId) async {
+        final result = await _messaging.getContacts(clientId: clientId);
+        return result.when(
+          success: (items) => items,
+          failure: (_) => const <HrMessageContact>[],
+        );
+      },
     );
     if (draft == null) return;
 
@@ -338,7 +346,7 @@ class TeamReportsPage extends StatelessWidget {
                       ),
                   };
 
-                  return RefreshIndicator(
+                  return AppRefreshIndicator(
                     color: AppColors.secondaryTeal,
                     onRefresh: controller.refresh,
                     child: ListView(

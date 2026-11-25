@@ -1,24 +1,34 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../ai/presentation/widgets/ai_draft_sheet.dart';
+import '../../../ai/presentation/widgets/ai_feature_sheets.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../domain/entities/client_goals.dart';
 import '../clients_labels.dart';
 import '../controllers/clients_controller.dart';
 import 'clients_common.dart';
 
-/// The web "Goals & Outcomes" panel on a saved client: the resident's goals
-/// with week / month / whole-stay progress from the shift check-offs.
+/// Web Care Planning "Goals & Outcomes" panel — AI actions + live goals.
+///
+/// When [clientId] is empty (Add New Client), [ensureClientId] is called before
+/// any AI / add-goal action so the panel matches the saved-client web UI.
 class ClientGoalsPanel extends StatefulWidget {
   final ClientsController controller;
   final String clientId;
+  final String? firstName;
   final bool readOnly;
+
+  /// Create-wizard hook: persist a draft and return its id so AI can run.
+  final Future<String?> Function()? ensureClientId;
 
   const ClientGoalsPanel({
     super.key,
     required this.controller,
     required this.clientId,
+    this.firstName,
     this.readOnly = false,
+    this.ensureClientId,
   });
 
   @override
@@ -26,6 +36,7 @@ class ClientGoalsPanel extends StatefulWidget {
 }
 
 class _ClientGoalsPanelState extends State<ClientGoalsPanel> {
+  late String _clientId = widget.clientId;
   List<ClientGoal>? _goals;
   ClientGoalOutcomes _outcomes = const ClientGoalOutcomes();
   List<ClientGoalCategory> _categories = const [];
@@ -33,13 +44,24 @@ class _ClientGoalsPanelState extends State<ClientGoalsPanel> {
 
   bool _adding = false;
   bool _saving = false;
+  bool _resolving = false;
   String _category = '';
   final _title = TextEditingController();
   String _targetDate = '';
   String? _addError;
+  bool? _aiEnabled;
 
   ClientsController get _c => widget.controller;
-  bool get _canWrite => _c.canUpdate && !widget.readOnly;
+
+  /// Create or update permission — create wizard uses [canCreate].
+  bool get _canWrite =>
+      !widget.readOnly && (_c.canUpdate || _c.canCreate);
+
+  String get _firstName {
+    final raw = (widget.firstName ?? '').trim();
+    if (raw.isEmpty) return 'Client';
+    return raw.split(RegExp(r'\s+')).first;
+  }
 
   @override
   void initState() {
@@ -48,6 +70,20 @@ class _ClientGoalsPanelState extends State<ClientGoalsPanel> {
     _c.goalCategories().then((c) {
       if (mounted) setState(() => _categories = c);
     });
+    aiDraftingEnabled().then((enabled) {
+      if (mounted) setState(() => _aiEnabled = enabled);
+    }).catchError((_) {
+      if (mounted) setState(() => _aiEnabled = false);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant ClientGoalsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.clientId.isNotEmpty && widget.clientId != _clientId) {
+      _clientId = widget.clientId;
+      _load();
+    }
   }
 
   @override
@@ -56,9 +92,34 @@ class _ClientGoalsPanelState extends State<ClientGoalsPanel> {
     super.dispose();
   }
 
+  Future<String?> _resolveClientId() async {
+    if (_clientId.isNotEmpty) return _clientId;
+    final ensure = widget.ensureClientId;
+    if (ensure == null) return null;
+    setState(() => _resolving = true);
+    final id = await ensure();
+    if (!mounted) return id;
+    setState(() {
+      _resolving = false;
+      if (id != null && id.isNotEmpty) _clientId = id;
+    });
+    if (id != null && id.isNotEmpty) await _load();
+    return id;
+  }
+
   Future<void> _load() async {
-    final goals = await _c.loadGoals(widget.clientId);
-    final outcomes = await _c.loadGoalOutcomes(widget.clientId);
+    if (_clientId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _goals = const [];
+          _outcomes = const ClientGoalOutcomes();
+          _loadError = null;
+        });
+      }
+      return;
+    }
+    final goals = await _c.loadGoals(_clientId);
+    final outcomes = await _c.loadGoalOutcomes(_clientId);
     if (!mounted) return;
     setState(() {
       goals.when(
@@ -75,6 +136,12 @@ class _ClientGoalsPanelState extends State<ClientGoalsPanel> {
     });
   }
 
+  Future<void> _startAdd() async {
+    final id = await _resolveClientId();
+    if (id == null || id.isEmpty || !mounted) return;
+    setState(() => _adding = true);
+  }
+
   Future<void> _add() async {
     setState(() => _addError = null);
     if (_category.isEmpty) {
@@ -86,8 +153,10 @@ class _ClientGoalsPanelState extends State<ClientGoalsPanel> {
       setState(() => _addError = 'A custom goal needs a title.');
       return;
     }
+    final id = await _resolveClientId();
+    if (id == null || id.isEmpty || !mounted) return;
     setState(() => _saving = true);
-    final error = await _c.addGoal(widget.clientId, {
+    final error = await _c.addGoal(id, {
       'category': _category,
       if (title.isNotEmpty) 'title': title,
       if (_targetDate.isNotEmpty) 'targetDate': _targetDate,
@@ -107,25 +176,80 @@ class _ClientGoalsPanelState extends State<ClientGoalsPanel> {
   }
 
   Future<void> _setStatus(ClientGoal goal, String status) async {
-    final error = await _c.setGoalStatus(widget.clientId, goal.id, status);
+    final id = await _resolveClientId();
+    if (id == null || id.isEmpty) return;
+    final error = await _c.setGoalStatus(id, goal.id, status);
     if (error == null) await _load();
   }
 
   Future<void> _remove(ClientGoal goal) async {
-    final error = await _c.removeGoal(widget.clientId, goal.id);
+    final id = await _resolveClientId();
+    if (id == null || id.isEmpty) return;
+    final error = await _c.removeGoal(id, goal.id);
     if (error == null) await _load();
+  }
+
+  Future<void> _openSummarise() async {
+    final id = await _resolveClientId();
+    if (id == null || id.isEmpty || !mounted) return;
+    await openSummariseProgressSheet(
+      context,
+      clientId: id,
+      firstName: _firstName,
+    );
+  }
+
+  Future<void> _openOutcomeReview() async {
+    final id = await _resolveClientId();
+    if (id == null || id.isEmpty || !mounted) return;
+    await openDraftOutcomeReviewSheet(
+      context,
+      clientId: id,
+      firstName: _firstName,
+    );
+  }
+
+  Future<void> _openSuggestGoals() async {
+    final id = await _resolveClientId();
+    if (id == null || id.isEmpty || !mounted) return;
+    await openSuggestGoalsSheet(
+      context,
+      clientId: id,
+      firstName: _firstName,
+      categoryLabel: (key) {
+        for (final c in _categories) {
+          if (c.key == key) return c.label;
+        }
+        return 'Custom';
+      },
+      onAdd: (body) async {
+        final error = await _c.addGoal(id, body);
+        if (error == null) await _load();
+        return error;
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final goals = _goals;
+    // Match web Client Details: show AI as soon as drafting is enabled.
+    final showAi = _aiEnabled == true;
     return Column(
       key: const ValueKey('client-goals-panel'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.track_changes_rounded, size: 18, color: AppColors.secondaryTeal),
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Icon(
+                Icons.track_changes_rounded,
+                size: 18,
+                color: AppColors.secondaryTeal,
+              ),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -133,16 +257,51 @@ class _ClientGoalsPanelState extends State<ClientGoalsPanel> {
                 style: handoverText(context, 15, weight: FontWeight.w700),
               ),
             ),
-            if (_canWrite && !_adding)
-              HandoverButton(
-                key: const ValueKey('client-goal-add'),
-                label: 'Add goal',
-                icon: Icons.add_rounded,
-                compact: true,
-                onPressed: () => setState(() => _adding = true),
-              ),
           ],
         ),
+        if (showAi || (_canWrite && !_adding)) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              // Web Client Details Care Planning AI row (exact labels).
+              if (showAi) ...[
+                AiAssistButton(
+                  buttonKey: const ValueKey('client-summarise-progress'),
+                  label: 'Summarise progress',
+                  onPressed: _resolving ? null : _openSummarise,
+                ),
+                AiAssistButton(
+                  buttonKey: const ValueKey('client-draft-outcome-review'),
+                  label: 'Draft outcome review',
+                  onPressed: _resolving ? null : _openOutcomeReview,
+                ),
+                if (_canWrite)
+                  AiAssistButton(
+                    buttonKey: const ValueKey('client-suggest-goals'),
+                    label: 'Suggest goals',
+                    onPressed: _resolving ? null : _openSuggestGoals,
+                  ),
+              ],
+              if (_canWrite && !_adding)
+                HandoverButton(
+                  key: const ValueKey('client-goal-add'),
+                  label: 'Add goal',
+                  icon: Icons.add_rounded,
+                  compact: true,
+                  onPressed: _resolving ? null : _startAdd,
+                ),
+            ],
+          ),
+        ],
+        if (_resolving) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Saving draft so AI can run…',
+            style: handoverText(context, 12.5, color: AppColors.textMuted),
+          ),
+        ],
         const SizedBox(height: 12),
         if (goals != null && goals.isNotEmpty) ...[
           _PeriodsRow(

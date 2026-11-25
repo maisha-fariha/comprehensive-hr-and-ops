@@ -52,6 +52,9 @@ class IncidentDetail {
   final String? investigationRecordedBy;
   final String? investigationRecordedAtLabel;
 
+  /// Raw incident record, kept so Edit can refill the wizard.
+  final Map<String, dynamic> source;
+
   const IncidentDetail({
     required this.id,
     required this.incidentCode,
@@ -85,6 +88,7 @@ class IncidentDetail {
     this.investigationCorrectiveAction,
     this.investigationRecordedBy,
     this.investigationRecordedAtLabel,
+    this.source = const {},
   });
 
   /// Whether the red "supervisor review required" alert banner should show.
@@ -121,6 +125,7 @@ class IncidentDetail {
     String? investigationCorrectiveAction,
     String? investigationRecordedBy,
     String? investigationRecordedAtLabel,
+    Map<String, dynamic>? source,
   }) {
     return IncidentDetail(
       id: id,
@@ -160,6 +165,7 @@ class IncidentDetail {
           investigationRecordedBy ?? this.investigationRecordedBy,
       investigationRecordedAtLabel:
           investigationRecordedAtLabel ?? this.investigationRecordedAtLabel,
+      source: source ?? this.source,
     );
   }
 }

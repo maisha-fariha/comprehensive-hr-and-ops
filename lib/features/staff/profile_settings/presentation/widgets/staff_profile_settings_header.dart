@@ -23,7 +23,7 @@ class StaffProfileSettingsHeader extends StatelessWidget {
     this.onBackTap,
     this.initials = 'AW',
     this.imageUrl,
-    this.title = 'Profile & Settings',
+    this.title = 'My Profile',
   });
 
   @override

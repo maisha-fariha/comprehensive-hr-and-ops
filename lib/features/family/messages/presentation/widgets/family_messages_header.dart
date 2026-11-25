@@ -3,17 +3,26 @@ import 'package:get/get.dart';
 import 'package:gems_responsive/gems_responsive.dart';
 
 import '../../../../../core/constants/app_assets.dart';
+import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/widgets/app_svg_icon.dart';
 
 /// White header for the Family "Messages" list: bordered back + centered title.
 class FamilyMessagesHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onBack;
+  final VoidCallback? onHide;
+  final VoidCallback? onLeave;
 
   static const Color _titleColor = Color(0xFF1A2B48);
   static const Color _buttonBorder = Color(0xFFE2E8EE);
 
-  const FamilyMessagesHeader({super.key, required this.title, this.onBack});
+  const FamilyMessagesHeader({
+    super.key,
+    required this.title,
+    this.onBack,
+    this.onHide,
+    this.onLeave,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +77,41 @@ class FamilyMessagesHeader extends StatelessWidget {
                 ),
               ),
             ),
-            SizedBox(width: buttonSize),
+            if (onHide == null && onLeave == null)
+              SizedBox(width: buttonSize)
+            else
+              PopupMenuButton<String>(
+                tooltip: 'Conversation options',
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints.tightFor(
+                  width: buttonSize,
+                  height: buttonSize,
+                ),
+                onSelected: (value) {
+                  if (value == 'hide') onHide?.call();
+                  if (value == 'leave') onLeave?.call();
+                },
+                itemBuilder: (context) => [
+                  if (onHide != null)
+                    const PopupMenuItem(
+                      value: 'hide',
+                      child: Text('Hide conversation'),
+                    ),
+                  if (onLeave != null)
+                    const PopupMenuItem(
+                      value: 'leave',
+                      child: Text(
+                        'Leave conversation',
+                        style: TextStyle(color: AppColors.criticalRed),
+                      ),
+                    ),
+                ],
+                icon: Icon(
+                  Icons.more_vert_rounded,
+                  color: _titleColor,
+                  size: ResponsiveHelper.getResponsiveSize(context, 20),
+                ),
+              ),
           ],
         ),
       ),

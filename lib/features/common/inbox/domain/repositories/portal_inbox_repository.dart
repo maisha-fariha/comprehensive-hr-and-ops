@@ -1,12 +1,16 @@
 import 'package:gems_core/gems_core.dart';
 
-import '../entities/portal_notification.dart';
+import '../entities/portal_notifications_page.dart';
 import '../entities/portal_search_hit.dart';
 
 abstract class PortalInboxRepository {
   Future<Result<List<PortalSearchHit>>> search(String query);
 
-  Future<Result<List<PortalNotification>>> getNotifications();
+  /// Web bell: paged `GET /notifications` (default page size 30).
+  Future<Result<PortalNotificationsPageData>> getNotifications({
+    int page = 1,
+    int limit = 30,
+  });
 
   Future<Result<void>> markNotificationRead(String id);
 

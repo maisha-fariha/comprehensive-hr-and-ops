@@ -1,15 +1,22 @@
+import 'dart:async';
+
+import 'package:firebase_core/firebase_core.dart';
 import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:gems_core/gems_core.dart';
 import 'package:gems_data_layer/gems_data_layer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/deeplink/app_deep_link_router.dart';
 import '../../../core/network/app_api_client.dart';
+import '../../../core/push/communication_push_router.dart';
+import '../../../core/push/firebase_push_bridge.dart';
 import '../../../core/network/connectivity_monitor.dart';
 import '../../../core/network/response_cache.dart';
 import '../../../core/network/tenant_store.dart';
 import '../../../core/offline/offline_bootstrap.dart';
 import '../../../core/network/token_store.dart';
+import '../../../core/roles/user_session.dart';
 import '../../../core/push/device_registration_service.dart';
 import '../data/repositories/auth_repository_impl.dart';
 import '../domain/repositories/auth_repository.dart';
@@ -62,6 +69,23 @@ Future<void> setupAuthDependencies() async {
     ),
   );
 
+  if (firebasePushSupported && Firebase.apps.isNotEmpty) {
+    final bridge = FirebasePushBridge();
+    final push = PushNotificationService(
+      bridge.build(),
+      getIt<SharedPreferences>(),
+    );
+    getIt.registerSingleton<PushNotificationService>(push);
+    final router = CommunicationPushRouter(push);
+    getIt.registerSingleton<CommunicationPushRouter>(router);
+    await prepareMessageNotifications(
+      onTap: (response) => router.openFromPayload(response.payload),
+    );
+    router.attach();
+    await push.initialize();
+    await deliverLocalNotificationLaunch(router);
+  }
+
   DIHelper.registerRepository<DeviceRegistrationService>(
     factory: () => DeviceRegistrationService(
       auth: getIt<AuthRepository>(),
@@ -71,9 +95,44 @@ Future<void> setupAuthDependencies() async {
   );
   await getIt<DeviceRegistrationService>().start();
 
+  final deepLinks = AppDeepLinkRouter();
+  getIt.registerSingleton<AppDeepLinkRouter>(deepLinks);
+  await deepLinks.attach();
+
+  final apiClient = getIt<AppApiClient>();
+
+  // Soft refresh when access is within the proactive window (no force).
+  // Skip when signed out so login-screen / cold-start traffic never refreshes.
+  apiClient.ensureAccessTokenFresh = () async {
+    final auth = getIt<AuthRepository>();
+    if (!auth.hasSession) return;
+    if (Get.isRegistered<UserSession>() &&
+        !Get.find<UserSession>().isSignedIn) {
+      return;
+    }
+    await auth.refreshTokens(silent: true);
+  };
+
   // When any API call gets HTTP 401, refresh the access token once and retry.
-  getIt<AppApiClient>().tokenRefresher = () async {
-    final result = await getIt<AuthRepository>().refreshTokens(silent: true);
+  apiClient.tokenRefresher = () async {
+    final client = getIt<AppApiClient>();
+    // A 401 on a normal request forces one refresh even if local expiry
+    // still looks valid. Sign out only when the refresh call itself is 401.
+    final result = await getIt<AuthRepository>().refreshTokens(
+      silent: true,
+      force: true,
+    );
+    client.refreshFailure = result.isSuccess ? null : result.error;
+    if (result.isFailure && result.error?.code == 'refresh_rejected') {
+      // Stop further API traffic immediately (before async sign-out finishes).
+      client.noteSessionClosed();
+      final session = Get.isRegistered<UserSession>()
+          ? Get.find<UserSession>()
+          : null;
+      if (session != null && session.isSignedIn) {
+        unawaited(session.signOut());
+      }
+    }
     return result.isSuccess;
   };
 

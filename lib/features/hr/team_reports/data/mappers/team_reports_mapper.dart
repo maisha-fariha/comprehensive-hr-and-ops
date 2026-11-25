@@ -1,4 +1,5 @@
 import '../../../../../core/network/iso_date_range.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../domain/entities/announcement.dart';
 import '../../domain/entities/available_report_item.dart';
@@ -303,7 +304,7 @@ abstract final class TeamReportsMapper {
             ),
             updatedLabel: at == null
                 ? null
-                : 'Updated ${IsoDateRange.formatShortDate(at.toLocal())}',
+                : 'Updated ${IsoDateRange.formatShortDate(TenantClock.wallOf(at))}',
           );
         })
         .toList();
@@ -352,7 +353,7 @@ abstract final class TeamReportsMapper {
           categoryLabel: JsonCodec.stringOr(json['category'], 'Operations'),
           updatedLabel: at == null
               ? JsonCodec.stringOr(json['period'], '')
-              : 'Updated ${IsoDateRange.formatShortDate(at.toLocal())}',
+              : 'Updated ${IsoDateRange.formatShortDate(TenantClock.wallOf(at))}',
         );
       }).toList();
     }
@@ -360,7 +361,7 @@ abstract final class TeamReportsMapper {
     final generatedAt = JsonCodec.dateTime(summary['generatedAt']);
     final updated = generatedAt == null
         ? 'Live summary'
-        : 'Updated ${IsoDateRange.formatShortDate(generatedAt.toLocal())}';
+        : 'Updated ${IsoDateRange.formatShortDate(TenantClock.wallOf(generatedAt))}';
 
     final fromSummary = <AvailableReportItem>[
       if (summary['attendance'] is Map)
@@ -508,7 +509,7 @@ abstract final class TeamReportsMapper {
       status: JsonCodec.stringOr(json['status'], 'unknown'),
       createdLabel: at == null
           ? ''
-          : IsoDateRange.formatShortDate(at.toLocal()),
+          : IsoDateRange.formatShortDate(TenantClock.wallOf(at)),
       downloadUrl: JsonCodec.string(
         json['downloadUrl'] ?? json['signedUrl'] ?? json['fileUrl'],
       ),
@@ -533,7 +534,7 @@ abstract final class TeamReportsMapper {
             statusLabel: JsonCodec.stringOr(json['status'], 'active'),
             updatedLabel: at == null
                 ? null
-                : IsoDateRange.formatShortDate(at.toLocal()),
+                : IsoDateRange.formatShortDate(TenantClock.wallOf(at)),
           );
         })
         .toList();
@@ -635,7 +636,7 @@ abstract final class TeamReportsMapper {
       id: JsonCodec.stringOr(json['id'], name),
       senderName: name,
       initials: IsoDateRange.initials(name),
-      timeLabel: lastAt == null ? '' : IsoDateRange.timeLabel(lastAt.toLocal()),
+      timeLabel: lastAt == null ? '' : IsoDateRange.timeLabel(lastAt),
       previewText: preview,
       unreadCount: JsonCodec.integerOr(json['unreadCount'], 0),
       isGroup: isGroup,
@@ -689,7 +690,7 @@ abstract final class TeamReportsMapper {
             title: title,
             dateLabel: at == null
                 ? ''
-                : IsoDateRange.formatShortDate(at.toLocal()),
+                : IsoDateRange.formatShortDate(TenantClock.wallOf(at)),
             priority: priority,
           );
         })

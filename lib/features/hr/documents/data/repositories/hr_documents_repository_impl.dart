@@ -291,4 +291,94 @@ class HrDocumentsRepositoryImpl implements HrDocumentsRepository {
       failure: Result.failure,
     );
   }
+
+  @override
+  Future<Result<HrAcknowledgmentProgress>> requestAcknowledgment(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    final result = await _api.post(
+      HrDocumentsEndpoints.assign(id),
+      data: body,
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (raw) {
+        final progress = HrDocumentsMapper.acknowledgmentFrom(raw);
+        return progress == null
+            ? Result.failure(
+                const ApiError(message: 'Could not read the signing request'),
+              )
+            : Result.success(progress);
+      },
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<HrAcknowledgmentProgress>> acknowledgments(String id) async {
+    final result = await _api.get(
+      HrDocumentsEndpoints.acknowledgments(id),
+      silent: true,
+    );
+    return result.when(
+      success: (raw) {
+        final progress = HrDocumentsMapper.acknowledgmentFrom(raw);
+        return progress == null
+            ? Result.failure(
+                const ApiError(message: 'Could not read signing progress'),
+              )
+            : Result.success(progress);
+      },
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<void>> acknowledge(String id) async => _done(
+        await _api.post(
+          HrDocumentsEndpoints.acknowledge(id),
+          silent: true,
+          allowQueue: false,
+        ),
+      );
+
+  @override
+  Future<Result<int>> remindAcknowledgments(String id) async {
+    final result = await _api.post(
+      HrDocumentsEndpoints.remindAcknowledgments(id),
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) {
+        final map = JsonCodec.unwrapMap(body);
+        return Result.success(JsonCodec.integerOr(map['reminded'], 0));
+      },
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<List<HrSignOption>>> roles() async {
+    final result = await _api.get(HrDocumentsEndpoints.roles, silent: true);
+    return result.when(
+      success: (body) => Result.success(HrDocumentsMapper.rolesFrom(body)),
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<List<HrSignOption>>> users() async {
+    final result = await _api.get(
+      HrDocumentsEndpoints.users,
+      query: const {'limit': 200, 'status': 'active'},
+      silent: true,
+    );
+    return result.when(
+      success: (body) => Result.success(HrDocumentsMapper.usersFrom(body)),
+      failure: Result.failure,
+    );
+  }
 }

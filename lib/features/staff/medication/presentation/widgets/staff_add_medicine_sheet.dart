@@ -5,10 +5,27 @@ import 'package:get_it/get_it.dart';
 import '../../../../../core/constants/app_colors.dart';
 import '../../../../../core/errors/app_error_dialog.dart';
 import '../../../../../core/errors/app_snackbar.dart';
+import '../../../../common/widgets/prn_shortest_gap_field.dart';
 import '../../domain/entities/staff_client_medication_item.dart';
 import '../../domain/entities/staff_med_options.dart';
 import '../../domain/repositories/staff_medication_repository.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
+
+/// Successful save from [StaffAddMedicineSheet] — used to refresh the right
+/// MAR/PRN tab without re-inflating off-round counts.
+class StaffAddMedicineResult {
+  final bool isPrn;
+  final String residenceId;
+  final String? clientId;
+  final String name;
+
+  const StaffAddMedicineResult({
+    required this.isPrn,
+    required this.residenceId,
+    this.clientId,
+    required this.name,
+  });
+}
 
 /// Add Medicine / Add PRN, or the web "Correct a medicine" when [editing] is
 /// set — styled to match staff form field theme.
@@ -16,17 +33,26 @@ class StaffAddMedicineSheet extends StatefulWidget {
   final VoidCallback? onCreated;
   final StaffClientMedicationItem? editing;
 
-  const StaffAddMedicineSheet({super.key, this.onCreated, this.editing});
+  /// When creating, open the PRN tab if the MAR screen is on PRN.
+  final bool initialPrn;
 
-  static Future<bool?> show(
+  const StaffAddMedicineSheet({
+    super.key,
+    this.onCreated,
+    this.editing,
+    this.initialPrn = false,
+  });
+
+  static Future<StaffAddMedicineResult?> show(
     BuildContext context, {
     VoidCallback? onCreated,
     StaffClientMedicationItem? editing,
+    bool initialPrn = false,
   }) {
     final height = MediaQuery.sizeOf(context).height;
     final wide = MediaQuery.sizeOf(context).width >= 720;
     if (wide) {
-      return showAppPopup<bool>(
+      return showAppPopup<StaffAddMedicineResult>(
         context: context,
         barrierDismissible: false,
         builder: (_) => AppSheetPanel(
@@ -38,12 +64,16 @@ class StaffAddMedicineSheet extends StatefulWidget {
           child: SizedBox(
             width: 720,
             height: height * 0.9,
-            child: StaffAddMedicineSheet(onCreated: onCreated, editing: editing),
+            child: StaffAddMedicineSheet(
+              onCreated: onCreated,
+              editing: editing,
+              initialPrn: initialPrn,
+            ),
           ),
         ),
       );
     }
-    return showAppBottomSheet<bool>(
+    return showAppBottomSheet<StaffAddMedicineResult>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -53,7 +83,11 @@ class StaffAddMedicineSheet extends StatefulWidget {
       ),
       builder: (_) => SizedBox(
         height: height * 0.94,
-        child: StaffAddMedicineSheet(onCreated: onCreated, editing: editing),
+        child: StaffAddMedicineSheet(
+              onCreated: onCreated,
+              editing: editing,
+              initialPrn: initialPrn,
+            ),
       ),
     );
   }
@@ -62,14 +96,23 @@ class StaffAddMedicineSheet extends StatefulWidget {
   State<StaffAddMedicineSheet> createState() => _StaffAddMedicineSheetState();
 }
 
+String _costText(num? value) {
+  if (value == null) return '';
+  if (value == value.roundToDouble()) return value.round().toString();
+  return value.toString();
+}
+
 class _MedicineDraft {
   final name = TextEditingController();
   final dose = TextEditingController();
   final route = TextEditingController();
   final stock = TextEditingController();
+  final cost = TextEditingController();
   final whenToGive = TextEditingController();
   final timeInput = TextEditingController();
-  final minGap = TextEditingController();
+  /// Web PRN shortest-gap: hours + minutes → API `minIntervalMinutes`.
+  final gapHours = TextEditingController();
+  final gapMinutes = TextEditingController();
   bool controlled = false;
   String frequency = 'daily';
   final List<String> times = ['08:00'];
@@ -78,14 +121,21 @@ class _MedicineDraft {
   DateTime? endsAt;
   String? requiresCheckScheduleId;
 
+  int? get gapTotalMinutes => PrnShortestGapField.totalMinutes(
+        hours: gapHours,
+        minutes: gapMinutes,
+      );
+
   void dispose() {
     name.dispose();
     dose.dispose();
     route.dispose();
     stock.dispose();
+    cost.dispose();
     whenToGive.dispose();
     timeInput.dispose();
-    minGap.dispose();
+    gapHours.dispose();
+    gapMinutes.dispose();
   }
 }
 
@@ -93,6 +143,7 @@ class _MedicineDraft {
 InputDecoration _medFieldDecoration({
   String? hint,
   bool dense = true,
+  Widget? suffix,
 }) {
   const radius = 12.0;
   return InputDecoration(
@@ -106,6 +157,8 @@ InputDecoration _medFieldDecoration({
     filled: true,
     fillColor: AppColors.surfaceWhite,
     isDense: dense,
+    suffixIcon: suffix,
+    suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(radius),
@@ -157,7 +210,13 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
 
   StaffMedResidenceOption? _residence;
   StaffMedClientOption? _client;
-  final List<_MedicineDraft> _medicines = [_MedicineDraft()];
+
+  /// Separate drafts so Medicine ↔ PRN tabs do not share typed fields.
+  final List<_MedicineDraft> _scheduledMedicines = [_MedicineDraft()];
+  final List<_MedicineDraft> _prnMedicines = [_MedicineDraft()];
+
+  List<_MedicineDraft> get _medicines =>
+      _isPrn ? _prnMedicines : _scheduledMedicines;
 
   bool get _editingMode => widget.editing != null;
 
@@ -184,23 +243,32 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     _tabs = TabController(
       length: 2,
       vsync: this,
-      initialIndex: editing?.isPrn == true ? 1 : 0,
+      initialIndex: editing != null
+          ? (editing.isPrn ? 1 : 0)
+          : (widget.initialPrn ? 1 : 0),
     );
     _tabs.addListener(() {
-      if (!_tabs.indexIsChanging) setState(() => _banner = null);
+      if (_tabs.indexIsChanging) return;
+      // Rebuild so the active list (_scheduled vs _prn) swaps in.
+      setState(() => _banner = null);
     });
     if (editing != null) _prefill(editing);
     _loadOptions();
   }
 
   void _prefill(StaffClientMedicationItem m) {
-    final draft = _medicines.first;
+    final draft = (m.isPrn ? _prnMedicines : _scheduledMedicines).first;
     draft.name.text = m.name;
     draft.dose.text = m.dose == '—' ? '' : m.dose;
     draft.route.text = m.route;
     draft.whenToGive.text = m.instructions ?? '';
     draft.stock.text = m.stockUnitsPerDose?.toString() ?? '';
-    draft.minGap.text = m.minIntervalMinutes?.toString() ?? '';
+    draft.cost.text = _costText(m.costPerDose);
+    PrnShortestGapField.applyMinutes(
+      m.minIntervalMinutes,
+      hours: draft.gapHours,
+      minutes: draft.gapMinutes,
+    );
     draft.controlled = m.isControlled;
     // Kept from the record so a correction does not wipe the round times.
     if (_frequencies.any((f) => f.$1 == m.frequency)) {
@@ -234,7 +302,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   void dispose() {
     _tabs.dispose();
     _scroll.dispose();
-    for (final m in _medicines) {
+    for (final m in [..._scheduledMedicines, ..._prnMedicines]) {
       m.dispose();
     }
     super.dispose();
@@ -275,7 +343,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     final list = [...?checks.value];
     // A dropdown value must be one of its items: a correction keeps the
     // record's check, a new medicine drops one that is no longer offered.
-    for (final m in _medicines) {
+    for (final m in [..._scheduledMedicines, ..._prnMedicines]) {
       final id = m.requiresCheckScheduleId;
       if (id == null || list.any((c) => c.id == id)) continue;
       if (_editingMode) {
@@ -316,23 +384,39 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
   }
 
   String? _validate() {
-    if (_residence == null) return 'House / residence is required.';
-    if (!_isPrn && _client == null) return 'Resident is required.';
+    if (_residence == null) return 'Which house is this held at?';
+    if (!_isPrn && _client == null) {
+      return 'A prescription is for one resident — choose who.';
+    }
     for (var i = 0; i < _medicines.length; i++) {
       final m = _medicines[i];
+      final n = _medicines.length == 1 ? 'This medicine' : 'Medicine ${i + 1}';
       if (m.name.text.trim().isEmpty) {
-        return 'Medicine ${i + 1}: name is required.';
+        return 'What is the medicine called?';
+      }
+      if (!_isPrn && m.dose.text.trim().isEmpty) {
+        return '$n: what dose is prescribed?';
+      }
+      if (m.route.text.trim().isEmpty) {
+        return '$n: how is it given — the route?';
+      }
+      if (m.stock.text.trim().isEmpty) {
+        return '$n: how many stock units does one dose use?';
+      }
+      if (_isPrn && m.gapTotalMinutes == null) {
+        return '$n: set the shortest gap between doses '
+            '(preset or hours/minutes).';
       }
       if (!_isPrn && m.times.isEmpty) {
-        return 'Medicine ${i + 1}: add at least one schedule time.';
+        return '$n: a scheduled medication needs at least one time of day.';
       }
       if (!_isPrn && m.frequency == 'weekly' && m.weekdays.isEmpty) {
-        return 'Medicine ${i + 1}: pick at least one weekday for weekly.';
+        return '$n: a weekly medicine has to say which days it falls on.';
       }
       if (m.startsAt != null &&
           m.endsAt != null &&
           m.endsAt!.isBefore(m.startsAt!)) {
-        return 'Medicine ${i + 1}: end date must be on or after start date.';
+        return '$n: a course cannot end before it starts.';
       }
     }
     return null;
@@ -354,7 +438,8 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
     final editing = widget.editing;
     for (final m in _medicines) {
       final stock = int.tryParse(m.stock.text.trim());
-      final gap = int.tryParse(m.minGap.text.trim());
+      final cost = num.tryParse(m.cost.text.trim());
+      final gap = m.gapTotalMinutes;
       final prnInput = StaffCreatePrnMedicationInput(
         residenceId: _residence!.id,
         clientId: _client?.id,
@@ -365,6 +450,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
             ? null
             : m.whenToGive.text.trim(),
         stockUnitsPerDose: stock,
+        costPerDose: m.cost.text.trim().isEmpty ? null : cost,
         startsAt: m.startsAt,
         endsAt: m.endsAt,
         isControlled: m.controlled,
@@ -381,6 +467,7 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
               dose: m.dose.text.trim().isEmpty ? null : m.dose.text.trim(),
               route: m.route.text.trim().isEmpty ? null : m.route.text.trim(),
               stockUnitsPerDose: stock,
+              costPerDose: m.cost.text.trim().isEmpty ? null : cost,
               scheduleFrequency: m.frequency,
               scheduleTimes: List<String>.from(m.times)..sort(),
               scheduleWeekdays: m.frequency == 'weekly'
@@ -435,7 +522,15 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
           : '$saved medicines prescribed';
     }
     AppSnackbar.show(toast, '');
-    Navigator.of(context).pop(true);
+    final first = _medicines.first;
+    Navigator.of(context).pop(
+      StaffAddMedicineResult(
+        isPrn: _isPrn,
+        residenceId: _residence!.id,
+        clientId: _client?.id,
+        name: first.name.text.trim(),
+      ),
+    );
   }
 
   Future<void> _pickDate(_MedicineDraft m, {required bool start}) async {
@@ -739,6 +834,11 @@ class _StaffAddMedicineSheetState extends State<StaffAddMedicineSheet>
                         ),
                         for (var i = 0; i < _medicines.length; i++)
                           _MedicineCard(
+                            // Key by kind so TextFields remount with that
+                            // tab's controllers instead of leaking Medicine → PRN.
+                            key: ValueKey(
+                              'staff-med-${_isPrn ? 'prn' : 'sched'}-$i',
+                            ),
                             index: i,
                             draft: _medicines[i],
                             isPrn: _isPrn,
@@ -998,6 +1098,7 @@ class _MedicineCard extends StatelessWidget {
   final String Function(DateTime?) formatDate;
 
   const _MedicineCard({
+    super.key,
     required this.index,
     required this.draft,
     required this.isPrn,
@@ -1010,6 +1111,23 @@ class _MedicineCard extends StatelessWidget {
     required this.formatDate,
   });
 
+  static const _timePresets = [
+    '08:00',
+    '12:00',
+    '14:00',
+    '18:00',
+    '20:00',
+    '22:00',
+  ];
+
+  void _syncStockFromDose(String doseText) {
+    final match = RegExp(r'^(\d+(?:\.\d+)?)').firstMatch(doseText.trim());
+    if (match == null) return;
+    final next = match.group(1)!;
+    if (draft.stock.text == next) return;
+    draft.stock.text = next;
+  }
+
   void _commitTime() {
     final raw = draft.timeInput.text.trim();
     if (raw.isEmpty) return;
@@ -1021,6 +1139,33 @@ class _MedicineCard extends StatelessWidget {
     }
     draft.timeInput.clear();
     onChanged();
+  }
+
+  void _addPreset(String t) {
+    if (!draft.times.contains(t)) {
+      draft.times.add(t);
+      draft.times.sort();
+      onChanged();
+    }
+  }
+
+  Future<void> _pickClockTime(BuildContext context) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child ?? const SizedBox.shrink(),
+      ),
+    );
+    if (picked == null) return;
+    final t =
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    if (!draft.times.contains(t)) {
+      draft.times.add(t);
+      draft.times.sort();
+      onChanged();
+    }
   }
 
   static String? _normalizeTime(String raw) {
@@ -1090,10 +1235,15 @@ class _MedicineCard extends StatelessWidget {
               ),
               _Labeled(
                 label: 'Dose',
+                required: !isPrn,
                 child: TextField(
                   controller: draft.dose,
                   style: _fieldTextStyle,
                   decoration: _medFieldDecoration(hint: '1 tablet'),
+                  onChanged: (v) {
+                    _syncStockFromDose(v);
+                    onChanged();
+                  },
                 ),
               ),
             ),
@@ -1141,21 +1291,68 @@ class _MedicineCard extends StatelessWidget {
                 ),
                 _Labeled(
                   label: 'At what times',
-                  hint: '24-hour, one per entry — 08:00, 14:00, 20:00',
+                  required: true,
+                  hint: '24-hour clock — pick with the clock or type 08:00',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextField(
-                        controller: draft.timeInput,
-                        style: _fieldTextStyle,
-                        decoration: _medFieldDecoration(
-                          hint: 'Type and press Enter...',
-                        ),
-                        keyboardType: TextInputType.datetime,
-                        textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _commitTime(),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9:]')),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: draft.timeInput,
+                              style: _fieldTextStyle,
+                              decoration: _medFieldDecoration(
+                                hint: draft.times.isEmpty ? '08:00' : 'Add another…',
+                              ).copyWith(
+                                suffixIcon: IconButton(
+                                  tooltip: 'Pick a time',
+                                  onPressed: () => _pickClockTime(context),
+                                  icon: const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 18,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ),
+                              keyboardType: TextInputType.datetime,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => _commitTime(),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'[0-9:]'),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              if (draft.timeInput.text.trim().isEmpty) {
+                                _pickClockTime(context);
+                              } else {
+                                _commitTime();
+                              }
+                            },
+                            icon: const Icon(Icons.add_rounded, size: 16),
+                            label: const Text('Add time'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.secondaryTeal,
+                              side: const BorderSide(
+                                color: AppColors.searchBorder,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 12,
+                              ),
+                              textStyle: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                       if (draft.times.isNotEmpty) ...[
@@ -1187,6 +1384,38 @@ class _MedicineCard extends StatelessWidget {
                           ],
                         ),
                       ],
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Presets',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final t in _timePresets)
+                            ActionChip(
+                              label: Text(
+                                '+ $t',
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              backgroundColor:
+                                  AppColors.quickActionCreateShiftBg,
+                              side: BorderSide.none,
+                              onPressed: () => _addPreset(t),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -1195,6 +1424,7 @@ class _MedicineCard extends StatelessWidget {
                 const SizedBox(height: 14),
                 _Labeled(
                   label: 'Weekdays',
+                  required: true,
                   hint: 'Which days this weekly dose falls on',
                   child: Wrap(
                     spacing: 8,
@@ -1240,6 +1470,7 @@ class _MedicineCard extends StatelessWidget {
             pair(
               _Labeled(
                 label: 'Route',
+                required: true,
                 child: TextField(
                   controller: draft.route,
                   style: _fieldTextStyle,
@@ -1250,15 +1481,32 @@ class _MedicineCard extends StatelessWidget {
               ),
               _Labeled(
                 label: 'Units of stock per dose',
+                required: true,
                 hint:
-                    'Only set this where a dose maps cleanly onto the stock unit.',
+                    'Units deducted automatically from stock when each dose is given.',
                 child: TextField(
                   controller: draft.stock,
                   style: _fieldTextStyle,
                   keyboardType: TextInputType.number,
-                  decoration: _medFieldDecoration(
-                    hint: 'Leave blank to count stock by hand',
-                  ),
+                  decoration: _medFieldDecoration(hint: 'e.g. 1'),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _Labeled(
+              label: 'Cost per dose',
+              hint:
+                  "Counts toward the resident's cost of care each time a dose is given.",
+              child: TextField(
+                controller: draft.cost,
+                style: _fieldTextStyle,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
+                decoration: _medFieldDecoration(
+                  hint: 'Leave blank if not tracked',
                 ),
               ),
             ),
@@ -1292,38 +1540,35 @@ class _MedicineCard extends StatelessWidget {
             ),
             if (isPrn) ...[
               const SizedBox(height: 14),
-              _Labeled(
-                label: 'Shortest gap between doses (minutes)',
-                hint:
-                    '240 for a medicine prescribed no more often than four hourly.',
-                child: TextField(
-                  controller: draft.minGap,
-                  style: _fieldTextStyle,
-                  keyboardType: TextInputType.number,
-                  decoration: _medFieldDecoration(
-                    hint: 'Leave blank for no minimum',
-                  ),
-                ),
+              PrnShortestGapField(
+                hours: draft.gapHours,
+                minutes: draft.gapMinutes,
+                onChanged: onChanged,
+                decoration: _medFieldDecoration,
+                fieldStyle: _fieldTextStyle,
               ),
             ],
             const SizedBox(height: 8),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: draft.controlled,
-              onChanged: (v) {
-                draft.controlled = v ?? false;
-                onChanged();
-              },
-              title: const Text(
-                'Controlled drug — a witness is required to chart a dose',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 13,
-                  color: AppColors.textHeading,
+            Material(
+              color: Colors.transparent,
+              child: CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: draft.controlled,
+                onChanged: (v) {
+                  draft.controlled = v ?? false;
+                  onChanged();
+                },
+                title: const Text(
+                  'Controlled drug — a witness is required to chart a dose',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: AppColors.textHeading,
+                  ),
                 ),
+                controlAffinity: ListTileControlAffinity.leading,
+                activeColor: AppColors.secondaryTeal,
               ),
-              controlAffinity: ListTileControlAffinity.leading,
-              activeColor: AppColors.secondaryTeal,
             ),
             _Labeled(
               label: 'Requires a check first',

@@ -1,3 +1,5 @@
+import 'handover_options.dart';
+
 /// A `/shift-handovers` record: what one shift tells the next.
 class ShiftHandover {
   final String id;
@@ -17,6 +19,10 @@ class ShiftHandover {
   final List<HandoverIncident> incidents;
   final List<HandoverComment> comments;
   final List<HandoverTask> tasks;
+  /// Care notes marked for the next shift that rode with this handover.
+  final List<HandoverNextNote> notesForNextShift;
+  /// Tasks transferred when the handover was taken.
+  final List<HandoverHandedTask> handedOverTasks;
   final List<HandoverAcknowledgement> acknowledgements;
   final String? flagCategory;
   final String? createdBy;
@@ -39,6 +45,8 @@ class ShiftHandover {
     this.incidents = const [],
     this.comments = const [],
     this.tasks = const [],
+    this.notesForNextShift = const [],
+    this.handedOverTasks = const [],
     this.acknowledgements = const [],
     this.flagCategory,
     this.createdBy,
@@ -130,6 +138,65 @@ class HandoverTask {
   });
 
   bool get done => status == 'done' || status == 'completed';
+}
+
+/// Care note offered on Record handover / shown on the list card.
+class HandoverNextNote {
+  final String id;
+  final String body;
+  final DateTime? occurredAt;
+  final String? author;
+  final String? clientId;
+  final String? clientName;
+
+  const HandoverNextNote({
+    required this.id,
+    required this.body,
+    this.occurredAt,
+    this.author,
+    this.clientId,
+    this.clientName,
+  });
+}
+
+/// Unfinished / handed-over task from prepare or the list card.
+class HandoverHandedTask {
+  final String id;
+  final String title;
+  final String status;
+  final String? priority;
+  final bool overdue;
+  final bool suggested;
+  final String? transferredToName;
+  final List<String> assigneeNames;
+
+  const HandoverHandedTask({
+    required this.id,
+    required this.title,
+    required this.status,
+    this.priority,
+    this.overdue = false,
+    this.suggested = true,
+    this.transferredToName,
+    this.assigneeNames = const [],
+  });
+}
+
+/// `GET /shift-handovers/prepare?shiftId=` — dynamic Record-handover bundles.
+class HandoverPrepare {
+  final String shiftId;
+  final List<HandoverIncident> incidents;
+  final List<HandoverNextNote> notesForNextShift;
+  final List<HandoverHandedTask> unfinishedTasks;
+  final List<HandoverShift> incomingShifts;
+
+  const HandoverPrepare({
+    required this.shiftId,
+    this.incidents = const [],
+    this.notesForNextShift = const [],
+    this.unfinishedTasks = const [],
+    this.incomingShifts = const [],
+  });
 }
 
 class HandoverAcknowledgement {

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/network/app_api_client.dart';
@@ -7,20 +8,18 @@ import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/attendance_record.dart';
 import '../../domain/entities/manual_entry_options.dart';
+import '../../domain/entities/time_off_request.dart';
 import '../../domain/repositories/attendance_repository.dart';
 import '../mappers/attendance_mapper.dart';
 
 class AttendanceRepositoryImpl implements AttendanceRepository {
   final AppApiClient _api;
-  final UserSession _session;
 
   static const int _pageSize = 100;
 
   AttendanceRepositoryImpl({
     required AppApiClient api,
-    required UserSession session,
-  })  : _api = api,
-        _session = session;
+  }) : _api = api;
 
   @override
   Future<Result<AttendanceRecordPage>> getRecords({
@@ -122,6 +121,18 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       _voidPost(ApiEndpoints.attendanceCheckOut, body);
 
   @override
+  Future<Result<void>> startBreak({required String residenceId}) =>
+      _voidPost(ApiEndpoints.attendanceBreakStart, {
+        'residenceId': residenceId,
+      });
+
+  @override
+  Future<Result<void>> endBreak({required String residenceId}) =>
+      _voidPost(ApiEndpoints.attendanceBreakEnd, {
+        'residenceId': residenceId,
+      });
+
+  @override
   Future<Result<String>> uploadSelfie(String localPath, String fileName) async {
     final result = await _upload(localPath, fileName, 'attendance-selfies');
     return result.when(
@@ -187,8 +198,16 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
     String? search,
     String? residenceId,
   }) async {
+    if (!Get.isRegistered<UserSession>() ||
+        !Get.find<UserSession>().canReadStaffList) {
+      return Result.success(const []);
+    }
     final trimmed = search?.trim() ?? '';
-    final scopedResidenceId = residenceId ?? _session.residenceId;
+    // Prefer the caller's filter only — session home-house fallback hid staff
+    // the web still lists when "All residences" is selected.
+    final scopedResidenceId = residenceId?.trim().isNotEmpty == true
+        ? residenceId!.trim()
+        : null;
     final result = await _api.get(
       ApiEndpoints.staff,
       query: {
@@ -269,7 +288,7 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
         query: {'category': category},
         allowQueue: false,
       );
-      return result.when(
+      return await result.when(
         success: (body) async {
           final map = JsonCodec.unwrapMap(body);
           final url = JsonCodec.string(
@@ -311,5 +330,99 @@ class AttendanceRepositoryImpl implements AttendanceRepository {
       return JsonCodec.string(data['id'] ?? map['id']);
     }
     return null;
+  }
+
+  @override
+  Future<Result<List<TimeOffRequest>>> getTimeOffRequests({
+    String? from,
+    String? to,
+    String? status,
+    String? residenceId,
+    bool mine = false,
+  }) async {
+    final result = await _api.get(
+      ApiEndpoints.attendanceTimeOffRequests,
+      query: {
+        'from': ?from,
+        'to': ?to,
+        'status': ?status,
+        'residenceId': ?residenceId,
+        if (mine) 'mine': true,
+        'page': 1,
+        'limit': _pageSize,
+      },
+    );
+    return result.when(
+      success: (body) async =>
+          Result.success(AttendanceMapper.timeOffListFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<TimeOffRequest>> createTimeOffRequest({
+    required TimeOffType type,
+    required String startDate,
+    required String endDate,
+    String? staffId,
+    String? reason,
+  }) async {
+    final note = reason?.trim();
+    final result = await _api.post(
+      ApiEndpoints.attendanceTimeOffRequests,
+      data: {
+        'type': type.apiValue,
+        'startDate': startDate,
+        'endDate': endDate,
+        if (staffId != null && staffId.isNotEmpty) 'staffId': staffId,
+        if (note != null && note.isNotEmpty) 'reason': note,
+      },
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) async {
+        final json = JsonCodec.unwrapMap(body);
+        final row = AttendanceMapper.timeOffFrom(json);
+        if (row == null) {
+          return Result.failure(
+            const ApiError(
+              message:
+                  'Time-off request was saved but could not be read back.',
+            ),
+          );
+        }
+        return Result.success(row);
+      },
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> reviewTimeOffRequest({
+    required String id,
+    required TimeOffStatus status,
+  }) async {
+    final result = await _api.patch(
+      ApiEndpoints.attendanceTimeOffReview(id),
+      data: {'status': status.apiValue},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
+  }
+
+  @override
+  Future<Result<void>> cancelTimeOffRequest(String id) async {
+    final result = await _api.post(
+      ApiEndpoints.attendanceTimeOffCancel(id),
+      data: const {},
+      allowQueue: false,
+    );
+    return result.when(
+      success: (_) async => Result.success(null),
+      failure: (error) async => Result.failure(error),
+    );
   }
 }

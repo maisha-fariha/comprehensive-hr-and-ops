@@ -1,11 +1,11 @@
 {
-    "name": "comprehensive_hr_and_ops",
-    "short_name": "comprehensive_hr_and_ops",
+    "name": "Care House",
+    "short_name": "Care House",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Care House",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

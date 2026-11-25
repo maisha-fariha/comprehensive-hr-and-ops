@@ -8,13 +8,13 @@ import '../../../../core/media/app_file_picker.dart';
 abstract final class ClientFiles {
   static const _mb = 1024 * 1024;
 
-  /// "Client Photo": image only, up to 2MB.
+  /// "Client Photo": image only, up to 25MB (web hint).
   static Future<ClientPickedFile?> pickPhoto() =>
-      _pick(FileType.image, null, 2, 'Image only • JPG, PNG up to 2MB');
+      _pick(FileType.image, null, 25, 'JPG, PNG, WebP or HEIC · up to 25MB');
 
-  /// "Upload Care Plan Document": PDF / DOC / DOCX up to 10MB.
+  /// "Upload Care Plan Document": PDF / DOC / DOCX up to 25MB (web hint).
   static Future<ClientPickedFile?> pickCarePlan() =>
-      _pick(FileType.custom, const ['pdf', 'doc', 'docx'], 10, 'PDF or DOCX up to 10MB');
+      _pick(FileType.custom, const ['pdf', 'doc', 'docx'], 25, 'PDF or DOCX up to 25MB');
 
   static Future<ClientPickedFile?> _pick(
     FileType type,

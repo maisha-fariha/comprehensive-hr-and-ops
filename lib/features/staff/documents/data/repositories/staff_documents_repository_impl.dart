@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../../core/network/api_endpoints.dart';
+import '../../../../../../core/roles/user_session.dart';
 import '../../../../../../core/network/app_api_client.dart';
 import '../../../../../../core/network/json_codec.dart';
 import '../../domain/entities/staff_document.dart';
@@ -275,6 +277,10 @@ class StaffDocumentsRepositoryImpl implements StaffDocumentsRepository {
 
   @override
   Future<Result<List<StaffDocumentOwnerOption>>> listStaff() async {
+    if (!Get.isRegistered<UserSession>() ||
+        !Get.find<UserSession>().can('staff:read')) {
+      return Result.success(const []);
+    }
     final result = await _api.get(
       ApiEndpoints.staff,
       query: const {'page': 1, 'limit': 200},

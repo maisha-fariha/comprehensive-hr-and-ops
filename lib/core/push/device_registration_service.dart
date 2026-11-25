@@ -3,11 +3,14 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:gems_data_layer/gems_data_layer.dart';
+import 'package:get/get.dart';
 import 'package:get_it/get_it.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../roles/user_session.dart';
+import 'firebase_push_bridge.dart';
 
 /// Syncs the local push token with POST/DELETE `/devices`.
 ///
@@ -27,35 +30,39 @@ class DeviceRegistrationService {
   StreamSubscription<String>? _tokenSub;
   bool _syncing = false;
 
+  /// True only after an authenticated [syncAfterAuth]. Starts false so cold
+  /// start / login-screen FCM token events never POST `/devices` with 401.
+  /// Cleared again on logout until the next signed-in sync.
+  bool _pushEnabled = false;
+
   DeviceRegistrationService({
     required AuthRepository auth,
     required SharedPreferences prefs,
   })  : _auth = auth,
         _prefs = prefs;
 
-  /// Starts listening for token refresh and registers the current token if
-  /// the user already has a session.
+  /// Starts listening for FCM token rotation. Does **not** POST /devices here —
+  /// that waits for [syncAfterAuth] after login / [UserSession.restore] so we
+  /// never register before an authenticated session exists.
   Future<void> start() async {
-    await _tokenSub?.cancel();
-    final push = _pushService;
-    if (push != null) {
-      _tokenSub = push.tokenChanges.listen((_) {
-        unawaited(syncAfterAuth());
-      });
-    }
-    if (_auth.hasSession) {
-      await syncAfterAuth();
-    }
+    await _ensureTokenListener();
   }
 
   /// POST /devices after login / session restore / FCM token refresh.
+  ///
+  /// Requires a signed-in [UserSession], not merely a leftover prefs token
+  /// (`hasSession`), so cold start / login screen never 401 on /devices.
   Future<void> syncAfterAuth() async {
-    if (!_auth.hasSession || _syncing) return;
+    if (_syncing) return;
+    if (_isSigningOut) return;
+    if (!_isSignedIn) return;
+    if (!_auth.hasSession) return;
+
+    _pushEnabled = true;
+    await _ensureTokenListener();
+
     final token = await _resolveToken();
     if (token == null || token.isEmpty) return;
-
-    final already = _prefs.getString(_prefsRegisteredKey);
-    if (already == token) return;
 
     _syncing = true;
     try {
@@ -75,24 +82,72 @@ class DeviceRegistrationService {
     }
   }
 
-  /// DELETE /devices/{token} before clearing auth on logout.
+  bool get _isSignedIn {
+    try {
+      return Get.isRegistered<UserSession>() &&
+          Get.find<UserSession>().isSignedIn;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get _isSigningOut {
+    try {
+      return Get.isRegistered<UserSession>() &&
+          Get.find<UserSession>().isSigningOut;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Stops server + device push delivery for this install.
+  ///
+  /// 1. DELETE `/devices/{token}` while the access token still works
+  /// 2. Delete the FCM registration so the OS stops delivering
+  /// 3. Clear tray notifications and local token prefs
   Future<void> unregisterOnLogout() async {
+    _pushEnabled = false;
+    await _tokenSub?.cancel();
+    _tokenSub = null;
+
     final token = _prefs.getString(_prefsRegisteredKey) ??
         _prefs.getString(_prefsTokenKey) ??
         await _resolveToken();
-    if (token == null || token.isEmpty) {
-      await _prefs.remove(_prefsRegisteredKey);
-      return;
+
+    if (token != null && token.isNotEmpty) {
+      try {
+        await _auth.unregisterDevice(token);
+      } catch (_) {}
     }
+
+    // Invalidate FCM so background pushes stop without uninstalling.
+    // May mint a new token via onTokenRefresh — ignored while !_pushEnabled.
     try {
-      await _auth.unregisterDevice(token);
+      final push = _pushService;
+      if (push != null) await push.clearToken();
     } catch (_) {}
+
+    try {
+      await messageNotifications.cancelAll();
+    } catch (_) {}
+
     await _prefs.remove(_prefsRegisteredKey);
+    await _prefs.remove(_prefsTokenKey);
   }
 
   Future<void> dispose() async {
     await _tokenSub?.cancel();
     _tokenSub = null;
+  }
+
+  Future<void> _ensureTokenListener() async {
+    if (_tokenSub != null) return;
+    final push = _pushService;
+    if (push == null) return;
+    _tokenSub = push.tokenChanges.listen((_) {
+      if (!_pushEnabled) return;
+      unawaited(syncAfterAuth());
+    });
   }
 
   Future<String?> _resolveToken() async {

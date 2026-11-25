@@ -43,15 +43,15 @@ class GeofenceRow extends StatelessWidget {
         Container(
           width: iconSize,
           height: iconSize,
-          decoration: const BoxDecoration(
-            color: _iconBg,
+          decoration: BoxDecoration(
+            color: isWithinGeofence ? _iconBg : const Color(0xFFFDECEC),
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
-          child: const Icon(
-            Icons.check,
+          child: Icon(
+            isWithinGeofence ? Icons.check : Icons.location_off_rounded,
             size: 18,
-            color: _iconFg,
+            color: isWithinGeofence ? _iconFg : const Color(0xFFD64545),
           ),
         ),
         SizedBox(width: ResponsiveHelper.getResponsiveWidth(context, 12)),

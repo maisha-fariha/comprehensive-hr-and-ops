@@ -21,6 +21,7 @@ class ClientPage {
 class ClientFamilyMember {
   final String id;
   final String name;
+  final String? middleName;
   final String? userId;
   final String? relationship;
   final String? email;
@@ -33,6 +34,7 @@ class ClientFamilyMember {
   const ClientFamilyMember({
     required this.id,
     required this.name,
+    this.middleName,
     this.userId,
     this.relationship,
     this.email,

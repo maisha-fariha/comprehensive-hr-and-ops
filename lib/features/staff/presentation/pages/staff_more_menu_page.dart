@@ -5,12 +5,12 @@ import 'package:gems_responsive/gems_responsive.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimens.dart';
 import '../../../../core/constants/app_text_styles.dart';
-import '../../../../core/roles/user_role.dart';
+import '../../../../core/roles/permission_gate.dart';
 import '../../../../core/roles/user_session.dart';
-import '../../attendance/presentation/pages/staff_attendance_page.dart';
 import '../../daily_activity/presentation/pages/staff_daily_activity_page.dart';
 import '../../extras/presentation/pages/staff_admissions_page.dart';
 import '../../extras/presentation/pages/staff_appointments_page.dart';
+import '../../../common/support_tickets/presentation/pages/support_tickets_page.dart';
 import '../../extras/presentation/pages/staff_clients_page.dart';
 import '../../extras/presentation/pages/staff_documents_page.dart';
 import '../../extras/presentation/pages/staff_emergency_page.dart';
@@ -20,7 +20,9 @@ import '../../extras/presentation/pages/staff_residences_page.dart';
 import '../../extras/presentation/pages/staff_shift_handovers_page.dart';
 import '../../extras/presentation/pages/staff_training_page.dart';
 import '../../incidents/presentation/pages/staff_incidents_list_page.dart';
+import '../../../hr/ai_alerts/presentation/pages/ai_alerts_page.dart';
 import '../../../hr/communication/presentation/pages/communication_page.dart';
+import '../../../hr/org_settings/presentation/pages/org_settings_page.dart';
 import '../open_staff_profile.dart';
 import '../widgets/staff_menu_entry.dart';
 
@@ -48,15 +50,19 @@ class StaffMoreMenuPage extends StatelessWidget {
       ),
       body: SafeArea(
         child: Obx(() {
+          session.permissionEpoch;
+          bool can(String permission) =>
+              session.permissionsReady && session.can(permission);
           final entries = <StaffMenuEntry>[
-            const StaffMenuEntry(
-              icon: Icons.home_work_outlined,
-              iconBackground: AppColors.activeBackground,
-              iconColor: AppColors.activeGreen,
-              title: 'Residence',
-              subtitle: 'Your assigned home and residence details',
-            ),
-            if (session.canAccessClients)
+            if (can('residences:read'))
+              const StaffMenuEntry(
+                icon: Icons.home_work_outlined,
+                iconBackground: AppColors.activeBackground,
+                iconColor: AppColors.activeGreen,
+                title: 'Residence',
+                subtitle: 'Your assigned home and residence details',
+              ),
+            if (session.permissionsReady && session.canAccessClients)
               const StaffMenuEntry(
                 icon: Icons.groups_outlined,
                 iconBackground: AppColors.infoBackground,
@@ -64,14 +70,15 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Clients',
                 subtitle: 'Client directory, profiles, and admissions',
               ),
-            const StaffMenuEntry(
-              icon: Icons.fact_check_outlined,
-              iconBackground: AppColors.urgentBackground,
-              iconColor: AppColors.urgentAmber,
-              title: 'Recurring Checks',
-              subtitle: 'Due recurring checks assigned to you',
-            ),
-            if (session.canReadEmergency)
+            if (can('recurring-checks:read'))
+              const StaffMenuEntry(
+                icon: Icons.fact_check_outlined,
+                iconBackground: AppColors.urgentBackground,
+                iconColor: AppColors.urgentAmber,
+                title: 'Recurring Checks',
+                subtitle: 'Due recurring checks assigned to you',
+              ),
+            if (session.permissionsReady && session.canReadEmergency)
               const StaffMenuEntry(
                 icon: Icons.warning_amber_rounded,
                 iconBackground: AppColors.urgentBackground,
@@ -79,7 +86,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Emergency',
                 subtitle: 'Active alarms and response alerts',
               ),
-            if (session.canAccessHandovers)
+            if (session.permissionsReady && session.canAccessHandovers)
               const StaffMenuEntry(
                 icon: Icons.swap_horiz_rounded,
                 iconBackground: AppColors.infoBackground,
@@ -87,15 +94,8 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Shift handovers',
                 subtitle: 'Write and acknowledge handovers',
               ),
-            if (session.canAccessClientActivities)
-              const StaffMenuEntry(
-                icon: Icons.directions_walk_outlined,
-                iconBackground: AppColors.activeBackground,
-                iconColor: AppColors.activeGreen,
-                title: 'Daily Activity',
-                subtitle: 'Outings, school, programmes, and observations',
-              ),
-            if (session.canAccessMessaging)
+            // Daily Activity UI temporarily hidden for all roles (code kept).
+            if (session.permissionsReady && session.canAccessMessaging)
               const StaffMenuEntry(
                 icon: Icons.forum_outlined,
                 iconBackground: AppColors.infoBackground,
@@ -103,7 +103,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Communication',
                 subtitle: 'Direct, group, and family conversations',
               ),
-            if (session.canAccessDocuments)
+            if (session.permissionsReady && session.canAccessDocuments)
               const StaffMenuEntry(
                 icon: Icons.folder_outlined,
                 iconBackground: AppColors.nightBackground,
@@ -111,7 +111,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Documents Management',
                 subtitle: 'Care plans, certificates, and filings',
               ),
-            if (session.canAccessAppointments)
+            if (session.permissionsReady && session.canAccessAppointments)
               const StaffMenuEntry(
                 icon: Icons.event_available_outlined,
                 iconBackground: AppColors.activeBackground,
@@ -119,7 +119,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Appointments',
                 subtitle: 'Visits and scheduled appointments',
               ),
-            if (session.canAccessTraining)
+            if (session.permissionsReady && session.canAccessTraining)
               const StaffMenuEntry(
                 icon: Icons.school_outlined,
                 iconBackground: AppColors.urgentBackgroundSoft,
@@ -127,7 +127,7 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Training',
                 subtitle: 'Assignments, quizzes, and certificates',
               ),
-            if (session.canAccessInventory)
+            if (session.permissionsReady && session.canAccessInventory)
               const StaffMenuEntry(
                 icon: Icons.inventory_2_outlined,
                 iconBackground: AppColors.nightBackground,
@@ -135,23 +135,16 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Inventory',
                 subtitle: 'Stock on hand at your residence',
               ),
-            if (session.canAccessAdmissions &&
-                session.staffKind == StaffKind.nurse)
+            // Admissions UI temporarily hidden for all roles (code kept).
+            if (can('tickets:view_own') || can('tickets:view_tenant'))
               const StaffMenuEntry(
-                icon: Icons.how_to_reg_outlined,
+                icon: Icons.support_agent_outlined,
                 iconBackground: AppColors.infoBackground,
                 iconColor: AppColors.infoBlue,
-                title: 'Admissions',
-                subtitle: 'Referrals and assessments',
+                title: 'Support & Tickets',
+                subtitle: 'Tenant support requests and replies',
               ),
-            const StaffMenuEntry(
-              icon: Icons.access_time_rounded,
-              iconBackground: AppColors.infoBackground,
-              iconColor: AppColors.infoBlue,
-              title: 'Attendance',
-              subtitle: 'Clock in/out and shift history',
-            ),
-            if (session.canAccessIncidents)
+            if (session.permissionsReady && session.canAccessIncidents)
               const StaffMenuEntry(
                 icon: Icons.report_gmailerrorred_outlined,
                 iconBackground: AppColors.urgentBackground,
@@ -159,12 +152,30 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Incidents',
                 subtitle: 'My reports & all residence incidents',
               ),
+            // Web tenantNav: AI Alerts when dashboard:read OR notifications:read.
+            if (can('dashboard:read') || can('notifications:read'))
+              const StaffMenuEntry(
+                icon: Icons.auto_awesome_outlined,
+                iconBackground: AppColors.nightBackground,
+                iconColor: AppColors.nightPurple,
+                title: 'AI Alerts & Insights',
+                subtitle:
+                    'Scheduled AI checks — medication, incidents, rotas, stock',
+              ),
+            if (can('settings:read'))
+              const StaffMenuEntry(
+                icon: Icons.settings_outlined,
+                iconBackground: AppColors.nightBackground,
+                iconColor: AppColors.nightPurple,
+                title: 'Settings',
+                subtitle: 'Organisation, notifications, payroll & care',
+              ),
             const StaffMenuEntry(
               icon: Icons.person_outline_rounded,
               iconBackground: AppColors.nightBackground,
               iconColor: AppColors.nightPurple,
-              title: 'Profile & Settings',
-              subtitle: 'Account, assigned clients & preferences',
+              title: 'My Profile',
+              subtitle: 'Account & preferences',
             ),
           ];
 
@@ -194,34 +205,102 @@ class StaffMoreMenuPage extends StatelessWidget {
   void _open(String title) {
     switch (title) {
       case 'Residence':
-        Get.to(() => const StaffResidencesPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['residences:read'],
+          builder: () => const StaffResidencesPage(),
+        );
       case 'Clients':
-        Get.to(() => const StaffClientsPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['clients:read'],
+          builder: () => const StaffClientsPage(),
+        );
       case 'Recurring Checks':
-        Get.to(() => const StaffRecurringChecksPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['recurring-checks:read'],
+          builder: () => const StaffRecurringChecksPage(),
+        );
       case 'Emergency':
-        Get.to(() => const StaffEmergencyPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['emergency:read', 'emergency:raise'],
+          builder: () => const StaffEmergencyPage(),
+        );
       case 'Shift handovers':
-        Get.to(() => const StaffShiftHandoversPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['shift-handovers:read'],
+          builder: () => const StaffShiftHandoversPage(),
+        );
       case 'Daily Activity':
-        Get.to(() => const StaffDailyActivityPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['client-activities:read'],
+          builder: () => const StaffDailyActivityPage(),
+        );
       case 'Communication':
-        Get.to(() => const CommunicationPage(showStaffBottomNav: true));
+        openPermittedPage(
+          title: title,
+          anyOf: const ['messaging:read'],
+          builder: () => const CommunicationPage(showStaffBottomNav: true),
+        );
       case 'Documents Management':
-        Get.to(() => const StaffDocumentsPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['documents:read'],
+          builder: () => const StaffDocumentsPage(),
+        );
       case 'Appointments':
-        Get.to(() => const StaffAppointmentsPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['appointments:read'],
+          builder: () => const StaffAppointmentsPage(),
+        );
       case 'Training':
-        Get.to(() => const StaffTrainingPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['training:read'],
+          builder: () => const StaffTrainingPage(),
+        );
       case 'Inventory':
-        Get.to(() => const StaffInventoryPage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['inventory:read'],
+          builder: () => const StaffInventoryPage(),
+        );
       case 'Admissions':
-        Get.to(() => const StaffAdmissionsPage());
-      case 'Attendance':
-        Get.to(() => const StaffAttendancePage());
+        openPermittedPage(
+          title: title,
+          anyOf: const ['admissions:read'],
+          builder: () => const StaffAdmissionsPage(),
+        );
+      case 'Support & Tickets':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['tickets:view_own', 'tickets:view_tenant'],
+          builder: () => const SupportTicketsPage(),
+        );
       case 'Incidents':
-        Get.to(() => const StaffIncidentsListPage());
-      case 'Profile & Settings':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['incidents:read'],
+          builder: () => const StaffIncidentsListPage(),
+        );
+      case 'AI Alerts & Insights':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['dashboard:read', 'notifications:read'],
+          builder: () => const AiAlertsPage(),
+        );
+      case 'Settings':
+        openPermittedPage(
+          title: title,
+          anyOf: const ['settings:read'],
+          builder: () => const OrgSettingsPage(showShell: false),
+        );
+      case 'My Profile':
         openStaffProfile();
     }
   }

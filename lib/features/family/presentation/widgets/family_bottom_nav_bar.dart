@@ -49,8 +49,11 @@ FamilyMessagesController ensureFamilyMessagesController() {
   }
 }
 
-/// Bottom navigation for the Family portal: Home / Updates / Appointments /
-/// Messages / More. Used by [FamilyShell].
+/// Bottom navigation for the Family portal: Overview / Care Journal /
+/// Appointments / Messages / More. Used by [FamilyShell].
+///
+/// Matches web sidebar labels (Overview + Care Journal). The old "Updates"
+/// destination is removed — journal lives at index 1.
 class FamilyBottomNavBar extends StatelessWidget {
   static const Color _activeColor = Color(0xFF107C7C);
   static const Color _inactiveColor = Color(0xFF8E9CB2);
@@ -66,10 +69,13 @@ class FamilyBottomNavBar extends StatelessWidget {
   });
 
   List<FamilyBottomNavItemData> _items(int messagesUnreadCount) => [
-        const FamilyBottomNavItemData(asset: AppAssets.navHome, label: 'Home'),
+        const FamilyBottomNavItemData(
+          asset: AppAssets.navHome,
+          label: 'Overview',
+        ),
         const FamilyBottomNavItemData(
           asset: AppAssets.navCalendar,
-          label: 'Updates',
+          label: 'Journal',
         ),
         const FamilyBottomNavItemData(
           asset: AppAssets.navAppointment,

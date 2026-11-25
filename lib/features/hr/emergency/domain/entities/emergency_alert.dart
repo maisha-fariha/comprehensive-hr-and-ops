@@ -1,3 +1,5 @@
+import '../../../../../core/time/tenant_clock.dart';
+
 /// Someone named on an alert (raiser, acknowledger, assignee, actor).
 class EmergencyPerson {
   final String id;
@@ -114,7 +116,7 @@ class EmergencyStats {
   });
 
   factory EmergencyStats.from(List<EmergencyAlert> alerts, {DateTime? now}) {
-    final today = now ?? DateTime.now();
+    final today = now ?? TenantClock.now();
     final midnight = DateTime(today.year, today.month, today.day);
     return EmergencyStats(
       active: alerts.where((a) => a.status == 'active').length,
@@ -124,7 +126,7 @@ class EmergencyStats {
           .where((a) =>
               a.status == 'resolved' &&
               a.resolvedAt != null &&
-              !a.resolvedAt!.toLocal().isBefore(midnight))
+              !TenantClock.wallOf(a.resolvedAt!).isBefore(midnight))
           .length,
     );
   }

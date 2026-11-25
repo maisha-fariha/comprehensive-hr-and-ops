@@ -8,6 +8,7 @@ import '../../../../../core/constants/app_dimens.dart';
 import '../../../attendance/presentation/widgets/attendance_pagination.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
+import '../../../presentation/widgets/hr_header_primary_action.dart';
 import '../../domain/entities/residence_summary.dart';
 import '../controllers/residences_controller.dart';
 import '../residences_labels.dart';
@@ -15,6 +16,7 @@ import '../widgets/residence_card.dart';
 import '../widgets/residences_common.dart';
 import 'residence_detail_page.dart';
 import 'residence_form_page.dart';
+import 'package:comprehensive_hr_and_ops/core/widgets/app_refresh_indicator.dart';
 
 /// Manager "Residences Management" — mirrors web `/dashboard/residences`.
 class ResidencesPage extends StatefulWidget {
@@ -82,12 +84,31 @@ class _ResidencesPageState extends State<ResidencesPage> {
     final gap = ResponsiveHelper.getResponsiveHeight(context, 12);
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
-      appBar: hrSubPageAppBar(context, 'Residences Management'),
+      appBar: hrSubPageAppBar(
+        context,
+        'Residences Management',
+        actions: [
+          Obx(() {
+            if (!controller.canCreate) return const SizedBox.shrink();
+            final limited = controller.limitReached;
+            final action = HrHeaderPrimaryAction(
+              actionKey: const ValueKey('residence-add'),
+              label: 'Residence',
+              onTap: limited ? () {} : () => _openForm(),
+            );
+            if (!limited) return action;
+            return Tooltip(
+              message: controller.limitTooltip,
+              child: Opacity(opacity: 0.45, child: action),
+            );
+          }),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: Obx(() {
           final items = controller.residences;
-          return RefreshIndicator(
+          return AppRefreshIndicator(
             color: AppColors.secondaryTeal,
             onRefresh: controller.refresh,
             child: ListView(
@@ -157,22 +178,10 @@ class _ResidencesPageState extends State<ResidencesPage> {
   }
 
   Widget _headerActions(BuildContext context) {
-    final limitReached = controller.limitReached;
-    final add = HandoverButton(
-      key: const ValueKey('residence-add'),
-      label: limitReached ? 'Limit Exceeded' : 'Add Residence',
-      icon: Icons.add_rounded,
-      filled: true,
-      onPressed: limitReached ? null : () => _openForm(),
-    );
     return Wrap(
       spacing: 10,
       runSpacing: 10,
       children: [
-        if (controller.canCreate)
-          limitReached
-              ? Tooltip(message: controller.limitTooltip, child: add)
-              : add,
         if (controller.canExport)
           HandoverButton(
             key: const ValueKey('residence-export'),
@@ -259,6 +268,9 @@ class _ResidencesPageState extends State<ResidencesPage> {
           busy: controller.busyId.value == residence.id,
           actions: actions,
           onAction: (a) => _onAction(residence, a),
+          onStatus: controller.canUpdate
+              ? (status) => controller.setResidenceStatus(residence, status)
+              : null,
           onTap: () => _view(residence),
         ),
         SizedBox(height: gap),

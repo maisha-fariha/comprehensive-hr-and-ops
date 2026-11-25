@@ -1,8 +1,11 @@
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/handover_options.dart';
 import '../../domain/entities/shift_handover.dart';
 import '../../domain/repositories/handovers_repository.dart';
@@ -45,21 +48,25 @@ class HandoversRepositoryImpl implements HandoversRepository {
     String? residenceId,
     String? from,
     String? to,
-  }) =>
-      _get(
-        ApiEndpoints.shiftHandovers,
-        {
-          'page': 1,
-          'limit': 20,
-          'residenceId': ?residenceId,
-          'status': ?status,
-          'from': ?from,
-          'to': ?to,
-          'staffId': ?staffId,
-        },
-        HandoversMapper.listFrom,
-        silent: false,
-      );
+  }) async {
+    // Full list screen has no page UI — a single limit:20 truncated vs web.
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.shiftHandovers,
+      query: {
+        'residenceId': ?residenceId,
+        'status': ?status,
+        'from': ?from,
+        'to': ?to,
+        'staffId': ?staffId,
+      },
+    );
+    return result.when(
+      success: (rows) async =>
+          Result.success(HandoversMapper.listFrom({'data': rows})),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<ShiftHandover>> byId(String id) async {
@@ -123,11 +130,28 @@ class HandoversRepositoryImpl implements HandoversRepository {
       );
 
   @override
-  Future<Result<List<HandoverOption>>> staff() => _get(
+  Future<Result<List<HandoverOption>>> staff() async {
+    // Prefer directory (staff:directory). Only hit GET /staff with staff:read.
+    var result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: const {'page': 1, 'limit': _optionsLimit},
+      silent: true,
+    );
+    final canStaffRead = Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().canReadStaffList;
+    if (canStaffRead &&
+        (result.isFailure || JsonCodec.unwrapList(result.value).isEmpty)) {
+      result = await _api.get(
         ApiEndpoints.staff,
-        {'page': 1, 'limit': _optionsLimit},
-        HandoversMapper.staffFrom,
+        query: const {'page': 1, 'limit': _optionsLimit},
+        silent: true,
       );
+    }
+    return result.when(
+      success: (body) async => Result.success(HandoversMapper.staffFrom(body)),
+      failure: (error) async => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<List<HandoverOption>>> clients(String residenceId) => _get(
@@ -166,14 +190,17 @@ class HandoversRepositoryImpl implements HandoversRepository {
     final shifts = await shiftsRequest;
     final clockedIn = await attendanceRequest;
     if (shifts.isFailure) return Result.failure(shifts.error!);
-    if (clockedIn.isFailure) return Result.failure(clockedIn.error!);
+    final rostered = shifts.value!
+        .where((s) => s.staff.any((p) => p.id == staffId && p.rostered))
+        .toList()
+      ..sort(_newestFirst);
+    // Attendance is best-effort: if it fails, still offer rostered shifts so
+    // Record handover is not blank. When attendance succeeds, keep the web
+    // clocked-in filter.
+    if (clockedIn.isFailure) return Result.success(rostered);
     final worked = clockedIn.value!;
     return Result.success(
-      shifts.value!
-          .where((s) => s.staff.any((p) => p.id == staffId && p.rostered))
-          .where((s) => worked.contains(s.id))
-          .toList()
-        ..sort(_newestFirst),
+      rostered.where((s) => worked.contains(s.id)).toList(),
     );
   }
 
@@ -210,4 +237,11 @@ class HandoversRepositoryImpl implements HandoversRepository {
       },
     );
   }
+
+  @override
+  Future<Result<HandoverPrepare>> prepare(String shiftId) => _get(
+        ApiEndpoints.shiftHandoverPrepare,
+        {'shiftId': shiftId},
+        (body) => HandoversMapper.prepareFrom(body, shiftId: shiftId),
+      );
 }

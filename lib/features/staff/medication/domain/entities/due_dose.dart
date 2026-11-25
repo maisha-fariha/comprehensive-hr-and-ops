@@ -28,6 +28,12 @@ class DueDose {
 
   /// Web `Morning` / `Afternoon` / `Evening` / `Night`.
   final String slotLabel;
+
+  /// API `scheduledTime` (HH:MM) — distinguishes same-medicine slots.
+  final String scheduledTime;
+
+  /// Occurrence due instant — web round item `scheduledFor`.
+  final DateTime? dueAt;
   final String? administrationId;
   final DateTime? administeredAt;
 
@@ -53,6 +59,8 @@ class DueDose {
     this.isPrn = false,
     this.scheduled = true,
     this.slotLabel = '',
+    this.scheduledTime = '',
+    this.dueAt,
     this.administrationId,
     this.administeredAt,
     this.administeredBy,
@@ -78,6 +86,8 @@ class DueDose {
       isPrn: isPrn,
       scheduled: scheduled,
       slotLabel: slotLabel,
+      scheduledTime: scheduledTime,
+      dueAt: dueAt,
       administrationId: administrationId,
       administeredAt: administeredAt,
       administeredBy: administeredBy,

@@ -29,6 +29,9 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
   /// BUG_Report004 — optional status filter (`null` = all).
   final RxnString statusFilter = RxnString();
 
+  /// Last notification-focus token so rebuilds do not re-fetch forever.
+  String? _lastFocusToken;
+
   StaffScheduleController({required this.repository});
 
   StaffScheduleOverview? get overview => state.value.data;
@@ -131,6 +134,42 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
     );
   }
 
+  /// BUG_Report001 — open Schedule on the shift's day from a notification tap.
+  ///
+  /// Uses [date] when the payload includes `shiftStartsAt`; otherwise loads
+  /// `GET /shifts/{shiftId}` for the start day.
+  Future<void> applyNotificationFocus({
+    DateTime? date,
+    String? shiftId,
+  }) async {
+    final id = shiftId?.trim();
+    final hasId = id != null && id.isNotEmpty;
+    if (date == null && !hasId) return;
+
+    final token =
+        '${id ?? ''}|${date == null ? '' : date.toIso8601String()}';
+    if (token == _lastFocusToken) return;
+    _lastFocusToken = token;
+
+    var target = date == null
+        ? null
+        : DateTime(date.year, date.month, date.day);
+
+    if (target == null && hasId) {
+      final result = await repository.getShiftDetail(id);
+      final start = result.value?.startAt;
+      if (start != null) {
+        final local = start.toLocal();
+        target = DateTime(local.year, local.month, local.day);
+      }
+    }
+    if (target == null) return;
+
+    weekStart.value = IsoDateRange.startOfWeek(target);
+    selectedDate.value = target;
+    await loadOverview();
+  }
+
   /// Refresh one card from `GET /shifts/{id}` (avatars / filled counts).
   Future<void> openShiftDetail(StaffShift shift) async {
     final result = await repository.getShiftDetail(shift.id);
@@ -169,28 +208,24 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
     await loadOverview();
   }
 
-  Future<void> requestCoverSwap(StaffShift shift) async {
-    final note = await _promptNote(
-      title: 'Request cover',
-      hint: 'Why do you need cover for this shift?',
-    );
-    if (note == null) return;
-
-    setLoading(true);
+  /// Posts the web swap body. Returns the server message when it fails.
+  Future<String?> submitSwapRequest({
+    required String shiftId,
+    String? targetStaffId,
+    String? toShiftId,
+    String? note,
+  }) async {
     final result = await repository.requestSwap(
-      fromShiftId: shift.id,
-      note: note.isEmpty ? null : note,
+      fromShiftId: shiftId,
+      note: note,
+      targetStaffId: targetStaffId,
+      toShiftId: toShiftId,
     );
-    setLoading(false);
     if (result.isFailure) {
-      AppErrorDialog.showResultError(
-        result.error,
-        fallbackTitle: 'Could not request swap',
-      );
-      return;
+      return result.error?.message ?? 'Could not request swap';
     }
-    AppSnackbar.show('Swap requested', 'Waiting for manager approval.');
     await loadOverview();
+    return null;
   }
 
   Future<void> respondToSwap({
@@ -304,37 +339,6 @@ class StaffScheduleController extends BaseController<StaffScheduleOverview> {
       ),
     );
     if (created == true) await loadOverview();
-  }
-
-  Future<String?> _promptNote({
-    required String title,
-    required String hint,
-  }) async {
-    final field = TextEditingController();
-    final submitted = await showAppPopupWidget<bool>(
-      AppSheetDialog(
-        title: Text(title),
-        content: TextField(
-          controller: field,
-          maxLines: 3,
-          decoration: InputDecoration(hintText: hint),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Get.back(result: true),
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
-    );
-    final text = field.text.trim();
-    field.dispose();
-    if (submitted != true) return null;
-    return text;
   }
 
   @override

@@ -120,7 +120,10 @@ class CreateShiftRecurringForm extends StatelessWidget {
               ),
               CreateShiftErrorText(endDateError),
             ] else ...[
-              const CreateShiftFieldLabel('Number of Occurrences'),
+              const CreateShiftFieldLabel(
+                'Number of Occurrences',
+                required: true,
+              ),
               CreateShiftTextField(
                 key: const ValueKey('create-shift-occurrences'),
                 controller: occurrenceController,

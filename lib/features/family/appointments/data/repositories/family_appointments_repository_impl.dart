@@ -1,6 +1,7 @@
 import 'package:gems_core/gems_core.dart';
 
 import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../profile_settings/domain/entities/family_linked_client.dart';
 import '../../domain/entities/family_appointment.dart';
@@ -16,13 +17,13 @@ class FamilyAppointmentsRepositoryImpl implements FamilyAppointmentsRepository {
 
   @override
   Future<Result<List<FamilyAppointment>>> getAppointments() async {
-    final result = await _api.get(
-      ApiEndpoints.familyAppointments,
-      query: const {'page': 1, 'limit': 50},
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: ApiEndpoints.familyAppointments,
     );
     return result.when(
-      success: (body) async =>
-          Result.success(FamilyAppointmentsMapper.listFrom(body)),
+      success: (rows) async =>
+          Result.success(FamilyAppointmentsMapper.listFrom({'data': rows})),
       failure: (error) async => Result.failure(error),
     );
   }

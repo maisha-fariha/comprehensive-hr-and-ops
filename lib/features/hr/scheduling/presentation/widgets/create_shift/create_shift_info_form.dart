@@ -22,6 +22,9 @@ class CreateShiftInfoForm extends StatelessWidget {
   final VoidCallback? onEndTimeTap;
   final String? breakDurationValue;
   final VoidCallback? onBreakDurationTap;
+  final String? oneToOneValue;
+  final bool oneToOneEnabled;
+  final VoidCallback? onOneToOneTap;
   final ValueChanged<String>? onTextChanged;
   final Map<String, String> errors;
 
@@ -42,6 +45,9 @@ class CreateShiftInfoForm extends StatelessWidget {
     this.onEndTimeTap,
     this.breakDurationValue,
     this.onBreakDurationTap,
+    this.oneToOneValue,
+    this.oneToOneEnabled = false,
+    this.onOneToOneTap,
     this.onTextChanged,
     this.errors = const {},
   });
@@ -163,6 +169,19 @@ class CreateShiftInfoForm extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          gap,
+          const CreateShiftFieldLabel('One-to-one with'),
+          CreateShiftDropdownField(
+            key: const ValueKey('create-shift-one-to-one'),
+            value: oneToOneEnabled ? oneToOneValue : null,
+            placeholder: oneToOneEnabled
+                ? 'Not one-to-one'
+                : 'Choose a residence first',
+            onTap: oneToOneEnabled ? onOneToOneTap : null,
+          ),
+          const CreateShiftHelperText(
+            "Hours on a 1:1 shift count toward that resident's cost of care.",
           ),
           gap,
           const CreateShiftFieldLabel('Title'),

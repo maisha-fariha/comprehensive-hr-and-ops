@@ -61,10 +61,11 @@ abstract final class OfflinePrewarmer {
   static bool _running = false;
 
   /// Upper bound on per-item detail requests per list.
-  static const int detailCap = 25;
+  static const int detailCap = 8;
 
   /// Upper bound on refresh + learned per-record requests per run.
-  static const int crawlBudget = 250;
+  /// Kept low so background warm does not rival interactive traffic.
+  static const int crawlBudget = 40;
 
   static void schedule({Duration delay = const Duration(seconds: 3)}) {
     _pending?.cancel();
@@ -81,6 +82,12 @@ abstract final class OfflinePrewarmer {
     }
     if (!Get.isRegistered<UserSession>()) return;
     final session = Get.find<UserSession>();
+    if (!session.isSignedIn || session.isSigningOut) return;
+    // Profile permissions often arrive just after shell open — retry briefly.
+    if (!session.permissionsReady) {
+      schedule(delay: const Duration(seconds: 2));
+      return;
+    }
     if (!_canRun(session)) return;
 
     _running = true;
@@ -89,8 +96,10 @@ abstract final class OfflinePrewarmer {
       await OutboxContext.run(() async {
         final details = <Future<void> Function()>[];
         await _runAll(session, _screensFor(session, details));
-        await _runAll(session, details);
-        if (_canRun(session)) await _crawlVisited(session);
+        // Detail / picker warm is capped; skip the learned crawl unless forced
+        // (crawl was a major background GET source).
+        await _runAll(session, details.take(detailCap * 2).toList());
+        if (force && _canRun(session)) await _crawlVisited(session);
       }, silent: true);
     } finally {
       _running = false;
@@ -99,12 +108,17 @@ abstract final class OfflinePrewarmer {
 
   static bool _canRun(UserSession session) {
     if (!session.isSignedIn || session.isSigningOut) return false;
+    // Wait for permissions so we do not prewarm forbidden endpoints (403).
+    if (!session.permissionsReady) return false;
     if (Get.isRegistered<ConnectivityMonitor>() &&
         !Get.find<ConnectivityMonitor>().online) {
       return false;
     }
     return true;
   }
+
+  static bool _can(UserSession session, String permission) =>
+      session.can(permission);
 
   static Future<void> _runAll(
     UserSession session,
@@ -150,18 +164,9 @@ abstract final class OfflinePrewarmer {
 
         final mar = find<StaffMedicationRepository>();
         if (mar != null && session.canAccessMar) {
+          // List-level warm only — per-client MAR detail is loaded on demand.
           tasks.add(() => mar.getOverview());
-          tasks.add(() async {
-            final clients = await mar.getClients();
-            await mar.listPrnMedications();
-            await mar.listAdministrations();
-            await mar.listMedications();
-            await mar.getResidences();
-            for (final client in (clients.value ?? const []).take(60)) {
-              details.add(() => mar.getClientMedications(client.id));
-              details.add(() => mar.getClientPrnMedications(client.id));
-            }
-          });
+          details.add(() => mar.getResidences());
           details.add(() => mar.getCheckSchedules());
         }
 
@@ -289,22 +294,24 @@ abstract final class OfflinePrewarmer {
         }
 
         final incidents = find<IncidentsRepository>();
-        if (incidents != null) {
+        if (incidents != null && _can(session, 'incidents:read')) {
           tasks.add(() => incidents.getBoard());
           details.add(() => incidents.getCategories());
           details.add(() => incidents.getCirTemplates());
           details.add(() => incidents.getResidences());
-          details.add(() => incidents.getStaff());
+          if (_can(session, 'staff:read') || _can(session, 'staff:directory')) {
+            details.add(() => incidents.getStaff());
+          }
         }
 
         final tasksRepo = find<TasksComplianceRepository>();
-        if (tasksRepo != null) {
+        if (tasksRepo != null && _can(session, 'tasks:read')) {
           tasks.add(() => tasksRepo.getOverview());
           details.add(() => tasksRepo.getResidences());
         }
 
         final medication = find<MedicationRepository>();
-        if (medication != null) {
+        if (medication != null && _can(session, 'mar:read')) {
           tasks.add(() => medication.administrations());
           details.add(() => medication.residences());
           details.add(() => medication.clients());
@@ -312,72 +319,96 @@ abstract final class OfflinePrewarmer {
         }
 
         final residences = find<ResidencesRepository>();
-        if (residences != null) tasks.add(() => residences.getResidences());
+        if (residences != null && _can(session, 'residences:read')) {
+          tasks.add(() => residences.getResidences());
+        }
         final residenceAdmin = find<ResidenceAdminRepository>();
-        if (residenceAdmin != null) {
-          details.add(() => residenceAdmin.getStaffOptions());
+        if (residenceAdmin != null && _can(session, 'residences:read')) {
+          if (_can(session, 'staff:read') || _can(session, 'staff:directory')) {
+            details.add(() => residenceAdmin.getStaffOptions());
+          }
           details.add(() => residenceAdmin.getTenantContext());
         }
 
         final team = find<TeamReportsRepository>();
-        if (team != null) tasks.add(() => team.getPageData());
+        if (team != null && _can(session, 'reports:read')) {
+          tasks.add(() => team.getPageData());
+        }
 
         final admissions = find<AdmissionsRepository>();
-        if (admissions != null) {
+        if (admissions != null && _can(session, 'admissions:read')) {
           tasks.add(() => admissions.board());
           details.add(() => admissions.residences());
         }
 
         final appointments = find<HrAppointmentsRepository>();
-        if (appointments != null) {
+        if (appointments != null && _can(session, 'appointments:read')) {
           tasks.add(() => appointments.summary());
           details.add(() => appointments.residences());
           details.add(() => appointments.clients());
         }
 
         final attendance = find<AttendanceRepository>();
-        if (attendance != null) {
+        if (attendance != null && _can(session, 'attendance:read')) {
           tasks.add(() => attendance.getMyOpenAttendance());
           details.add(() => attendance.getResidences());
         }
 
         final clients = find<ClientsRepository>();
-        if (clients != null) {
+        if (clients != null && _can(session, 'clients:read')) {
           details.add(() => clients.getResidenceNames());
           details.add(() => clients.getClientLimit());
         }
 
         final scheduling = find<SchedulingRepository>();
-        if (scheduling != null) {
+        if (scheduling != null && _can(session, 'scheduling:read')) {
           details.add(() => scheduling.getResidences());
-          details.add(() => scheduling.getStaffOptions());
+          if (_can(session, 'staff:read') || _can(session, 'staff:directory')) {
+            details.add(() => scheduling.getStaffOptions());
+          }
         }
 
         final activity = find<DailyActivityRepository>();
-        if (activity != null) {
+        if (activity != null && _can(session, 'client-activities:read')) {
           details.add(() => activity.clients());
-          details.add(() => activity.staff());
+          if (_can(session, 'staff:read') || _can(session, 'staff:directory')) {
+            details.add(() => activity.staff());
+          }
         }
         final hrLogs = find<DailyLogsRepository>();
-        if (hrLogs != null) details.add(() => hrLogs.residences());
+        if (hrLogs != null && _can(session, 'daily-logs:read')) {
+          details.add(() => hrLogs.residences());
+        }
         final emergency = find<EmergencyRepository>();
-        if (emergency != null) details.add(() => emergency.residences());
+        if (emergency != null && _can(session, 'emergency:read')) {
+          details.add(() => emergency.residences());
+        }
         final handovers = find<HandoversRepository>();
-        if (handovers != null) {
+        if (handovers != null && _can(session, 'shift-handovers:read')) {
           details.add(() => handovers.residences());
-          details.add(() => handovers.staff());
+          if (_can(session, 'staff:read') || _can(session, 'staff:directory')) {
+            details.add(() => handovers.staff());
+          }
         }
         final inventory = find<InventoryRepository>();
-        if (inventory != null) details.add(() => inventory.residences());
+        if (inventory != null && _can(session, 'inventory:read')) {
+          details.add(() => inventory.residences());
+        }
         final checks = find<RecurringChecksRepository>();
-        if (checks != null) {
+        if (checks != null && _can(session, 'recurring-checks:read')) {
           details.add(() => checks.residences());
-          details.add(() => checks.staff());
+          if (_can(session, 'staff:read') || _can(session, 'staff:directory')) {
+            details.add(() => checks.staff());
+          }
         }
         final training = find<HrTrainingRepository>();
-        if (training != null) {
-          details.add(() => training.staff());
-          details.add(() => training.staffCategories());
+        if (training != null && _can(session, 'training:read')) {
+          if (_can(session, 'staff:read') || _can(session, 'staff:directory')) {
+            details.add(() => training.staff());
+          }
+          if (_can(session, 'staff-categories:read')) {
+            details.add(() => training.staffCategories());
+          }
           details.add(() => training.residences());
         }
         final profile = find<HrProfileSettingsRepository>();

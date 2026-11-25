@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/constants/app_colors.dart';
+import '../../../../../core/time/tenant_clock.dart';
 import '../../../handovers/presentation/widgets/handover_common.dart';
 import '../../../presentation/widgets/hr_directory_widgets.dart';
 import '../../domain/entities/client_summary.dart';
@@ -83,12 +84,7 @@ class _DeletedClientsSheetState extends State<DeletedClientsSheet> {
         _ => ClientsLabels.humanise(value),
       };
 
-  static String _when(DateTime? value) {
-    if (value == null) return '—';
-    final local = value.toLocal();
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${ClientsLabels.date(local)} ${two(local.hour)}:${two(local.minute)}';
-  }
+  static String _when(DateTime? value) => TenantClock.formatDateTime(value);
 
   @override
   Widget build(BuildContext context) {

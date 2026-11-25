@@ -230,7 +230,7 @@ class _DailyActivityPersonPickerState extends State<DailyActivityPersonPicker> {
           ),
         const SizedBox(height: 5),
         Text(
-          error ?? 'Type to search $lower',
+          error ?? 'Tap to browse or type to filter $lower',
           style: handoverText(
             context,
             12,

@@ -110,19 +110,50 @@ abstract final class AppFilePicker {
     );
   }
 
+  static const MethodChannel _mediaStore =
+      MethodChannel('com.comprehensive_hr_and_ops/media_store');
+
   static Future<FilePickerResult?> _fromCamera(
     CameraDevice preferredCamera,
     bool withData,
   ) async {
     try {
+      // Android camera capture is launched here so the output URI grant is
+      // set on the intent. image_picker leaves that grant implicit, which
+      // closes the app when taking a profile photo.
+      if (Platform.isAndroid) {
+        final path = await _mediaStore.invokeMethod<String>('captureImage', {
+          'front': preferredCamera == CameraDevice.front,
+        });
+        if (path == null || path.isEmpty) return null;
+        final file = File(path);
+        final bytes = withData ? await file.readAsBytes() : null;
+        return FilePickerResult([
+          PlatformFile(
+            path: path,
+            name: path.split(Platform.pathSeparator).last,
+            size: bytes?.length ?? await file.length(),
+            bytes: bytes,
+          ),
+        ]);
+      }
       final photo = await ImagePicker().pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: preferredCamera,
+        maxWidth: 1600,
+        imageQuality: 85,
       );
       if (photo == null) return null;
       return FilePickerResult([await _toPlatformFile(photo, withData)]);
     } on PlatformException catch (error) {
       _showAccessError(error, camera: true);
+      return null;
+    } catch (_) {
+      AppSnackbar.show(
+        'Camera unavailable',
+        'The photo could not be saved. Please try again.',
+        force: true,
+      );
       return null;
     }
   }

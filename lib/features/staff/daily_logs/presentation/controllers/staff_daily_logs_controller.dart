@@ -55,6 +55,34 @@ class StaffDailyLogsController extends BaseController<StaffDailyLogsOverview> {
 
   void selectTab(StaffDailyLogsTab tab) => selectedTab.value = tab;
 
+  /// Web "Open day" / "Write entry": select resident + log date, then Resident day.
+  /// Does not open a separate Daily Note screen (absent from web Daily Logs).
+  Future<void> openDay(StaffClientLogEntry entry) async {
+    final clientId = entry.clientId.trim();
+    if (clientId.isEmpty) return;
+
+    final residenceId = entry.residenceId?.trim();
+    if (residenceId != null && residenceId.isNotEmpty) {
+      selectedResidenceId.value = residenceId;
+    }
+    selectedClientId.value = clientId;
+
+    final iso = entry.logDateIso?.trim();
+    if (iso != null && iso.isNotEmpty) {
+      final parsed = DateTime.tryParse(iso.length >= 10 ? iso.substring(0, 10) : iso);
+      if (parsed != null) {
+        final day = DateTime(parsed.year, parsed.month, parsed.day);
+        toDate.value = day;
+        if (fromDate.value.isAfter(day)) {
+          fromDate.value = day;
+        }
+      }
+    }
+
+    selectedTab.value = StaffDailyLogsTab.residentDay;
+    await loadOverview();
+  }
+
   Future<void> setResidence(String? residenceId) async {
     selectedResidenceId.value =
         (residenceId == null || residenceId.isEmpty) ? null : residenceId;

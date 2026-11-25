@@ -5,6 +5,7 @@ import '../../../../../../core/constants/app_assets.dart';
 import '../../../../../../core/constants/app_colors.dart';
 import '../../../../../../core/widgets/app_svg_icon.dart';
 import '../../../domain/entities/create_shift_draft.dart';
+import '../../../domain/entities/shift_staff_conflict.dart';
 import '../../../domain/entities/shift_staff_option.dart';
 import 'create_shift_fields.dart';
 import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
@@ -12,26 +13,48 @@ import 'package:comprehensive_hr_and_ops/core/widgets/app_bottom_sheet.dart';
 const Color _avatarFill = Color(0xFFEAF0FE);
 const Color _avatarText = Color(0xFF8E88B1);
 
-/// "Staff Assignment" step — multi-select staff picker plus one expandable
-/// task card (title, description, checklist, note) per assignee.
+/// "Staff Assignment" step — web staffing method (Assign Staff | Open Shift)
+/// side-by-side, then either assignees or open-shift bidding fields.
 class CreateShiftStaffAssignmentForm extends StatelessWidget {
   final List<AssignedShiftStaff> assignedStaff;
-  final String? expandedStaffId;
+  final List<PendingShiftBid> pendingBids;
   final bool isLoadingStaff;
+  final bool isOpenShift;
+  final ValueChanged<bool> onOpenShiftChanged;
+  final Widget? openShiftFields;
   final VoidCallback onAddStaff;
   final ValueChanged<String> onRemoveStaff;
-  final ValueChanged<String> onToggleExpand;
-  final VoidCallback onChanged;
+  final Future<void> Function(PendingShiftBid bid)? onAcceptBid;
+  final Future<void> Function(PendingShiftBid bid)? onRejectBid;
+  final List<ShiftScheduleConflict> scheduleConflicts;
+  final List<ShiftLeaveConflict> leaveConflicts;
+  final List<ShiftRestConflict> restConflicts;
+  final int? minimumRestHours;
+  final TextEditingController? restOverrideReasonController;
+  final String? restOverrideReasonError;
+  final ValueChanged<String>? onRestOverrideReasonChanged;
+  final String? residenceName;
 
   const CreateShiftStaffAssignmentForm({
     super.key,
     required this.assignedStaff,
-    required this.expandedStaffId,
+    required this.isOpenShift,
+    required this.onOpenShiftChanged,
     required this.onAddStaff,
     required this.onRemoveStaff,
-    required this.onToggleExpand,
-    required this.onChanged,
+    this.pendingBids = const [],
+    this.onAcceptBid,
+    this.onRejectBid,
+    this.openShiftFields,
     this.isLoadingStaff = false,
+    this.scheduleConflicts = const [],
+    this.leaveConflicts = const [],
+    this.restConflicts = const [],
+    this.minimumRestHours,
+    this.restOverrideReasonController,
+    this.restOverrideReasonError,
+    this.onRestOverrideReasonChanged,
+    this.residenceName,
   });
 
   @override
@@ -46,45 +69,504 @@ class CreateShiftStaffAssignmentForm extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CreateShiftSectionHeader(
-            title: 'Staff Assignment',
-            description:
-                "Assign staff members to this shift and configure each person's tasks, or leave it open for bidding.",
+          CreateShiftSectionHeader(
+            title: isOpenShift
+                ? 'Staffing · Open Shift'
+                : 'Staffing · Staff Assignment',
+            description: isOpenShift
+                ? 'Configure bidding rules, deadlines, and broadcast to qualified staff.'
+                : 'Assign qualified team members directly to this shift, or publish as an open shift.',
           ),
-          const CreateShiftFieldLabel('Assigned Staff'),
-          _StaffMultiSelectField(
-            assignedStaff: assignedStaff,
-            isLoading: isLoadingStaff,
-            onTap: onAddStaff,
-            onRemove: onRemoveStaff,
+          const CreateShiftFieldLabel('Staffing Method'),
+          _StaffingMethodToggle(
+            isOpenShift: isOpenShift,
+            onChanged: onOpenShiftChanged,
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
-          Text(
-            'Assigned Staff (${assignedStaff.length})',
+          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+          if (isOpenShift) ...[
+            _OpenShiftBroadcast(residenceName: residenceName),
+            if (pendingBids.isNotEmpty &&
+                (onAcceptBid != null || onRejectBid != null)) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+              _PendingBidsSection(
+                bids: pendingBids,
+                onAccept: onAcceptBid,
+                onReject: onRejectBid,
+              ),
+            ],
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 16)),
+            ?openShiftFields,
+          ] else ...[
+            const CreateShiftFieldLabel('Assigned Staff'),
+            _StaffMultiSelectField(
+              assignedStaff: assignedStaff,
+              isLoading: isLoadingStaff,
+              onTap: onAddStaff,
+              onRemove: onRemoveStaff,
+            ),
+            // Web order: rest → leave → overlap (`data-testid` shift-rest / leave / conflicts).
+            if (restConflicts.isNotEmpty) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              _ShiftConflictBanner(
+                key: const ValueKey('shift-rest'),
+                title:
+                    "Less than ${minimumRestHours ?? "the minimum"} hours' rest",
+                lines: [
+                  for (final row in restConflicts)
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                          color: AppColors.textHeading,
+                          height: 1.35,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: row.staffName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(
+                            text:
+                                ' would have only ${row.restHoursLabel} hours between this shift and ${row.label}.',
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                footer: restOverrideReasonController == null
+                    ? null
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: CreateShiftFieldLabel(
+                                  'Reason to roster anyway',
+                                  required: true,
+                                ),
+                              ),
+                              Text(
+                                CreateShiftRestOverride.counterLabel(
+                                  restOverrideReasonController!.text,
+                                ),
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize:
+                                      ResponsiveHelper.getResponsiveFontSize(
+                                    context,
+                                    11,
+                                  ),
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                          CreateShiftTextField(
+                            key: const ValueKey('shift-rest-override-reason'),
+                            controller: restOverrideReasonController!,
+                            hint:
+                                'e.g. Emergency cover — two carers off sick, no one else available',
+                            maxLines: 3,
+                            maxLength: CreateShiftRestOverride.maxLength,
+                            keyboardType: TextInputType.multiline,
+                            hasError: restOverrideReasonError != null,
+                            onChanged: onRestOverrideReasonChanged,
+                          ),
+                          if (restOverrideReasonError != null)
+                            CreateShiftErrorText(restOverrideReasonError!)
+                          else
+                            const CreateShiftHelperText(
+                              'Saved with the shift and kept in the audit log. Or choose someone else.',
+                            ),
+                        ],
+                      ),
+              ),
+            ],
+            if (leaveConflicts.isNotEmpty) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              _ShiftConflictBanner(
+                key: const ValueKey('shift-leave'),
+                title: 'On approved time off',
+                lines: [
+                  for (final row in leaveConflicts)
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                          color: AppColors.textHeading,
+                          height: 1.35,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: row.staffName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(
+                            text:
+                                ' is off ${row.label}. Remove them or choose another day to continue.',
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            if (scheduleConflicts.isNotEmpty) ...[
+              SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+              _ShiftConflictBanner(
+                key: const ValueKey('shift-conflicts'),
+                title: 'Already rostered at these hours',
+                lines: [
+                  for (final row in scheduleConflicts)
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize:
+                              ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+                          color: AppColors.textHeading,
+                          height: 1.35,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: row.staffName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(
+                            text:
+                                ' is on ${row.label}${row.residenceName == null || row.residenceName!.isEmpty ? '' : ' at ${row.residenceName}'}. Remove them or change the shift\'s hours to continue.',
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 20)),
+            Text(
+              'Assigned Staff (${assignedStaff.length})',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w600,
+                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+                color: AppColors.textHeading,
+              ),
+            ),
+            SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
+            if (assignedStaff.isEmpty)
+              const _EmptyAssignedStaff()
+            else
+              for (final staff in assignedStaff) ...[
+                _AssignedStaffCard(
+                  key: ValueKey('assigned-staff-${staff.staffId}'),
+                  staff: staff,
+                  onRemove: () => onRemoveStaff(staff.staffId),
+                ),
+                SizedBox(
+                  height: ResponsiveHelper.getResponsiveHeight(context, 12),
+                ),
+              ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StaffingMethodToggle extends StatelessWidget {
+  final bool isOpenShift;
+  final ValueChanged<bool> onChanged;
+
+  const _StaffingMethodToggle({
+    required this.isOpenShift,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const ValueKey('create-shift-staffing-method'),
+      children: [
+        _MethodChip(
+          key: const ValueKey('create-shift-method-assign'),
+          label: 'Assign Specific Staff',
+          subtitle: 'Pick team members to staff this shift directly.',
+          icon: Icons.person_outline_rounded,
+          selected: !isOpenShift,
+          onTap: () => onChanged(false),
+        ),
+        const SizedBox(height: 8),
+        _MethodChip(
+          key: const ValueKey('create-shift-method-open'),
+          label: 'Publish as Open Shift',
+          subtitle: 'Broadcast to qualified staff to claim or submit bids.',
+          icon: Icons.campaign_outlined,
+          selected: isOpenShift,
+          onTap: () => onChanged(true),
+        ),
+      ],
+    );
+  }
+}
+
+class _MethodChip extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _MethodChip({
+    super.key,
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.surfaceWhite : AppColors.filterButtonBackground,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? AppColors.secondaryTeal : AppColors.cardBorder,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: selected ? AppColors.textHeading : AppColors.textMuted,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w700,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          14,
+                        ),
+                        color: AppColors.textHeading,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w400,
+                        fontSize: ResponsiveHelper.getResponsiveFontSize(
+                          context,
+                          12,
+                        ),
+                        color: AppColors.textSecondary,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingBidsSection extends StatefulWidget {
+  final List<PendingShiftBid> bids;
+  final Future<void> Function(PendingShiftBid bid)? onAccept;
+  final Future<void> Function(PendingShiftBid bid)? onReject;
+
+  const _PendingBidsSection({
+    required this.bids,
+    this.onAccept,
+    this.onReject,
+  });
+
+  @override
+  State<_PendingBidsSection> createState() => _PendingBidsSectionState();
+}
+
+class _PendingBidsSectionState extends State<_PendingBidsSection> {
+  String? _busyBidId;
+
+  Future<void> _run(
+    PendingShiftBid bid,
+    Future<void> Function(PendingShiftBid bid)? action,
+  ) async {
+    if (action == null || _busyBidId != null) return;
+    setState(() => _busyBidId = bid.bidId);
+    try {
+      await action(bid);
+    } finally {
+      if (mounted) setState(() => _busyBidId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const CreateShiftFieldLabel('Pending bids'),
+        Text(
+          '${widget.bids.length} staff ${widget.bids.length == 1 ? 'has' : 'have'} bid for this shift',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w500,
+            fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
+            color: AppColors.textSecondary,
+          ),
+        ),
+        SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 8)),
+        for (final bid in widget.bids) ...[
+          Container(
+            width: double.infinity,
+            margin: EdgeInsets.only(
+              bottom: ResponsiveHelper.getResponsiveHeight(context, 8),
+            ),
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+            decoration: BoxDecoration(
+              color: AppColors.filterButtonBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bid.staffName,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppColors.textHeading,
+                        ),
+                      ),
+                      if (bid.note.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          bid.note.trim(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (_busyBidId == bid.bidId)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else ...[
+                  if (widget.onReject != null)
+                    TextButton(
+                      onPressed: _busyBidId != null
+                          ? null
+                          : () => _run(bid, widget.onReject),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.criticalRed,
+                      ),
+                      child: const Text('Reject'),
+                    ),
+                  if (widget.onAccept != null)
+                    TextButton(
+                      onPressed: _busyBidId != null
+                          ? null
+                          : () => _run(bid, widget.onAccept),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.secondaryTeal,
+                      ),
+                      child: const Text('Accept'),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _OpenShiftBroadcast extends StatelessWidget {
+  final String? residenceName;
+
+  const _OpenShiftBroadcast({this.residenceName});
+
+  @override
+  Widget build(BuildContext context) {
+    final home = residenceName?.trim();
+    final where = home == null || home.isEmpty
+        ? 'all eligible staff'
+        : 'all eligible staff assigned to $home';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.filterButtonBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Open Shift Broadcast',
             style: TextStyle(
               fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 14),
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
               color: AppColors.textHeading,
             ),
           ),
-          SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 12)),
-          if (assignedStaff.isEmpty)
-            const _EmptyAssignedStaff()
-          else
-            for (final staff in assignedStaff) ...[
-              _AssignedStaffCard(
-                key: ValueKey('assigned-staff-${staff.staffId}'),
-                staff: staff,
-                expanded: expandedStaffId == staff.staffId,
-                onToggleExpand: () => onToggleExpand(staff.staffId),
-                onRemove: () => onRemoveStaff(staff.staffId),
-                onChanged: onChanged,
-              ),
-              SizedBox(
-                height: ResponsiveHelper.getResponsiveHeight(context, 12),
-              ),
-            ],
+          const SizedBox(height: 4),
+          Text(
+            'This shift will be published for bidding and broadcast to $where. '
+            'Qualified team members can submit bids until the deadline according to the rules below.',
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w400,
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
         ],
       ),
     );
@@ -246,7 +728,7 @@ class _EmptyAssignedStaff extends StatelessWidget {
         border: Border.all(color: AppColors.searchBorder),
       ),
       child: Text(
-        'No staff assigned yet. Select above to add someone, or leave this shift open in the next step.',
+        'No staff assigned yet. Select above to add someone, or choose Publish as Open Shift above to let staff bid.',
         textAlign: TextAlign.center,
         style: TextStyle(
           fontFamily: 'Outfit',
@@ -260,81 +742,19 @@ class _EmptyAssignedStaff extends StatelessWidget {
   }
 }
 
-class _AssignedStaffCard extends StatefulWidget {
+/// Web staffing cards list name + residence only — no per-staff Task Assignment.
+class _AssignedStaffCard extends StatelessWidget {
   final AssignedShiftStaff staff;
-  final bool expanded;
-  final VoidCallback onToggleExpand;
   final VoidCallback onRemove;
-  final VoidCallback onChanged;
 
   const _AssignedStaffCard({
     super.key,
     required this.staff,
-    required this.expanded,
-    required this.onToggleExpand,
     required this.onRemove,
-    required this.onChanged,
   });
 
   @override
-  State<_AssignedStaffCard> createState() => _AssignedStaffCardState();
-}
-
-class _AssignedStaffCardState extends State<_AssignedStaffCard> {
-  late final TextEditingController _titleController;
-  late final TextEditingController _descriptionController;
-  late final TextEditingController _noteController;
-  late final TextEditingController _checklistController;
-
-  AssignedShiftStaff get _staff => widget.staff;
-
-  @override
-  void initState() {
-    super.initState();
-    _titleController = TextEditingController(text: _staff.taskTitle);
-    _descriptionController =
-        TextEditingController(text: _staff.taskDescription);
-    _noteController = TextEditingController(text: _staff.note);
-    _checklistController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _noteController.dispose();
-    _checklistController.dispose();
-    super.dispose();
-  }
-
-  void _addChecklistItem() {
-    final label = _checklistController.text.trim();
-    if (label.isEmpty) return;
-    setState(() {
-      _staff.checklist.add(
-        ShiftChecklistItem(
-          id: 'chk-${DateTime.now().microsecondsSinceEpoch}',
-          label: label,
-        ),
-      );
-      _checklistController.clear();
-    });
-    widget.onChanged();
-  }
-
-  void _removeChecklistItem(ShiftChecklistItem item) {
-    setState(() => _staff.checklist.remove(item));
-    widget.onChanged();
-  }
-
-  void _toggleChecklistItem(ShiftChecklistItem item, bool done) {
-    setState(() => item.done = done);
-    widget.onChanged();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final steps = _staff.checklist.length;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceWhite,
@@ -352,316 +772,142 @@ class _AssignedStaffCardState extends State<_AssignedStaffCard> {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: ResponsiveHelper.getResponsivePadding(
-              context,
-              horizontal: 14,
-              vertical: 12,
+      child: Padding(
+        padding: ResponsiveHelper.getResponsivePadding(
+          context,
+          horizontal: 14,
+          vertical: 12,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: ResponsiveHelper.getResponsiveSize(context, 36),
+              height: ResponsiveHelper.getResponsiveSize(context, 36),
+              decoration: const BoxDecoration(
+                color: _avatarFill,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                staff.initials,
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize:
+                      ResponsiveHelper.getResponsiveFontSize(context, 12),
+                  color: _avatarText,
+                ),
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    key: ValueKey('assigned-staff-toggle-${_staff.staffId}'),
-                    onTap: widget.onToggleExpand,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: ResponsiveHelper.getResponsiveSize(context, 36),
-                          height: ResponsiveHelper.getResponsiveSize(context, 36),
-                          decoration: const BoxDecoration(
-                            color: _avatarFill,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            _staff.initials,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                              fontSize:
-                                  ResponsiveHelper.getResponsiveFontSize(context, 12),
-                              color: _avatarText,
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: ResponsiveHelper.getResponsiveWidth(context, 12),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _staff.staffName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                    context,
-                                    14,
-                                  ),
-                                  color: AppColors.textHeading,
-                                ),
-                              ),
-                              Text(
-                                _staff.subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w400,
-                                  fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                    context,
-                                    12,
-                                  ),
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (steps > 0)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  AppColors.secondaryTeal.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Text(
-                              '$steps step${steps == 1 ? '' : 's'}',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w600,
-                                fontSize: ResponsiveHelper.getResponsiveFontSize(
-                                  context,
-                                  11,
-                                ),
-                                color: AppColors.secondaryTeal,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(width: 6),
-                        AnimatedRotation(
-                          turns: widget.expanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 150),
-                          child: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 20,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                      ],
+            SizedBox(
+              width: ResponsiveHelper.getResponsiveWidth(context, 12),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    staff.staffName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(
+                        context,
+                        14,
+                      ),
+                      color: AppColors.textHeading,
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: widget.onRemove,
-                  tooltip: 'Remove ${_staff.staffName}',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    size: 18,
-                    color: AppColors.textMuted,
+                  Text(
+                    staff.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w400,
+                      fontSize: ResponsiveHelper.getResponsiveFontSize(
+                        context,
+                        12,
+                      ),
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          if (widget.expanded) _buildTaskBody(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTaskBody(BuildContext context) {
-    final gap = SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 14));
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.cardBorder)),
-      ),
-      padding: ResponsiveHelper.getResponsivePadding(
-        context,
-        horizontal: 14,
-        top: 14,
-        bottom: 16,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Task Assignment',
-            style: TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-              color: AppColors.textHeading,
-            ),
-          ),
-          gap,
-          const CreateShiftFieldLabel('Task Title'),
-          CreateShiftTextField(
-            key: ValueKey('task-title-${_staff.staffId}'),
-            controller: _titleController,
-            hint: 'e.g. Morning medication round',
-            onChanged: (value) {
-              _staff.taskTitle = value;
-              widget.onChanged();
-            },
-          ),
-          const CreateShiftHelperText(
-            'Leave empty to assign the shift without a task.',
-          ),
-          gap,
-          const CreateShiftFieldLabel('Task Description'),
-          CreateShiftTextField(
-            key: ValueKey('task-description-${_staff.staffId}'),
-            controller: _descriptionController,
-            hint:
-                'Describe what this staff member is responsible for during this shift…',
-            maxLines: 3,
-            keyboardType: TextInputType.multiline,
-            onChanged: (value) {
-              _staff.taskDescription = value;
-              widget.onChanged();
-            },
-          ),
-          gap,
-          const CreateShiftFieldLabel('Task Checklist'),
-          for (final item in _staff.checklist) ...[
-            _ChecklistRow(
-              item: item,
-              onToggle: (done) => _toggleChecklistItem(item, done),
-              onRemove: () => _removeChecklistItem(item),
-            ),
-            const SizedBox(height: 8),
-          ],
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final input = CreateShiftTextField(
-                key: ValueKey('checklist-input-${_staff.staffId}'),
-                controller: _checklistController,
-                hint: 'Add a checklist item…',
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _addChecklistItem(),
-              );
-              final button = _addChecklistButton(context);
-              if (constraints.maxWidth < 400) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [input, const SizedBox(height: 8), button],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: input),
-                  const SizedBox(width: 8),
-                  button,
                 ],
-              );
-            },
-          ),
-          gap,
-          const CreateShiftFieldLabel('Note'),
-          CreateShiftTextField(
-            key: ValueKey('task-note-${_staff.staffId}'),
-            controller: _noteController,
-            hint: 'Any special instructions for this task…',
-            onChanged: (value) {
-              _staff.note = value;
-              widget.onChanged();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _addChecklistButton(BuildContext context) {
-    return OutlinedButton.icon(
-      key: ValueKey('checklist-add-${_staff.staffId}'),
-      onPressed: _addChecklistItem,
-      icon: const Icon(Icons.add_rounded, size: 16),
-      label: const Text('Add checklist item'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.secondaryTeal,
-        backgroundColor: AppColors.secondaryTeal.withValues(alpha: 0.05),
-        side: BorderSide(
-          color: AppColors.secondaryTeal.withValues(alpha: 0.4),
-        ),
-        textStyle: TextStyle(
-          fontFamily: 'Outfit',
-          fontWeight: FontWeight.w600,
-          fontSize: ResponsiveHelper.getResponsiveFontSize(context, 12.5),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            IconButton(
+              onPressed: onRemove,
+              tooltip: 'Remove ${staff.staffName}',
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: AppColors.textMuted,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _ChecklistRow extends StatelessWidget {
-  final ShiftChecklistItem item;
-  final ValueChanged<bool> onToggle;
-  final VoidCallback onRemove;
+class _ShiftConflictBanner extends StatelessWidget {
+  final String title;
+  final List<Widget> lines;
+  final Widget? footer;
 
-  const _ChecklistRow({
-    required this.item,
-    required this.onToggle,
-    required this.onRemove,
+  const _ShiftConflictBanner({
+    super.key,
+    required this.title,
+    required this.lines,
+    this.footer,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceWhite,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: AppColors.searchBorder),
+        color: AppColors.urgentAmber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.urgentAmber.withValues(alpha: 0.4),
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Checkbox(
-            value: item.done,
-            onChanged: (value) => onToggle(value == true),
-            activeColor: AppColors.secondaryTeal,
-            visualDensity: VisualDensity.compact,
-          ),
-          Expanded(
-            child: Text(
-              item.label,
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.w400,
-                fontSize: ResponsiveHelper.getResponsiveFontSize(context, 13),
-                color: AppColors.textHeading,
+          Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 14,
+                color: AppColors.urgentAmber,
               ),
-            ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.w600,
+                    fontSize:
+                        ResponsiveHelper.getResponsiveFontSize(context, 13),
+                    color: AppColors.urgentAmber,
+                  ),
+                ),
+              ),
+            ],
           ),
-          IconButton(
-            onPressed: onRemove,
-            tooltip: 'Remove checklist item',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(
-              Icons.close_rounded,
-              size: 14,
-              color: AppColors.textMuted,
-            ),
-          ),
+          for (final line in lines) ...[
+            const SizedBox(height: 6),
+            line,
+          ],
+          ?footer,
         ],
       ),
     );
@@ -675,6 +921,7 @@ Future<void> showCreateShiftStaffPicker({
   required List<ShiftStaffOption> options,
   required Set<String> selectedIds,
   required ValueChanged<ShiftStaffOption> onToggle,
+  Set<String> hasShiftIds = const {},
   String? errorMessage,
   VoidCallback? onRetry,
 }) {
@@ -688,6 +935,7 @@ Future<void> showCreateShiftStaffPicker({
     builder: (sheetContext) => _StaffPickerSheet(
       options: options,
       selectedIds: {...selectedIds},
+      hasShiftIds: hasShiftIds,
       onToggle: onToggle,
       errorMessage: errorMessage,
       onRetry: onRetry,
@@ -698,6 +946,7 @@ Future<void> showCreateShiftStaffPicker({
 class _StaffPickerSheet extends StatefulWidget {
   final List<ShiftStaffOption> options;
   final Set<String> selectedIds;
+  final Set<String> hasShiftIds;
   final ValueChanged<ShiftStaffOption> onToggle;
   final String? errorMessage;
   final VoidCallback? onRetry;
@@ -706,6 +955,7 @@ class _StaffPickerSheet extends StatefulWidget {
     required this.options,
     required this.selectedIds,
     required this.onToggle,
+    this.hasShiftIds = const {},
     this.errorMessage,
     this.onRetry,
   });
@@ -835,6 +1085,8 @@ class _StaffPickerSheetState extends State<_StaffPickerSheet> {
                               final option = filtered[index];
                               final selected =
                                   widget.selectedIds.contains(option.id);
+                              final hasShift =
+                                  widget.hasShiftIds.contains(option.id);
                               return CheckboxListTile(
                                 key: ValueKey('staff-option-${option.id}'),
                                 value: selected,
@@ -842,7 +1094,9 @@ class _StaffPickerSheetState extends State<_StaffPickerSheet> {
                                 controlAffinity: ListTileControlAffinity.leading,
                                 dense: true,
                                 title: Text(
-                                  option.name,
+                                  hasShift
+                                      ? '${option.name} • (Has Shift)'
+                                      : option.name,
                                   style: const TextStyle(
                                     fontFamily: 'Outfit',
                                     fontWeight: FontWeight.w500,

@@ -2,12 +2,14 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/config/app_env.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/residence_detail_tabs.dart';
 import '../../domain/entities/residence_form.dart';
 import '../../domain/entities/residence_summary.dart';
@@ -238,6 +240,31 @@ class ResidencesRepositoryImpl
       );
 
   @override
+  Future<Result<void>> updateRoom(
+    String residenceId,
+    String roomId, {
+    required String name,
+    required int capacity,
+    String? floor,
+    String? wing,
+    String? roomType,
+  }) =>
+      _send(
+        _api.patch(
+          ResidencesEndpoints.room(residenceId, roomId),
+          data: {
+            'name': name,
+            'capacity': capacity,
+            'floor': ?floor,
+            'wing': ?wing,
+            'roomType': ?roomType,
+          },
+          silent: true,
+          allowQueue: false,
+        ),
+      );
+
+  @override
   Future<Result<void>> archiveRoom(String residenceId, String roomId) => _send(
         _api.delete(
           ResidencesEndpoints.room(residenceId, roomId),
@@ -344,6 +371,10 @@ class ResidencesRepositoryImpl
 
   @override
   Future<Result<List<ResidenceStaffOption>>> getStaffOptions() async {
+    if (!Get.isRegistered<UserSession>() ||
+        !Get.find<UserSession>().canReadStaffList) {
+      return Result.success(const []);
+    }
     final result = await _api.get(
       ResidencesEndpoints.staff,
       query: const {'page': 1, 'limit': 100},

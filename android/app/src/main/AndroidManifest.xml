@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <!-- Clock in/out records where and who (Attendance). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
@@ -28,9 +29,12 @@
         android:name="android.permission.READ_MEDIA_AUDIO"
         tools:node="remove" />
     <application
-        android:label="comprehensive_hr_and_ops"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:label="Care House"
+        android:name=".CarehouseApplication"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        tools:replace="android:allowBackup">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -48,9 +52,34 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- app_links receives the shift email URL. Flutter's own
+                 handler would drop /dashboard/scheduling. -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Multi-tenant App Links: verify against root
+                 https://encoderittest.store/.well-known/assetlinks.json -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="*.encoderittest.store"
+                    android:pathPrefix="/dashboard/scheduling" />
+            </intent-filter>
+            <!-- Custom scheme parity with hrcare://shifts/<id> -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="hrcare"
+                    android:host="shifts" />
             </intent-filter>
         </activity>
         <provider
@@ -67,6 +96,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_message" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="messages_high" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -81,6 +116,11 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:mimeType="application/pdf"/>
+        </intent>
+        <!-- Android 11+ hides the camera app unless this is declared, so
+             Take photo cannot grant the camera a place to save the picture. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE"/>
         </intent>
     </queries>
 </manifest>

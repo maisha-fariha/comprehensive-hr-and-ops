@@ -61,6 +61,26 @@ class BoardShiftCard extends StatelessWidget {
                           color: AppColors.textMuted,
                         ),
                       ),
+                      if ((shift.residenceName ?? '').trim().isNotEmpty) ...[
+                        SizedBox(
+                          height:
+                              ResponsiveHelper.getResponsiveHeight(context, 2),
+                        ),
+                        Text(
+                          shift.residenceName!.trim(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w500,
+                            fontSize: ResponsiveHelper.getResponsiveFontSize(
+                              context,
+                              11,
+                            ),
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -79,12 +99,14 @@ class BoardShiftCard extends StatelessWidget {
                     ),
                     SizedBox(height: ResponsiveHelper.getResponsiveHeight(context, 3)),
                     Text(
-                      shift.statusLabel,
+                      shift.isDraft ? 'DRAFT' : shift.statusLabel,
                       style: TextStyle(
                         fontFamily: 'Outfit',
                         fontWeight: FontWeight.w600,
                         fontSize: ResponsiveHelper.getResponsiveFontSize(context, 10.5),
-                        color: style.accent,
+                        color: shift.isDraft
+                            ? AppColors.urgentAmber
+                            : style.accent,
                       ),
                     ),
                   ],

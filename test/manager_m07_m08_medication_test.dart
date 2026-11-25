@@ -7,12 +7,13 @@ import 'package:comprehensive_hr_and_ops/features/hr/medication/data/mappers/med
 import 'package:comprehensive_hr_and_ops/features/hr/medication/data/repositories/medication_repository_impl.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_administration.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_medication.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_medication_stock.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_options.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/entities/mar_round.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/domain/repositories/medication_repository.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/presentation/controllers/medication_controller.dart';
 import 'package:comprehensive_hr_and_ops/features/hr/medication/presentation/mar_row.dart';
-import 'package:comprehensive_hr_and_ops/features/hr/medication/presentation/pages/medication_page.dart';
+import 'package:comprehensive_hr_and_ops/features/hr/medication/presentation/pages/medication_page_legacy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -202,12 +203,39 @@ class _FakeRepo implements MedicationRepository {
       );
 
   @override
-  Future<Result<List<MarMedication>>> medications({String? residenceId}) async =>
+  Future<Result<List<MarMedication>>> medications({
+    String? residenceId,
+    String? type,
+  }) async =>
       Result.success(List.of(meds));
 
   @override
   Future<Result<List<MarMedication>>> prnMedications({String? residenceId}) async =>
       Result.success(List.of(prnList));
+
+  @override
+  Future<Result<List<MarMedicationStock>>> medicationStock({
+    String? residenceId,
+  }) async =>
+      Result.success(const []);
+
+  @override
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  ) async {
+    calls.add('setStock');
+    return Result.success(
+      MarMedicationStock(
+        id: 'stock-1',
+        residenceId: draft.residenceId,
+        medicationId: draft.medicationId,
+        prnMedicationId: draft.prnMedicationId,
+        quantity: draft.quantity,
+        unit: draft.unit,
+        refillThreshold: draft.refillThreshold,
+      ),
+    );
+  }
 
   @override
   Future<Result<List<MarAdministration>>> administrations() async => Result.success(List.of(givenList));
@@ -405,7 +433,7 @@ Future<_FakeRepo> _open(
       },
     ),
   );
-  await tester.pumpWidget(_app(const MedicationPage()));
+  await tester.pumpWidget(_app(const MedicationPageLegacy()));
   await tester.pumpAndSettle();
   return fake;
 }
@@ -607,6 +635,7 @@ void main() {
         'startsAt': '2026-10-01T00:00:00.000Z',
         'endsAt': null,
         'stockUnitsPerDose': 1,
+        'costPerDose': null,
         'requiresCheckScheduleId': 'chk1',
         'requiresCheckWithinMinutes': 60,
       });
@@ -628,6 +657,7 @@ void main() {
         'isControlled': false,
         'minIntervalMinutes': 240,
         'stockUnitsPerDose': null,
+        'costPerDose': null,
         'startsAt': null,
         'endsAt': null,
         'requiresCheckScheduleId': null,

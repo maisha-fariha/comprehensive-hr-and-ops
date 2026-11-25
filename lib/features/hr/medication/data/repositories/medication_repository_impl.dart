@@ -2,14 +2,19 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:gems_core/gems_core.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
 
 import '../../../../../core/config/app_env.dart';
+import '../../../../../core/network/api_endpoints.dart';
+import '../../../../../core/network/api_page_fetcher.dart';
 import '../../../../../core/network/app_api_client.dart';
 import '../../../../../core/network/json_codec.dart';
 import '../../../../../core/network/tenant_store.dart';
 import '../../../../../core/network/token_store.dart';
+import '../../../../../core/roles/user_session.dart';
 import '../../domain/entities/mar_administration.dart';
 import '../../domain/entities/mar_medication.dart';
+import '../../domain/entities/mar_medication_stock.dart';
 import '../../domain/entities/mar_options.dart';
 import '../../domain/entities/mar_round.dart';
 import '../../domain/repositories/medication_repository.dart';
@@ -72,25 +77,109 @@ class MedicationRepositoryImpl implements MedicationRepository {
       );
 
   @override
-  Future<Result<List<MarMedication>>> medications({String? residenceId}) => _get(
-        MedicationEndpoints.medications,
-        MedicationMapper.medicationsFrom,
-        query: _page(residenceId: residenceId),
-      );
+  Future<Result<List<MarMedication>>> medications({
+    String? residenceId,
+    String? type,
+  }) async {
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: MedicationEndpoints.medications,
+      query: {
+        'residenceId': ?_blank(residenceId),
+        'type': ?_blank(type),
+      },
+      pageSize: MedicationEndpoints.maxPageLimit,
+      silent: true,
+    );
+    return result.when(
+      success: (rows) =>
+          Result.success(MedicationMapper.medicationsFrom({'data': rows})),
+      failure: Result.failure,
+    );
+  }
 
   @override
-  Future<Result<List<MarMedication>>> prnMedications({String? residenceId}) => _get(
-        MedicationEndpoints.prnMedications,
-        MedicationMapper.prnsFrom,
-        query: _page(residenceId: residenceId),
-      );
+  Future<Result<List<MarMedicationStock>>> medicationStock({
+    String? residenceId,
+  }) async {
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: MedicationEndpoints.medicationStock,
+      query: {
+        'residenceId': ?_blank(residenceId),
+      },
+      pageSize: MedicationEndpoints.maxPageLimit,
+      silent: true,
+    );
+    return result.when(
+      success: (rows) =>
+          Result.success(MedicationMapper.stocksFrom({'data': rows})),
+      failure: Result.failure,
+    );
+  }
 
   @override
-  Future<Result<List<MarAdministration>>> administrations() => _get(
-        MedicationEndpoints.administrations,
-        MedicationMapper.administrationsFrom,
-        query: const {'page': 1, 'limit': 50},
-      );
+  Future<Result<MarMedicationStock>> setMedicationStock(
+    MarStockCountDraft draft,
+  ) async {
+    final result = await _api.put(
+      MedicationEndpoints.medicationStock,
+      data: MedicationMapper.stockCountToJson(draft),
+      silent: true,
+      allowQueue: false,
+    );
+    return result.when(
+      success: (body) {
+        final map = JsonCodec.mapAt(body, 'data') ??
+            (body is Map ? JsonCodec.asMap(body) : null);
+        if (map == null) {
+          return Result.failure(
+            const ApiError(message: 'Stock count response was empty.'),
+          );
+        }
+        return Result.success(MedicationMapper.stockFrom(map));
+      },
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<List<MarMedication>>> prnMedications({
+    String? residenceId,
+  }) async {
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: MedicationEndpoints.prnMedications,
+      query: {
+        'residenceId': ?_blank(residenceId),
+      },
+      pageSize: MedicationEndpoints.maxPageLimit,
+      silent: true,
+    );
+    return result.when(
+      success: (rows) =>
+          Result.success(MedicationMapper.prnsFrom({'data': rows})),
+      failure: Result.failure,
+    );
+  }
+
+  @override
+  Future<Result<List<MarAdministration>>> administrations() async {
+    // Web Given tab walks every page; a single page truncates.
+    final result = await ApiPageFetcher.fetchAll(
+      _api,
+      path: MedicationEndpoints.administrations,
+      pageSize: MedicationEndpoints.maxPageLimit,
+      silent: true,
+    );
+    return result.when(
+      success: (rows) => Result.success([
+        for (final raw in rows.whereType<Map>())
+          MedicationMapper.administrationFrom(JsonCodec.asMap(raw)),
+      ]),
+      failure: Result.failure,
+    );
+  }
 
   @override
   Future<Result<MarResidentChart>> residentChart(String clientId) =>
@@ -111,11 +200,30 @@ class MedicationRepositoryImpl implements MedicationRepository {
       );
 
   @override
-  Future<Result<List<MarOption>>> approvedStaff() => _get(
+  Future<Result<List<MarOption>>> approvedStaff() async {
+    final canStaffRead = Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().canReadStaffList;
+    // staff:read keeps the original GET /staff + medAdminApproved filter.
+    if (canStaffRead) {
+      return _get(
         MedicationEndpoints.staff,
         MedicationMapper.approvedStaffFrom,
         query: _page(),
       );
+    }
+    // Without staff:read, never call GET /staff (backend 403). Directory is
+    // best-effort for the same approved-staff filter when the field is present.
+    final result = await _api.get(
+      ApiEndpoints.staffDirectory,
+      query: _page(),
+      silent: true,
+    );
+    return result.when(
+      success: (body) =>
+          Result.success(MedicationMapper.approvedStaffFrom(body)),
+      failure: (error) => Result.failure(error),
+    );
+  }
 
   @override
   Future<Result<List<MarOption>>> witnesses(String residenceId) => _get(

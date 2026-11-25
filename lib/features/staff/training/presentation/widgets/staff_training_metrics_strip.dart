@@ -21,7 +21,7 @@ class StaffTrainingMetricsStrip extends StatelessWidget {
               child: _MetricCard(
                 label: 'Assignments',
                 value: '${summary.assignments}',
-                subtitle: '${summary.outstanding} outstanding',
+                subtitle: 'Given out in total',
                 icon: Icons.assignment_outlined,
                 iconColor: AppColors.secondaryTeal,
                 iconBg: AppColors.quickActionCreateShiftBg,
@@ -32,7 +32,7 @@ class StaffTrainingMetricsStrip extends StatelessWidget {
               child: _MetricCard(
                 label: 'Completed',
                 value: '${summary.completed}',
-                subtitle: 'Finished courses',
+                subtitle: 'Signed off',
                 icon: Icons.check_circle_outline_rounded,
                 iconColor: AppColors.activeGreen,
                 iconBg: AppColors.activeBackground,
@@ -47,7 +47,7 @@ class StaffTrainingMetricsStrip extends StatelessWidget {
               child: _MetricCard(
                 label: 'Overdue',
                 value: '${summary.overdue}',
-                subtitle: 'Past due date',
+                subtitle: 'Past their due date',
                 icon: Icons.schedule_rounded,
                 iconColor: AppColors.urgentAmber,
                 iconBg: AppColors.urgentBackgroundSoft,
@@ -56,9 +56,9 @@ class StaffTrainingMetricsStrip extends StatelessWidget {
             SizedBox(width: gap),
             Expanded(
               child: _MetricCard(
-                label: 'Mandatory Outstanding',
+                label: 'Mandatory outstanding',
                 value: '${summary.mandatoryOutstanding}',
-                subtitle: 'Required incomplete',
+                subtitle: 'Required, not yet done',
                 icon: Icons.warning_amber_rounded,
                 iconColor: AppColors.criticalRed,
                 iconBg: AppColors.criticalBackgroundSoft,
