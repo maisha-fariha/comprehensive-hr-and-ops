@@ -62,16 +62,17 @@ class StaffDashboardController extends BaseController<StaffDashboardOverview> {
     final shift = overview?.todayShift;
     if (shift == null || clockBusy.value) return;
 
+    final shiftId = shift.shiftId;
+    final residenceId = shift.residenceId;
+    if (residenceId == null ||
+        residenceId.isEmpty ||
+        (!shift.clockedIn && (shiftId == null || shiftId.isEmpty))) {
+      return;
+    }
     clockBusy.value = true;
     final result = shift.clockedIn
-        ? await repository.checkOut(
-            shiftId: shift.shiftId,
-            residenceId: shift.residenceId,
-          )
-        : await repository.checkIn(
-            shiftId: shift.shiftId,
-            residenceId: shift.residenceId,
-          );
+        ? await repository.checkOut(shiftId: shiftId, residenceId: residenceId)
+        : await repository.checkIn(shiftId: shiftId!, residenceId: residenceId);
     clockBusy.value = false;
 
     result.when(

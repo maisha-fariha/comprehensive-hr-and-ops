@@ -454,9 +454,14 @@ class _StaffClockActionSheetState extends State<StaffClockActionSheet> {
       return shiftId;
     }();
 
+    // Clock in needs the current shift (Clock in is disabled without one).
+    if (widget.isCheckIn && (shiftIdForBody == null || shiftIdForBody.isEmpty)) {
+      setState(() => _submitting = false);
+      return;
+    }
     final result = widget.isCheckIn
         ? await _repo.checkIn(
-            shiftId: shiftIdForBody,
+            shiftId: shiftIdForBody!,
             residenceId: residenceId,
             latitude: fix?.latitude,
             longitude: fix?.longitude,

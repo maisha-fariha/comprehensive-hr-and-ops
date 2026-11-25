@@ -225,7 +225,10 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
   }
 
   @override
-  Future<Result<void>> checkIn({String? shiftId, String? residenceId}) {
+  Future<Result<void>> checkIn({
+    required String shiftId,
+    required String residenceId,
+  }) {
     return _postAttendance(
       ApiEndpoints.attendanceCheckIn,
       shiftId: shiftId,
@@ -234,7 +237,7 @@ class StaffDashboardRepositoryImpl implements StaffDashboardRepository {
   }
 
   @override
-  Future<Result<void>> checkOut({String? shiftId, String? residenceId}) {
+  Future<Result<void>> checkOut({String? shiftId, required String residenceId}) {
     return _postAttendance(
       ApiEndpoints.attendanceCheckOut,
       shiftId: shiftId,

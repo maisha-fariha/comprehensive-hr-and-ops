@@ -8,8 +8,11 @@ abstract class StaffDashboardRepository {
   Future<Result<StaffDashboardOverview>> getOverview();
 
   /// Quick Action: Clock In → `POST /attendance/check-in`.
-  Future<Result<void>> checkIn({String? shiftId, String? residenceId});
+  Future<Result<void>> checkIn({
+    required String shiftId,
+    required String residenceId,
+  });
 
   /// Quick Action: Clock Out → `POST /attendance/check-out`.
-  Future<Result<void>> checkOut({String? shiftId, String? residenceId});
+  Future<Result<void>> checkOut({String? shiftId, required String residenceId});
 }

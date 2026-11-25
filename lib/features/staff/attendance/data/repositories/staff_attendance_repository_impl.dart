@@ -95,8 +95,8 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
 
   @override
   Future<Result<void>> checkIn({
-    String? shiftId,
-    String? residenceId,
+    required String shiftId,
+    required String residenceId,
     double? latitude,
     double? longitude,
     double? accuracyMeters,
@@ -116,7 +116,7 @@ class StaffAttendanceRepositoryImpl implements StaffAttendanceRepository {
   @override
   Future<Result<void>> checkOut({
     String? shiftId,
-    String? residenceId,
+    required String residenceId,
     double? latitude,
     double? longitude,
     double? accuracyMeters,

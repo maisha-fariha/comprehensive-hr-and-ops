@@ -15,8 +15,8 @@ abstract class StaffAttendanceRepository {
 
   /// `POST /attendance/check-in`
   Future<Result<void>> checkIn({
-    String? shiftId,
-    String? residenceId,
+    required String shiftId,
+    required String residenceId,
     double? latitude,
     double? longitude,
     double? accuracyMeters,
@@ -26,7 +26,7 @@ abstract class StaffAttendanceRepository {
   /// `POST /attendance/check-out`
   Future<Result<void>> checkOut({
     String? shiftId,
-    String? residenceId,
+    required String residenceId,
     double? latitude,
     double? longitude,
     double? accuracyMeters,
