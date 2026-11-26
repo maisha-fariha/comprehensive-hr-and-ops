@@ -292,8 +292,6 @@ class _FamilyDocumentsBodyState extends State<_FamilyDocumentsBody> {
             ),
           ),
         ),
-        if (!Get.isRegistered<UserSession>() ||
-            Get.find<UserSession>().can('family:write'))
         ColoredBox(
           color: AppColors.surfaceWhite,
           child: Padding(

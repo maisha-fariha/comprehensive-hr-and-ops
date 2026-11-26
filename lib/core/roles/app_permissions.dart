@@ -133,7 +133,6 @@ abstract final class AppPermissions {
     WebNavItem('Users & Access', [
       'users:read',
       'roles:read',
-      'staff:read',
       'staff:update',
       'staff:write',
     ]),
@@ -154,10 +153,14 @@ abstract final class AppPermissions {
     WebNavItem('Medication MAR', ['mar:read'], module: 'mar'),
     WebNavItem('Inventory', ['inventory:read'], module: 'inventory'),
     WebNavItem('Reports & Analytics', ['reports:read'], module: 'reports'),
-    WebNavItem('AI Alerts & Insights', ['dashboard:read', 'notifications:read']),
+    // No permission on web: the `ai_drafting` add-on shows it.
+    WebNavItem('AI Alerts & Insights', []),
     WebNavItem('Compliance & Audit', ['compliance:read'], module: 'compliance'),
-    WebNavItem('Finance & Payroll', ['payroll:read', 'finance:read'],
-        module: 'payroll'),
+    WebNavItem(
+      'Finance & Payroll',
+      ['payroll:read', 'finance:read', 'billing:read'],
+      module: 'payroll',
+    ),
     WebNavItem('Documents Management', ['documents:read'], module: 'documents'),
     WebNavItem('Appointments', ['appointments:read'], module: 'appointments'),
     WebNavItem('Training', ['training:read'], module: 'training'),

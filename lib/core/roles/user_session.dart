@@ -97,6 +97,9 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   /// Web `tenant.modules` from `GET /me` (`/mobile/me` omits this).
   final RxMap<String, bool> _modules = <String, bool>{}.obs;
   final RxBool _modulesKnown = false.obs;
+
+  /// Web `GET /me` → `tenant.addons`.
+  final RxList<String> _addons = <String>[].obs;
   /// Families stripped after a 403 so nav hides before `/me` catches up.
   final Set<String> _deniedFamilies = <String>{};
   Future<void>? _profileRefresh;
@@ -189,6 +192,13 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     return _modules[module] == true;
   }
 
+  /// Web `hasAddon`: switched on in `tenant.modules` or listed in
+  /// `tenant.addons`. Off until `GET /me` arrives, like the web.
+  bool hasAddon(String addon) {
+    _permissionEpoch.value;
+    return _modules[addon] == true || _addons.contains(addon);
+  }
+
   /// Web nav gate: module enabled (when known) AND any listed permission.
   bool canAccessNav({
     required List<String> anyOf,
@@ -274,15 +284,17 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     return list.any(can);
   }
 
-  bool get canAccessClients => can('clients');
-  bool get canAccessDailyLogs => can('daily-logs');
-  bool get canAccessMar => can('mar');
+  // Web opens a module with its `:read` key. A bare family check would let
+  // e.g. `clients:export` alone open Clients.
+  bool get canAccessClients => can('clients:read');
+  bool get canAccessDailyLogs => can('daily-logs:read');
+  bool get canAccessMar => can('mar:read');
   bool get canWriteMar => can('mar:write');
-  bool get canAccessIncidents => can('incidents');
-  bool get canAccessTasks => can('tasks');
-  bool get canAccessAppointments => can('appointments');
+  bool get canAccessIncidents => can('incidents:read');
+  bool get canAccessTasks => can('tasks:read');
+  bool get canAccessAppointments => can('appointments:read');
   bool get canWriteAppointments => can('appointments:write');
-  bool get canAccessHandovers => can('shift-handovers') || can('handovers');
+  bool get canAccessHandovers => can('shift-handovers:read');
   bool get canRaiseEmergency => can('emergency:raise');
   bool get canReadEmergency => can('emergency:read') || canRaiseEmergency;
 
@@ -292,15 +304,15 @@ class UserSession extends GetxService with WidgetsBindingObserver {
   /// Staff picker / colleagues (`GET /staff/directory` or `/staff` when allowed).
   bool get canUseStaffDirectory =>
       can('staff:directory') || can('staff:read');
-  bool get canAccessClientActivities => can('client-activities');
+  bool get canAccessClientActivities => can('client-activities:read');
   bool get canWriteClientActivities => can('client-activities:write');
-  bool get canAccessMessaging => can('messaging');
+  bool get canAccessMessaging => can('messaging:read');
   bool get canWriteMessaging => can('messaging:write');
   bool get canMonitorMessaging => can('messaging:monitor');
-  bool get canAccessInventory => can('inventory');
-  bool get canAccessDocuments => can('documents');
+  bool get canAccessInventory => can('inventory:read');
+  bool get canAccessDocuments => can('documents:read');
   bool get canWriteDocuments => can('documents:write');
-  bool get canAccessTraining => can('training');
+  bool get canAccessTraining => can('training:read');
   bool get canWriteTraining => can('training:write');
   bool get canAccessAdmissions =>
       can('admissions:read') || can('admissions:write') || can('admissions');
@@ -405,6 +417,10 @@ class UserSession extends GetxService with WidgetsBindingObserver {
         });
       _modulesKnown.value = true;
     }
+
+    _addons.assignAll(
+      JsonCodec.listAt(tenant, 'addons').map((a) => '$a'),
+    );
 
     final user = JsonCodec.mapAt(body, 'user') ?? body;
     final present = user.containsKey('permissions') ||
@@ -636,6 +652,7 @@ class UserSession extends GetxService with WidgetsBindingObserver {
     _permissionsReady.value = false;
     _modules.clear();
     _modulesKnown.value = false;
+    _addons.clear();
     _deniedFamilies.clear();
     TenantClock.use(null);
     _medAdminCertified.value = false;

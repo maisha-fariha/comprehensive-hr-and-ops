@@ -197,9 +197,9 @@ abstract final class StaffHomeMapper {
         tasksDue: tasksDue,
         medsDue: medsDue,
         canClock: session.can('attendance:write'),
-        canDailyLogs: session.can('daily-logs'),
+        canDailyLogs: session.can('daily-logs:read'),
         canAccessMar: session.canAccessMar,
-        canTasks: session.can('tasks'),
+        canTasks: session.can('tasks:read'),
       ),
     );
   }

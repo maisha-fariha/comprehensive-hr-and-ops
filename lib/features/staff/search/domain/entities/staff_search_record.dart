@@ -27,11 +27,20 @@ class StaffTenantModules {
   final Map<String, bool> flags;
   final bool known;
 
-  const StaffTenantModules(this.flags) : known = true;
+  /// `tenant.addons`.
+  final List<String> addons;
+
+  const StaffTenantModules(this.flags, {this.addons = const []})
+      : known = true;
 
   const StaffTenantModules.unknown()
       : flags = const {},
+        addons = const [],
         known = false;
+
+  /// Web `hasAddon` — off while unknown.
+  bool hasAddon(String addon) =>
+      flags[addon] == true || addons.contains(addon);
 
   bool has(String module) {
     if (!known) return true;

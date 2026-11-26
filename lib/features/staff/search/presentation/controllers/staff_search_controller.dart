@@ -55,9 +55,12 @@ class StaffSearchController extends GetxController {
   List<StaffSearchDestination> get visibleDestinations {
     session.permissionEpoch;
     if (!session.permissionsReady) {
-      return _destinations.where((d) => d.permissions.isEmpty).toList();
+      return _destinations
+          .where((d) => d.permissions.isEmpty && d.addon == null)
+          .toList();
     }
     return _destinations
+        .where((d) => d.addon == null || modules.value.hasAddon(d.addon!))
         .where((d) => d.module == null || modules.value.has(d.module!))
         .where((d) => d.permissions.isEmpty || d.permissions.any(session.can))
         .toList();

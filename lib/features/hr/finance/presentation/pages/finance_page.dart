@@ -54,7 +54,7 @@ class _FinancePageState extends State<FinancePage> {
         (
           FinanceTab.addons,
           'Add-ons',
-          () => _session.can('payroll:read') || _session.can('finance:read'),
+          () => _session.can('payroll:read') || _session.can('billing:read'),
         ),
         (
           FinanceTab.sinBanking,

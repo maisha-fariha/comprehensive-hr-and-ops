@@ -152,8 +152,8 @@ class StaffMoreMenuPage extends StatelessWidget {
                 title: 'Incidents',
                 subtitle: 'My reports & all residence incidents',
               ),
-            // Web tenantNav: AI Alerts when dashboard:read OR notifications:read.
-            if (can('dashboard:read') || can('notifications:read'))
+            // Web: no permission; shown when the AI add-on is on.
+            if (session.hasAddon('ai_drafting'))
               const StaffMenuEntry(
                 icon: Icons.auto_awesome_outlined,
                 iconBackground: AppColors.nightBackground,
@@ -291,7 +291,7 @@ class StaffMoreMenuPage extends StatelessWidget {
       case 'AI Alerts & Insights':
         openPermittedPage(
           title: title,
-          anyOf: const ['dashboard:read', 'notifications:read'],
+          anyOf: const [],
           builder: () => const AiAlertsPage(),
         );
       case 'Settings':

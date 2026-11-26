@@ -103,7 +103,6 @@ List<ManagerDestination> managerDestinations() {
       ),
     if (can('users:read') ||
         can('roles:read') ||
-        can('staff:read') ||
         can('staff:update') ||
         can('staff:write'))
       ManagerDestination(
@@ -117,7 +116,6 @@ List<ManagerDestination> managerDestinations() {
           anyOf: const [
             'users:read',
             'roles:read',
-            'staff:read',
             'staff:update',
             'staff:write',
           ],
@@ -125,7 +123,7 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['users', 'roles', 'permissions', 'access', 'rbac'],
       ),
-    if (can('residences'))
+    if (can('residences:read'))
       ManagerDestination(
         title: 'Residences',
         subtitle: 'Homes, capacity & rooms',
@@ -346,7 +344,8 @@ List<ManagerDestination> managerDestinations() {
         keywords: const ['training', 'course', 'courses', 'certificate', 'quiz', 'assignment', 'learning'],
       ),
     if (can('payroll:read', module: 'payroll') ||
-        can('finance:read', module: 'payroll'))
+        can('finance:read', module: 'payroll') ||
+        can('billing:read', module: 'payroll'))
       ManagerDestination(
         title: 'Finance & Payroll',
         subtitle: 'Overview, pay runs, residence P&L & claims',
@@ -355,7 +354,7 @@ List<ManagerDestination> managerDestinations() {
         iconColor: AppColors.urgentAmber,
         open: () => openPermittedPage(
           title: 'Finance & Payroll',
-          anyOf: const ['payroll:read', 'finance:read'],
+          anyOf: const ['payroll:read', 'finance:read', 'billing:read'],
           builder: () => const FinancePage(),
         ),
         keywords: const [
@@ -432,7 +431,9 @@ List<ManagerDestination> managerDestinations() {
         ),
         keywords: const ['support', 'tickets', 'helpdesk', 'help'],
       ),
-    if (can('dashboard:read') || can('notifications:read'))
+    // Web: no permission; shown when the AI add-on is on.
+    if (Get.isRegistered<UserSession>() &&
+        Get.find<UserSession>().hasAddon('ai_drafting'))
       ManagerDestination(
         title: 'AI Alerts & Insights',
         subtitle:
@@ -442,7 +443,7 @@ List<ManagerDestination> managerDestinations() {
         iconColor: AppColors.nightPurple,
         open: () => openPermittedPage(
           title: 'AI Alerts & Insights',
-          anyOf: const ['dashboard:read', 'notifications:read'],
+          anyOf: const [],
           builder: () => const AiAlertsPage(),
         ),
         keywords: const [

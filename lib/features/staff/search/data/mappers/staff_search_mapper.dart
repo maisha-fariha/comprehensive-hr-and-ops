@@ -6,10 +6,13 @@ abstract final class StaffSearchMapper {
     final me = JsonCodec.unwrapMap(body);
     final tenant = JsonCodec.mapAt(me, 'tenant') ?? const <String, dynamic>{};
     final raw = JsonCodec.mapAt(tenant, 'modules') ?? const <String, dynamic>{};
-    return StaffTenantModules({
-      for (final entry in raw.entries)
-        entry.key: JsonCodec.boolean(entry.value) ?? false,
-    });
+    return StaffTenantModules(
+      {
+        for (final entry in raw.entries)
+          entry.key: JsonCodec.boolean(entry.value) ?? false,
+      },
+      addons: [for (final a in JsonCodec.listAt(tenant, 'addons')) '$a'],
+    );
   }
 
   static List<StaffSearchRecord> recordsFrom(dynamic body) {

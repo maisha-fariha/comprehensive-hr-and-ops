@@ -38,6 +38,9 @@ class StaffSearchDestination {
   /// Tenant module that must be enabled (web `hasModule`).
   final String? module;
 
+  /// Tenant add-on that must be on (web `hasAddon`).
+  final String? addon;
+
   final IconData icon;
   final Color iconBackground;
   final Color iconColor;
@@ -52,6 +55,7 @@ class StaffSearchDestination {
     required this.iconBackground,
     required this.iconColor,
     this.module,
+    this.addon,
     this.open,
   });
 
@@ -98,13 +102,13 @@ List<StaffSearchDestination> staffSearchDestinations() {
     // Admissions UI temporarily hidden for all roles (code kept).
     StaffSearchDestination(
       label: 'Users & Access',
-      permissions: const ['users:read', 'roles:read', 'staff:read', 'staff:update', 'staff:write'],
+      permissions: const ['users:read', 'roles:read', 'staff:update', 'staff:write'],
       icon: Icons.admin_panel_settings_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
       open: () => openPermittedPage(
         title: 'Users & Access',
-        anyOf: const ['users:read', 'roles:read', 'staff:read', 'staff:update', 'staff:write'],
+        anyOf: const ['users:read', 'roles:read', 'staff:update', 'staff:write'],
         builder: () => const UsersAccessPage(),
       ),
     ),
@@ -252,7 +256,7 @@ List<StaffSearchDestination> staffSearchDestinations() {
     // Daily Activity UI temporarily hidden for all roles (code kept).
     StaffSearchDestination(
       label: 'Finance & Payroll',
-      permissions: const ['payroll:read', 'finance:read'],
+      permissions: const ['payroll:read', 'finance:read', 'billing:read'],
       module: 'payroll',
       icon: Icons.account_balance_wallet_outlined,
       iconBackground: AppColors.urgentBackgroundSoft,
@@ -260,7 +264,7 @@ List<StaffSearchDestination> staffSearchDestinations() {
       // Staff portal surfaces the same module when payroll/finance perms exist.
       open: () => openPermittedPage(
         title: 'Finance & Payroll',
-        anyOf: const ['payroll:read', 'finance:read'],
+        anyOf: const ['payroll:read', 'finance:read', 'billing:read'],
         builder: () => const FinancePage(),
       ),
     ),
@@ -330,13 +334,14 @@ List<StaffSearchDestination> staffSearchDestinations() {
     ),
     StaffSearchDestination(
       label: 'AI Alerts & Insights',
-      permissions: const ['dashboard:read', 'notifications:read'],
+      permissions: const [],
+      addon: 'ai_drafting',
       icon: Icons.auto_awesome_outlined,
       iconBackground: AppColors.nightBackground,
       iconColor: AppColors.nightPurple,
       open: () => openPermittedPage(
         title: 'AI Alerts & Insights',
-        anyOf: const ['dashboard:read', 'notifications:read'],
+        anyOf: const [],
         builder: () => const AiAlertsPage(),
       ),
     ),

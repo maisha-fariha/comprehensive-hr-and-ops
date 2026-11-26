@@ -58,8 +58,12 @@ class _UsersAccessPageState extends State<UsersAccessPage>
   String _roleQuery = '';
   bool _creatingRole = false;
 
-  // Product rule: read-only viewing is allowed with users:read OR staff:read.
-  bool get _canUsers => _session.canAny(['users:read', 'staff:read']);
+  // Web: the directory needs users:read, or staff:read together with
+  // staff:update / staff:write.
+  bool get _canUsers =>
+      _session.can('users:read') ||
+      (_session.canAny(['staff:update', 'staff:write']) &&
+          _session.can('staff:read'));
   bool get _canWriteUsers => _session.can('users:write');
   // Web: staff:update / staff:write lets a manager edit the staff profile;
   // roles and password-reset stay locked behind users:write.

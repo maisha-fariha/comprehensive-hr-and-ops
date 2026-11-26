@@ -114,7 +114,7 @@ class CommunicationPushRouter {
       await _openFamily(id);
       return;
     }
-    if (!session.can('messaging')) return;
+    if (!session.can('messaging:read')) return;
     await _openStaffOrManager(id, staff: session.role == UserRole.staff);
   }
 

@@ -205,10 +205,8 @@ class _HrTrainingPageState extends State<HrTrainingPage> {
 
   Widget _actions() {
     final archived = _c.includeArchived.value;
-    final canGaps = _aiEnabled == true &&
-        (_c.canManage ||
-            _c.session.can('training:oversee') ||
-            _c.session.can('training:read'));
+    // Web shows "Training gaps" to `training:manage` only.
+    final canGaps = _aiEnabled == true && _c.canManage;
     return Wrap(
       alignment: WrapAlignment.end,
       spacing: 8,
