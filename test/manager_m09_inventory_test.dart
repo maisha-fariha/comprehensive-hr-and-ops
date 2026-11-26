@@ -743,6 +743,32 @@ void main() {
       expect(find.text('Purchase orders'), findsOneWidget);
     });
 
+    testWidgets('Transfers needs a transfer permission, not just inventory:read', (tester) async {
+      await _pumpInventory(
+        tester,
+        denied: {
+          'inventory:transfer:request',
+          'inventory:transfer:approve',
+          'inventory:transfer:dispatch',
+          'inventory:transfer:receive',
+        },
+      );
+      expect(find.byKey(const ValueKey('inventory-nav-transfers')), findsNothing);
+      expect(find.byKey(const ValueKey('inventory-nav-stock')), findsOneWidget);
+    });
+
+    testWidgets('any one transfer permission shows Transfers', (tester) async {
+      await _pumpInventory(
+        tester,
+        denied: {
+          'inventory:transfer:request',
+          'inventory:transfer:approve',
+          'inventory:transfer:dispatch',
+        },
+      );
+      expect(find.byKey(const ValueKey('inventory-nav-transfers')), findsOneWidget);
+    });
+
     testWidgets('Purchasing is hidden without purchase-orders:read', (tester) async {
       await _pumpInventory(tester, denied: {'purchase-orders:read'});
       expect(find.byKey(const ValueKey('inventory-nav-purchasing')), findsNothing);
@@ -752,7 +778,15 @@ void main() {
     testWidgets('no inventory or purchasing permission shows the web fallback', (tester) async {
       await _pumpInventory(
         tester,
-        denied: {'inventory:read', 'purchase-orders:read', 'suppliers:read'},
+        denied: {
+          'inventory:read',
+          'purchase-orders:read',
+          'suppliers:read',
+          'inventory:transfer:request',
+          'inventory:transfer:approve',
+          'inventory:transfer:dispatch',
+          'inventory:transfer:receive',
+        },
       );
       expect(find.text("You don't have access to this page"), findsOneWidget);
       expect(find.text('Ask an administrator to grant your role the permission it needs.'), findsOneWidget);

@@ -34,16 +34,26 @@ class _InventoryPageState extends State<InventoryPage> {
   late final UserSession _session;
   late InventoryArea? _area;
 
+  /// Web `TRANSFER_PERMISSIONS`: any one of these opens Transfers.
+  /// `inventory:read` alone does not.
+  static const _transferPermissions = [
+    'inventory:transfer:request',
+    'inventory:transfer:approve',
+    'inventory:transfer:dispatch',
+    'inventory:transfer:receive',
+  ];
+
   static const _tabs = [
-    (InventoryArea.stock, 'Stock', 'inventory:read', 'What is on the shelf'),
-    (InventoryArea.counts, 'Stock counts', 'inventory:read', 'Check what is really there'),
-    (InventoryArea.transfers, 'Transfers', 'inventory:read', 'Move stock between houses'),
-    (InventoryArea.purchasing, 'Purchasing', 'purchase-orders:read', 'Order more, and book it in'),
+    (InventoryArea.stock, 'Stock', ['inventory:read'], 'What is on the shelf'),
+    (InventoryArea.counts, 'Stock counts', ['inventory:read'], 'Check what is really there'),
+    (InventoryArea.transfers, 'Transfers', _transferPermissions, 'Move stock between houses'),
+    (InventoryArea.purchasing, 'Purchasing', ['purchase-orders:read'], 'Order more, and book it in'),
   ];
 
   bool _allowed(InventoryArea area) => switch (area) {
         InventoryArea.purchasing =>
-          _session.can('purchase-orders:read') || _session.can('suppliers:read'),
+          _session.canAny(['purchase-orders:read', 'suppliers:read']),
+        InventoryArea.transfers => _session.canAny(_transferPermissions),
         _ => _session.can('inventory:read'),
       };
 
@@ -126,7 +136,7 @@ class _InventoryPageState extends State<InventoryPage> {
   @override
   Widget build(BuildContext context) {
     final area = _area;
-    final tabs = [for (final t in _tabs) if (_session.can(t.$3)) t];
+    final tabs = [for (final t in _tabs) if (_session.canAny(t.$3)) t];
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       body: Column(
